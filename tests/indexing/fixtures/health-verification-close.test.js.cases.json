@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "held-close",
+    "false-close",
+    "frozen-read-and-close",
+    "false-read-and-close",
+    "undefined-read-and-close",
+    "snapshot-unsettled-close"
+  ]
+}

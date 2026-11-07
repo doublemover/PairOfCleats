@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME, semanticAnalysisPolicyIdentity } from '../../../src/index/semantic/analysis-versions.js';
+import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME, resolveCfgConstructionMaxBytes, semanticAnalysisPolicyIdentity } from '../../../src/index/semantic/analysis-versions.js';
 import { semanticHash } from '../../../src/index/semantic/identity.js';
 import { collectCompilerBoundaryFlow } from '../../../src/index/semantic/compiler-boundary-flow.js';
 import { createCompilerBoundaryFixture } from '../../helpers/compiler-boundary-fixture.js';
@@ -35,7 +35,7 @@ try {
   const { group, state, policy, documents, syntaxPartitions, storeFor, stagingRoot } = fixture;
   assert.equal(semanticAnalysisPolicyIdentity(policy), semanticHash('semantic.analysis-policy.v2', {
     enrichment: policy.enrichment, targets: policy.targets, producers: SEMANTIC_ANALYSIS_VERSIONS,
-    wasmValidatorRuntime: WASM_VALIDATOR_RUNTIME, overrides: []
+    wasmValidatorRuntime: WASM_VALIDATOR_RUNTIME, cfgConstructionMaxBytes: resolveCfgConstructionMaxBytes(policy), overrides: []
   }), 'derived replay identity includes the validating runtime');
   const partitions = await collectCompilerBoundaryFlow({ group, state, policy });
   const store = storeFor([...syntaxPartitions, ...partitions]), records = new Map(), edges = [], operands = [], coverages = [];

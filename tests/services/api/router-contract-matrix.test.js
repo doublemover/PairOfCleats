@@ -16,6 +16,10 @@ const withTimeout = (promise, ms, label) => Promise.race([
 
 const runMissingRouteCase = async () => {
   const root = process.cwd();
+  const guide = await fs.readFile(path.join(root, 'docs/api/server.md'), 'utf8');
+  const documented = guide.match(/<!-- example: http-not-found -->\s*```json\s*([\s\S]*?)```/u);
+  assert.ok(documented, 'current HTTP guide owns the executable flat error example');
+  const expected = JSON.parse(documented[1]);
   const tempRoot = resolveTestCachePath(root, 'api-router');
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(tempRoot, { recursive: true });
@@ -35,6 +39,8 @@ const runMissingRouteCase = async () => {
     const response = await fetch(`http://127.0.0.1:${port}/missing`);
     const payload = await response.json();
 
+    assert.equal(response.status, 404);
+    assert.deepEqual(payload, expected, 'actual router/response/error producer matches the documented JSON envelope');
     assert.equal(payload.ok, false);
     assert.ok(payload.code);
     assert.ok(payload.namespaceCode);

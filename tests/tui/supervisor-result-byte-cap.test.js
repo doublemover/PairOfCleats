@@ -53,6 +53,21 @@ try {
   const valid = await run("process.stdout.write(JSON.stringify({ok:true}))", 'json', 32);
   assert.equal(valid.resultState, 'complete');
   assert.deepEqual(valid.result, { ok: true });
+  const timeoutJobId = 'capture-timeout-context';
+  session.send({ op: 'job:run', jobId: timeoutJobId, command: process.execPath,
+    args: ['-e', "process.stdout.write('{');setInterval(()=>{},1000);"], timeoutMs: 1000,
+    resultPolicy: { captureStdout: 'json', maxBytes: 128 } });
+  await session.waitForEvent(event => event.event === 'job:spawn' && event.jobId === timeoutJobId);
+  const timedOut = await session.waitForEvent(event => event.event === 'job:end' && event.jobId === timeoutJobId);
+  assert.equal(timedOut.status, 'failed');
+  assert.equal(timedOut.resultState, 'incomplete');
+  assert.equal(timedOut.result, null);
+  assert.ok(timedOut.resultCapture.observedBytes > 0, 'the real operation started before its deadline');
+  assert.equal(timedOut.error.code, 'SPAWN_FAILED', 'retain the existing strict error contract');
+  assert.equal(timedOut.attempts, 1);
+  assert.equal(timedOut.retries, 0);
+  assert.equal(timedOut.timedOut, true);
+  assert.equal(timedOut.terminationReason, 'timeout');
   assert.equal(await session.shutdown(), 0);
   console.log('supervisor result byte cap test passed');
 } catch (error) {

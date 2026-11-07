@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const createSingleJobQueueWorker = ({
   executeClaimedJob,
@@ -10,6 +11,7 @@ const createSingleJobQueueWorker = ({
   queueDir: '/tmp/indexer-queue',
   resolvedQueueName: 'index',
   staleQueueMaxRetries: 2,
+  admissionPolicy: { maxRunning: 1 },
   monitorBuildProgress: false,
   startBuildProgressMonitor: () => async () => {},
   touchJobHeartbeat: async () => {},
@@ -17,10 +19,11 @@ const createSingleJobQueueWorker = ({
   ensureQueueDir: async () => {},
   claimNextJob: (() => {
     let claimed = false;
-    return async () => {
+    return async (dir, queueName, options) => {
+      assert.deepEqual(options.admissionPolicy, { maxRunning: 1 }, 'worker forwards its effective claim admission policy');
       if (claimed) return null;
       claimed = true;
-      return { id: 'job-1', repo: '/tmp/repo', stage: 'stage1' };
+      return createQueueClaimFixture({ id: 'job-1', repo: '/tmp/repo', stage: 'stage1' }, options);
     };
   })(),
   executeClaimedJob,
@@ -82,10 +85,10 @@ const createSingleJobQueueWorker = ({
       staleSweepCalls += 1;
     },
     ensureQueueDir: async () => {},
-    claimNextJob: async () => {
+    claimNextJob: async (_dir, _queue, options) => {
       if (cursor >= 3) return null;
       cursor += 1;
-      return { id: `job-${cursor}`, repo: '/tmp/repo', stage: 'stage1' };
+      return createQueueClaimFixture({ id: `job-${cursor}`, repo: '/tmp/repo', stage: 'stage1' }, options);
     },
     executeClaimedJob: async () => ({
       handled: false,

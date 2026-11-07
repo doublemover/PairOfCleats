@@ -1,4 +1,7 @@
-import { readCachedBundle } from '../incremental.js';
+import fs from 'node:fs/promises';
+import { sourceEntryIsFresh } from './source-freshness.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { readParseCheckpointDescriptor } from './parse-checkpoint-descriptor.js';
 import { validateChunkBounds } from '../file-processor/cpu/chunking.js';
 
 export const resolveStageRefresh = (current, previous) => {
@@ -7,7 +10,8 @@ export const resolveStageRefresh = (current, previous) => {
     parse: changed('parse'),
     lexical: changed('lexical'),
     enrichment: changed('enrichment'),
-    embeddings: changed('embeddings')
+    embeddings: changed('embeddings'),
+    sourceAdmission: Boolean(current?.sourceAdmission && current.sourceAdmission !== previous?.sourceAdmission)
   };
 };
 
@@ -37,43 +41,63 @@ export const resolveChunkingCheckpoint = async ({ cached, textLength, chunker, i
   return chunker(input);
 };
 
-/** Bound preload work; uncached/changed files stay on the normal scheduler. */
-export const preloadParseCheckpoints = async ({
-  entries,
-  incrementalState,
-  maxBytes = 64 * 1024 * 1024,
-  maxFiles = 1000
-}) => {
+/** Checkpoint eligibility is a small manifest-authorized projection. Stream all
+ * eligible entries with bounded concurrent descriptor/source reads; retain only
+ * paths, never whole lexical bundles. This is planning acceleration, not replay
+ * authority: ordinary file processing still verifies its complete snapshot. */
+export const preloadParseCheckpoints = async ({ entries, incrementalState, repoRoot = process.cwd(),
+  signal = null, maxBytes = 64 * 1024 * 1024, maxFiles = Infinity }) => {
   const reusable = new Set();
-  let bytes = 0;
-  if (!incrementalState?.enabled) return reusable;
-  for (const entry of entries.slice(0, maxFiles)) {
-    const relKey = entry.rel;
-    const previous = incrementalState.manifest.files?.[relKey];
-    if (resolveStageRefresh(
-      incrementalState.manifest.dependencySignatures,
-      previous?.dependencySignatures
-    ).parse) continue;
-    const loaded = await readCachedBundle({
-      enabled: true,
-      absPath: entry.abs,
-      relKey,
-      fileStat: entry.stat,
-      manifest: incrementalState.manifest,
-      bundleDir: incrementalState.bundleDir,
-      bundleFormat: incrementalState.bundleFormat,
-      sharedReadState: incrementalState.readHashCache
-    });
-    const checkpoint = loaded.cachedBundle?.parseCheckpoint;
-    if (
-      !checkpoint?.diagnostics
-      || !Number.isFinite(checkpoint.textLength)
-      || validateChunkBounds(checkpoint.chunks, checkpoint.textLength)
-    ) continue;
-    const size = Buffer.byteLength(JSON.stringify(checkpoint));
-    if (bytes + size > maxBytes) continue;
-    bytes += size;
-    reusable.add(entry.abs);
+  if (!incrementalState?.enabled || !(maxBytes > 0)) return reusable;
+  const metrics = { descriptorReads: 0, descriptorBytes: 0, sourceVerificationBytes: 0,
+    candidates: 0, eligible: 0, peakAdmittedBytes: 0, maxConcurrentReads: 0 };
+  incrementalState.parseCheckpointPreloadMetrics = metrics;
+  const pending = new Set(); let admittedBytes = 0, candidates = 0, firstFailure = null;
+  const load = async (entry, previous) => {
+    throwIfAborted(signal);
+    const checkpoint = await readParseCheckpointDescriptor({ bundleDir: incrementalState.bundleDir,
+      relKey: entry.rel, entry: previous, signal, metrics });
+    if (!checkpoint?.diagnostics || !Number.isSafeInteger(checkpoint.textLength)
+      || validateChunkBounds(checkpoint.chunks, checkpoint.textLength)) return;
+    const before = await fs.lstat(entry.abs);
+    if (!before.isFile() || before.isSymbolicLink() || before.size !== previous.size) return;
+    if (!await sourceEntryIsFresh({ absPath: entry.abs, entry: { ...previous, mtimeMs: before.mtimeMs },
+      stat: before, repoRoot, strict: true, signal, metrics })) return;
+    reusable.add(entry.abs); metrics.eligible++;
+  };
+  let primary = null;
+  try {
+    for (const entry of entries) {
+      throwIfAborted(signal);
+      if (firstFailure) throw firstFailure;
+      const previous = incrementalState.manifest.files?.[entry.rel];
+      const descriptor = previous?.parseCheckpointDescriptor;
+      if (!descriptor || resolveStageRefresh(incrementalState.manifest.dependencySignatures,
+        previous.dependencySignatures).parse) continue;
+      const charge = descriptor.bytes + 65536;
+      if (!Number.isSafeInteger(charge) || charge < 65537 || charge > maxBytes) continue;
+      if (candidates >= maxFiles) break;
+      candidates++; metrics.candidates++;
+      while (pending.size && (pending.size >= 4 || admittedBytes + charge > maxBytes)) await Promise.race(pending);
+      admittedBytes += charge;
+      metrics.peakAdmittedBytes = Math.max(metrics.peakAdmittedBytes, admittedBytes);
+      let task;
+      task = load(entry, previous).catch(error => {
+        if (['ENOENT', 'ENOTDIR', 'ERR_FILE_CHANGED', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) return;
+        if (!firstFailure) firstFailure = error;
+        throw error;
+      }).finally(() => { admittedBytes -= charge; pending.delete(task); });
+      task.catch(() => {}); pending.add(task);
+      metrics.maxConcurrentReads = Math.max(metrics.maxConcurrentReads, pending.size);
+    }
+    await Promise.all(pending);
+    throwIfAborted(signal);
+    if (firstFailure) throw firstFailure;
+  } catch (error) { primary = error; throw error; }
+  finally {
+    // A first failure/cancellation does not abandon descriptor/source readers.
+    const settled = await Promise.allSettled(pending);
+    if (!primary) { const failed = settled.find(result => result.status === 'rejected'); if (failed) throw failed.reason; }
   }
   return reusable;
 };

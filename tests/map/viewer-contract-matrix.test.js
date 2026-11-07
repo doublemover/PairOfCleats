@@ -200,7 +200,7 @@ const cases = [
       assert.equal(resolveLodTier({ zoom: 10, edgeCount: 4000, frameMs: 20, performance: perf }), 'simplified');
       assert.equal(resolveLodTier({ zoom: 4, edgeCount: 15000, frameMs: 40, performance: perf }), 'hidden');
 
-      const perfStats = { droppedFrames: 0 };
+      const perfStats = { slowCallbacks: 0 };
       let fpsState = { start: 0, frames: 0 };
       const step = (now, frameMs) => {
         const result = updatePerfStats({
@@ -219,7 +219,7 @@ const cases = [
       step(16, 22);
       step(32, 40);
 
-      assert.ok(perfStats.droppedFrames >= 1);
+      assert.ok(perfStats.slowCallbacks >= 1);
       assert.ok(perfStats.frameMs > 0);
       assert.ok(perfStats.heapUsed);
     }

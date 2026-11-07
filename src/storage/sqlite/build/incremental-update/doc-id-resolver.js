@@ -47,15 +47,17 @@ export const createIncrementalDocIdResolver = ({
   changed,
   deleted,
   batchSize,
-  onBatch
+  onBatch,
+  platform = process.platform
 }) => {
   const existingIdsByFile = new Map();
-  const isWindows = process.platform === 'win32';
+  const isWindows = platform === 'win32';
   const normalizedFileExpr = isWindows ? NORMALIZED_FILE_EXPR : 'file';
   const toFileKey = (value) => {
     const normalized = normalizeFilePath(value);
     if (!normalized) return null;
-    return isWindows ? normalized.toLowerCase() : normalized;
+    // SQLite lower() folds ASCII only. Keep SQL admission and cache keys identical.
+    return isWindows ? normalized.replace(/[A-Z]/g, char => char.toLowerCase()) : normalized;
   };
 
   const recordRows = (rows = []) => {
@@ -116,9 +118,9 @@ export const createIncrementalDocIdResolver = ({
         onBatch(rows.length);
       }
     }
-    for (const [key, filePath] of targetFilesByKey.entries()) {
-      ensureExistingIdEntry(existingIdsByFile, key, filePath);
-    }
+    // A weaker bulk expression must never cache absence and suppress exact lookup.
+    // Positive batches are cached; misses get the ordinary exact/folded lookup.
+
   }
 
   const resolveExistingDocIds = (filePath) => {

@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { enqueueJob, claimNextJob, completeJob, loadQueue } from '../../../tools/service/queue.js';
 import {
   evaluateQueueBackpressure,
   resolveEnqueueBackpressure,
@@ -198,4 +204,32 @@ const zeroConcurrencyPolicy = resolveQueueAdmissionPolicy({
 assert.equal(zeroConcurrencyPolicy.maxRunning, 0, 'expected explicit zero worker concurrency to remain zero');
 assert.equal(zeroConcurrencyPolicy.maxTotal, 20, 'expected zero worker concurrency to preserve derived queue totals');
 
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-running-admission-'));
+try {
+  const admissionPolicy = resolveQueueAdmissionPolicy({ queueConfig: { maxRunning: 1, maxQueued: 10 } });
+  for (const id of ['one', 'two']) await enqueueJob(root,
+    { id, repo: path.join(root, id), mode: 'code', maxRetries: null }, null, 'index');
+  assert.ok((await loadQueue(root, 'index')).jobs.every(job => job.maxRetries === null), 'null job overrides preserve inherited queue retry policy');
+  const claimed = await Promise.all(['worker-a', 'worker-b'].map(ownerId =>
+    claimNextJob(root, 'index', { ownerId, admissionPolicy })));
+  assert.equal(claimed.filter(Boolean).length, 1, 'concurrent workers enforce the running cap under the same mutation lock');
+  assert.equal((await loadQueue(root, 'index')).jobs.filter(job => job.status === 'running').length, 1);
+  assert.equal(await claimNextJob(root, 'index', { admissionPolicy: { ...admissionPolicy, maxRunning: 0 } }), null);
+  const active = claimed.find(Boolean);
+  await completeJob(root, active.id, 'done', { exitCode: 0 }, 'index',
+    { ownerId: active.lease.owner, expectedLeaseVersion: active.lease.version });
+  assert.ok(await claimNextJob(root, 'index', { ownerId: 'worker-c', admissionPolicy }), 'completion releases admission capacity');
+  await enqueueJob(root, { id: 'other', repo: root, mode: 'code' }, null, 'embeddings');
+  assert.ok(await claimNextJob(root, 'embeddings', { admissionPolicy }), 'running caps are per queue partition');
+  for (const id of ['process-one', 'process-two']) await enqueueJob(root,
+    { id, repo: path.join(root, id), mode: 'code' }, null, 'processes');
+  const claimModule = new URL('../../../tools/service/queue.js', import.meta.url).href;
+  const results = await Promise.all(['process-a', 'process-b'].map(ownerId => promisify(execFile)(process.execPath,
+    ['--input-type=module', '-e', `import { claimNextJob } from ${JSON.stringify(claimModule)};
+      console.log(JSON.stringify(await claimNextJob(${JSON.stringify(root)}, 'processes',
+        { ownerId: ${JSON.stringify(ownerId)}, admissionPolicy: { maxRunning: 1 } })));`],
+    { timeout: 5000, encoding: 'utf8' })));
+  assert.equal(results.map(result => JSON.parse(result.stdout)).filter(Boolean).length, 1,
+    'independent processes cannot claim above the configured partition cap');
+} finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('service queue admission policy test passed');

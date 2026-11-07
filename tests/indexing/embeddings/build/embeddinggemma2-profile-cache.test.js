@@ -29,7 +29,7 @@ const env = applyTestEnv({
   }
 });
 runNode([
-  path.resolve('build_index.js'), '--repo', repoRoot, '--stage', 'stage2',
+  path.resolve('build_index.js'), '--repo', repoRoot, '--incremental', '--stage', 'stage2',
   '--mode', 'code', '--threads', '1', '--progress', 'off'
 ], 'build model-profile fixture', process.cwd(), env, { stdio: 'pipe' });
 const buildsDir = path.join(getRepoCacheRoot(repoRoot), 'builds');
@@ -60,7 +60,8 @@ try {
     config.embeddingsConfig.embeddinggemma2 = { dtype, dimensions: 128 };
     const callsBefore = calls;
     await runBuildEmbeddingsWithConfig(config);
-    assert.equal(disposals, run + 1, 'each standalone build releases its provider ownership');
+    assert.equal(disposals, run === 0 ? 1 : run === 1 ? 1 : 2,
+      'cache-only reuse acquires no provider; each inference build releases its provider ownership');
     const state = JSON.parse(await fs.readFile(path.join(indexDir, 'index_state.json'), 'utf8'));
     const vectors = JSON.parse(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.meta.json'), 'utf8'));
     const identity = state.embeddings.embeddingIdentity;
@@ -79,6 +80,10 @@ try {
       assert(state.embeddings.cacheStats.hits > 0, 'matching profile should reuse cached embeddings');
       assert.equal(state.embeddings.embeddingIdentityKey, firstIdentityKey);
       assert.equal(calls, callsBefore, 'matching profile must not repeat inference');
+      const attempt = JSON.parse(await fs.readFile(path.join(indexRoot, 'build_state.json'), 'utf8')).runtime.attempts.at(-1);
+      assert.equal(attempt.embeddings.observation.state, 'cache-only');
+      assert.equal(attempt.embeddings.observation.provider, null);
+      assert.equal(attempt.runtime.providerMeasurement.execution.loaded, false);
       assert.deepEqual(
         await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin')),
         firstVectors,
@@ -90,7 +95,7 @@ try {
       assert(calls > callsBefore, 'changed precision must run inference instead of reusing the old space');
     }
   }
-  assert.deepEqual(profilesSeen.map((entry) => entry.dtype), ['q8', 'q8', 'q4']);
+  assert.deepEqual(profilesSeen.map((entry) => entry.dtype), ['q8', 'q4'], 'cache-only builds do not invoke the adapter constructor');
 } finally {
   __resetEmbeddingAdapterCachesForTests();
 }

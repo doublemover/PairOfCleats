@@ -1,5 +1,6 @@
 import {
   buildStableKeyCandidate,
+  applyRoutingMeta,
   buildBaseRecord,
   ensureRecordId,
   normalizeExposure,
@@ -31,8 +32,13 @@ export function normalizeGeneric(raw, meta = {}, options = {}) {
     createdAt,
     updatedAt
   });
-  const rawPayload = raw && typeof raw === 'object' ? raw : {};
+  const rawPayload = raw && typeof raw === 'object' ? { ...raw } : {};
   const record = { ...rawPayload, ...baseRecord };
+  // Base nulls and the invocation's repository default cannot erase a shaped
+  // record's routing. Reapply only explicit valid metadata after its own data.
+  applyRoutingMeta(record, rawPayload, null);
+  applyRoutingMeta(record, meta, null);
+  if (typeof record.repo !== 'string' || !record.repo.trim()) applyRoutingMeta(record, {}, options.repoRoot);
   if (rawPayload.recordId) record.recordId = rawPayload.recordId;
   const normalizedCreatedAt = toIso(record.createdAt) || baseRecord.createdAt;
   const normalizedUpdatedAt = toIso(record.updatedAt) || normalizedCreatedAt || baseRecord.updatedAt;
@@ -86,15 +92,6 @@ export function normalizeGeneric(raw, meta = {}, options = {}) {
   ) || buildStableKeyCandidate(
     'recordId',
     record.recordId
-  ) || buildStableKeyCandidate(
-    'vulnId',
-    vulnId
-  ) || buildStableKeyCandidate(
-    'package.name',
-    record.package?.name
-  ) || buildStableKeyCandidate(
-    'asset.assetId',
-    record.asset?.assetId
   );
   ensureRecordId(record, record.source, stableKey, raw, warnings);
 

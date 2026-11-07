@@ -67,6 +67,7 @@ const FAMILY_BUDGET_OVERRIDES = Object.freeze({
 });
 
 const toFiniteNumber = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim()) || typeof value === 'boolean') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
@@ -80,7 +81,7 @@ const roundValue = (value, digits = 4) => {
 
 const average = (values) => {
   const numeric = (Array.isArray(values) ? values : [])
-    .map((value) => Number(value))
+    .map(toFiniteNumber)
     .filter(Number.isFinite);
   if (!numeric.length) return null;
   return numeric.reduce((sum, value) => sum + value, 0) / numeric.length;

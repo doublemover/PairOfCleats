@@ -1,12 +1,20 @@
 import { EMBEDDING_IDENTITY_VERSION } from '../../../shared/embedding-identity.js';
-import { assertEmbeddingArtifactCompatibility, resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
+import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable } from '../../../shared/embedding-artifact-identity.js';
+import { createHash } from 'node:crypto';
+import { stableStringifyForSignature } from '../../../shared/stable-json.js';
+import { isRetrievalModelObservation } from '../../../contracts/retrieval-work.js';
+import { resolveEmbeddingArtifactIdentityAsync } from '../../../shared/embedding-artifact-lease.js';
 import { getQueryEmbedding } from '../../embedding.js';
 import { incCacheEvent } from '../../../shared/metrics/core.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
+import { admitEmbeddingVector, invalidEmbeddingOutput } from '../../../shared/embedding-output-admission.js';
+import { resolveEmbeddingModelProfile, resolveQueryEmbeddingContract } from '../../../shared/embedding-model-profile.js';
+import { createWarnOnce } from '../../../shared/logging/warn-once.js';
 
 const EMBEDDING_QUERY_CACHE_MAX_ENTRIES = 64;
 const processCaches = new WeakMap();
+const warnOnce = createWarnOnce();
 
 export function createEmbeddingResolver({
   throwIfAborted,
@@ -18,7 +26,8 @@ export function createEmbeddingResolver({
   rootDir,
   generation = null,
   getQueryEmbeddingImpl = getQueryEmbedding,
-  maxCacheEntries = EMBEDDING_QUERY_CACHE_MAX_ENTRIES
+  maxCacheEntries = EMBEDDING_QUERY_CACHE_MAX_ENTRIES,
+  work = null
 }) {
   let embeddingCache = processCaches.get(getQueryEmbeddingImpl);
   if (!embeddingCache) { embeddingCache = new Map(); processCaches.set(getQueryEmbeddingImpl, embeddingCache); }
@@ -46,8 +55,9 @@ export function createEmbeddingResolver({
     }
   };
 
-  return async (modelId, dims, normalize, inputFormatting, modelProfile = null, expectedIdentity = null) => {
+  return async (modelId, dims, normalize, inputFormatting, modelProfile = null, expectedIdentity = null, observationMode = null) => {
     throwIfAborted();
+    if (work) work.embeddingRequests++;
     if (!modelId) return null;
     const normalizeFlag = normalize !== false;
     const formatting = inputFormatting && typeof inputFormatting === 'object'
@@ -57,15 +67,23 @@ export function createEmbeddingResolver({
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(parsedDims) && parsedDims > 0 ? Math.floor(parsedDims) : null);
-    const modelArtifact = expectedIdentity ? resolveEmbeddingArtifactIdentity({ provider: embeddingProvider,
+    const selectedProfile = resolveEmbeddingModelProfile(modelId, modelProfile);
+    const modelArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: embeddingProvider,
       modelId, modelsDir: modelConfig?.dir, rootDir, onnx: embeddingOnnx,
-      modelProfile, stub: useStubEmbeddings }) : null;
+      modelProfile: selectedProfile, stub: useStubEmbeddings });
     if (expectedIdentity) {
       if (expectedIdentity.version !== EMBEDDING_IDENTITY_VERSION) {
         throw Object.assign(new Error('Unsupported embedding identity. Rebuild the dense index.'), { code: 'ERR_EMBEDDING_IDENTITY_UNSUPPORTED' });
       }
       assertEmbeddingArtifactCompatibility(expectedIdentity.modelArtifact, modelArtifact);
+      if (expectedIdentity.dims != null && resolvedDims !== null && expectedIdentity.dims !== resolvedDims) {
+        throw invalidEmbeddingOutput('requested query width disagrees with the persisted embedding identity.', {
+          expectedDimensions: expectedIdentity.dims, observedDimensions: resolvedDims
+        });
+      }
     }
+    const contract = resolveQueryEmbeddingContract({ modelId, modelProfile: selectedProfile,
+      dims: expectedIdentity?.dims ?? resolvedDims, useStub: useStubEmbeddings });
     const cacheKeyLocal = buildLocalCacheKey({
       namespace: 'embedding-query',
       payload: {
@@ -77,22 +95,60 @@ export function createEmbeddingResolver({
         generation,
         modelId,
         dims: resolvedDims,
+        outputContract: contract,
         normalize: normalizeFlag,
         inputFormatting: formatting,
-        modelProfile,
+        modelProfile: selectedProfile,
         modelArtifact,
         stub: useStubEmbeddings
       }
     }).key;
     const cached = embeddingCache.get(cacheKeyLocal);
+    const observe = work ? value => {
+      if (work && ['code', 'prose', 'extracted-prose', 'records'].includes(observationMode)) {
+        const dimensions = Array.isArray(value) || ArrayBuffer.isView(value) ? value.length : null;
+        const artifactIdentity = modelArtifact?.status === 'stub' ? `stub:embeddings-v${EMBEDDING_IDENTITY_VERSION}`
+          : modelArtifact?.status === 'verified' ? `sha256:${modelArtifact.digest}`
+            : modelArtifact?.status === 'immutable-revision' ? `revision:${modelArtifact.revision}` : null;
+        work.models[observationMode] = {
+          status: embeddingArtifactReusable(modelArtifact) && Number.isSafeInteger(dimensions) && dimensions > 0 ? 'observed' : 'unqualified',
+          modelId, provider: useStubEmbeddings ? 'stub' : embeddingProvider,
+          dimensions: Number.isSafeInteger(dimensions) && dimensions > 0 ? dimensions : null,
+          stub: useStubEmbeddings === true, artifactIdentity,
+          artifactStatus: modelArtifact?.status || null,
+          inputFormatIdentity: 'eif1-' + createHash('sha256').update(stableStringifyForSignature({
+            version: EMBEDDING_IDENTITY_VERSION, formatting, normalize: normalizeFlag, modelProfile: selectedProfile
+          })).digest('hex')
+        };
+        if (!isRetrievalModelObservation(work.models[observationMode])) work.models[observationMode].status = 'unqualified';
+      }
+      return value;
+    } : null;
+    const admit = value => {
+      if (value == null) return null;
+      try { return admitEmbeddingVector(value, { ...contract, provider: embeddingProvider }); }
+      catch (error) {
+        if (error.code !== 'ERR_EMBEDDING_OUTPUT') throw error;
+        warnOnce('[embeddings] Query vector rejected; skipping ANN (ERR_EMBEDDING_OUTPUT).');
+        return null;
+      }
+    };
+    const admitCached = value => {
+      const accepted = admit(value);
+      if (accepted === null && embeddingCache.get(cacheKeyLocal) === cached) embeddingCache.delete(cacheKeyLocal);
+      return accepted;
+    };
     if (cached) {
       // Touch for LRU ordering.
       setCacheEntry(cacheKeyLocal, cached);
       incCacheEvent({ cache: 'embedding', result: 'hit' });
-      return cached;
+      if (work) work.embeddingCacheHits++;
+      const accepted = cached.then(admitCached);
+      return work ? accepted.then(observe) : accepted;
     }
 
     incCacheEvent({ cache: 'embedding', result: 'miss' });
+    if (work) work.embeddingApiCalls++;
     const pending = getQueryEmbeddingImpl({
       text: String(embeddingQueryText || '').normalize('NFC'),
       modelId,
@@ -104,16 +160,16 @@ export function createEmbeddingResolver({
       rootDir,
       normalize: normalizeFlag,
       inputFormatting: formatting,
-      modelProfile,
+      modelProfile: selectedProfile,
       modelArtifact
-    }).then(value => {
-      if (!value) embeddingCache.delete(cacheKeyLocal);
+    }).then(admit).then(value => {
+      if (!value && embeddingCache.get(cacheKeyLocal) === pending) embeddingCache.delete(cacheKeyLocal);
       return value;
     }).catch((error) => {
-      embeddingCache.delete(cacheKeyLocal);
+      if (embeddingCache.get(cacheKeyLocal) === pending) embeddingCache.delete(cacheKeyLocal);
       throw error;
     });
     setCacheEntry(cacheKeyLocal, pending);
-    return pending;
+    return work ? pending.then(observe) : pending;
   };
 }

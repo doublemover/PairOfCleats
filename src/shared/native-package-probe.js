@@ -1,8 +1,29 @@
-import { spawnSync } from 'node:child_process';
 import { formatSpawnFailureReason } from '../../tools/setup/rebuild-native-exit.js';
 
+const runNativeProbeCommand = async (root, args, { signal = null, run = null } = {}) => {
+  signal?.throwIfAborted();
+  // Every probe launches the already-selected absolute Node executable. The
+  // async owner needs no shell/shim resolution or synchronous runner import.
+  run ||= (await import('./subprocess/runner-async.js')).spawnSubprocess;
+  signal?.throwIfAborted();
+  const result = await run(process.execPath, args, { cwd: root, stdio: 'pipe', signal,
+    timeoutMs: 10000, maxOutputBytes: 65536, windowsHide: true, rejectOnNonZeroExit: false });
+  signal?.throwIfAborted(); return result;
+};
+const probeResult = (result, marker = null) => {
+  const ok = result.exitCode === 0 && !result.signal && !result.stderr?.trim() && (marker === null || result.stdout === marker);
+  const details = (result.stderr || result.stdout || '').trim().slice(0, 4096);
+  return { ok, result, ...(result.diagnostics ? { diagnostics: result.diagnostics, diagnosticsPath: result.diagnosticsPath } : {}),
+    message: ok ? null : result.exitCode !== 0 || result.signal
+      ? formatSpawnFailureReason({ status: result.exitCode, signal: result.signal }) + (details ? '; ' + details : '')
+      : result.stderr?.trim() ? 'Unexpected native probe diagnostics: ' + details : 'Native probe returned no exact completion marker.' };
+};
+
+const PERL_LIFECYCLE_SOURCE = "my $x = <<'END';\n$END\n\\END\nEND trailing\nsub fake { die 'literal'; }\nEND\nsub actual { return $x; }\n";
+const SWIFT_OPERATOR_SOURCE = 'func value() throws -> Int { return 1 }\nlet forced = try! value()\nlet ordinary = !false\n';
+
 /** Probe the binding, which better-sqlite3 loads only when a database opens. */
-export const probeSqliteNative = (root, nativeBinding = null) => {
+export const probeSqliteNative = async (root, nativeBinding = null, options = {}) => {
   const script = `
     try {
       const Database = require('better-sqlite3');
@@ -20,21 +41,94 @@ export const probeSqliteNative = (root, nativeBinding = null) => {
       process.exit(1);
     }
   `;
-  const result = spawnSync(process.execPath, ['-e', script, nativeBinding || ''], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 10000, maxBuffer: 65536
-  });
-  return {
-    ok: result.status === 0,
-    message: result.status === 0
-      ? null
-      : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result)
-  };
+  return probeResult(await runNativeProbeCommand(root, ['-e', script, nativeBinding || ''], options));
+};
+
+/** Bounded Node VM wrapper lifecycle; activation of native packages is separate. */
+export const probeNodeRealmLifecycle = async (root, { signal = null, run = null } = {}) => {
+  signal?.throwIfAborted();
+  const script = `
+    const { Worker } = require('node:worker_threads');
+    const source = \`
+      const { parentPort, workerData } = require('node:worker_threads');
+      const { Script } = require('node:vm');
+      for (let i = 0; i < 128; i++) new Script('1 + 1');
+      for (let i = 0; i < 16; i++) Buffer.allocUnsafe(1024 * 1024);
+      parentPort.postMessage('ready');
+      if (workerData.keepAlive) setInterval(() => {}, 1000);
+    \`;
+    (async () => {
+      for (const mode of ['natural', 'terminate']) {
+        const worker = new Worker(source, { eval: true,
+          workerData: { keepAlive: mode === 'terminate' } });
+        const exited = new Promise((resolve, reject) => {
+          worker.once('exit', resolve);
+          worker.once('error', reject);
+        });
+        const ready = new Promise((resolve, reject) => {
+          worker.once('message', resolve);
+          worker.once('error', reject);
+          worker.once('exit', code => reject(Error('worker exited before ready: ' + code)));
+        });
+        if (await ready !== 'ready') throw Error('VM worker did not initialize');
+        if (mode === 'terminate') {
+          const code = await worker.terminate();
+          if (code !== 1) throw Error('terminated worker returned ' + code);
+        } else {
+          const code = await exited;
+          if (code !== 0) throw Error('VM worker returned ' + code);
+        }
+      }
+      process.stdout.write('VM_REALM_LIFECYCLE_OK');
+    })().catch(error => { console.error(error.message); process.exitCode = 1; });
+  `;
+  const result = await runNativeProbeCommand(root, ['-e', script], { signal, run });
+  const ok = result.exitCode === 0 && !result.signal && result.stdout === 'VM_REALM_LIFECYCLE_OK' && !result.stderr?.trim();
+  return { ok, result, ...(result.diagnostics ? { diagnostics: result.diagnostics, diagnosticsPath: result.diagnosticsPath } : {}),
+    message: ok ? null : result.exitCode !== 0 || result.signal
+      ? formatSpawnFailureReason({ status: result.exitCode, signal: result.signal }) + '; VM worker lifecycle did not complete.'
+      : result.stderr?.trim() ? 'Unexpected VM worker diagnostics: ' + result.stderr.trim().slice(0, 4096)
+        : 'VM worker lifecycle returned no exact completion marker.' };
+};
+
+/** A real binding callback interrupted by owned worker shutdown, with natural
+ * worker exit as the disposal boundary for the GC-owned Node parser binding. */
+export const probeNativeParserWorkerLifecycle = async (root, options = {}) => {
+  const script = `
+    const { Worker } = require('node:worker_threads');
+    const source = ${JSON.stringify(`
+      const { parentPort, workerData } = require('node:worker_threads');
+      const Parser = require('tree-sitter');
+      const language = require('tree-sitter-javascript');
+      const parser = new Parser(); parser.setLanguage(language);
+      function parse() { parser.reset(); parser.parse('function value(){ return 1; }'); }
+      for (let i=0; i<16; i++) parse();
+      parentPort.postMessage('ready');
+      if (workerData.cancel) while (true) parse();
+    `)};
+    (async () => {
+      for (const cancel of [false, true]) {
+        const worker = new Worker(source, { eval: true, workerData: { cancel } });
+        const exited = new Promise((resolve, reject) => {
+          worker.once('exit', resolve); worker.once('error', reject);
+        });
+        const ready = await new Promise((resolve, reject) => {
+          worker.once('message', resolve); worker.once('error', reject);
+          worker.once('exit', code => reject(Error('parser worker exited before ready: ' + code)));
+        });
+        if (ready !== 'ready') throw Error('parser worker did not initialize');
+        if (cancel) {
+          if (await worker.terminate() !== 1) throw Error('parser cancellation status');
+        } else if (await exited !== 0) throw Error('parser disposal status');
+      }
+      process.stdout.write('PARSER_WORKER_LIFECYCLE_OK');
+    })().catch(error => { console.error(error.message); process.exitCode = 1; });
+  `;
+  return probeResult(await runNativeProbeCommand(root, ['-e', script], options), 'PARSER_WORKER_LIFECYCLE_OK');
 };
 
 /** Isolated parser activation using the same binding owner as production. */
-export const probeNativeGrammarRoutes = (root, routes) => {
+export const probeNativeGrammarRoutes = async (root, routes, options = {}) => {
   const script = `
     const fs = require('node:fs'), path = require('node:path');
     const { createRequire } = require('node:module');
@@ -54,6 +148,35 @@ export const probeNativeGrammarRoutes = (root, routes) => {
         parser.setLanguage(language);
         const tree = parser.parse(source);
         if (!tree?.rootNode || tree.rootNode.hasError) throw Error(languageId + ': parser activation failed');
+        if (languageId === 'perl') {
+          const literal = ${JSON.stringify(PERL_LIFECYCLE_SOURCE)};
+          for (let i = 0; i < 2; i++) {
+            parser.reset();
+            const checked = parser.parse(literal);
+            try {
+              const ends = checked.rootNode.descendantsOfType('heredoc_end_identifier');
+              const functions = checked.rootNode.descendantsOfType('function_definition');
+              if (checked.rootNode.hasError || ends.length !== 1
+                || ends[0].startIndex !== literal.lastIndexOf('\\nEND\\n') + 1
+                || functions.length !== 1 || !functions[0].text.startsWith('sub actual')) {
+                throw Error('perl: literal heredoc lifecycle failed');
+              }
+            } finally { checked.delete?.(); }
+          }
+        }
+        if (languageId === 'swift') {
+          const operators = ${JSON.stringify(SWIFT_OPERATOR_SOURCE)};
+          for (let i = 0; i < 2; i++) {
+            parser.reset();
+            const checked = parser.parse(operators);
+            try {
+              const forceTry = checked.rootNode.descendantsOfType('try_operator');
+              if (checked.rootNode.hasError || forceTry.length !== 1 || forceTry[0].text !== 'try!') {
+                throw Error('swift: force-try and ordinary bang lifecycle failed');
+              }
+            } finally { checked.delete?.(); }
+          }
+        }
         const pkg = JSON.parse(fs.readFileSync(path.join(root, 'node_modules', spec.moduleName, 'package.json')));
         capabilities.push({ languageId, moduleName: spec.moduleName, packageVersion: pkg.version,
           nodeVersion: process.version, abi: process.versions.modules, state: 'parser-activated' });
@@ -62,18 +185,52 @@ export const probeNativeGrammarRoutes = (root, routes) => {
       process.stdout.write(JSON.stringify(capabilities));
     })().catch(error => { console.error(error.message); process.exitCode = 1; });
   `;
-  const result = spawnSync(process.execPath, ['-e', script, JSON.stringify(routes)], {
-    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
-  });
-  if (result.status !== 0) return { ok: false, capabilities: [],
-    message: (result.stderr || '').trim() || formatSpawnFailureReason(result) };
-  try { return { ok: true, message: null, capabilities: JSON.parse(result.stdout) }; }
-  catch { return { ok: false, capabilities: [], message: 'Invalid parser activation evidence.' }; }
+  const result = probeResult(await runNativeProbeCommand(root, ['-e', script, JSON.stringify(routes)], options));
+  if (!result.ok) return { ...result, capabilities: [] };
+  try { return { ...result, capabilities: JSON.parse(result.result.stdout) }; }
+  catch (error) { return { ...result, ok: false, capabilities: [], error, message: 'Invalid parser activation evidence.' }; }
 };
 
-export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } = {}) => {
-  if (grammarRoutes.length) return probeNativeGrammarRoutes(root, grammarRoutes);
-  if (pkgName === 'better-sqlite3') return probeSqliteNative(root);
+export const probeNativePackage = async (root, pkgName, { grammarRoutes = [], signal = null, run = null } = {}) => {
+  signal?.throwIfAborted(); const options = { signal, run };
+  if (grammarRoutes.length) return probeNativeGrammarRoutes(root, grammarRoutes, options);
+  if (pkgName === 'onnxruntime-node') {
+    const { probeNativeOnnxLifecycle } = await import('./native-onnx-probe.js');
+    return probeNativeOnnxLifecycle(root, options);
+  }
+  if (pkgName === 'better-sqlite3') return probeSqliteNative(root, null, options);
+  if (pkgName === 'node-pty') {
+    // Natural probe exit proves that ConPTY closes its connection worker too.
+    // An unconditional process.exit would hide a leaked native/session owner.
+    const script = `
+      const pty = require('node-pty');
+      if (process.platform === 'win32') {
+        const assert = require('node:assert/strict');
+        const native = require('node-pty/lib/utils.js').loadNativeModule('conpty_console_list').module;
+        const snapshot = native.getProcessSnapshot(false);
+        assert.equal(snapshot.resourcesClosed, true);
+        assert.ok(snapshot.rows.split(String.fromCharCode(10)).includes(process.pid + ' ' + process.ppid));
+        assert.throws(() => native.getProcessSnapshot(true), error => error.code === 'ERR_WINDOWS_PROCESS_SNAPSHOT_NATIVE'
+          && error.win32Error === 6 && error.resourcesClosed === true && !Object.hasOwn(error, 'rows'));
+      }
+      const run = (marker) => new Promise((resolve, reject) => {
+      const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write(' + JSON.stringify(marker) + ')'], {
+        cols: 80, rows: 24, cwd: process.cwd(), env: process.env, useConpty: true
+      });
+      let output = '';
+      const timeout = setTimeout(() => { console.error('PTY child exceeded deadline'); process.exitCode = 1; terminal.kill(); }, 6000);
+      terminal.onData(data => { output += data; });
+      terminal.onExit(event => {
+        clearTimeout(timeout);
+        if (event.exitCode !== 0 || !output.includes(marker)) reject(Error('PTY operation returned an unexpected status or output'));
+        else { if (process.platform === 'win32') terminal.kill(); resolve(); }
+      });
+      });
+      (async () => { for (const marker of ['PTY_PROBE_FIRST', 'PTY_PROBE_SECOND']) await run(marker); })()
+        .catch(error => { console.error(error.message); process.exitCode = 1; });
+    `;
+    return probeResult(await runNativeProbeCommand(root, ['-e', script], options));
+  }
   /**
    * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not
    * actually usable with rebuilt grammars. Probe parser activation explicitly
@@ -112,20 +269,13 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
       }
     `.trim();
 
-    const parserProbeResult = spawnSync(process.execPath, ['-e', parserProbeScript], {
-      cwd: root,
-      encoding: 'utf8', timeout: 10000, maxBuffer: 65536
-    });
+    const parserProbeResult = probeResult(await runNativeProbeCommand(root, ['-e', parserProbeScript], options));
 
-    if (parserProbeResult.status === 0) {
-      return { ok: true, message: null };
+    if (parserProbeResult.ok) {
+      return { ...await probeNativeParserWorkerLifecycle(root, options), activation: parserProbeResult };
     }
 
-    const message = (parserProbeResult.stderr || parserProbeResult.stdout || '').trim();
-    return {
-      ok: false,
-      message: message || 'failed to activate tree-sitter parser'
-    };
+    return parserProbeResult;
   }
 
   const probeScript = `
@@ -149,18 +299,5 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
     })();
   `.trim();
 
-  const result = spawnSync(process.execPath, ['-e', probeScript, pkgName], {
-    cwd: root,
-    encoding: 'utf8', timeout: 10000, maxBuffer: 65536
-  });
-
-  if (result.status === 0) {
-    return { ok: true, message: null };
-  }
-
-  const message = (result.stderr || result.stdout || '').trim();
-  return {
-    ok: false,
-    message: message || `failed to load ${pkgName}`
-  };
+  return probeResult(await runNativeProbeCommand(root, ['-e', probeScript, pkgName], options));
 };

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { SimpleMinHash } from '../../../src/index/minhash.js';
+import { MINHASH_HASH_IDENTITY, SimpleMinHash } from '../../../src/index/minhash.js';
 import { rankMinhash } from '../../../src/retrieval/rankers.js';
+import { referenceMinhash } from '../../helpers/minhash-reference.js';
 
 // Preserve the original recurrence as a reference for existing stored signatures.
 class LegacyMinHash extends SimpleMinHash {
@@ -19,6 +20,10 @@ class LegacyMinHash extends SimpleMinHash {
       if (value < this.hashValues[i]) this.hashValues[i] = value;
     });
   }
+}
+
+class ReferenceMinHash extends LegacyMinHash {
+  hash(str, seed) { return referenceMinhash(str, seed); }
 }
 
 const alphabet = ['\0', 'x', '\ud800', '\uffff'];
@@ -44,7 +49,7 @@ for (let sample = 0; sample < 100; sample += 1) {
 let comparedValues = 0;
 for (const width of [1, 16, 128]) {
   const actual = new SimpleMinHash(width);
-  const reference = new LegacyMinHash(width);
+  const reference = new ReferenceMinHash(width);
   for (const token of tokens) {
     actual.reset();
     reference.reset();
@@ -59,14 +64,15 @@ for (const width of [1, 16, 128]) {
     actual.update(token);
     reference.update(token);
   }
-  assert.deepEqual(actual.hashValues, reference.hashValues, 'multi-token minimum and reset must remain compatible');
+  assert.deepEqual(actual.hashValues, reference.hashValues, 'multi-token minimum and reset must match the current family');
 }
 
 // Keep unusual public seeds, empty tokens, sparse arrays and custom hash behavior.
 const seeds = [0, 1, 0xffffffff, -1, 1.5, Number.MAX_SAFE_INTEGER, '2', null, undefined];
 const actual = new SimpleMinHash(seeds.length);
-const reference = new LegacyMinHash(seeds.length);
+const reference = new ReferenceMinHash(seeds.length);
 actual.seeds = [...seeds];
+assert.equal(actual.hashIdentity, null, 'custom seed mappings cannot claim the persisted standard identity');
 reference.seeds = [...seeds];
 delete actual.seeds[1];
 delete reference.seeds[1];
@@ -84,6 +90,7 @@ custom.hash = (token, seed) => {
   customCalls += 1;
   return token.length + seed;
 };
+assert.equal(custom.hashIdentity, null, 'custom hash callbacks cannot claim the persisted standard identity');
 custom.update('abc');
 assert.deepEqual(custom.hashValues, [4, 5, 6, 7]);
 assert.equal(customCalls, 4);
@@ -96,7 +103,8 @@ assert.deepEqual(actual.hashValues, reference.hashValues);
 assert.throws(() => new SimpleMinHash().update(null), TypeError);
 new SimpleMinHash(0).update(null);
 
-// Check the actual query ranker against old index signatures, including ties/filters.
+// Preserve all query/tie/filter comparisons against independent current signatures.
+// Legacy polynomial bytes are deliberately incompatible and must require rebuild.
 const corpus = [['alpha', 'beta'], ['alpha'], ['gamma', '👩🏽‍💻'], ['alpha', 'beta']];
 const signature = (Type, words) => {
   const hash = new Type();
@@ -104,17 +112,20 @@ const signature = (Type, words) => {
   return [...hash.hashValues];
 };
 const oldIndex = { minhash: { signatures: corpus.map((words) => signature(LegacyMinHash, words)) } };
-const newIndex = { minhash: { signatures: corpus.map((words) => signature(SimpleMinHash, words)) } };
-assert.deepEqual(newIndex, oldIndex);
+const referenceIndex = { minhash: { hashIdentity: MINHASH_HASH_IDENTITY, signatures: corpus.map((words) => signature(ReferenceMinHash, words)) } };
+const newIndex = { minhash: { hashIdentity: MINHASH_HASH_IDENTITY, signatures: corpus.map((words) => signature(SimpleMinHash, words)) } };
+assert.deepEqual(newIndex, referenceIndex);
+assert.notDeepEqual(newIndex.minhash.signatures, oldIndex.minhash.signatures);
+assert.throws(() => rankMinhash(oldIndex, ['alpha'], 3), { code: 'ERR_ARTIFACT_INVALID', rebuildRequired: true });
 for (const query of [['alpha'], ['alpha', 'beta'], ['👩🏽‍💻'], []]) {
   for (const candidateSet of [null, new Set([1, 2, 3])]) {
-    const querySignature = signature(LegacyMinHash, query);
-    const expected = query.length ? oldIndex.minhash.signatures
+    const querySignature = signature(ReferenceMinHash, query);
+    const expected = query.length ? referenceIndex.minhash.signatures
       .map((row, idx) => ({ idx, sim: row.filter((value, i) => value === querySignature[i]).length / row.length }))
       .filter(({ idx }) => !candidateSet || candidateSet.has(idx))
       .sort((a, b) => b.sim - a.sim || a.idx - b.idx)
       .slice(0, 3) : [];
-    assert.deepEqual(rankMinhash(oldIndex, query, 3, candidateSet), expected);
+    assert.deepEqual(rankMinhash(referenceIndex, query, 3, candidateSet), expected);
     assert.deepEqual(rankMinhash(newIndex, query, 3, candidateSet), expected);
   }
 }

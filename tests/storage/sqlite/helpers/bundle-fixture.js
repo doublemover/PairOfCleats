@@ -6,6 +6,7 @@ import { validateSqliteMetaV2Parity } from '../../../../src/index/validate/check
 import { writeBundleFile } from '../../../../src/shared/bundle-io.js';
 import { buildDatabaseFromBundles } from '../../../../src/storage/sqlite/build/from-bundles.js';
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 
 export const loadSqliteBundleDatabase = async (reason = 'sqlite bundle tests') => {
   try {
@@ -41,6 +42,7 @@ export const writeSingleChunkBundle = async ({ bundleDir, bundleName, file, chun
 };
 
 export const createBundleManifest = (entries) => ({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: Object.fromEntries(entries.map((entry) => [
     entry.file,
     {

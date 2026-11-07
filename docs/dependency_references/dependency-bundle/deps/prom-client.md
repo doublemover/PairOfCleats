@@ -1,5 +1,11 @@
 # `prom-client`
 
+Current implementation: `@prometheus-io/client` 0.16.1, the maintained
+[Prometheus client](https://github.com/prometheus/client_js). The October 29
+refresh replaces deprecated `prom-client` while preserving the Registry,
+Counter and Histogram interfaces below. This filename is retained for existing
+reference links.
+
 **Area:** Metrics (Prometheus client)
 
 ## Why this matters for PairOfCleats
@@ -20,5 +26,5 @@ Expose Prometheus-compatible metrics for indexing/search latencies, queue depths
 ## Suggested extraction checklist
 - [x] Define a minimal metrics vocabulary (names, labels) and keep label cardinality bounded. (Planned: export `files/bytes/lines/durationMs` from `src/index/build/perf-profile.js` with bounded labels.)
 - [x] Capture latency distributions, not just averages (p50/p95/p99). (Current bench utilities compute p50/p95 in `tools/bench/micro/utils.js`; expose via Prometheus histograms when wired.)
-- [x] Make logs structured and redact secrets; add run/repo correlation fields. (Structured logging via `src/shared/progress.js` and context in `src/index/build/runtime.js`; prom-client integration can reuse `buildId`/`repoRoot` as labels.)
+- [x] Make logs structured and redact secrets; keep run/repo correlation in logs. Metrics use bounded labels; build IDs and repository paths must not become metric labels.
 - [x] Keep benchmarking reproducible (fixed inputs, warmups, pinned configs). (Warmup/warm runs and default fixture repo in `tools/bench/micro/run.js`.)

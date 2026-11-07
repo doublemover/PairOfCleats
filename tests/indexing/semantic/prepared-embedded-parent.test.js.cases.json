@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["owned-snapshot", "source-identity", "bounds-and-decode", "failure-lifetime", "cancelled-admission", "failed-reacquisition"]
+}

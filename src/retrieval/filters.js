@@ -1,5 +1,5 @@
-import { parseJson } from './query-cache.js';
 import { mergeFilterLists } from '../shared/filter/merge.js';
+import { PROTOCOL_BUFFER_ALIASES, PROTOCOL_BUFFER_LANGUAGE_ID } from '../shared/language-aliases.js';
 const LANG_ALIAS_MAP = new Map([
   ['javascript', 'javascript'],
   ['js', 'javascript'],
@@ -54,13 +54,10 @@ const LANG_ALIAS_MAP = new Map([
   ['jinja2', 'jinja'],
   ['django', 'jinja'],
   ['razor', 'razor'],
-  ['protobuf', 'protobuf'],
-  ['protocol buffer', 'protobuf'],
-  ['protocol buffers', 'protobuf'],
+  ...PROTOCOL_BUFFER_ALIASES.map(alias => [alias, PROTOCOL_BUFFER_LANGUAGE_ID]),
   ['graphql', 'graphql']
 ]);
 
-const FILTER_TOKEN_RE = /"([^"]*)"|'([^']*)'|(\S+)/g;
 
 const INTERNAL_FILTER_KEYS = new Set([
   'filePrefilter',
@@ -71,97 +68,19 @@ const INTERNAL_FILTER_KEYS = new Set([
   'excludePhrases'
 ]);
 
-const splitFilterTokens = (raw) => {
-  const tokens = [];
-  const input = String(raw || '').trim();
-  if (!input) return tokens;
-  FILTER_TOKEN_RE.lastIndex = 0;
-  let match = null;
-  while ((match = FILTER_TOKEN_RE.exec(input))) {
-    tokens.push(match[1] ?? match[2] ?? match[3]);
-  }
-  return tokens;
-};
-
-const splitFilterValues = (value) => String(value || '')
-  .split(',')
-  .map((part) => part.trim())
-  .filter(Boolean);
-
-const isWindowsPathToken = (value) => /^[A-Za-z]:[\\/]/.test(value);
-
-export function parseFilterExpression(raw) {
-  const errors = [];
-  const file = [];
-  const lang = [];
-  const ext = [];
-  const type = [];
-  const tokens = splitFilterTokens(raw);
-  if (!tokens.length) {
-    return {
-      file: null,
-      lang: null,
-      ext: null,
-      type: null,
-      errors
-    };
-  }
-  const pushValues = (list, value) => {
-    for (const entry of splitFilterValues(value)) {
-      list.push(entry);
-    }
-  };
-  for (const token of tokens) {
-    const trimmed = String(token || '').trim();
-    if (!trimmed) continue;
-    if (isWindowsPathToken(trimmed)) {
-      pushValues(file, trimmed);
-      continue;
-    }
-    const separatorIndex = trimmed.search(/[:=]/);
-    if (separatorIndex === -1) {
-      pushValues(file, trimmed);
-      continue;
-    }
-    const key = trimmed.slice(0, separatorIndex).trim().toLowerCase();
-    const value = trimmed.slice(separatorIndex + 1).trim();
-    if (!value) {
-      errors.push(`missing value for ${key}`);
-      continue;
-    }
-    if (key === 'path' || key === 'file') {
-      pushValues(file, value);
-    } else if (key === 'lang' || key === 'language') {
-      pushValues(lang, value);
-    } else if (key === 'ext' || key === 'extension') {
-      pushValues(ext, value);
-    } else if (key === 'type' || key === 'kind') {
-      pushValues(type, value);
-    } else {
-      errors.push(`unknown filter key ${key}`);
-    }
-  }
-  return {
-    file: file.length ? file : null,
-    lang: lang.length ? lang : null,
-    ext: ext.length ? ext : null,
-    type: type.length ? type : null,
-    errors
-  };
-}
+export { parseFilterExpression, serializeFilterExpression } from './filter-expression.js';
 
 /**
  * Normalize extension filters into a lowercase list.
  * @param {string|string[]|null|undefined} extArg
  * @returns {string[]|null}
  */
-export function normalizeExtFilter(extArg) {
+export function normalizeExtFilter(extArg, { preserveValues = false } = {}) {
   const entries = Array.isArray(extArg) ? extArg : (extArg ? [extArg] : []);
   if (!entries.length) return null;
   const normalized = [];
   for (const entry of entries) {
-    String(entry || '')
-      .split(/[,\s]+/)
+    (preserveValues ? [String(entry ?? '')] : String(entry || '').split(/[,\s]+/))
       .map((raw) => raw.trim())
       .filter(Boolean)
       .forEach((raw) => {
@@ -180,13 +99,12 @@ export function normalizeExtFilter(extArg) {
  * @param {string|string[]|null|undefined} langArg
  * @returns {string[]|null}
  */
-export function normalizeLangFilter(langArg) {
+export function normalizeLangFilter(langArg, { preserveValues = false } = {}) {
   const entries = Array.isArray(langArg) ? langArg : (langArg ? [langArg] : []);
   if (!entries.length) return null;
   const langs = new Set();
   for (const entry of entries) {
-    String(entry || '')
-      .split(/[,\s]+/)
+    (preserveValues ? [String(entry ?? '')] : String(entry || '').split(/[,\s]+/))
       .map((raw) => raw.trim().toLowerCase())
       .filter(Boolean)
       .forEach((raw) => {
@@ -241,18 +159,15 @@ export function parseMetaFilters(metaArg, metaJsonArg) {
   };
   const metaEntries = Array.isArray(metaArg) ? metaArg : (metaArg ? [metaArg] : []);
   for (const entry of metaEntries) handleEntry(entry);
-  const metaJsonEntries = Array.isArray(metaJsonArg) ? metaJsonArg : (metaJsonArg ? [metaJsonArg] : []);
+  const metaJsonEntries = Array.isArray(metaJsonArg) ? metaJsonArg : (metaJsonArg != null ? [metaJsonArg] : []);
   for (const entry of metaJsonEntries) {
-    const parsed = parseJson(entry, null);
-    if (!parsed) continue;
-    if (Array.isArray(parsed)) {
-      parsed.forEach((item) => {
-        if (!item || typeof item !== 'object') return;
-        Object.entries(item).forEach(([key, value]) => pushFilter(key, value));
-      });
-    } else if (typeof parsed === 'object') {
-      Object.entries(parsed).forEach(([key, value]) => pushFilter(key, value));
+    let parsed;
+    try { parsed = typeof entry === 'string' ? JSON.parse(entry) : entry; }
+    catch (cause) { throw Object.assign(new Error('Invalid --meta-json: expected a JSON object.'), { code: 'INVALID_REQUEST', cause }); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw Object.assign(new Error('Invalid --meta-json: expected a JSON object.'), { code: 'INVALID_REQUEST' });
     }
+    Object.entries(parsed).forEach(([key, value]) => pushFilter(key, value));
   }
   return filters.length ? filters : null;
 }

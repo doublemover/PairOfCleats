@@ -12,7 +12,8 @@ import {
   sliceSignature,
   stripCLikeComments
 } from './shared.js';
-import { readSignatureLines } from './shared/signature-lines.js';
+import { readSignatureLines as readLexicalSignatureLines } from './shared/signature-lines.js';
+const readSignatureLines = (lines, startLine) => readLexicalSignatureLines(lines, startLine, { tripleDoubleStrings: true });
 import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 

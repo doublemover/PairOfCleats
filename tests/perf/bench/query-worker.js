@@ -33,7 +33,7 @@ const runMessage = async (message) => {
     return;
   }
   const startedAt = Date.now();
-  sendMessage({ type: 'run-start', id, elapsedMs: 0 });
+  sendMessage({ type: 'run-start', id, elapsedMs: 0, rssBytes: process.memoryUsage().rss });
   const heartbeat = setInterval(() => {
     sendMessage({
       type: 'run-heartbeat',
@@ -50,10 +50,10 @@ const runMessage = async (message) => {
       indexCache,
       sqliteCache
     });
-    sendMessage({ type: 'run-complete', id, elapsedMs: Date.now() - startedAt });
+    sendMessage({ type: 'run-complete', id, elapsedMs: Date.now() - startedAt, rssBytes: process.memoryUsage().rss });
     sendMessage({ id, ok: true, payload });
   } catch (err) {
-    sendMessage({ type: 'run-complete', id, elapsedMs: Date.now() - startedAt });
+    sendMessage({ type: 'run-complete', id, elapsedMs: Date.now() - startedAt, rssBytes: process.memoryUsage().rss });
     sendMessage({
       id,
       ok: false,

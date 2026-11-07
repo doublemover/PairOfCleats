@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["primary-only", "receipt-failure", "receipt-result", "state-read-failure", "state-write-failure", "reference-failure", "observation-failure", "falsey-primary", "async-state", "corrupt-state", "invalid-state", "pending-state-read"]
+}

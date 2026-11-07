@@ -152,24 +152,13 @@ export const resolveCurrentBuildRoots = (
     typeof candidate === 'string' && fs.existsSync(candidate)
   )) || null;
   const preferredRoot = preferredMode ? buildRoots[preferredMode] : null;
-  let activeRoot = preferredRoot || buildRoot || firstExistingModeRoot || Object.values(buildRoots)[0] || null;
-  if ((!activeRoot || !fs.existsSync(activeRoot)) && buildId) {
-    const buildIdRoot = resolveCacheScopedBuildIdRoot(buildId, repoCacheRoot, buildsRoot);
-    if (buildIdRoot && fs.existsSync(buildIdRoot)) {
-      activeRoot = buildIdRoot;
-    }
-  }
-  if (activeRoot && !hasModeIndexDir(activeRoot, preferredMode)) {
-    const buildIdRoot = buildId ? resolveCacheScopedBuildIdRoot(buildId, repoCacheRoot, buildsRoot) : null;
-    if (buildIdRoot && hasModeIndexDir(buildIdRoot, preferredMode)) {
-      activeRoot = buildIdRoot;
-    } else {
-      const fallbackRoot = findLatestBuildRootWithIndexes(buildsRoot, preferredMode);
-      if (fallbackRoot) activeRoot = fallbackRoot;
-    }
-  }
-  if (buildRoot && !hasModeIndexDir(buildRoot, preferredMode) && hasModeIndexDir(activeRoot, preferredMode)) {
-    buildRoot = activeRoot;
+  // A current pointer authorizes its selected mode roots. Marker discovery and
+  // directory mtimes cannot authorize a different, possibly in-progress build.
+  let activeRoot = preferredMode && buildRootsSource
+    ? preferredRoot || null
+    : preferredRoot || buildRoot || firstExistingModeRoot || Object.values(buildRoots)[0] || null;
+  if (activeRoot && (!fs.existsSync(activeRoot) || (preferredMode && !hasModeIndexDir(activeRoot, preferredMode)))) {
+    activeRoot = null;
   }
   return {
     buildId: buildId || (activeRoot ? path.basename(activeRoot) : null),

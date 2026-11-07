@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["returned-result-observation", "error-before-diagnostics", "field-interval-observation", "ordinary-results-and-falsy-errors"]
+}

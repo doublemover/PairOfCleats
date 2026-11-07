@@ -1,4 +1,5 @@
 import v8 from 'node:v8';
+import { throwIfAborted } from '../../../../../shared/abort.js';
 import { normalizePostingsPayloadMetadata } from '../../../postings-payload.js';
 import { awaitWithKeepalive } from '../../../../../shared/promise-keepalive.js';
 import {
@@ -359,6 +360,7 @@ export const createPostingsQueue = ({
     const payloadRows = Math.max(1, coerceNonNegativeInt(rows) ?? 1);
     const payloadBytes = Math.max(0, coerceNonNegativeInt(bytes) ?? 0);
     const waitSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
+    throwIfAborted(waitSignal);
     const resolvedWaitTimeoutMs = timeoutMs !== null
       && timeoutMs !== undefined
       && Number.isFinite(Number(timeoutMs))
@@ -378,6 +380,7 @@ export const createPostingsQueue = ({
       const waitStart = Date.now();
       let waitReason = 'unknown';
       while (true) {
+        throwIfAborted(waitSignal);
         const limits = resolveLimits(payloadRows, payloadBytes, baseLimits);
         const reason = resolveWaitReason(payloadRows, payloadBytes, limits);
         if (!reason) break;
@@ -439,6 +442,7 @@ export const createPostingsQueue = ({
       resolveLimits(payloadRows, payloadBytes, baseLimits);
       state.reserveBypassCount += 1;
     }
+    throwIfAborted(waitSignal);
     state.pending += 1;
     state.pendingRows += payloadRows;
     state.pendingBytes += payloadBytes;
@@ -447,8 +451,11 @@ export const createPostingsQueue = ({
     state.measuredBytes += payloadBytes;
     noteHighWater();
     emitChange();
+    let released = false;
     return {
       release() {
+        if (released) return;
+        released = true;
         state.pending = Math.max(0, state.pending - 1);
         state.pendingRows = Math.max(0, state.pendingRows - payloadRows);
         state.pendingBytes = Math.max(0, state.pendingBytes - payloadBytes);

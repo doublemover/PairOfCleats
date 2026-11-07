@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sqlite", "lmdb", "sqlite-admission", "lmdb-admission", "sqlite-metadata", "lmdb-metadata", "sqlite-pending", "lmdb-pending", "sqlite-native", "lmdb-native", "lmdb-missing", "parity", "parity-admission", "parity-metadata", "parity-pending", "parity-native",
+    "lmdb-result", "configured-lmdb", "configured-lmdb-admission", "configured-lmdb-metadata", "configured-lmdb-pending", "configured-lmdb-native", "configured-lmdb-missing", "configured-lmdb-result"]
+}

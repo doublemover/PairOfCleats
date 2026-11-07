@@ -19,6 +19,17 @@ export function historyIndexState(db) {
     generationRef: privateReference(values.reference_key, JSON.stringify([values.partition,generation])),
     state: 'ready', updatedAt: values.updated_at, projection: PROJECTION_VERSION, exportFreshness: 'unknown' };
 }
+/** Shared service/reader admission; direct retrieval must not ignore a caller's
+ * pinned generation merely because it did not enter through the service host.
+ */
+export function assertHistoryExpectedGeneration(db, expectedGeneration) {
+  const state = historyIndexState(db);
+  if (expectedGeneration !== undefined && (typeof expectedGeneration !== 'string'
+    || !/^[a-f0-9]{64}$/.test(expectedGeneration) || expectedGeneration !== state.generationRef)) {
+    throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Index generation changed.');
+  }
+  return state;
+}
 export function advanceHistoryGeneration(db) {
   const current = historyIndexState(db);
   if (!Number.isSafeInteger(current.generation + 1)) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'Index generation exhausted.');

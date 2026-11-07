@@ -1,6 +1,8 @@
 import PQueue from 'p-queue';
 import { getScmRuntimeConfig } from '../../runtime.js';
 import { coercePositiveIntMinOne } from '../../../../shared/number-coerce.js';
+import { currentSchedulerTaskLease, withSchedulerCpuSuspended } from '../../../../shared/concurrency/scheduler-task-scope.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 
 const GIT_META_BATCH_SMALL_REPO_CHUNK_MAX = 2;
 const GIT_META_PREFETCH_CACHE_MAX_ENTRIES_DEFAULT = 8;
@@ -102,5 +104,24 @@ const getQueue = (concurrency) => {
 export const runGitTask = async (task, { useQueue = true, timeoutState = null } = {}) => {
   const config = resolveGitConfig({ timeoutState });
   const queue = useQueue ? getQueue(config.maxConcurrentProcesses) : null;
-  return queue ? queue.add(task) : task();
+  if (!queue) return task();
+  const admitted = Promise.withResolvers();
+  const finished = Promise.withResolvers();
+  // Queue admission is a wait, not compute. Holding CPU here can prevent an
+  // earlier command from reacquiring CPU and releasing its Git queue slot.
+  // The queue callback only lends a slot; execute provider work in the caller's
+  // continuation after CPU reacquisition, retaining its own file/byte lease.
+  const queued = queue.add(() => {
+    admitted.resolve();
+    return finished.promise;
+  });
+  queued.catch(admitted.reject);
+  try {
+    await withSchedulerCpuSuspended(() => admitted.promise);
+    throwIfAborted(currentSchedulerTaskLease()?.signal);
+    return await task();
+  } finally {
+    finished.resolve();
+    await queued;
+  }
 };

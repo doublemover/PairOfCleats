@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { consumeBuildCacheRebuild, rebuildRepoCache } from './cache-rebuild.js';
 import path from 'node:path';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
+import { validateSemanticEnrichmentAdmission } from '../../../index/semantic/enrichment-context.js';
 import { watchIndex } from '../../../index/build/watch.js';
 import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress-runtime.js';
 import { observeIndexDuration } from '../../../shared/metrics/core.js';
@@ -17,11 +18,13 @@ import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-en
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
+import { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan, readEmbeddingPreflightRejection } from '../../../shared/embedding-execution-plan.js';
 import { resolveBuildInvocationArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
 import {
   getCacheRoot,
+  getEffectiveConfigHash,
   getToolVersion,
   loadUserConfig,
   resolveToolRoot
@@ -31,6 +34,12 @@ import { computeCompatibilityKey } from './compatibility.js';
 import { teardownRuntime } from './runtime.js';
 import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
+import { validateBuildIntent } from '../../../shared/cli-option-validators.js';
+import { createBuildIndexOutcome, retainBuildIndexFailureOutcome } from './outcome.js';
+import { planBuildRecovery, executeBuildRecovery, withBuildGraphCapability as consumeBuildGraphCapability } from './recovery.js';
+import { readBuildAttemptComparison, formatBuildAttemptComparison } from '../../../index/build/runtime/compare.js';
+import { listBuildRecoveryCandidates } from './recovery-candidates.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
@@ -80,10 +89,32 @@ export const buildStreamedStage3Result = ({
  * @param {object} [options]
  * @returns {Promise<object>}
  */
-export async function buildIndex(repoRoot, options = {}) {
+async function buildIndexRun(repoRoot, options = {}) {
+  validateBuildIntent(options);
   const root = getRepoRoot(repoRoot);
+  if (options.compareAttempts) {
+    const comparison = await readBuildAttemptComparison(options.compareAttempts);
+    return { repo: root, comparison, lines: formatBuildAttemptComparison(comparison) };
+  }
+  if (options.recovery) {
+    const userConfig = loadUserConfig(root);
+    const signal = coerceAbortSignal(options.abortSignal || null);
+    const recovery = options.recovery;
+    if (recovery.action === 'candidates') return listBuildRecoveryCandidates({ root, userConfig,
+      modes: recovery.modes || ['code'], signal });
+    if (recovery.action === 'inspect') return planBuildRecovery({ root, userConfig,
+      indexRoot: recovery.indexRoot, operation: recovery.operation, modes: recovery.modes, resumeTarget: recovery.resumeTarget, signal });
+    if (recovery.action === 'execute') return executeBuildRecovery({ root, userConfig,
+      plan: recovery.plan, signal, log: options.log,
+      resumeBuild: (grant, request) => buildIndexRun(root, { ...request, progress: options.progress,
+        log: options.log, logError: options.logError, abortSignal: signal, buildRecoveryGrant: grant }) });
+    if (recovery.action === 'open-graph') return consumeBuildGraphCapability({ root, userConfig,
+      indexRoot: recovery.indexRoot, capabilityId: recovery.capabilityId, signal }, receipt => receipt);
+    throw Object.assign(new Error('Recovery action must be inspect or execute.'), { code: 'ERR_RECOVERY_OPERATION' });
+  }
   const invocation = resolveBuildInvocationArgs(options);
   const baseArgv = { ...invocation.argv, repo: root };
+  validateBuildIntent(baseArgv);
   const explicitStage = normalizeStage(baseArgv.stage);
   const parsedArgv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
   const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: invocation.rawArgv });
@@ -122,8 +153,37 @@ export async function buildIndex(repoRoot, options = {}) {
   throwIfAborted(abortSignal);
   let configSources = null;
   const userConfig = loadUserConfig(root, { onSources: value => { configSources = value; } });
+  if (options.semanticEnrichmentDrain != null) await validateSemanticEnrichmentAdmission(options.semanticEnrichmentDrain, { root, userConfig });
   if (rebuild.requested) {
     await rebuildRepoCache({ root, userConfig, argv, log, abortSignal });
+  }
+  let reuseDecision = options.reuseDecision || null;
+  if (!options.buildRecoveryGrant && !argv.watch && !rebuild.requested && !argv['index-root']
+    && (!explicitStage || explicitStage === 'stage2')) {
+    const inventory = await listBuildRecoveryCandidates({ root, userConfig, modes, signal: abortSignal });
+    reuseDecision = { disposition: 'recompute', reason: inventory.reason, examined: inventory.examined,
+      candidates: inventory.candidates.map(candidate => ({ buildId: candidate.buildId, attemptId: candidate.attemptId })) };
+    if (inventory.candidates.length === 1 && !inventory.truncated) {
+      const candidate = inventory.candidates[0];
+      const plan = await planBuildRecovery({ root, userConfig, indexRoot: candidate.buildRoot,
+        operation: 'resume', modes, resumeTarget: explicitStage === 'stage2' ? 'stage2' : 'full', signal: abortSignal });
+      if (!plan.blocked) {
+        try {
+          const recovered = await executeBuildRecovery({ root, userConfig, plan, signal: abortSignal, log,
+            resumeBuild: grant => buildIndexRun(root, { ...options, buildRecoveryGrant: grant,
+              reuseDecision: { disposition: 'candidate-admission', sourceBuildId: candidate.buildId },
+              abortSignal }) });
+          return { ...recovered.execution, recovery: recovered, publication: recovered.publication,
+            reuseDecision: { disposition: 'reused', sourceBuildId: candidate.buildId, recoveryPlanId: plan.planId }, repo: root };
+        } catch (error) {
+          observeStorageResource(error, { phase: 'automatic-completed-stage-admission' }).requireSettled();
+          if (!['ERR_RECOVERY_INPUT_CHANGED', 'ERR_COMPLETED_STAGE_INVALID', 'ERR_RECOVERY_PLAN_STALE'].includes(error.code)) throw error;
+          reuseDecision = { ...reuseDecision, sourceBuildId: candidate.buildId,
+            reason: error.reuseReason || error.code, candidateRefused: true };
+        }
+      } else reuseDecision.reason = plan.blocked;
+    }
+    if (reuseDecision.candidates.length || inventory.truncated) log(`[recovery] Stage2 recomputation: ${reuseDecision.reason}.`);
   }
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
@@ -143,12 +203,14 @@ export async function buildIndex(repoRoot, options = {}) {
   throwIfAborted(abortSignal);
 
   if (argv.watch) {
-    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy, observability });
+    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy, observability,
+      semanticEnrichmentDrain: options.semanticEnrichmentDrain });
     computeCompatibilityKey({ runtime, modes, sharedDiscovery: null });
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
-      const watchState = await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal });
+      const watchState = await runtime.loggerScope.run(() => watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal,
+        onReady: options.onWatchReady, onStateChange: options.onWatchStateChange }));
       return attachObservability({ modes, watch: true, watchState: watchState || runtime.watchState || null }, observability);
     } finally {
       await teardownRuntime(runtime);
@@ -158,7 +220,7 @@ export async function buildIndex(repoRoot, options = {}) {
   throwIfAborted(abortSignal);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
-  const twoStageEnabled = twoStageConfig.enabled === true;
+  const twoStageEnabled = twoStageConfig.enabled === true && !options.buildRecoveryGrant;
   const embeddingRuntime = { ...resolveEmbeddingRuntime({ argv, userConfig, policy }), configSources };
   const embedModes = modes.filter((modeItem) => (
     modeItem === 'code'
@@ -173,6 +235,30 @@ export async function buildIndex(repoRoot, options = {}) {
   const shouldBuildSqlite = typeof argv.sqlite === 'boolean' ? argv.sqlite : sqliteConfigured;
   const includeEmbeddings = (embeddingRuntime.embeddingEnabled || embeddingRuntime.embeddingService)
     && embedModes.length > 0;
+  if (includeEmbeddings && (explicitStage === 'stage3' || !explicitStage && !twoStageEnabled)) {
+    try {
+      const admitted = preflightEmbeddingExecutionPlan(createEmbeddingExecutionPlan({
+        root, modes: embedModes, argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime
+      }), { executionHost: embeddingRuntime.embeddingService ? 'deferred' : 'local', signal: abortSignal });
+      embeddingRuntime.executionPlan = admitted.plan;
+      embeddingRuntime.preflight = admitted.preflight;
+    } catch (error) {
+      // Unknown original work cannot authorize more native/metadata dispatch.
+      observeStorageResource(error, { phase: 'build-embedding-preflight-rejection' }).requireSettled();
+      if (isAbortError(error)) throw error;
+      // Reuse the actual runtime receipt/initialization teardown. The rejection
+      // stops immediately after receipt admission, before dictionary/model,
+      // worker and source-discovery work; no stage artifacts are produced.
+      const diagnosticRuntime = await createBuildRuntime({ root, argv: { ...argv, stage: explicitStage || 'stage2' },
+        rawArgv, policy, observability, semanticEnrichmentDrain: options.semanticEnrichmentDrain,
+        embeddingSelection: readEmbeddingPreflightRejection(error),
+        initializationRejection: { phase: 'embedding-preflight', error,
+          effectiveConfigHash: getEffectiveConfigHash(root, userConfig), expectedRepoCacheRoot: repoCacheRoot } });
+      // Defensive against a future constructor accidentally returning success.
+      await teardownRuntime(diagnosticRuntime);
+      throw error;
+    }
+  }
   const includeSqlite = shouldBuildSqlite && sqliteModes.length > 0;
   const overallProgressOptions = (!explicitStage && !twoStageEnabled)
     ? { includeEmbeddings, includeSqlite }
@@ -194,7 +280,10 @@ export async function buildIndex(repoRoot, options = {}) {
     recordIndexMetric,
     sqliteLogger,
     explicitStage,
-    twoStageEnabled
+    twoStageEnabled,
+    reuseDecision,
+    embeddingSelection: embeddingRuntime.executionPlan
+      ? { plan: embeddingRuntime.executionPlan, preflight: embeddingRuntime.preflight } : null
   };
 
   if (explicitStage === 'stage3') {
@@ -244,6 +333,10 @@ export async function buildIndex(repoRoot, options = {}) {
     let streamedCancelled = false;
     const stage2Result = await runStage('stage2', stageContext, {
       allowSqlite: false,
+      deferPublication: includeSqlite,
+      // The streamed Stage3 callback owns admission from its pinned execution
+      // plan. Explicit Stage2/direct pipeline routes retain their local owner.
+      enqueueServiceEmbeddings: !includeEmbeddings,
       onStage2ModeCompleted: async ({ mode: modeItem, runtime }) => {
         if (!includeEmbeddings || !embedModes.includes(modeItem)) return null;
         const modeEmbedResult = await runEmbeddingsStage({
@@ -269,6 +362,9 @@ export async function buildIndex(repoRoot, options = {}) {
           mode: modeItem,
           result: modeEmbedResult
         });
+        if (modeEmbedResult?.producerPoliciesByMode?.[modeItem]) {
+          (runtime.validationPoliciesByMode ||= {})[modeItem] = structuredClone(modeEmbedResult.producerPoliciesByMode[modeItem]);
+        }
         if (modeEmbedResult?.embeddings?.cancelled) {
           streamedCancelled = true;
           return { cancelled: true };
@@ -412,4 +508,25 @@ export async function buildIndex(repoRoot, options = {}) {
   return attachObservability({ modes, stage1: stage1Result, stage2: stage2Result, repo: root }, observability);
 }
 
+/** Graph consumers keep this callback active until their original file/worker
+ * owners settle. The normal search/current selector is not involved.
+ */
+export const withBuildGraphCapability = (repoRoot, { indexRoot, capabilityId = null, abortSignal = null } = {}, consume) => {
+  const root = getRepoRoot(repoRoot);
+  return consumeBuildGraphCapability({ root, userConfig: loadUserConfig(root), indexRoot, capabilityId,
+    signal: coerceAbortSignal(abortSignal) }, consume);
+};
+
 export { buildSqliteIndex };
+
+export async function buildIndex(repoRoot, options = {}) {
+  const requestedStage = normalizeStage(options.stage);
+  try {
+    const result = await buildIndexRun(repoRoot, options);
+    if (options.compareAttempts || ['inspect', 'open-graph', 'candidates'].includes(options.recovery?.action)) return result;
+    return { ...result, outcome: createBuildIndexOutcome({ result, repo: repoRoot,
+      requestedStage, modes: result?.modes || options.modes || [] }) };
+  } catch (error) {
+    throw retainBuildIndexFailureOutcome(error, { repo: repoRoot, requestedStage, modes: options.modes || [] });
+  }
+}

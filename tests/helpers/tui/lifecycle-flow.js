@@ -1,0 +1,11 @@
+import { createFlowController } from '../../../tools/tui/supervisor/protocol-flow.js';
+import { FLOW_DEFAULT_CREDITS, FLOW_QUEUE_MAX } from '../../../tools/tui/supervisor/constants.js';
+let seq = 0;
+const flow = createFlowController({ runId: 'lifecycle-fixture', nextSeq: () => ++seq });
+const jobId = 'still-running-job';
+flow.emit('job:start', { title: 'lifecycle pressure' }, { jobId });
+for (let index = 0; index < FLOW_DEFAULT_CREDITS; index++) flow.emit('task:progress', { taskId: 'warm-' + index }, { jobId });
+flow.emit('task:end', { taskId: 'finished-task', status: 'done' }, { jobId });
+for (let index = 0; index < FLOW_QUEUE_MAX + 100; index++) flow.emit('task:progress', { taskId: 'task-' + index }, { jobId });
+flow.emit('task:progress', { taskId: 'finished-task', status: 'running' }, { jobId });
+flow.addFlowCredits(10000);

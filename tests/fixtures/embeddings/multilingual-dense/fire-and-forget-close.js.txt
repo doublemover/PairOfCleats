@@ -1,0 +1,5 @@
+export async function readWithoutWaitingForClose(descriptor) {
+  const document = await descriptor.readFile('utf8');
+  void descriptor.close();
+  return document;
+}

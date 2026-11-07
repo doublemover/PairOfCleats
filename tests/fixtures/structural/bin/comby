@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const args = process.argv.slice(2);
-if (args.includes('--version') || args.includes('--help')) {
-  process.stdout.write('comby stub\n');
+if (args.includes('--version') || args.includes('-version') || args.includes('--help')) {
+  process.stdout.write('comby 1.8.1\n');
   process.exit(0);
 }
 const payload = {

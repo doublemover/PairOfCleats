@@ -1,3 +1,7 @@
+import { admitImportMapExtraction } from './extraction-admission.js';
+import { summarizeImportExtraction } from '../../../shared/import-extraction.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
+import { createBazelPackageIndex, isBazelSourceFile } from './bazel-label.js';
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
@@ -30,7 +34,7 @@ import {
   resolveLanguageNonRelativeImport,
   resolveLanguageRelativeImport
 } from './language-resolvers.js';
-import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
+import { createPackageDirectoryResolver, createPackageImportsResolver, fingerprintPackageDependency, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
 import { createImportBuildContext } from './build-context/index.js';
 import { normalizeCollectorHint as normalizeImportCollectorHint } from '../../language-registry/import-collectors/utils.js';
@@ -67,7 +71,7 @@ import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v6';
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v9';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -247,6 +251,7 @@ export function resolveImportLinks({
   entries,
   importsByFile,
   importHintsByFile = null,
+  importExtractionByFile = null,
   fileRelations,
   log,
   mode = null,
@@ -259,7 +264,8 @@ export function resolveImportLinks({
   fsExistsIndex = null,
   resolverPlugins = null,
   generatedPolicy = null,
-  budgetRuntimeSignals = null
+  budgetRuntimeSignals = null,
+  configuredBuildSnapshot = null
 }) {
   const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
@@ -316,7 +322,12 @@ export function resolveImportLinks({
     resolverPlugins,
     rootAbs: resolvedLookup.rootAbs,
     fsMemo,
-    generatedPolicy
+    generatedPolicy,
+    configuredSnapshot: configuredBuildSnapshot,
+    bazelLabels: createBazelPackageIndex({ entries: resolvedLookup.fileSet, references: importsByFile,
+      rootAbs: resolvedLookup.rootAbs, fsMemo, caseSensitive: resolvedLookup.caseSensitive !== false,
+      resolveTarget: candidate => resolvedLookup.fileSet.has(candidate) ? candidate
+        : resolvedLookup.caseSensitive === false ? resolvedLookup.fileLower.get(candidate.toLowerCase()) || null : null })
   });
   const fsExistsIndexFingerprint = resolveFsExistsIndexCacheFingerprint(resolverPlugins);
   const budgetPolicy = createImportResolutionBudgetPolicy({
@@ -344,7 +355,7 @@ export function resolveImportLinks({
     budgetConfigFingerprint: budgetConfigFingerprint || 'none',
     aliasRulesFingerprint: aliasRulesFingerprint || 'none'
   }));
-  const resolverRuntimeScopeFingerprint = sha1(JSON.stringify({
+  const resolverRuntimeScopeFingerprint = SEMANTIC_ANALYSIS_VERSIONS.importResolution + ':' + sha1(JSON.stringify({
     resolverStaticScopeFingerprint,
     workspaceFingerprint: lookupCompatibilityFingerprint || fileSetFingerprint || 'none',
     buildContextFingerprint: buildContext?.fingerprint || 'none',
@@ -392,7 +403,7 @@ export function resolveImportLinks({
         ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
-      extra: { fileSetFingerprint }
+      extra: { fileSetFingerprint, importResolutionProducer: SEMANTIC_ANALYSIS_VERSIONS.importResolution }
     })
     : null;
   const cacheKey = cacheKeyInfo?.key || null;
@@ -567,10 +578,15 @@ export function resolveImportLinks({
     }
     : null;
   const graphNodes = enableGraph ? new Map() : null;
+  let activePackageDependencies = new Map();
+  const onPackageDependency = (file, signature) => activePackageDependencies.set(file, signature);
   const resolvePackageDirectoryImport = createPackageDirectoryResolver({
     lookup: resolvedLookup,
-    rootAbs: resolvedLookup.rootAbs
+    rootAbs: resolvedLookup.rootAbs,
+    onDependency: onPackageDependency
   });
+  const resolvePackageImports = createPackageImportsResolver({ lookup: resolvedLookup,
+    rootAbs: resolvedLookup.rootAbs, onDependency: onPackageDependency });
   const stageTracker = createImportResolutionStageTracker();
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
@@ -627,15 +643,19 @@ export function resolveImportLinks({
     return Boolean(importerInfo?.isClike && /^\/\/\.\//.test(rawNormalized));
   };
 
+  const extractedByFile = Object.create(null);
   const importsEntries = importsByFile instanceof Map
     ? Array.from(importsByFile.entries())
     : Object.entries(importsByFile || {});
   importsEntries.sort((a, b) => sortStrings(normalizeRelPath(a[0]), normalizeRelPath(b[0])));
   for (const [importerRel, rawImports] of importsEntries) {
-    if (!importerRel || !Array.isArray(rawImports) || !rawImports.length) continue;
+    if (!importerRel) continue;
+    const { relNormalized, rawSpecs, extraction } = admitImportMapExtraction({ importerRel, rawImports,
+      normalizeRelPath, importExtractionByFile, fileRelations });
+    extractedByFile[relNormalized] = extraction;
+    if (!rawSpecs.length) continue;
     const importLinks = new Set();
     const externalImports = new Set();
-    const relNormalized = normalizeRelPath(importerRel);
     const importerInfo = classifyImporter(relNormalized);
     const importerAbs = path.resolve(resolvedLookup.rootAbs, relNormalized);
     let tsconfig = null;
@@ -643,8 +663,6 @@ export function resolveImportLinks({
 
     if (enableGraph) addGraphNode(graphNodes, `file:${relNormalized}`, 'file', capStats);
 
-    const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
-    rawSpecs.sort(sortStrings);
     const importHintsForFile = importHintsByFile && typeof importHintsByFile === 'object'
       ? (importHintsByFile[relNormalized] || importHintsByFile[importerRel] || null)
       : null;
@@ -659,11 +677,18 @@ export function resolveImportLinks({
     const tsconfigFingerprint = tsconfig?.fingerprint || null;
     const fileHash = resolveFileHash(relNormalized);
     const fileCache = cacheState?.files?.[relNormalized] || null;
+    const packageDependenciesFresh = Array.isArray(fileCache?.packageDependencies)
+      && fileCache.packageDependencies.every(entry => Array.isArray(entry) && entry.length === 2
+        && typeof entry[0] === 'string' && path.basename(entry[0]) === 'package.json'
+        && resolveWithinRoot(resolvedLookup.rootAbs, entry[0]) && entry[1] !== 'unavailable'
+        && fingerprintPackageDependency(entry[0]) === entry[1]);
     const canReuseCache = !!(fileCache
       && fileHash
       && fileCache.hash === fileHash
       && (fileCache.resolverScopeFingerprint || '') === resolverRuntimeScopeFingerprint
-      && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
+      && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint
+      && packageDependenciesFresh);
+    activePackageDependencies = new Map(canReuseCache ? fileCache.packageDependencies : []);
     if (cacheMetrics) {
       cacheMetrics.files += 1;
       if (fileHash) cacheMetrics.filesHashed += 1;
@@ -673,13 +698,16 @@ export function resolveImportLinks({
     const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
+      const bazelLabel = isBazelSourceFile(relNormalized)
+        ? buildContext.bazelLabels.classify(rawSpec, { importerRel: relNormalized }) : null;
+      const hasBazelLabel = bazelLabel && bazelLabel.state !== 'not-label';
       const resolutionTrace = createImportResolutionTrace({
         importer: relNormalized,
         rawSpecifier: rawSpec
       });
       const spec = stageTracker.withStage(
         IMPORT_RESOLVER_STAGES.NORMALIZE,
-        () => normalizeImportSpecifier(rawSpec)
+        () => hasBazelLabel ? rawSpec : normalizeImportSpecifier(rawSpec, { fileLiteral: importerInfo.isShell === true })
       );
       if (!spec) {
         stageTracker.markMiss(IMPORT_RESOLVER_STAGES.NORMALIZE);
@@ -785,7 +813,7 @@ export function resolveImportLinks({
       let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
         ? fileCache.specs[spec]
         : null;
-      if (cachedSpec && Number.isFinite(Number(cachedSpec.expiresAt)) && Number(cachedSpec.expiresAt) <= nowMs) {
+      if (cachedSpec && cachedSpec.expiresAt != null && Number.isFinite(Number(cachedSpec.expiresAt)) && Number(cachedSpec.expiresAt) <= nowMs) {
         cachedSpec = null;
       }
       if (cachedSpec && cachedSpec.resolvedPath && !resolvedLookup.fileSet.has(cachedSpec.resolvedPath)) {
@@ -843,6 +871,19 @@ export function resolveImportLinks({
             fallbackPath = null,
             expiresAt = null
           } = cached);
+        } else if (hasBazelLabel) {
+          // Labels own their exact spelling and package boundary. Generic path,
+          // alias and package fallbacks cannot supply a different target.
+          stageTracker.markAttempt(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          resolvedType = bazelLabel.state === 'resolved' ? 'bazel-label' : 'unresolved';
+          resolvedPath = bazelLabel.resolvedPath || null;
+          if (resolvedPath) stageTracker.markHit(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          else stageTracker.markMiss(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          resolutionTrace.record({ stage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
+            outcome: resolvedPath ? 'hit' : 'miss', adapter: 'bazel-label',
+            details: { labelState: bazelLabel.state, candidates: bazelLabel.candidates,
+              packageExists: bazelLabel.packageExists, targetExists: bazelLabel.targetExists,
+              packageWitnesses: bazelLabel.packageWitnesses || [], targetScope: bazelLabel.targetScope || null } });
         } else if (isRelative) {
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
@@ -943,8 +984,12 @@ export function resolveImportLinks({
             }
           }
         } else {
+          const packageImportResolved = resolvePackageImports(spec, relNormalized);
           const tsResolved = resolveTsPaths({ spec, tsconfig, lookup: resolvedLookup });
-          if (tsResolved) {
+          if (packageImportResolved) {
+            resolvedType = 'package-import';
+            resolvedPath = packageImportResolved;
+          } else if (tsResolved) {
             resolvedType = 'ts-path';
             resolvedPath = tsResolved.resolved;
             tsPathPattern = tsResolved.pattern;
@@ -967,7 +1012,8 @@ export function resolveImportLinks({
                   spec,
                   lookup: resolvedLookup,
                   goModulePath,
-                  dartPackageName
+                  dartPackageName,
+                  bazelLabels: buildContext.bazelLabels
                 })
               );
               if (languageResolved) {
@@ -990,10 +1036,8 @@ export function resolveImportLinks({
                   outcome: 'miss',
                   details: { relative: false }
                 });
-                const bazelLabelLike = isBazelLabelSpecifier(spec)
-                  && (importerInfo?.extension === '.bzl'
-                    || importerInfo?.extension === '.star'
-                    || importerInfo?.extension === '.bazel');
+                const bazelLabelLike = isBazelLabelSpecifier(spec, { importerRel: importerInfo.importerRel })
+                  && isBazelSourceFile(importerInfo.importerRel);
                 if (bazelLabelLike) {
                   resolvedType = 'unresolved';
                   unresolvedReasonCodeHint = IMPORT_REASON_CODES.RESOLVER_GAP;
@@ -1244,6 +1288,7 @@ export function resolveImportLinks({
         hash: fileHash,
         resolverScopeFingerprint: resolverRuntimeScopeFingerprint,
         tsconfigFingerprint,
+        packageDependencies: Array.from(activePackageDependencies),
         specs: nextSpecCache
       };
     }
@@ -1255,13 +1300,16 @@ export function resolveImportLinks({
       fileRelations.set(relNormalized, {
         ...existing,
         imports,
+        ...(!Array.isArray(existing.imports) || !existing.imports.length ? { importExtraction: extraction } : {}),
         importLinks: Array.from(importLinks).sort(sortStrings),
         externalImports: Array.from(externalImports).sort(sortStrings)
       });
     }
   }
 
+  const extractionCoverage = summarizeImportExtraction(fileRelations);
   if (enableGraph) {
+    graph.extractionCoverage = extractionCoverage;
     graph.warnings = warningList;
     graph.nodes = Array.from(graphNodes.values()).sort((a, b) => sortStrings(a.id, b.id));
     if (Array.isArray(edges)) {
@@ -1311,6 +1359,8 @@ export function resolveImportLinks({
   }
 
   return {
+    importExtractionByFile: extractedByFile,
+    extractionCoverage,
     stats: {
       files: importsEntries.length,
       nodes: enableGraph ? graphNodes.size : null,

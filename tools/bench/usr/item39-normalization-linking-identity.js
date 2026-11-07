@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
-import crypto from 'node:crypto';
 const {
   ensureArray,
+  hashInputs,
+  USR_SOURCE_DIGEST_VERSION,
+  USR_SOURCE_DIGEST_FORMAT,
   parseBenchArgs,
   readJsonFileWithRaw,
   readJsonFromRoot,
@@ -14,14 +16,6 @@ const {
 const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-39-normalization-linking-identity.json');
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-const hashInputs = (inputs) => {
-  const h = crypto.createHash('sha256');
-  for (const value of inputs) {
-    h.update(String(value));
-    h.update('\0');
-  }
-  return h.digest('hex');
-};
 
 const main = async () => {
   const argv = parseBenchArgs();
@@ -56,7 +50,13 @@ const main = async () => {
       edgeKindConstraints: edgeRows.length,
       uniqueEdgeKinds: edgeKinds.size
     },
-    sourceDigest: hashInputs([configRaw, nodeMapping.raw, edgeConstraints.raw])
+    sourceDigestVersion: USR_SOURCE_DIGEST_VERSION,
+    sourceDigestFormat: USR_SOURCE_DIGEST_FORMAT,
+    sourceDigest: hashInputs([
+      {role:'config',path:'docs/config/usr-guardrails/item-39-normalization-linking-identity.json',value:configRaw},
+      {role:'nodeKindMapping',path:config.inputs.nodeKindMapping,value:nodeMapping.raw},
+      {role:'edgeKindConstraints',path:config.inputs.edgeKindConstraints,value:edgeConstraints.raw}
+    ])
   };
 
   if (!argv.quiet) {

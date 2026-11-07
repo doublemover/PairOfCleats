@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { hasAmbiguousGeneratedArtifactPrefix } from './generated-artifact-prefix.js';
+import { resolveGeneratedArtifactPrefixObservation } from './generated-artifact-observation.js';
 
 const FORMAT = 'poc.generated@1';
 const KIND = 'object-cache';
 const OMIT = 1;
-const PREFIX_BYTES = 8192;
 const FIXED_NAMES = new Map([
   ['cross-file-inference', 'output-cache.json'],
   ['import-resolution', 'import-resolution-cache.json'],
@@ -89,16 +89,15 @@ export const isGeneratedArtifactCacheCandidatePath = (relativePath) => candidate
 export const classifyGeneratedArtifactCachePrefix = ({ relativePath = null, prefix }) => {
   const candidates = relativePath == null ? null : candidateArtifacts(relativePath);
   if (candidates && !candidates.length) return null;
-  const bytes = Buffer.isBuffer(prefix)
-    ? prefix.subarray(0, PREFIX_BYTES)
-    : Buffer.from(String(prefix || '').slice(0, PREFIX_BYTES), 'utf8').subarray(0, PREFIX_BYTES);
-  const text = bytes.toString('utf8');
+  const observation = resolveGeneratedArtifactPrefixObservation(prefix);
+  if (!observation || observation.text === null) return null;
+  const { text, complete } = observation;
   const match = /^\s*\{\s*"__poc_generated"\s*:\s*(\{[^{}]{0,512}\})\s*,/.exec(text);
   if (!match) return null;
   try {
     const header = JSON.parse(match[1]);
     if (!isGeneratedCacheMetadata(header) || (candidates && !candidates.includes(header.artifact))) return null;
-    if (hasAmbiguousGeneratedArtifactPrefix(text, bytes.length < PREFIX_BYTES)) return null;
+    if (hasAmbiguousGeneratedArtifactPrefix(text, complete)) return null;
     return { ...header, action: 'omit' };
   } catch {
     return null;

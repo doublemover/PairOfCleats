@@ -13,10 +13,26 @@ export const resolveSearchControls=(argv={})=>{
 };
 export const applyQueryMatchPolicy=(ast,policy='auto')=>{
   if(!ast||policy==='auto')return ast;
+  const join=(nodes,type)=>nodes.reduce((left,right)=>left ? {type,left,right,implicit:false} : right,null);
   const visit=node=>{
     if(!node)return node;
+    if(node.grouped)return structuredClone(node);
+    if(node.type==='and'&&node.implicit===true){
+      const adjacent=[];
+      const collect=current=>{
+        if(current?.type==='and'&&current.implicit===true&&!current.grouped){collect(current.left);collect(current.right);}
+        else adjacent.push(visit(current));
+      };
+      collect(node);
+      if(policy!=='any')return join(adjacent,'and');
+      const isOptionalPositive=item=>item?.type==='term' && !item.grouped;
+      const positives=adjacent.filter(isOptionalPositive);
+      const gates=adjacent.filter(item=>!isOptionalPositive(item));
+      // Only ordinary positive adjacency is optional. Quotes, negation,
+      // authored groups and explicit Boolean subexpressions retain their gates.
+      return join([join(positives,'or'),...gates].filter(Boolean),'and');
+    }
     const next={...node};
-    if(next.type==='and'&&next.implicit===true){next.type=policy==='any'?'or':'and';next.implicit=false;}
     if(next.left)next.left=visit(next.left);
     if(next.right)next.right=visit(next.right);
     if(next.child)next.child=visit(next.child);

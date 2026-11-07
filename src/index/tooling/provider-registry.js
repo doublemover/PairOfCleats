@@ -1,5 +1,6 @@
 import { normalizeProviderId, validateToolingProvider } from './provider-contract.js';
 import { createConfiguredLspProviders } from './lsp-provider.js';
+import { admitProviderCatalog } from './provider-catalog.js';
 
 export const TOOLING_PROVIDERS = new Map();
 
@@ -49,12 +50,21 @@ export function getToolingProvider(id) {
   return TOOLING_PROVIDERS.get(key) || null;
 }
 
-export function listToolingProviders(toolingConfig = null) {
-  const providers = Array.from(TOOLING_PROVIDERS.values());
-  if (toolingConfig) {
-    providers.push(...createConfiguredLspProviders(toolingConfig));
+const prepareProviderCatalog = toolingConfig => {
+  const providers = [], origins = [];
+  for (const [registeredId, provider] of TOOLING_PROVIDERS) {
+    providers.push(provider);
+    origins.push({ kind: 'registered', source: `registry:${registeredId}`, rawId: provider?.id });
   }
-  return providers;
+  if (toolingConfig) {
+    const configured = createConfiguredLspProviders(toolingConfig);
+    providers.push(...configured); origins.push(...configured.map(() => null));
+  }
+  return admitProviderCatalog(providers, origins);
+};
+
+export function listToolingProviders(toolingConfig = null) {
+  return [...prepareProviderCatalog(toolingConfig).values()];
 }
 
 export function selectToolingProviders({
@@ -66,17 +76,10 @@ export function selectToolingProviders({
 } = {}) {
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
-  const providers = listToolingProviders(toolingConfig);
+  const providerById = prepareProviderCatalog(toolingConfig);
   const enabledTools = normalizeProviderSet(toolingConfig?.enabledTools || []);
   const disabledTools = normalizeProviderSet(toolingConfig?.disabledTools || []);
   const kindFilter = normalizeKindSet(kinds || []);
-
-  const providerById = new Map();
-  for (const provider of providers) {
-    const id = normalizeProviderId(provider?.id);
-    if (!id || providerById.has(id)) continue;
-    providerById.set(id, provider);
-  }
 
   const ordered = [];
   const used = new Set();
@@ -99,7 +102,7 @@ export function selectToolingProviders({
         used.add(id);
       }
     }
-    const remaining = providers.filter((provider) => {
+    const remaining = [...providerById.values()].filter((provider) => {
       const id = normalizeProviderId(provider?.id);
       return id && !used.has(id);
     });
@@ -140,5 +143,15 @@ export function selectToolingProviders({
     plans.push({ provider, documents: filteredDocs, targets: filteredTargets });
   }
 
-  return plans;
+  const selectedGroups = new Map(), suppressed = new Set();
+  for (const plan of plans) {
+    const group = plan.provider.exclusiveLanguageGroup;
+    if (!group) continue;
+    if (selectedGroups.has(group)) throw Object.assign(new Error(`Multiple explicit providers selected for ${group}: ${selectedGroups.get(group)}, ${plan.provider.id}.`), {
+      code: 'ERR_TOOLING_PROVIDER_SELECTION'
+    });
+    selectedGroups.set(group, plan.provider.id);
+    for (const id of plan.provider.replacesProviderIds || []) suppressed.add(normalizeProviderId(id));
+  }
+  return plans.filter(plan => !suppressed.has(normalizeProviderId(plan.provider.id)));
 }

@@ -45,6 +45,8 @@ const resolveSpillBufferBytes = (maxJsonBytes) => {
   );
 };
 
+const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -165,7 +167,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   for (const chunk of chunks || []) {
     if (!chunk) continue;
     const meta = chunk.metaV2 || {};
-    const file = normalizeText(meta.file || chunk.file);
+    const file = normalizePathIdentity(meta.file || chunk.file);
     const chunkUid = normalizeText(meta.chunkUid || chunk.chunkUid);
     if (!file || !chunkUid) continue;
     const host = { file, chunkUid };
@@ -366,18 +368,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       trim: trimMetadata
     }
   });
-  if (!totalRows) {
-    await removeArtifacts([
-      ...buildJsonlVariantPaths({ outDir, baseName: 'symbol_occurrences' }),
-      path.join(outDir, 'symbol_occurrences.meta.json'),
-      path.join(outDir, 'symbol_occurrences.parts'),
-      perFileMetaPath,
-      perFileDataPath,
-      perFileOffsetsPath
-    ]);
-    if (collected?.cleanup) await collected.cleanup();
-    return;
-  }
+  // A completed empty family is still publication evidence. Use the same
+  // writer/cleanup owner as nonempty output, including its zero row count.
   const jsonlExtension = resolveJsonlExtension(compression);
   const occurrencesPath = path.join(outDir, `symbol_occurrences.${jsonlExtension}`);
   const occurrencesMetaPath = path.join(outDir, 'symbol_occurrences.meta.json');

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "healthy-empty", "healthy-full", "empty-manifest-entry", "dense-wrong-id", "dense-wrong-mode", "missing-file",
+    "file-chunk-count", "file-count-null", "ann-wrong-id", "ann-missing", "ann-extra", "ann-disabled-empty",
+    "bounded-samples", "required-query-error", "outside-transaction", "forged-snapshot"
+  ]
+}

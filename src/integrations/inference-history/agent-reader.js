@@ -76,6 +76,7 @@ export function createHistoryAgentReader({ service, requestContext, partition })
             complete: result?.complete ?? null,
             totalsAvailable: result?.totalsAvailable ?? null,
             candidateWindowComplete: result?.candidateWindowComplete ?? null,
+            ...(result?.pagination ? { contract: result.pagination } : {}),
             ...(result?.totalMatches !== undefined ? { totalMatches: result.totalMatches } : {}),
             ...(result?.totalReferences !== undefined ? { totalReferences: result.totalReferences } : {}),
             ...(result?.totalVisibleMessages !== undefined ? { totalVisibleMessages: result.totalVisibleMessages } : {})

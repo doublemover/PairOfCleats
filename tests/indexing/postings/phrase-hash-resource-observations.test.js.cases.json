@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "collision-hashed-none", "collision-hashed-bytes", "collision-hashed-unique",
+    "collision-legacy-none", "collision-legacy-bytes", "collision-legacy-unique",
+    "unique-hashed-none", "unique-hashed-bytes", "unique-hashed-unique",
+    "unique-legacy-none", "unique-legacy-bytes", "unique-legacy-unique"
+  ]
+}

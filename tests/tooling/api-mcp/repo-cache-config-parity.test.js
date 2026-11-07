@@ -40,8 +40,23 @@ assert.ok(mcpEntry.indexCache && mcpEntry.sqliteCache);
 await sharedManager.refreshRepoCaches(repoRoot);
 await refreshRepoCaches(repoRoot);
 
-sharedManager.closeRepoCaches();
-apiManager.closeRepoCaches();
-clearRepoCaches(repoRoot);
+assert.equal(sharedManager.closeRepoCaches().status, 'settled');
+assert.equal(apiManager.closeRepoCaches().status, 'settled');
+assert.equal(clearRepoCaches(repoRoot).status, 'settled');
+const failure = Object.freeze(new Error('parity SQLite close failure'));
+let allow = false, closes = 0;
+const retiring = getRepoCaches(repoRoot);
+retiring.sqliteCache.set('authored-parity.db', { close() { closes++; if (!allow) throw failure; } });
+try {
+  assert.throws(() => clearRepoCaches(repoRoot), error => error.code === 'ERR_REPO_CACHE_RETIREMENT'
+    && error.cacheOwnershipReleased() === false);
+  assert.equal(closes, 1);
+  assert.throws(() => clearRepoCaches(repoRoot), { code: 'ERR_REPO_CACHE_RETIREMENT' });
+  assert.equal(closes, 1);
+} finally {
+  allow = true;
+  for (const owner of retiring.sqliteCache.pendingOwners()) owner.release();
+  assert.equal(clearRepoCaches(repoRoot).status, 'settled');
+}
 
 console.log('repo cache config parity test passed');

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createCompatibilityIndex } from '../../helpers/index-compatibility-fixture.js';
 import { writeSqliteZeroStateManifest } from '../../../src/storage/sqlite/build/runner/config.js';
 import { resolveBenchSqliteModeStatus } from '../../../tools/bench/language/sqlite-mode-status.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
@@ -15,14 +16,16 @@ const indexDir = path.join(root, 'index-prose');
 const dbPath = path.join(root, 'index-prose.db');
 const input = { mode, indexDir, dbPath };
 try {
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false);
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false);
+  await createCompatibilityIndex(root, { mode, compatibilityKey: 'zero-state-fixture' });
+  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]');
   const receiptPath = await writeSqliteZeroStateManifest({ modeIndexDir: indexDir, mode, outputPath: dbPath, chunkCount: 0, denseCount: 0 });
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false, 'receipt presence alone does not establish current empty mode');
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false, 'receipt presence alone does not establish current empty mode');
   const state = { mode, generatedAt: '2026-01-01T00:00:00Z', sqlite: { status: 'ready',
     stats: { reason: 'empty-prose-artifacts', zeroStateManifestPath: receiptPath } } };
   const statePath = path.join(indexDir, 'index_state.json');
   await fs.writeFile(statePath, JSON.stringify(state));
-  const confirmed = resolveBenchSqliteModeStatus(input);
+  const confirmed = await resolveBenchSqliteModeStatus(input);
   assert.equal(confirmed.zeroState, true);
   assert.equal(confirmed.dbExists, false);
   assert.equal(confirmed.zeroStateObservation, 'confirmed-empty');
@@ -34,21 +37,25 @@ try {
   const memoryArgs = buildSearchCliArgs({ query: 'fixture', backend: 'memory',
     mode: decision.coverage.selectedSearchModeByBackend.memory });
   assert.equal(memoryArgs.includes('--mode'), false, 'memory retains its existing default selection');
+  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":0,"file":"not-empty.js","start":0,"end":1}]');
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false, 'current source bytes must independently remain empty');
+  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]');
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, true);
   const receipt = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
   await fs.writeFile(receiptPath, JSON.stringify({ ...receipt, chunkCount: 1 }));
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false, 'nonzero or checksum-mismatched receipt is not empty');
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false, 'nonzero or checksum-mismatched receipt is not empty');
   await fs.writeFile(receiptPath, JSON.stringify(receipt));
-  assert.equal(resolveBenchSqliteModeStatus({ ...input, mode: 'code' }).zeroState, false);
-  assert.equal(resolveBenchSqliteModeStatus({ ...input, dbPath: path.join(root, 'different.db') }).zeroState, false);
+  assert.equal((await resolveBenchSqliteModeStatus({ ...input, mode: 'code' })).zeroState, false);
+  assert.equal((await resolveBenchSqliteModeStatus({ ...input, dbPath: path.join(root, 'different.db') })).zeroState, false);
   await fs.writeFile(statePath, JSON.stringify({ ...state, generatedAt: '2099-01-01T00:00:00Z' }));
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false, 'a newer mode generation invalidates the old empty receipt');
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false, 'a newer mode generation invalidates the old empty receipt');
   await fs.writeFile(statePath, JSON.stringify({ ...state, sqlite: { ...state.sqlite, status: 'running' } }));
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false);
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false);
   await fs.writeFile(statePath, JSON.stringify({ ...state, sqlite: { ...state.sqlite, pending: true } }));
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false);
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false);
   await fs.writeFile(receiptPath, '{ malformed');
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false);
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false);
   await fs.writeFile(receiptPath, JSON.stringify({ ...receipt, oversized: 'x'.repeat(64 * 1024) }));
-  assert.equal(resolveBenchSqliteModeStatus(input).zeroState, false, 'oversized receipt cannot bypass bounded admission');
+  assert.equal((await resolveBenchSqliteModeStatus(input)).zeroState, false, 'oversized receipt cannot bypass bounded admission');
   console.log('Actual zero-state writer, bounded current-receipt admission and real search argument selection pass without native database work.');
 } finally { await fs.rm(root, { recursive: true, force: true }); }

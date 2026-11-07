@@ -22,6 +22,8 @@ const buildIndexStateArtifactsPresent = ({
   const present = {
     chunk_meta: true,
     token_postings: sparseEnabled,
+    field_postings: sparseEnabled && postingsConfig?.fielded === true,
+    field_tokens: sparseEnabled && postingsConfig?.fielded === true,
     phrase_ngrams: sparseEnabled && postingsConfig?.enablePhraseNgrams === true,
     chargram_postings: sparseEnabled && postingsConfig?.enableChargrams === true,
     dense_vectors: embeddingsEnabled,

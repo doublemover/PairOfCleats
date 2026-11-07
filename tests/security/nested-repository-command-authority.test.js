@@ -36,7 +36,8 @@ try {
   assert.equal(detected.source, 'blocked');
   assert.equal(launches, 0, 'installation detection cannot use a broader exception');
 
-  const appCommand = path.join(toolRoot, 'tests/fixtures/lsp/bin/pyright-langserver');
+  const appCommand = path.join(toolRoot, 'tests/fixtures/lsp/bin',
+    process.platform === 'win32' ? 'pyright-langserver.cmd' : 'pyright-langserver');
   if (process.platform !== 'win32') {
     const alias = path.join(nestedRepo, 'app-looking-alias');
     fs.symlinkSync(appCommand, alias);

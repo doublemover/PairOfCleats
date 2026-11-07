@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import { quantizeVec } from '../../../src/index/embedding.js';
 import {
   createWorkerPoolTestResources,
@@ -16,6 +18,10 @@ const workerTokens = await workerPool.tokenizeChunk({
   mode: 'code',
   ext: '.js'
 });
+assert.equal(syncTokens.minhashHashIdentity, MINHASH_HASH_IDENTITY);
+assert.equal(workerTokens.minhashHashIdentity, MINHASH_HASH_IDENTITY);
+assert.equal(workerPool.stats().backend, 'worker', 'normal worker settings must exercise the native thread backend');
+assert.ok(workerPool.pool.completed > 0, 'an actual worker task, rather than an inline fallback, must complete');
 
 if (JSON.stringify(syncTokens.tokens) !== JSON.stringify(workerTokens.tokens)) {
   console.error('worker pool test failed: tokens mismatch.');

@@ -1,81 +1,26 @@
-import { parse, postprocess, preprocess } from 'micromark';
-import { normalizeLimit } from '../../shared/limits.js';
-import { CONFIG_LANGS, hasMeaningfulText, normalizeFenceLanguage, normalizeSegmentsConfig } from './config.js';
+import { CONFIG_LANGS, normalizeFenceLanguage, normalizeSegmentsConfig } from './config.js';
 import { detectFrontmatter } from './frontmatter.js';
 import { finalizeSegments } from './finalize.js';
-
-const collectMarkdownSegments = (text, config) => {
-  const spans = [];
-  const blocks = [];
-  const wantInline = config?.inlineCodeSpans === true;
-  const minChars = wantInline ? normalizeLimit(config.inlineCodeMinChars, 8) : 0;
-  const maxSpans = wantInline ? normalizeLimit(config.inlineCodeMaxSpans, 200) : 0;
-  const maxBytes = wantInline ? normalizeLimit(config.inlineCodeMaxBytes, 64 * 1024) : 0;
-  let totalBytes = 0;
-  let events = [];
-  try {
-    events = postprocess(parse().document().write(preprocess()(text, 'utf8', true)));
-  } catch {
-    return { spans, blocks };
-  }
-  let current = null;
-  for (const [action, token] of events) {
-    if (action === 'enter' && token.type === 'codeFenced') {
-      current = { info: null, valueStart: null, valueEnd: null };
-      continue;
-    }
-    if (current) {
-      if (action === 'enter' && token.type === 'codeFencedFenceInfo') {
-        current.info = text.slice(token.start.offset, token.end.offset);
-      }
-      if (token.type === 'codeFlowValue') {
-        if (action === 'enter' && !Number.isFinite(current.valueStart)) {
-          current.valueStart = token.start.offset;
-        }
-        if (action === 'exit') current.valueEnd = token.end.offset;
-      }
-      if (action === 'exit' && token.type === 'codeFenced') {
-        if (Number.isFinite(current.valueStart) && Number.isFinite(current.valueEnd)) {
-          blocks.push({
-            start: current.valueStart,
-            end: current.valueEnd,
-            info: current.info || null
-          });
-        }
-        current = null;
-      }
-    }
-    if (!wantInline) continue;
-    if (action !== 'enter' || token.type !== 'codeTextData') continue;
-    const start = token.start.offset;
-    const end = token.end.offset;
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    const slice = text.slice(start, end);
-    if (!hasMeaningfulText(slice)) continue;
-    const nonWhitespace = slice.replace(/\s/g, '').length;
-    if (nonWhitespace < minChars) continue;
-    const bytes = Buffer.byteLength(slice, 'utf8');
-    if (spans.length >= maxSpans || totalBytes + bytes > maxBytes) continue;
-    totalBytes += bytes;
-    spans.push({ start, end });
-  }
-  return { spans, blocks };
-};
-
+import { collectMarkdownSegments } from './markdown-content.js';
 export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
   const config = normalizeSegmentsConfig(segmentsConfig);
   const segments = [];
   const frontmatter = detectFrontmatter(text);
   if (frontmatter) {
-    segments.push({
-      type: 'config',
-      languageId: frontmatter.languageId,
-      start: frontmatter.start,
-      end: frontmatter.end,
-      parentSegmentId: null,
-      embeddingContext: 'config',
-      meta: { frontmatter: true }
-    });
+    // Parser input is the original contiguous interior, including its real EOLs.
+    // Prose presentation still owns the broad delimiter-inclusive container.
+    if (frontmatter.contentEnd > frontmatter.contentStart) {
+      segments.push({
+        type: 'config',
+        languageId: frontmatter.languageId,
+        start: frontmatter.contentStart,
+        end: frontmatter.contentEnd,
+        parentSegmentId: null,
+        embeddingContext: 'config',
+        meta: { frontmatter: true, containerStart: frontmatter.start, containerEnd: frontmatter.end,
+          extractionPolicy: 'markdown-frontmatter-content-v1' }
+      });
+    }
     if (config.frontmatterProse) {
       segments.push({
         type: 'prose',
@@ -101,7 +46,10 @@ export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
       end: block.end,
       parentSegmentId: null,
       embeddingContext,
-      meta: { fenceInfo: block.info || null }
+      contentView: block.contentView,
+      ...(block.contentUnavailable ? { contentUnavailable: block.contentUnavailable } : {}),
+      meta: { fenceInfo: block.info || null, containerStart: block.containerStart,
+        containerEnd: block.containerEnd, extractionPolicy: 'markdown-fenced-content-v1' }
     });
   }
   for (const span of spans) {
@@ -116,15 +64,30 @@ export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
       meta: { inlineCode: true }
     });
   }
-  if (!segments.length) {
+  let proseStart = frontmatter?.end || 0;
+  for (const block of fencedBlocks) {
+    if (block.containerStart > proseStart) {
+      segments.push({
+        type: 'prose',
+        languageId: 'markdown',
+        start: proseStart,
+        end: block.containerStart,
+        parentSegmentId: null,
+        embeddingContext: 'prose',
+        meta: { host: true }
+      });
+    }
+    proseStart = Math.max(proseStart, block.containerEnd);
+  }
+  if (proseStart < text.length) {
     segments.push({
-      type: CONFIG_LANGS.has(ext) ? 'config' : 'prose',
-      languageId: ext === '.md' ? 'markdown' : null,
-      start: 0,
+      type: 'prose',
+      languageId: ext === '.mdx' ? null : 'markdown',
+      start: proseStart,
       end: text.length,
       parentSegmentId: null,
-      embeddingContext: CONFIG_LANGS.has(ext) ? 'config' : 'prose',
-      meta: null
+      embeddingContext: 'prose',
+      meta: proseStart === 0 && !segments.length ? null : { host: true }
     });
   }
   return finalizeSegments(segments, relPath);

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["complete-quiet-inventory", "entry-and-captured-byte-bounds", "path-and-directory-bounds", "original-directory-close-failure"]
+}

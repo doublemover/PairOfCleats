@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "cases": ["intact-repeat-and-journal-recovery", "installed-unverified-targeted-repair", "source-versus-patch-drift",
+    "locked-version-and-missing-dependency", "lock-declarations-and-bounds", "original-owner-and-runtime-blockers",
+    "native-artifact-drift-and-no-false-readiness"]
+}

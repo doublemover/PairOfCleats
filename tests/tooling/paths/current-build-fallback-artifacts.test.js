@@ -44,12 +44,17 @@ await fs.writeFile(
   'utf8'
 );
 
+assert.equal(getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' }), null,
+  'marker discovery and mtimes cannot authorize a different generation than the pointer');
+await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: validBuildId, buildRoot: validRoot
+}));
 const currentInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' });
 assert.ok(currentInfo, 'expected current build info');
 assert.equal(
   normalizePath(currentInfo.activeRoot),
   normalizePath(validRoot),
-  'expected fallback to choose latest build root with real artifacts'
+  'expected the explicitly repaired pointer to select its real artifacts'
 );
 
 const resolvedIndexRoot = resolveIndexRoot(repoRoot, userConfig, { mode: 'code' });

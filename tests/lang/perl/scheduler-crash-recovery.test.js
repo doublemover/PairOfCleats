@@ -40,8 +40,8 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
+let scheduler = null;
 try {
-  let scheduler = null;
   await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
     scheduler = await runTreeSitterScheduler({
       mode: 'code',
@@ -74,13 +74,17 @@ try {
   assert.ok(crashSummary.parserCrashEvents.length >= 1, 'expected at least one parser crash event');
 
   await fs.access(scheduler.crashForensicsBundlePath);
-  await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
+  await fs.access(path.join(crashLogger.paths.directory, 'index-crash-forensics-index.json'));
   const durableCrashPath = scheduler.durableCrashForensicsBundlePath;
   if (durableCrashPath) {
     await fs.access(durableCrashPath);
   }
 } finally {
-  await crashLogger.close?.();
+  try {
+    await scheduler?.close();
+  } finally {
+    await crashLogger.close?.();
+  }
 }
 
 console.log('perl scheduler crash recovery ok');

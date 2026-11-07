@@ -28,6 +28,10 @@ export function buildPythonRelations(text, pythonAst) {
     exports,
     calls,
     callDetails,
+    ...(pythonAst && callDetails.every(detail => typeof detail?.callerScopeId === 'string')
+      ? { callOwnership: 'python-lexical-scope-v1' } : {}),
+    ...(Array.isArray(pythonAst?.callCoverageReasons) && pythonAst.callCoverageReasons.length
+      ? { callCoverage: 'partial', callCoverageReasons: [...pythonAst.callCoverageReasons] } : {}),
     usages
   };
 }

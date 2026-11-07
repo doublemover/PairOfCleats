@@ -3,10 +3,11 @@ import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { sha1 } from '../../../shared/hash.js';
 import { extractPdf } from '../../extractors/pdf.js';
 import { extractDocx } from '../../extractors/docx.js';
+import { buildDocumentExtractionAdmission } from '../../extractors/admission.js';
 import {
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
-  EXTRACTION_NORMALIZATION_POLICY,
+  resolveExtractionNormalizationPolicy,
   sha256Hex
 } from '../../extractors/common.js';
 import {
@@ -37,6 +38,7 @@ const buildDocumentExtractionUnits = (units) => {
     if (Number.isFinite(unit.pageNumber)) nextUnit.pageNumber = unit.pageNumber;
     if (Number.isFinite(unit.index)) nextUnit.index = unit.index;
     if (unit.style) nextUnit.style = unit.style;
+    if (Object.hasOwn(unit, 'headingLevel')) nextUnit.headingLevel = unit.headingLevel;
     nextUnits.push(nextUnit);
   }
   return nextUnits;
@@ -56,7 +58,8 @@ const buildDocumentExtractionInfo = ({
   sourceBytesHashAlgo: 'sha256',
   counts: joined.counts,
   units: buildDocumentExtractionUnits(joined.units),
-  normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
+  normalizationPolicy: resolveExtractionNormalizationPolicy(sourceType),
+  admission: buildDocumentExtractionAdmission({ sourceType, policy, extractor: extracted.extractor }),
   warnings: extracted.warnings || [],
   policy: buildDocumentExtractionPolicySummary(policy),
   fidelity: extracted.fidelity || buildDocumentExtractionFidelity({
@@ -96,6 +99,7 @@ export async function resolvePreCpuFileContent({
   fileStat,
   fileScanner,
   runIo,
+  signal = null,
   throwIfAborted,
   updateCrashStage,
   formatCrashErrorMeta,
@@ -158,6 +162,7 @@ export async function resolvePreCpuFileContent({
       : await extractDocx({
         filePath: abs,
         buffer: artifacts.fileBuffer,
+        signal,
         policy: documentExtractionPolicy
       });
     updateCrashStage('pre-cpu:extract:done', {
@@ -174,7 +179,8 @@ export async function resolvePreCpuFileContent({
           reason: extracted?.reason || 'extract_failed',
           stage: 'extract',
           sourceType: documentSourceType,
-          warnings: extracted?.warnings || []
+          warnings: extracted?.warnings || [],
+          fidelity: extracted?.fidelity || null
         }
       };
     }

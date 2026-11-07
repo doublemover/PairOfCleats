@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["explicit-profile-report", "capture-and-refusal-boundaries", "profile-errors-and-report-bounds"]
+}

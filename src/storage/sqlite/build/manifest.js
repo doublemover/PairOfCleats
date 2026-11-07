@@ -1,9 +1,10 @@
 import { normalizeFilePath } from '../utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io-paths.js';
+import { sqliteBundleIdentity } from '../bundle-identity.js';
 
 export function getFileManifest(db, mode) {
-  const rows = db.prepare('SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?')
+  const rows = db.prepare('SELECT file, hash, mtimeMs, size, bundle_hash FROM file_manifest WHERE mode = ?')
     .all(mode);
   const map = new Map();
   for (const row of rows) {
@@ -66,8 +67,10 @@ export function diffFileManifests(manifestEntries, dbFiles) {
     if (!record?.normalized) continue;
     manifestSet.add(record.normalized);
     const dbEntry = dbFiles.get(record.normalized);
-    if (isManifestMatch(record.entry, dbEntry, { strictHash: true })) continue;
-    if (record.entry?.hash && !dbEntry?.hash) {
+    const bundleIdentity = sqliteBundleIdentity(record.entry);
+    const finalizedMatches = bundleIdentity != null && bundleIdentity === dbEntry?.bundle_hash;
+    if (isManifestMatch(record.entry, dbEntry, { strictHash: true }) && finalizedMatches) continue;
+    if (record.entry?.hash && !dbEntry?.hash && finalizedMatches) {
       if (isManifestMatch(record.entry, dbEntry, { strictHash: false })) {
         manifestUpdates.push(record);
         continue;

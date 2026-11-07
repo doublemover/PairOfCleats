@@ -43,9 +43,14 @@ const cases = [
     run() {
       const entries = createEntries(['a', 'b']);
       const graphRelations = createCallGraphRelations([['a', 'b']]);
-      const first = JSON.stringify(applyGraphRanking({ entries, graphRelations, config: baseConfig, explain: true }));
-      const second = JSON.stringify(applyGraphRanking({ entries, graphRelations, config: baseConfig, explain: true }));
-      assert.equal(first, second);
+      const first = applyGraphRanking({ entries, graphRelations, config: baseConfig, explain: true });
+      const second = applyGraphRanking({ entries, graphRelations, config: baseConfig, explain: true });
+      assert.deepEqual(first.entries, second.entries);
+      const { preparation: cold, ...firstTraversal } = first.stats;
+      const { preparation: warm, ...secondTraversal } = second.stats;
+      assert.deepEqual(firstTraversal, secondTraversal);
+      assert.ok(cold.nodeSlotsVisited > 0); assert.equal(warm.nodeSlotsVisited, 0);
+      assert.ok(cold.adjacencyListsBuilt > 0); assert.equal(warm.adjacencyListsBuilt, 0);
     }
   },
   {

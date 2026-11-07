@@ -87,7 +87,8 @@ const SHARDED_META_ARTIFACT_KEY_MAP = [
   ['risk_flows_meta', 'risk_flows'],
   ['risk_partial_flows_meta', 'risk_partial_flows'],
   ['repo_map_meta', 'repo_map'],
-  ['graph_relations_meta', 'graph_relations']
+  ['graph_relations_meta', 'graph_relations'],
+  ['graph_relation_edges_meta', 'graph_relation_edges']
 ];
 
 export const SHARDED_META_ARTIFACT_SCHEMA_DEFS = Object.fromEntries(

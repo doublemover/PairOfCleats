@@ -1,6 +1,10 @@
 # Shared Component Audit
 
-This document is a historical shared-helper adoption note. Current roadmap status, duplicate-code policy, and shared-module checkpoint decisions live in `docs/roadmap.md`, `docs/tooling/duplication-reduction-status.md`, and `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`.
+This document is a historical shared-helper adoption note. Current status belongs
+to [the roadmap](../roadmap.md) and [duplicate-code policy](../tooling/duplication-reduction-status.md).
+The former shared-module backlog is preserved as
+[archived implementation history](../archived/432-prioritized-implementation-backlog.md);
+it is not a competing current execution queue.
 
 Completed consolidations:
 - Limits normalization (`src/shared/limits.js`) used in graph, retrieval, index, and tooling flows.

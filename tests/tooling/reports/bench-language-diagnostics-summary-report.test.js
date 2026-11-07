@@ -140,8 +140,12 @@ assert.ok(stream && typeof stream === 'object', 'expected diagnostics stream sum
 assert.equal(stream.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected diagnostics stream schema');
 assert.equal(stream.fileCount, 2, 'expected both diagnostics streams to be scanned');
 assert.equal(stream.eventCount, 6, 'expected deduped event count across master and repo streams');
-assert.equal(stream.rawEventCount, 7, 'expected raw event count to include duplicate fallback event');
-assert.equal(stream.duplicateEventCount, 1, 'expected one duplicate event across the merged streams');
+assert.equal(stream.rawEventCount, 7, 'expected raw event count to include both fallback occurrences');
+assert.equal(stream.duplicateEventCount, 0, 'occurrences 1/2 are real observations, not transport duplicates');
+assert.equal(stream.occurrenceCount, 7);
+assert.equal(stream.repeatedFingerprintOccurrenceCount, 1);
+assert.equal(stream.identityCoverage.legacyOccurrences, 7);
+assert.equal(stream.unknownRepoCountsByType.parser_crash, 1, 'unlabeled master presence remains explicitly unknown');
 assert.equal(stream.uniqueEventCount, 6, 'expected unique event count across both streams');
 assert.equal(stream.malformedLines, 1, 'expected malformed master stream line to be tracked');
 assert.equal(stream.countScopes?.countsByType, 'event_presence', 'expected explicit event scope labeling');
@@ -172,7 +176,8 @@ assert.equal(stream.required.fallback_used, 1, 'expected duplicated fallback eve
 
 const parity = output?.diagnostics?.parity;
 assert.ok(parity && typeof parity === 'object', 'expected diagnostics parity summary');
-assert.equal(parity.status, 'ok', 'expected diagnostics parity to agree with aggregate logs');
+assert.equal(parity.status, 'error', 'malformed input cannot establish clean parity even when all recognized events agree');
+assert.equal(parity.coverage.malformedDiagnosticLines, 1);
 assert.equal(parity.materialMismatchCount, 0, 'expected no material diagnostics parity mismatches');
 assert.equal(parity.countScopes?.countsFromLogs, 'event_presence', 'expected parity event scope label');
 assert.equal(parity.countScopes?.repoCountsFromLogs, 'repo_presence', 'expected parity repo scope label');
@@ -193,6 +198,17 @@ assert.equal(
   true,
   'expected master diagnostics stream summary'
 );
+
+// Retain the original positive event-count/parity control on complete inputs.
+// Only the deliberately malformed row changes; all recognized events remain.
+const original = await fsPromises.readFile(streamA, 'utf8');
+await fsPromises.writeFile(streamA, original.split(/\r?\n/u).filter(line => line !== '{malformed').join('\n'));
+const cleanOutput = await buildReportOutput({ configPath: '/tmp/repos.json', cacheRoot: '/tmp/cache',
+  resultsRoot: tempRoot, results: [], config: {} });
+assert.equal(cleanOutput.diagnostics.parity.status, 'ok', 'complete matching streams retain the clean positive control');
+assert.equal(cleanOutput.diagnostics.parity.materialMismatchCount, 0);
+assert.deepEqual(cleanOutput.diagnostics.stream.countsByType, stream.countsByType);
+assert.equal(cleanOutput.diagnostics.stream.eventCount, stream.eventCount);
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 

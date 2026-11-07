@@ -1,6 +1,7 @@
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
 
+/** @returns {import('../types.js').AnnProvider} */
 export function createSqliteVectorAnnProvider({
   rankVectorAnnSqlite,
   vectorAnnState,
@@ -18,6 +19,8 @@ export function createSqliteVectorAnnProvider({
 
   return {
     id: ANN_PROVIDER_IDS.SQLITE_VECTOR,
+    capabilities: Object.freeze({ predicate: 'candidate-id-pushdown', exhaustiveStored: false,
+      progressiveEffort: false, cancellation: 'before-after-native-call', scoreSpace: 'vector-extension-declared-distance' }),
     isAvailable: ({ mode, embedding }) => isAnnProviderAvailable({
       embedding,
       backendReady: hasRanker && isBackendReady(mode)

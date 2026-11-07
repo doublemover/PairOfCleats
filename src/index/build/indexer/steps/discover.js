@@ -4,6 +4,7 @@ import { sha1 } from '../../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { discoverFiles } from '../../discover.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
+import { forwardDiscoveryDirectoryInventory } from '../../discovery/directory-inventory.js';
 
 const MODE_LABEL_WIDTH = 'Extracted Prose'.length;
 
@@ -44,7 +45,7 @@ export const runDiscovery = async ({
   const discoverStart = Date.now();
   let entries = null;
   if (discovery && Array.isArray(discovery.entries)) {
-    entries = discovery.entries.slice();
+    entries = forwardDiscoveryDirectoryInventory(discovery.entries, discovery.entries.slice());
     log('→ Reusing shared discovery results.');
   } else {
     entries = await runtime.queues.io.add(
@@ -71,11 +72,11 @@ export const runDiscovery = async ({
   }
   throwIfAborted(effectiveAbortSignal);
   entries.sort((a, b) => compareStrings(a.rel, b.rel));
-  entries = entries.map((entry, index) => ({
+  entries = forwardDiscoveryDirectoryInventory(entries, entries.map((entry, index) => ({
     ...entry,
     canonicalOrderIndex: index,
     orderIndex: index
-  }));
+  })));
   if (state) {
     const discoveryList = entries.map((entry) => ({
       file: entry.rel,

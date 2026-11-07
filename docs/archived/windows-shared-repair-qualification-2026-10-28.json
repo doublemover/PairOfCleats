@@ -1,0 +1,2080 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-shared-repair-qualification",
+  "baseline": "windows-full-validation-checkpoint-265-2026-10-28.json",
+  "policy": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "first": [
+    {
+      "sourceHead": "79c2910ccd694c99699efff29a1771e691c8d797",
+      "summary": {
+        "durationMs": 146531,
+        "failed": 1,
+        "passed": 49,
+        "skipped": 0,
+        "total": 50
+      },
+      "reportSha256": "7023539999671a494631feaf488895704cc2b9e9c7fdc9eefb869e29f14a59fa",
+      "tests": [
+        {
+          "id": "context-pack/risk-budget-trimming",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-count-cap-accounting",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/accumulated",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/actual-exact-fit",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/envelope-boundaries",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/full-metadata",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/measurement",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/partial-metadata",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-hydrated-budget/positive-source",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "context-pack/risk-ranking-budget",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "embeddings/pipeline/grouped-work-failure-ledger",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "embeddings/pipeline/inflight-terminal-settlement",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "embeddings/runner/adaptive-file-failure-drain",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "file-processor/lexicon-relations-filter-callDetails-offset-dedupe",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "file-processor/lexicon-relations-filter-case-sensitive-stopwords",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "file-processor/lexicon-relations-filter-dedupe-only",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "file-processor/lexicon-relations-filter-determinism",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "file-processor/lexicon-relations-filter-keyword-property",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "file-processor/lexicon-relations-filter-language-override-enabled",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "graph/impact-production-direction",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "graph/real-source-change-workflow",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexer/call-sites/contract-matrix",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexer/metav2/contract-matrix",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/artifact-write-controller-contract-matrix",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/completed-stage-recovery",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/extraction-quality-observation",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/field-postings-legacy-merge-reuses-shards",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/graph-edge-distinct-cap",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/graph-spill-disk-admission",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/scan-profile-artifact",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/scan-profile-observation-scope",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/artifacts/supplied-graph-disk-admission",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/build/failed-stage-import-authority",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/build/immutable-graph-capability",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/build/ordinary-failed-stage-reuse",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/build/recovery-bounded-durable-result",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/cache/modality-sparsity-profile",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/cache/prose-extracted-shared-file-text",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/dynamic-key-metrics-and-metadata",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/documents/pdf-resource-lifetime",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/embeddings/embedding-typedarray-quantization-postings-step",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/concurrent-state",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/malformed-meta",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/malformed-shards",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/metadata-null",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/metadata-valid",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/metadata-zero",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "sourceHead": "79c2910ccd694c99699efff29a1771e691c8d797",
+      "summary": {
+        "durationMs": 21489,
+        "failed": 0,
+        "passed": 50,
+        "skipped": 0,
+        "total": 50
+      },
+      "reportSha256": "8569d5dfc26ea22dcb343bbbc368b34b19fc2f975de057d45065dd3c4ab4f343",
+      "tests": [
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/missing-meta",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/negative-count",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/observed-extent",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/pending-binary-meta",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/pending-meta",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/primary-backup",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/queued-snapshot",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/receipt-lock",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/receipt-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/receipt-revokes-validation",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/stale-attempt",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/state-hash-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/string-count",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/unmarked-primary-read",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/unreadable-meta",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/unsafe-count",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/unselected-meta",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/validation-getter",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/validation-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/validation-stale-attempt",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/manifest-publication-ownership/vector-hash-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/capture-disabled",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/capture-platform",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/capture-unavailable",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/child-observer-inspection",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/child-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/child-replaced",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/child-revoked-success",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/empty-json",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/invalid-json",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/launch-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/native-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/non-string-output",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/nonobject-json",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/null-exit",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/null-metadata",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/optional-forensic-write",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/publisher-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/publisher-null",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/publisher-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/required-forensic-index",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/required-forensic-write",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/signed-native-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/string-exit",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/testhook-untrusted",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/truncated-json",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/warning-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-boundary-diagnostics/warning-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/captured-close",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/close-getter-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "sourceHead": "79c2910ccd694c99699efff29a1771e691c8d797",
+      "summary": {
+        "durationMs": 24993,
+        "failed": 1,
+        "passed": 49,
+        "skipped": 0,
+        "total": 50
+      },
+      "reportSha256": "0f9e69175b6f3039d4a867fa2f4b3190fca70476c99eae955f477171d65381f3",
+      "tests": [
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/db-close-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-absent",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-ddl",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-ddl-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-fake-default",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-invalid",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-oversize-ddl",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-second-column",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dims-type",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/dual-close-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/identifier",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-close-replacement",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-constructor",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-null-close",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-pending-replaced",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-pragma-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-table-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/native-work-close",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/pending-work",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/replaced-work-observer",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/source-close-async",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/source-close-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/source-return-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/table-absent",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/table-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/table-invalid",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/table-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/embeddings/sqlite-dense-schema-lifetime/table-present",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/close-after-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/close-barrier",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/different-keys-serial",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/different-kinds",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/failed-index-dedup",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/flush-barrier",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/late-intake",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/optional-first-required",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/payload-budget",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/pending-budget",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/pending-error",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/replaced-observer",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/required-first-optional",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/revoked-success",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/same-key-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/snapshot",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/warning-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/forensic-publication-ordering/warning-pending",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/imports/css-import-registry-replay",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        }
+      ]
+    },
+    {
+      "sourceHead": "79c2910ccd694c99699efff29a1771e691c8d797",
+      "summary": {
+        "durationMs": 108629,
+        "failed": 6,
+        "passed": 44,
+        "skipped": 0,
+        "total": 50
+      },
+      "reportSha256": "1ca071d833ce6347b927ab8cbd8f9d7de5dfc0d0d312710b37dd01d16668d703",
+      "tests": [
+        {
+          "id": "indexing/imports/import-extraction-handoff",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/incremental/manifest-bound-snapshots",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/incremental/shared-buffer-hash-for-imports-and-bundle",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/metadata/adapter-and-relation-diff-identities",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/ordering/ordered-completion-tracker",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/planning/calibrated-file-cost",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/postings/build-sparse-disable",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/postings/doc-only-missing-doc-is-zero",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/postings/field-record-contract",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/postings/token-field-cancellation",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/postings/vector-only-service-embeddings-pending-artifacts",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/runtime/stage-checkpoint-snapshot-sanitize",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/blank",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/closing-and-invalid-config",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/crlf",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/html",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/indent",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/invalid-views",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/javascript-projection",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/list",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/long-fence",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/mapping-and-identity",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/piece-budget",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/plain",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/quote",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/semantic-map",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/starred-crlf",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/starred-json",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/starred-yaml",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/tilde",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/toml",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/unstarred-yaml",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/segments/embedded-content-views/vfs-and-token-input",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/semantic/cache-reader-identity",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/semantic/cache-relocation",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/semantic/cache-shard-persistence",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/semantic/interrupted-multi-worker-recovery",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/semantic/verified-replay-handoff",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/stage1/process-files-watchdog-recovery",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "map/workspace/routes",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "map/workspace/server-lifetime",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "perf/indexing/runtime/scheduler-stage-wiring",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "services/advanced-surface-goldens",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "services/api-search-asof",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "storage/semantic/analysis-version-identity",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "storage/semantic/cache-routes-parity",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "storage/semantic/cache-transaction-recovery",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "storage/semantic/first-stage-completion",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "storage/semantic/verified-piece-snapshot",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "sourceHead": "79c2910ccd694c99699efff29a1771e691c8d797",
+      "summary": {
+        "durationMs": 108913,
+        "failed": 5,
+        "passed": 33,
+        "skipped": 0,
+        "total": 38
+      },
+      "reportSha256": "6ba4fb3dcdbc66e832ddbd775195e599d90c89875b045c86300f9552241ca3bb",
+      "tests": [
+        {
+          "id": "tooling/config-inventory/schema-authority",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/config/runtime-diagnostics-readonly",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/ingest/normalize-path",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/ingest/output-preservation",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/install/phpactor-platform-contract",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/cli-error-report",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/cli-invalid",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/cli-warning",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/duplicate-selection",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/empty",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/empty-member",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/missing-pack",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/missing-repo",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/mixed-all",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/no-input",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/non-string",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/selection-before-config",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/diagnostics-report-selection/unknown",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/changed-source",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/cli-idempotence",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/cli-refresh-failure",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/key-order",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/malformed-source",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/missing-source",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/native-provenance",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/read-provenance",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/reports/throughput-analysis-materialization/same-analysis",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/run-node-residual-policy",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "tooling/vscode/windows-cmd",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tui/rendering-responsiveness",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tui/supervisor-operator-search/launch-authority",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "tui/supervisor-operator-search/navigation",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "tui/supervisor-operator-search/navigation-cancel",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tui/supervisor-operator-search/navigation-untrusted",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "tui/supervisor-operator-search/pagination",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tui/supervisor-operator-search/query-source",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tui/supervisor-operator-search/source-authority",
+          "status": "failed",
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "tui/supervisor-search-recovery",
+          "status": "passed",
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    }
+  ],
+  "followup": {
+    "sourceHead": "1623dd0c28ab1d400f1f831126f812c6e9226d44",
+    "summary": {
+      "durationMs": 189775,
+      "failed": 3,
+      "passed": 68,
+      "skipped": 0,
+      "total": 71
+    },
+    "reportSha256": "152622a9a9713b88efdfe88403e8d04a361c7c75e3fdc0ea4163c11e840918cf",
+    "tests": [
+      {
+        "id": "context-pack/risk-count-cap-accounting",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "contracts/module-export-surface-compat",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "embeddings/pipeline/grouped-work-failure-ledger",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "embeddings/pipeline/inflight-terminal-settlement",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "embeddings/runner/adaptive-file-failure-drain",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "file-processor/lexicon-relations-filter-callDetails-offset-dedupe",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "file-processor/lexicon-relations-filter-case-sensitive-stopwords",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "file-processor/lexicon-relations-filter-dedupe-only",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "file-processor/lexicon-relations-filter-determinism",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "file-processor/lexicon-relations-filter-keyword-property",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "file-processor/lexicon-relations-filter-language-override-enabled",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "graph/impact-production-direction",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/artifact-write-controller-contract-matrix",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/completed-stage-recovery",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/extraction-quality-observation",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/field-postings-legacy-merge-reuses-shards",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/graph-edge-distinct-cap",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/graph-spill-disk-admission",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/scan-profile-artifact",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/scan-profile-observation-scope",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/artifacts/supplied-graph-disk-admission",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/build/failed-stage-import-authority",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/build/immutable-graph-capability",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/build/ordinary-failed-stage-reuse",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/build/recovery-bounded-durable-result",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/cache/modality-sparsity-profile",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/cache/prose-extracted-shared-file-text",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/contracts/dynamic-key-metrics-and-metadata",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/documents/pdf-resource-lifetime",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/embeddings/embedding-typedarray-quantization-postings-step",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/imports/css-import-registry-replay",
+        "status": "failed",
+        "timedOut": false,
+        "exitCode": 1
+      },
+      {
+        "id": "indexing/imports/import-extraction-handoff",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/incremental/manifest-bound-snapshots",
+        "status": "failed",
+        "timedOut": false,
+        "exitCode": 1
+      },
+      {
+        "id": "indexing/incremental/shared-buffer-hash-for-imports-and-bundle",
+        "status": "failed",
+        "timedOut": false,
+        "exitCode": 1
+      },
+      {
+        "id": "indexing/metadata/adapter-and-relation-diff-identities",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/ordering/ordered-completion-tracker",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/planning/calibrated-file-cost",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/postings/build-sparse-disable",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/postings/doc-only-missing-doc-is-zero",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/postings/field-record-contract",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/postings/token-field-cancellation",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/runtime/stage-checkpoint-snapshot-sanitize",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "indexing/semantic/cache-reader-identity",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "map/workspace/routes",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "map/workspace/server-lifetime",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "perf/indexing/runtime/scheduler-stage-wiring",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "services/advanced-surface-goldens",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "services/api-search-asof",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "storage/semantic/first-stage-completion",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tooling/ingest/normalize-path",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tooling/ingest/output-preservation",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tooling/run-node-residual-policy",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/operation-failure-projection",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/operator-search-failure-cause",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/launch-authority",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/navigation",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/navigation-cancel",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/navigation-untrusted",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/pagination",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/query-source",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-operator-search/source-authority",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/empty-success",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/invalid-repository",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/invalid-request",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/missing-capability",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/missing-index",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/results-success",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failure-contract/unsupported-format",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      },
+      {
+        "id": "tui/supervisor-search-failures",
+        "status": "passed",
+        "timedOut": false,
+        "exitCode": 0
+      }
+    ]
+  },
+  "rust": {
+    "sourceHead": "1623dd0c28ab1d400f1f831126f812c6e9226d44",
+    "toolchain": "1.88.0",
+    "command": "cargo +1.88.0 test --manifest-path crates/pairofcleats-tui/Cargo.toml --locked --offline",
+    "passed": 152,
+    "failed": 0,
+    "ignored": 0,
+    "logSha256": "27c653e318f886818d80fc55d32b65cfa68695acb4e470602b4d08a0ac39647b"
+  },
+  "remainingFocusedFailures": [
+    "indexing/imports/css-import-registry-replay",
+    "indexing/incremental/manifest-bound-snapshots",
+    "indexing/incremental/shared-buffer-hash-for-imports-and-bundle",
+    "indexing/postings/vector-only-service-embeddings-pending-artifacts"
+  ],
+  "issueReviews": [
+    {
+      "issue": 987,
+      "checks": [
+        "indexing/metadata/adapter-and-relation-diff-identities",
+        "indexing/contracts/dynamic-key-metrics-and-metadata",
+        "map/workspace/routes",
+        "map/workspace/server-lifetime",
+        "services/advanced-surface-goldens",
+        "services/api-search-asof"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 988,
+      "checks": [
+        "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+        "indexing/artifacts/field-postings-legacy-merge-reuses-shards",
+        "indexing/postings/token-field-cancellation",
+        "indexing/embeddings/embedding-typedarray-quantization-postings-step",
+        "indexing/postings/build-sparse-disable",
+        "indexing/postings/doc-only-missing-doc-is-zero",
+        "indexing/contracts/dynamic-key-metrics-and-metadata",
+        "indexing/postings/field-record-contract"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 994,
+      "checks": [
+        "indexing/cache/modality-sparsity-profile",
+        "contracts/module-export-surface-compat",
+        "indexing/cache/prose-extracted-shared-file-text",
+        "indexing/contracts/dynamic-key-metrics-and-metadata",
+        "indexing/ordering/ordered-completion-tracker",
+        "indexing/planning/calibrated-file-cost"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 998,
+      "checks": [
+        "indexing/runtime/stage-checkpoint-snapshot-sanitize",
+        "perf/indexing/runtime/scheduler-stage-wiring",
+        "contracts/module-export-surface-compat",
+        "embeddings/pipeline/grouped-work-failure-ledger",
+        "embeddings/pipeline/inflight-terminal-settlement",
+        "embeddings/runner/adaptive-file-failure-drain",
+        "indexing/contracts/dynamic-key-metrics-and-metadata"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 1004,
+      "checks": [
+        "tooling/ingest/normalize-path",
+        "tooling/ingest/output-preservation",
+        "indexing/contracts/dynamic-key-metrics-and-metadata"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 1014,
+      "checks": [
+        "indexing/artifacts/scan-profile-artifact",
+        "indexing/artifacts/scan-profile-observation-scope",
+        "indexing/artifacts/extraction-quality-observation",
+        "indexing/contracts/dynamic-key-metrics-and-metadata"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 1015,
+      "checks": [
+        "indexing/contracts/dynamic-key-metrics-and-metadata",
+        "indexing/artifacts/completed-stage-recovery",
+        "indexing/build/failed-stage-import-authority",
+        "indexing/build/immutable-graph-capability",
+        "indexing/build/ordinary-failed-stage-reuse",
+        "indexing/build/recovery-bounded-durable-result"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 1018,
+      "checks": [
+        "file-processor/lexicon-relations-filter-keyword-property",
+        "file-processor/lexicon-relations-filter-callDetails-offset-dedupe",
+        "file-processor/lexicon-relations-filter-case-sensitive-stopwords",
+        "file-processor/lexicon-relations-filter-dedupe-only",
+        "file-processor/lexicon-relations-filter-determinism",
+        "file-processor/lexicon-relations-filter-language-override-enabled",
+        "indexing/contracts/dynamic-key-metrics-and-metadata"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    },
+    {
+      "issue": 1066,
+      "checks": [
+        "indexing/artifacts/graph-edge-distinct-cap",
+        "graph/impact-production-direction",
+        "indexing/artifacts/graph-spill-disk-admission",
+        "indexing/artifacts/supplied-graph-disk-admission",
+        "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+        "indexing/artifacts/artifact-write-controller-contract-matrix",
+        "indexing/contracts/dynamic-key-metrics-and-metadata"
+      ],
+      "qualified": false,
+      "review": "Original requirements and source reviewed; mapped checks passed in the follow-up. Publication and final gate pending."
+    }
+  ],
+  "rawReceiptAvailability": "Historical author-workspace logs under .tmp/tasks/windows-repair-282-20261028; not present in a clean checkout."
+}

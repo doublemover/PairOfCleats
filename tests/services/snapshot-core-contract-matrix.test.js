@@ -99,7 +99,9 @@ const seedFreezeBuildRoot = async ({
 }) => {
   const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
   await fs.mkdir(buildRoot, { recursive: true });
-  const { indexDir } = await createBaseIndex({ rootDir: buildRoot });
+  const { indexDir } = await createBaseIndex({ rootDir: buildRoot,
+    manifestOverrides: { buildId, mode: 'code' },
+    indexState: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId, mode: 'code', generatedAt: '2026-02-12T00:00:00.000Z' } });
   const modeDir = path.join(buildRoot, 'index-code');
   await fs.mkdir(path.dirname(modeDir), { recursive: true });
   await replaceDir(indexDir, modeDir);
@@ -117,7 +119,7 @@ const seedFreezeBuildRoot = async ({
 
 const sha1Value = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
 
-const writePiecesManifest = async (indexDir, files) => {
+const writePiecesManifest = async (indexDir, files, buildId) => {
   const entries = [];
   for (const file of files) {
     const absolute = path.join(indexDir, file.path);
@@ -133,6 +135,7 @@ const writePiecesManifest = async (indexDir, files) => {
   }
   await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
+    buildId,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces: entries
   });
@@ -199,7 +202,7 @@ const seedDiffBuild = async ({
     { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
     { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
     { type: 'stats', name: 'index_state', path: 'index_state.json' }
-  ]);
+  ], buildId);
 
   await writeJson(path.join(buildRoot, 'build_state.json'), {
     schemaVersion: 1,

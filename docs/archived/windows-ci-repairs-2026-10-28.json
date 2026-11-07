@@ -1,0 +1,2815 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-ci-repairs",
+  "date": "2026-10-28",
+  "sourceParent": "319764dca9acfd34155da8a59c3a273fac7c63e1",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "sourceIdentity": "working-file-sha256-recorded-after-focused-checks",
+  "runtime": {
+    "node": "v26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147",
+    "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe"
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "fullSuiteRerun": false
+  },
+  "nativeBinarySha256": "641e194e04550eb28fbfba8a510574d5c3788070de1b23e0eb82ec467b52cfe2",
+  "officialNodeZipSha256": "dcc60d59a0746999f99064a01c020445d54d84228c691cdbf25b49ac3b59150a",
+  "setup": {
+    "path": ".tmp/tasks/ci-and-p1-20261028/native-verify-node2613.log",
+    "sha256": "35d815ec20a6fdb70fcc82284ded0321335590909e04c72c8300f12a816c0518",
+    "exitCode": 0,
+    "requiredPackages": 37,
+    "languageRoutes": 33,
+    "patchPackages": 8,
+    "patchTargets": 26,
+    "patchHunks": 61
+  },
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/ci-long.yml",
+      "sha256": "39d29210d3f97761de9eb0726cf1211c6b2e3d139bc9a72348e93470d311e470"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "0fe9300b8992f2e4f442e681cbc6adf229704fbda7497704f10f209caba2f7b8"
+    },
+    {
+      "path": ".github/workflows/codeql.yml",
+      "sha256": "2ee4373570906ee199093c4a576ee6305d187ff8e0b13bc5a875c809c8e3d609"
+    },
+    {
+      "path": ".github/workflows/maintenance-full.yml",
+      "sha256": "79366460cfd35ba3b3363bf56100cf5b65f83f8374feffe53a8e2e6bcb38016e"
+    },
+    {
+      "path": ".github/workflows/maintenance-security.yml",
+      "sha256": "cf79314fd6b3ecc5ce5a1b1f58b2661737063e393f7e3f300df99c5c57559ad6"
+    },
+    {
+      "path": ".github/workflows/nightly.yml",
+      "sha256": "b5418b4f851235e6f9cf94944ad68e64ad3daff244a4bbfd2896d20b74bd818d"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "sha256": "6578202fbe167f1e1724057055f93fa6d752a294d218e5f969378dc3135dcdbd"
+    },
+    {
+      "path": ".nvmrc",
+      "sha256": "6e775beae185bb3f5837d2f6d3fbe910e6f60e18fa507e661e312e84d707a92f"
+    },
+    {
+      "path": "crates/pairofcleats-tui/Cargo.toml",
+      "sha256": "3a2dff1b875dc9b8f1d1106656b859572b189be205a05581d9446749730403bb"
+    },
+    {
+      "path": "crates/pairofcleats-tui/rust-toolchain.toml",
+      "sha256": "e25bc95798677517a4a33e2834e2111f2af523c3b7ecf5dc5ad1d6d12b65ef21"
+    },
+    {
+      "path": "tests/ci/native-inspection-workflow.test.js",
+      "sha256": "6c4e18ee01e21838e4a4f84909566b5b557f81825829f84abcbb0a4a229127ed"
+    },
+    {
+      "path": "tests/ci/workflow-contract.test.js",
+      "sha256": "61f30dc960e064a28e08b69fffcbefb9bb04ba1c8a693848a7b7017cb5d0fb25"
+    },
+    {
+      "path": "tests/indexing/incremental/reuse-fixture.js",
+      "sha256": "3eef9c67378e62f65043f6f84e99eee608db207f7d1b835c2ab82f446c4c491e"
+    },
+    {
+      "path": "tests/indexing/incremental/reuse-source-authority.test.js",
+      "sha256": "e6c7e4e42dbc66501adc58e7d46a5ff5e8e31f8892f4df7205dc24d71d878795"
+    },
+    {
+      "path": "tests/indexing/incremental/reuse.test.js",
+      "sha256": "395fb94d7123c5a562bf566480c4e630e22c3b11fe571ab9ee2c73c56bb7cdc8"
+    },
+    {
+      "path": "tests/tooling/ci/gopls-provisioning.test.js",
+      "sha256": "5e468fb17651348722486cec51745cccd085658a21d1be4f40970ac637c740be"
+    },
+    {
+      "path": "tests/tooling/terminal-screen-wrap.test.js",
+      "sha256": "0633c413427a64176294accd52f4b440236b68d756ed01b765d99f71b9da0b55"
+    },
+    {
+      "path": "tests/tui/cargo-invocation-policy.test.js",
+      "sha256": "720c884b039a7e3af358f8c4a5888c940463f92c415a344048517e4c58944440"
+    },
+    {
+      "path": "tests/tui/native-index-workflows.test.js",
+      "sha256": "bec3de991824880374424a21bd7109a638fdf84060883766a83729694eff8491"
+    },
+    {
+      "path": "tests/tui/operator-index-workflows.test.js",
+      "sha256": "146f7dd3cdcf461662372f64bddf8f0d290668c1998effd02f793472abc1d858"
+    },
+    {
+      "path": "tests/tui/operator-indexer-cleanup-retention.test.js",
+      "sha256": "feb609c08e12b1be45dc498fa717b8c2b860296ec02003f349138577d43af27a"
+    },
+    {
+      "path": "tests/tui/operator-indexer-ownership.test.js",
+      "sha256": "5533ae3e7d85f4fb144cdf243e96471704d5c59feb42bb19d4e35d7778262ca5"
+    },
+    {
+      "path": "tests/tui/workflow-module-loading.test.js",
+      "sha256": "c034fa6cf0f9dad7f279f06bf36b20a92072ae1afeeb3e29d7f804800e7d12d9"
+    },
+    {
+      "path": "tools/ci/provision-gopls.js",
+      "sha256": "fc13a31e33067b14b321ca272a14ee3f292a0e67d02fbb2c1c9fe130fe1ccc44"
+    },
+    {
+      "path": "tools/ci/qualify-lsp-runtime.js",
+      "sha256": "c34c9180a09e752e75a88622925b70420f82cca2486b06fefa73b58b89031bd4"
+    },
+    {
+      "path": "tools/testing/terminal-screen.js",
+      "sha256": "4656e89d39a40eefdac169b4a3f17b1a50dfbb5ca35958f3c2f6781dc843a399"
+    },
+    {
+      "path": "tools/tui/operator/indexer.js",
+      "sha256": "7066b88ea512475cf3557f87f6ca70a81c221da04d3ab1b380d2deaeb8cbb277"
+    },
+    {
+      "path": "tools/tui/operator/retained-graph.js",
+      "sha256": "03395b50518bfad697ce375f1059654733f5c8297084b69bc8ebef71446ceae1"
+    }
+  ],
+  "finalNative": {
+    "path": ".tmp/tasks/ci-and-p1-20261028/native-final.json",
+    "sha256": "136f85ad5b97e81716e71a471a2a6c188f741840797cdde73f1200d23038b3ba",
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd",
+    "summary": {
+      "durationMs": 330967,
+      "failed": 0,
+      "passed": 15,
+      "skipped": 0,
+      "total": 15
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 13047,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/build-cancel",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_build-cancel.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 25324,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/build-search",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_build-search.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 24436,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/report",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_report.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 26513,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-create",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-create.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 24120,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-freeze",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-freeze.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 22624,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-gc",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-gc.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 22466,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-list-populated",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-list-populated.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 22551,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-prune",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-prune.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 23939,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-remove",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-remove.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 22760,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/snapshot-show",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-show.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 22543,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/stats",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_stats.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 12643,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/stats-conflict",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_stats-conflict.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 27989,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/validate-search",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_validate-search.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 14138,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/watch-cancel",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_watch-cancel.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 25851,
+        "exitCode": 0,
+        "id": "tui/native-index-workflows/workspace",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_workspace.attempt-1.log"
+        ],
+        "path": "tui/native-index-workflows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "finalControls": [
+    {
+      "attempts": 1,
+      "durationMs": 117,
+      "exitCode": 0,
+      "id": "ci/native-inspection-workflow",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\ci_native-inspection-workflow.attempt-1.log"
+      ],
+      "path": "ci/native-inspection-workflow.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 539,
+      "exitCode": 0,
+      "id": "indexing/incremental/reuse-source-authority",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\indexing_incremental_reuse-source-authority.attempt-1.log"
+      ],
+      "path": "indexing/incremental/reuse-source-authority.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 120,
+      "exitCode": 0,
+      "id": "tooling/ci/gopls-provisioning",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tooling_ci_gopls-provisioning.attempt-1.log"
+      ],
+      "path": "tooling/ci/gopls-provisioning.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 82,
+      "exitCode": 0,
+      "id": "tooling/terminal-screen-wrap",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tooling_terminal-screen-wrap.attempt-1.log"
+      ],
+      "path": "tooling/terminal-screen-wrap.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 262,
+      "exitCode": 0,
+      "id": "tui/cargo-invocation-policy",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_cargo-invocation-policy.attempt-1.log"
+      ],
+      "path": "tui/cargo-invocation-policy.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 880,
+      "exitCode": 0,
+      "id": "tui/operator-index-workflows",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_operator-index-workflows.attempt-1.log"
+      ],
+      "path": "tui/operator-index-workflows.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 1401,
+      "exitCode": 0,
+      "id": "tui/operator-indexer-cleanup-retention",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_operator-indexer-cleanup-retention.attempt-1.log"
+      ],
+      "path": "tui/operator-indexer-cleanup-retention.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 3157,
+      "exitCode": 0,
+      "id": "tui/operator-indexer-ownership",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_operator-indexer-ownership.attempt-1.log"
+      ],
+      "path": "tui/operator-indexer-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 12071,
+      "exitCode": 0,
+      "id": "tui/operator-retained-graph",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-retained-graph.attempt-1.log"
+      ],
+      "path": "tui/operator-retained-graph.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 1066,
+      "exitCode": 0,
+      "id": "tui/supervisor-index-workflows",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_supervisor-index-workflows.attempt-1.log"
+      ],
+      "path": "tui/supervisor-index-workflows.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 94,
+      "exitCode": 0,
+      "id": "tui/toolchain-pin-lockfile-enforcement",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_toolchain-pin-lockfile-enforcement.attempt-1.log"
+      ],
+      "path": "tui/toolchain-pin-lockfile-enforcement.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 765,
+      "exitCode": 0,
+      "id": "tui/workflow-module-loading",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_workflow-module-loading.attempt-1.log"
+      ],
+      "path": "tui/workflow-module-loading.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    }
+  ],
+  "attempts": [
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/ci-focused.json",
+      "sha256": "1748ec473c7a8283c03733abb336375aacf6eea212671a8b32626d0ca08d2e8e",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-focused-logs\\run-1793243710716-398pqb",
+      "summary": {
+        "durationMs": 1092,
+        "failed": 1,
+        "passed": 3,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 575,
+          "exitCode": 0,
+          "id": "indexing/incremental/reuse-source-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-focused-logs\\run-1793243710716-398pqb\\indexing_incremental_reuse-source-authority.attempt-1.log"
+          ],
+          "path": "indexing/incremental/reuse-source-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 124,
+          "exitCode": 0,
+          "id": "tooling/ci/gopls-provisioning",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-focused-logs\\run-1793243710716-398pqb\\tooling_ci_gopls-provisioning.attempt-1.log"
+          ],
+          "path": "tooling/ci/gopls-provisioning.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 292,
+          "exitCode": 0,
+          "id": "tui/cargo-invocation-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-focused-logs\\run-1793243710716-398pqb\\tui_cargo-invocation-policy.attempt-1.log"
+          ],
+          "path": "tui/cargo-invocation-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 91,
+          "exitCode": 1,
+          "id": "tui/toolchain-pin-lockfile-enforcement",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-focused-logs\\run-1793243710716-398pqb\\tui_toolchain-pin-lockfile-enforcement.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-focused-logs\\run-1793243710716-398pqb\\tui_toolchain-pin-lockfile-enforcement.attempt-1.failure.json"
+          ],
+          "path": "tui/toolchain-pin-lockfile-enforcement.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/renderer-pin.json",
+      "sha256": "d17871d12ff49641724580a251e1e5c4d6569fb3715452e7136a38048c9093fc",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\renderer-pin-logs\\run-1793244666277-ivijev",
+      "summary": {
+        "durationMs": 205,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "tooling/terminal-screen-wrap",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\renderer-pin-logs\\run-1793244666277-ivijev\\tooling_terminal-screen-wrap.attempt-1.log"
+          ],
+          "path": "tooling/terminal-screen-wrap.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 94,
+          "exitCode": 0,
+          "id": "tui/toolchain-pin-lockfile-enforcement",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\renderer-pin-logs\\run-1793244666277-ivijev\\tui_toolchain-pin-lockfile-enforcement.attempt-1.log"
+          ],
+          "path": "tui/toolchain-pin-lockfile-enforcement.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-recheck.json",
+      "sha256": "44fc24f0b998e2193065c4139bb7de0b5f9202be90056f920dcd11ef0b911775",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-recheck-logs\\run-1793243874736-lfqs98",
+      "summary": {
+        "durationMs": 90355,
+        "failed": 2,
+        "passed": 1,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 30266,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/build-search",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-recheck-logs\\run-1793243874736-lfqs98\\tui_native-index-workflows_build-search.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-recheck-logs\\run-1793243874736-lfqs98\\tui_native-index-workflows_build-search.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0,
+            "forced": true,
+            "terminated": true
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        },
+        {
+          "attempts": 1,
+          "durationMs": 30534,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-recheck-logs\\run-1793243874736-lfqs98\\tui_native-index-workflows_snapshot-create.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-recheck-logs\\run-1793243874736-lfqs98\\tui_native-index-workflows_snapshot-create.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackDiscovery": {
+              "discoveredCount": 0,
+              "durationMs": 291,
+              "errorCode": null,
+              "exitCode": 0,
+              "stderr": "lineage:engine-ready\r\nlineage:script-start\r\nlineage:interop-ready\r\nlineage:snapshot-ready\r\nlineage:resources-closed\r\nlineage:rows-written\r\n"
+            },
+            "fallbackTerminated": 0,
+            "forced": false,
+            "terminated": false
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        },
+        {
+          "attempts": 1,
+          "durationMs": 29545,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/workspace",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-recheck-logs\\run-1793243874736-lfqs98\\tui_native-index-workflows_workspace.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-focused-2.json",
+      "sha256": "0b40b3ac68257f32ac33ffd51c0830124785120c45dbd258ff0d188b51d03308",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-focused-2-logs\\run-1793244142016-i8qkd5",
+      "summary": {
+        "durationMs": 57792,
+        "failed": 1,
+        "passed": 1,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 27565,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-search",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-focused-2-logs\\run-1793244142016-i8qkd5\\tui_native-index-workflows_build-search.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 30218,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-focused-2-logs\\run-1793244142016-i8qkd5\\tui_native-index-workflows_snapshot-create.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-focused-2-logs\\run-1793244142016-i8qkd5\\tui_native-index-workflows_snapshot-create.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0,
+            "forced": true,
+            "terminated": true
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-snapshot-paste.json",
+      "sha256": "78603d28413070675456ad48003f800e75ab5fb344c47698a65c39f59e22ec6e",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-paste-logs\\run-1793244402695-6pd6wm",
+      "summary": {
+        "durationMs": 30272,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 30265,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-paste-logs\\run-1793244402695-6pd6wm\\tui_native-index-workflows_snapshot-create.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-paste-logs\\run-1793244402695-6pd6wm\\tui_native-index-workflows_snapshot-create.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0,
+            "forced": true,
+            "terminated": true
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-snapshot-streamed.json",
+      "sha256": "cb5fe1d936d86ede86123386b2e8fed2db68818d42b470e629074ca600976c2b",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-streamed-logs\\run-1793244714213-j2h5fx",
+      "summary": {
+        "durationMs": 30517,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 30510,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-streamed-logs\\run-1793244714213-j2h5fx\\tui_native-index-workflows_snapshot-create.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-streamed-logs\\run-1793244714213-j2h5fx\\tui_native-index-workflows_snapshot-create.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackDiscovery": {
+              "discoveredCount": 0,
+              "durationMs": 273,
+              "errorCode": null,
+              "exitCode": 0,
+              "stderr": "lineage:engine-ready\r\nlineage:script-start\r\nlineage:interop-ready\r\nlineage:snapshot-ready\r\nlineage:resources-closed\r\nlineage:rows-written\r\n"
+            },
+            "fallbackTerminated": 0,
+            "forced": false,
+            "terminated": false
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-snapshot-partition.json",
+      "sha256": "74726a95b14558421cd7ac8c7ff15b33880aee9043a9edb45e70c70888cc8522",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-partition-logs\\run-1793245140714-y8rc3y",
+      "summary": {
+        "durationMs": 56913,
+        "failed": 1,
+        "passed": 1,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 30276,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-partition-logs\\run-1793245140714-y8rc3y\\tui_native-index-workflows_snapshot-create.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-partition-logs\\run-1793245140714-y8rc3y\\tui_native-index-workflows_snapshot-create.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0,
+            "forced": true,
+            "terminated": true
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        },
+        {
+          "attempts": 1,
+          "durationMs": 26628,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-snapshot-partition-logs\\run-1793245140714-y8rc3y\\tui_native-index-workflows_snapshot-list-populated.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-workflow-lazy.json",
+      "sha256": "bd9896e4640c6c578d09113ab3cafa082be4c385b505f3c3b219a1e40b791b1e",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-workflow-lazy-logs\\run-1793245321678-oc9hag",
+      "summary": {
+        "durationMs": 60772,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 15356,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-workflow-lazy-logs\\run-1793245321678-oc9hag\\tui_native-index-workflows_build-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 29760,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-workflow-lazy-logs\\run-1793245321678-oc9hag\\tui_native-index-workflows_snapshot-create.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 15648,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/watch-cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-workflow-lazy-logs\\run-1793245321678-oc9hag\\tui_native-index-workflows_watch-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/native-final.json",
+      "sha256": "136f85ad5b97e81716e71a471a2a6c188f741840797cdde73f1200d23038b3ba",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd",
+      "summary": {
+        "durationMs": 330967,
+        "failed": 0,
+        "passed": 15,
+        "skipped": 0,
+        "total": 15
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 13047,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_build-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 25324,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-search",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_build-search.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24436,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/report",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_report.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 26513,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-create.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24120,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-freeze",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-freeze.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 22624,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-gc",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-gc.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 22466,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-list-populated.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 22551,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-prune",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-prune.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 23939,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-remove",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-remove.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 22760,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-show",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_snapshot-show.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 22543,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/stats",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_stats.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 12643,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/stats-conflict",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_stats-conflict.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 27989,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/validate-search",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_validate-search.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 14138,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/watch-cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_watch-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 25851,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/workspace",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-final-logs\\run-1793245417739-54n4sd\\tui_native-index-workflows_workspace.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/ci-repair-controls.json",
+      "sha256": "d3651f460a8e8227ac9282391745d7193916b2b11201625b31358fabe5176bce",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe",
+      "summary": {
+        "durationMs": 16893,
+        "failed": 4,
+        "passed": 8,
+        "skipped": 0,
+        "total": 12
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 117,
+          "exitCode": 0,
+          "id": "ci/native-inspection-workflow",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\ci_native-inspection-workflow.attempt-1.log"
+          ],
+          "path": "ci/native-inspection-workflow.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 539,
+          "exitCode": 0,
+          "id": "indexing/incremental/reuse-source-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\indexing_incremental_reuse-source-authority.attempt-1.log"
+          ],
+          "path": "indexing/incremental/reuse-source-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 120,
+          "exitCode": 0,
+          "id": "tooling/ci/gopls-provisioning",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tooling_ci_gopls-provisioning.attempt-1.log"
+          ],
+          "path": "tooling/ci/gopls-provisioning.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 82,
+          "exitCode": 0,
+          "id": "tooling/terminal-screen-wrap",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tooling_terminal-screen-wrap.attempt-1.log"
+          ],
+          "path": "tooling/terminal-screen-wrap.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 262,
+          "exitCode": 0,
+          "id": "tui/cargo-invocation-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_cargo-invocation-policy.attempt-1.log"
+          ],
+          "path": "tui/cargo-invocation-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 748,
+          "exitCode": 1,
+          "id": "tui/operator-index-workflows",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-index-workflows.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-index-workflows.attempt-1.failure.json"
+          ],
+          "path": "tui/operator-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 541,
+          "exitCode": 1,
+          "id": "tui/operator-indexer-cleanup-retention",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-indexer-cleanup-retention.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-indexer-cleanup-retention.attempt-1.failure.json"
+          ],
+          "path": "tui/operator-indexer-cleanup-retention.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 502,
+          "exitCode": 1,
+          "id": "tui/operator-indexer-ownership",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-indexer-ownership.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-indexer-ownership.attempt-1.failure.json"
+          ],
+          "path": "tui/operator-indexer-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 12071,
+          "exitCode": 0,
+          "id": "tui/operator-retained-graph",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_operator-retained-graph.attempt-1.log"
+          ],
+          "path": "tui/operator-retained-graph.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1066,
+          "exitCode": 0,
+          "id": "tui/supervisor-index-workflows",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_supervisor-index-workflows.attempt-1.log"
+          ],
+          "path": "tui/supervisor-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 94,
+          "exitCode": 0,
+          "id": "tui/toolchain-pin-lockfile-enforcement",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_toolchain-pin-lockfile-enforcement.attempt-1.log"
+          ],
+          "path": "tui/toolchain-pin-lockfile-enforcement.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 730,
+          "exitCode": 1,
+          "id": "tui/workflow-module-loading",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_workflow-module-loading.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-repair-controls-logs\\run-1793245791275-ytezoe\\tui_workflow-module-loading.attempt-1.failure.json"
+          ],
+          "path": "tui/workflow-module-loading.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/ci-controls-repaired.json",
+      "sha256": "3ed66f1f38a0e3af56374aceb5f2905abc80f844d0128f925186c1f4c2e613ef",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt",
+      "summary": {
+        "durationMs": 6211,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 880,
+          "exitCode": 0,
+          "id": "tui/operator-index-workflows",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_operator-index-workflows.attempt-1.log"
+          ],
+          "path": "tui/operator-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1401,
+          "exitCode": 0,
+          "id": "tui/operator-indexer-cleanup-retention",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_operator-indexer-cleanup-retention.attempt-1.log"
+          ],
+          "path": "tui/operator-indexer-cleanup-retention.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3157,
+          "exitCode": 0,
+          "id": "tui/operator-indexer-ownership",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_operator-indexer-ownership.attempt-1.log"
+          ],
+          "path": "tui/operator-indexer-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 765,
+          "exitCode": 0,
+          "id": "tui/workflow-module-loading",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-controls-repaired-logs\\run-1793245870058-ifx8qt\\tui_workflow-module-loading.attempt-1.log"
+          ],
+          "path": "tui/workflow-module-loading.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  ],
+  "publicationGate": [
+    {
+      "exitCode": 0,
+      "durationMs": 36089.4348,
+      "name": "format"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 1767.4058,
+      "name": "config-budget"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 1093.6182,
+      "name": "env-check"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 10549.0361,
+      "name": "generated-freshness"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 2394.7521,
+      "name": "command-surface"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 207.1119,
+      "name": "workflow-contract"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 6550.2298,
+      "name": "gate"
+    },
+    {
+      "exitCode": 0,
+      "durationMs": 99.7994,
+      "name": "diff-check"
+    }
+  ],
+  "limitations": [
+    "Existing native binary does not qualify Rust 1.99.1 compilation",
+    "Hosted CI and physical symlink authority pending",
+    "No local Linux/macOS/WSL execution",
+    "Remaining stable dependency upgrades not yet installed",
+    "Stopped full-suite failures and unrun scope remain separate"
+  ],
+  "gateReport": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk",
+    "summary": {
+      "durationMs": 4240,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 86,
+        "exitCode": 0,
+        "id": "indexing/policy/hotpath-membership-guard",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+        ],
+        "path": "indexing/policy/hotpath-membership-guard.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 88,
+        "exitCode": 0,
+        "id": "indexing/policy/module-cache-boundedness-contract",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+        ],
+        "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 97,
+        "exitCode": 0,
+        "id": "indexing/policy/generated-matrix",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_generated-matrix.attempt-1.log"
+        ],
+        "path": "indexing/policy/generated-matrix.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 91,
+        "exitCode": 0,
+        "id": "indexing/contracts/artifact-surface-version",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_artifact-surface-version.attempt-1.log"
+        ],
+        "path": "indexing/contracts/artifact-surface-version.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 93,
+        "exitCode": 0,
+        "id": "indexing/contracts/n-minus-one-adapter",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+        ],
+        "path": "indexing/contracts/n-minus-one-adapter.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 87,
+        "exitCode": 0,
+        "id": "indexing/contracts/public-artifact-surface-doc",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+        ],
+        "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 214,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-compatibility-key-generation",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 102,
+        "exitCode": 0,
+        "id": "indexing/contracts/semver-policy-enforced",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+        ],
+        "path": "indexing/contracts/semver-policy-enforced.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 109,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-state-dense-sidecars-present",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 199,
+        "exitCode": 0,
+        "id": "contracts/manifest-max-bytes-validation",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\contracts_manifest-max-bytes-validation.attempt-1.log"
+        ],
+        "path": "contracts/manifest-max-bytes-validation.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2191,
+        "exitCode": 0,
+        "id": "indexing/policy/repo-inventory",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_repo-inventory.attempt-1.log"
+        ],
+        "path": "indexing/policy/repo-inventory.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 328,
+        "exitCode": 0,
+        "id": "indexing/policy/shared-module-cycle-guard",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+        ],
+        "path": "indexing/policy/shared-module-cycle-guard.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 271,
+        "exitCode": 0,
+        "id": "indexing/contracts/loader-matrix-parity",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+        ],
+        "path": "indexing/contracts/loader-matrix-parity.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 380,
+        "exitCode": 0,
+        "id": "indexing/policy/analysis-schema",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_analysis-schema.attempt-1.log"
+        ],
+        "path": "indexing/policy/analysis-schema.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 350,
+        "exitCode": 0,
+        "id": "indexing/contracts/snapshots",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_snapshots.attempt-1.log"
+        ],
+        "path": "indexing/contracts/snapshots.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 341,
+        "exitCode": 0,
+        "id": "indexing/contracts/builds-current-repo-head-schema",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+        ],
+        "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 365,
+        "exitCode": 0,
+        "id": "indexing/contracts/call-sites-schema",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_call-sites-schema.attempt-1.log"
+        ],
+        "path": "indexing/contracts/call-sites-schema.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 349,
+        "exitCode": 0,
+        "id": "indexing/contracts/diffs",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_diffs.attempt-1.log"
+        ],
+        "path": "indexing/contracts/diffs.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 346,
+        "exitCode": 0,
+        "id": "indexing/contracts/additional-properties-policy",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_additional-properties-policy.attempt-1.log"
+        ],
+        "path": "indexing/contracts/additional-properties-policy.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 594,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 298,
+        "exitCode": 0,
+        "id": "indexing/contracts/schema-registry-single-source",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+        ],
+        "path": "indexing/contracts/schema-registry-single-source.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 736,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/caps",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\tooling_api-contracts_caps.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/caps.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 986,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/schema-validate",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\tooling_api-contracts_schema-validate.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/schema-validate.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 988,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/fail-on-warn",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/fail-on-warn.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 972,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/optional-params",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\tooling_api-contracts_optional-params.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/optional-params.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 764,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/large-call-sites",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\tooling_api-contracts_large-call-sites.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/large-call-sites.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 636,
+        "exitCode": 0,
+        "id": "indexing/contracts/embedding-identity-gating-on-load",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+        ],
+        "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1004,
+        "exitCode": 0,
+        "id": "ci/capability-gate.smoke",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\ci_capability-gate_smoke.attempt-1.log"
+        ],
+        "path": "ci/capability-gate.smoke.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1420,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-compatibility-key-federation-block",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 90,
+        "exitCode": 0,
+        "id": "indexing/policy/stable-entrypoints",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_stable-entrypoints.attempt-1.log"
+        ],
+        "path": "indexing/policy/stable-entrypoints.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1522,
+        "exitCode": 0,
+        "id": "indexing/policy/optional-deps",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_optional-deps.attempt-1.log"
+        ],
+        "path": "indexing/policy/optional-deps.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1218,
+        "exitCode": 0,
+        "id": "indexing/policy/analysis-gating",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_policy_analysis-gating.attempt-1.log"
+        ],
+        "path": "indexing/policy/analysis-gating.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1351,
+        "exitCode": 0,
+        "id": "ci/tooling-doctor-gate.smoke",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+        ],
+        "path": "ci/tooling-doctor-gate.smoke.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 764,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/basic",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\tooling_api-contracts_basic.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/basic.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2616,
+        "exitCode": 0,
+        "id": "contracts/module-export-surface-compat",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\contracts_module-export-surface-compat.attempt-1.log"
+        ],
+        "path": "contracts/module-export-surface-compat.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1409,
+        "exitCode": 0,
+        "id": "indexing/contracts/semantic-foundations",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_semantic-foundations.attempt-1.log"
+        ],
+        "path": "indexing/contracts/semantic-foundations.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 440,
+        "exitCode": 0,
+        "id": "indexing/contracts/semantic-handoff-contracts",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+        ],
+        "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 648,
+        "exitCode": 0,
+        "id": "indexing/contracts/runtime-evidence",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_runtime-evidence.attempt-1.log"
+        ],
+        "path": "indexing/contracts/runtime-evidence.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1437,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-format-cutover",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\indexing_contracts_index-format-cutover.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-format-cutover.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1380,
+        "exitCode": 0,
+        "id": "ci/windows-authority-cohort",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\gate-logs\\run-1793246020361-mbx7qk\\ci_windows-authority-cohort.attempt-1.log"
+        ],
+        "path": "ci/windows-authority-cohort.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  }
+}

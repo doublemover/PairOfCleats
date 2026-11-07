@@ -1,3 +1,5 @@
+import { calibrateAnnScore } from '../../shared/ann-similarity.js';
+
 /**
  * Fuse sparse and ANN hits into a single ranked list.
  * @param {object} input
@@ -56,6 +58,8 @@ export const fuseRankedHits = ({
     const scores = recordHit(idxVal);
     scores.ann = sim;
     scores.annSource = annSource;
+    scores.annScoreSpace = h.scoreSpace || null;
+    scores.annRawDistance = h.rawDistance ?? null;
   });
 
   let sparseMaxScore = null;
@@ -67,6 +71,8 @@ export const fuseRankedHits = ({
   for (const [idxVal, scores] of allHits.entries()) {
     const sparseScore = scores.fts ?? scores.bm25 ?? null;
     const annScore = scores.ann ?? null;
+    const pureDenseBlend = blendEnabled && blendAnnWeight > 0 && blendSparseWeight <= 0;
+    if (pureDenseBlend && annScore == null) continue;
     const sparseTypeValue = scores.fts != null
       ? 'fts'
       : (scores.bm25 != null ? (fieldWeightsEnabled ? 'bm25-fielded' : 'bm25') : null);
@@ -95,10 +101,7 @@ export const fuseRankedHits = ({
       const normalizedSparse = sparseScore != null && sparseMax > 0
         ? sparseScore / sparseMax
         : null;
-      const clippedAnn = annScore != null
-        ? Math.max(-1, Math.min(1, annScore))
-        : null;
-      const normalizedAnn = clippedAnn != null ? (clippedAnn + 1) / 2 : null;
+      const normalizedAnn = calibrateAnnScore(annScore, scores.annScoreSpace);
       const activeSparseWeight = normalizedSparse != null ? blendSparseWeight : 0;
       const activeAnnWeight = normalizedAnn != null ? blendAnnWeight : 0;
       const weightSum = activeSparseWeight + activeAnnWeight;
@@ -106,13 +109,18 @@ export const fuseRankedHits = ({
         ? ((normalizedSparse ?? 0) * activeSparseWeight + (normalizedAnn ?? 0) * activeAnnWeight) / weightSum
         : 0;
       scoreType = 'blend';
-      score = blended;
+      score = pureDenseBlend ? annScore : blended;
       blendInfo = {
-        score: blended,
+        score,
         sparseNormalized: normalizedSparse,
         annNormalized: normalizedAnn,
         sparseWeight: activeSparseWeight,
-        annWeight: activeAnnWeight
+        annWeight: activeAnnWeight,
+        annScoreSpace: scores.annScoreSpace,
+        annRawDistance: scores.annRawDistance,
+        calibration: scores.annScoreSpace?.kind === 'cosine' ? 'cosine-unit-interval'
+          : scores.annScoreSpace?.metric === 'l2' ? 'reciprocal-distance' : 'atan-similarity',
+        pureDense: pureDenseBlend
       };
     } else if (sparseScore != null) {
       scoreType = sparseTypeValue;
@@ -133,6 +141,7 @@ export const fuseRankedHits = ({
       annScore,
       annSource: scores.annSource || null,
       sparseType: sparseTypeValue,
+      annScoreSpace: scores.annScoreSpace || null,
       blendInfo
     };
     if (scoreBuffer?.push) {

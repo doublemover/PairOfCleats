@@ -100,6 +100,7 @@ const createCodeIndex = async ({ rootDir, compatibilityKey, denseDims, lanceDims
 
 const runLoad = async ({ rootDir, strict }) => loadSearchIndexes({
   rootDir,
+  indexDirByMode: { code: path.join(rootDir, 'index-code') },
   userConfig: {},
   searchMode: 'code',
   runProse: false,

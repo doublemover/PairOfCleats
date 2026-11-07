@@ -17,7 +17,7 @@ const graphRelations = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const impact = buildImpactAnalysis({
   changed: new Set(['src/changed.js']),
   graphRelations,
-  direction: 'downstream',
+  direction: 'upstream',
   depth: 1,
   caps: { maxWorkUnits: 100 },
   indexCompatKey: 'compat-impact-changed-iterable'

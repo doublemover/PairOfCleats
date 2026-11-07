@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import { createPreparedJsonlRows, readPreparedJsonlRow } from '../../src/shared/json-stream/prepared-row.js';
+import { resolveJsonlLine } from '../../src/shared/json-stream/jsonl-write.js';
+import { measureJsonlRows } from '../../src/index/build/artifacts/writers/_common.js';
+
+// Authored only. Actual preparation/measurement/writer-line boundaries; no I/O.
+const original = { id: 1, text: '雪𝒜\ud800\n', nested: { values: ['before', null, true] } };
+const expected = JSON.stringify(original), bytes = Buffer.byteLength(expected) + 1;
+const charge = Math.max(bytes, 2 * (expected.length + 1));
+const owner = createPreparedJsonlRows({ maxCacheBytes: charge, maxCacheRows: 1 });
+const result = owner.prepare(original, { maxLineBytes: bytes });
+assert.equal(result.reused, true);
+assert.equal(result.lineBytes, bytes);
+assert.equal(owner.retainedBytes, charge);
+assert.equal(owner.retainedRows, 1);
+assert.notEqual(result.row, original);
+assert.equal(Object.isFrozen(result.row.nested.values), true);
+original.nested.values[0] = 'after'; original.text = 'changed';
+assert.equal(resolveJsonlLine(result.row), expected);
+assert.deepEqual(measureJsonlRows([result.row]), { totalBytes: bytes, maxLineBytes: bytes });
+assert.throws(() => { result.row.nested.values.push('late'); }, TypeError);
+assert.equal(readPreparedJsonlRow({ ...result.row }), null);
+assert.equal(readPreparedJsonlRow({ line: expected, lineBytes: bytes }), null);
+assert.equal(owner.prepare(result.row).row, result.row);
+assert.equal(owner.retainedBytes, charge, 'preparing an original product again does not reserve a second copy');
+let projections = 0;
+const custom = measureJsonlRows([result.row], { serialize: row => {
+  projections++; return JSON.stringify({ id: row.id });
+} });
+assert.equal(projections, 1, 'different layouts must use their own serializer');
+assert.equal(custom.totalBytes, Buffer.byteLength('{"id":1}') + 1);
+assert.throws(() => measureJsonlRows([result.row], { serialize: null }), TypeError);
+
+const overflow = { id: 2, value: 'still emitted' };
+assert.equal(owner.prepare(overflow).row, overflow);
+assert.equal(readPreparedJsonlRow(overflow), null);
+assert.equal(resolveJsonlLine(overflow), JSON.stringify(overflow));
+assert.equal(owner.retainedRows, 1);
+const tiny = createPreparedJsonlRows({ maxCacheBytes: charge - 1, maxCacheRows: 1 });
+assert.equal(tiny.prepare(JSON.parse(expected)).reused, false);
+assert.equal(tiny.retainedBytes, 0);
+const oversized = createPreparedJsonlRows();
+assert.equal(oversized.prepare(JSON.parse(expected), { maxLineBytes: bytes - 1 }).reused, false);
+assert.equal(oversized.retainedRows, 0, 'rejected trim candidates cannot consume final-row reuse allowance');
+const noRows = createPreparedJsonlRows({ maxCacheRows: 0 });
+assert.equal(noRows.prepare({ id: 3 }).reused, false);
+const circular = {}; circular.self = circular;
+assert.throws(() => oversized.prepare(circular), TypeError);
+assert.throws(() => oversized.prepare(undefined), TypeError);
+const typed = oversized.prepare({ id: 4, nested: { values: new Uint8Array([1, 2, 3]) } });
+assert.deepEqual(typed.row.nested.values, [1, 2, 3]);
+assert.equal(resolveJsonlLine(typed.row), '{"id":4,"nested":{"values":[1,2,3]}}');
+for (const maxCacheBytes of [-1, NaN, Infinity, 1.5]) assert.throws(() => createPreparedJsonlRows({ maxCacheBytes }), TypeError);
+console.log('Prepared JSONL row exact bytes/ownership/allowance/custom-layout controls authored; execution deferred.');

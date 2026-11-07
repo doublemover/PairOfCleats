@@ -1,0 +1,713 @@
+{
+  "schemaVersion": 1,
+  "profile": "typescript-api7-request-snapshot-v1",
+  "sdkVersion": "7.1.0-beta",
+  "source": "https://github.com/microsoft/TypeScript/tree/3e9236361fa97a9e6c685f4833ac457ae2d8c50a",
+  "scope": "Static compiler namespaces and AST instance calls across syntax, checker, resolution, compiler facts, semantic collection and finite-string frontend. Export availability is not consumer parity.",
+  "ownerFiles": [
+    "src/index/build/import-resolution/build-context/plugins/typescript-emit.js",
+    "src/index/semantic/compiler-type-facts.js",
+    "src/index/semantic/typescript-collector.js",
+    "src/index/tooling/typescript-provider.js",
+    "src/index/tooling/typescript/compatibility.js",
+    "src/index/tooling/typescript/config.js",
+    "src/index/tooling/typescript/host.js",
+    "src/index/tooling/typescript/load.js",
+    "src/index/tooling/typescript/node-index.js",
+    "src/index/tooling/typescript/resolution.js",
+    "src/index/tooling/typescript/roots.js",
+    "src/index/tooling/typescript/source-reuse.js",
+    "src/index/tooling/typescript/symbolic.js",
+    "src/index/tooling/typescript/type-ir/arena.js",
+    "src/index/tooling/typescript/type-ir/budget.js",
+    "src/index/tooling/typescript/type-ir/frontend.js",
+    "src/index/tooling/typescript/type-ir/index.js",
+    "src/index/tooling/typescript/type-ir/queries.js",
+    "src/index/tooling/typescript/type-ir/sequence.js",
+    "src/index/tooling/typescript/type-ir/serialization.js",
+    "src/lang/typescript/brace-bounds.js",
+    "src/lang/typescript/callable-metadata.js",
+    "src/lang/typescript/chunk-metadata.js",
+    "src/lang/typescript/chunks-ast.js",
+    "src/lang/typescript/chunks-babel.js",
+    "src/lang/typescript/chunks-heuristic.js",
+    "src/lang/typescript/chunks.js",
+    "src/lang/typescript/constants.js",
+    "src/lang/typescript/doc.js",
+    "src/lang/typescript/flow.js",
+    "src/lang/typescript/parser.js",
+    "src/lang/typescript/relations.js",
+    "src/lang/typescript/signature.js",
+    "src/lang/typescript/syntax-adapter.js",
+    "src/lang/typescript/syntax-context.js"
+  ],
+  "patterns": [
+    "\\b(ts(?:\\??\\.sys)?|checker|program|languageService)\\??\\.([A-Za-z_$][\\w$]*)\\s*(?:\\?\\.)?\\(",
+    "\\b\\w+\\??\\.(getStart|getEnd|getSourceFile|getText|getFullText|getChildren|getFullStart|getWidth|getFullWidth)\\s*(?:\\?\\.)?\\("
+  ],
+  "calls": [
+    {
+      "call": "ast.getEnd",
+      "owners": [
+        "src/index/tooling/typescript/node-index.js",
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": "Node.end",
+      "status": "profile-full-span-only"
+    },
+    {
+      "call": "ast.getSourceFile",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/resolution.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/syntax-context.js"
+      ],
+      "target": "NodeHandle.path / Project.program.getSourceFile",
+      "status": "profile-only"
+    },
+    {
+      "call": "ast.getStart",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/index/semantic/typescript-collector.js",
+        "src/index/tooling/typescript/node-index.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-trivia-aware-token-start"
+    },
+    {
+      "call": "ast.getText",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": "admitted source.text.slice(node.pos,node.end)",
+      "status": "profile-full-span-only"
+    },
+    {
+      "call": "checker.getAliasedSymbol",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": "Checker.getAliasedSymbol",
+      "status": "profile-only"
+    },
+    {
+      "call": "checker.getReturnTypeOfSignature",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": "Signature.getReturnType",
+      "status": "profile-only"
+    },
+    {
+      "call": "checker.getSignatureFromDeclaration",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": "Checker.getSignatureFromDeclaration",
+      "status": "sdk-present-consumer-unqualified"
+    },
+    {
+      "call": "checker.getSymbolAtLocation",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": "Checker.getSymbolAtLocation / getSymbolAtPosition",
+      "status": "profile-position-query-only"
+    },
+    {
+      "call": "checker.getTypeAtLocation",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": "Checker.getTypeAtLocation / getTypeAtPosition",
+      "status": "profile-position-query-only"
+    },
+    {
+      "call": "checker.signatureToString",
+      "owners": [
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": null,
+      "status": "unsupported-legacy-renderer"
+    },
+    {
+      "call": "checker.typeToString",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": "Checker.typeToString",
+      "status": "profile-display-only"
+    },
+    {
+      "call": "program.getSourceFile",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/syntax-context.js"
+      ],
+      "target": "Program.getSourceFile",
+      "status": "profile-only"
+    },
+    {
+      "call": "program.getSourceFiles",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/symbolic.js"
+      ],
+      "target": "Program.getSourceFileNames / Program.getSourceFile",
+      "status": "profile-only"
+    },
+    {
+      "call": "program.getTypeChecker",
+      "owners": [
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": "Project.checker",
+      "status": "profile-only"
+    },
+    {
+      "call": "ts.createCompilerHost",
+      "owners": [
+        "src/index/tooling/typescript/host.js"
+      ],
+      "target": "typescript/fs.createFileSystem",
+      "status": "profile-full-filesystem-only"
+    },
+    {
+      "call": "ts.createModuleResolutionCache",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.createProgram",
+      "owners": [
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": "API.createSnapshot.createPrograms",
+      "status": "profile-only"
+    },
+    {
+      "call": "ts.createSourceFile",
+      "owners": [
+        "src/index/tooling/typescript/host.js",
+        "src/lang/typescript/syntax-context.js"
+      ],
+      "target": "API.createSourceFile / Program.getSourceFile",
+      "status": "sdk-present-consumer-unqualified"
+    },
+    {
+      "call": "ts.createTypeReferenceDirectiveResolutionCache",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.flattenDiagnosticMessageText",
+      "owners": [
+        "src/index/tooling/typescript/config.js"
+      ],
+      "target": "Diagnostic.text / messageChain",
+      "status": "profile-only"
+    },
+    {
+      "call": "ts.forEachChild",
+      "owners": [
+        "src/index/tooling/typescript/node-index.js",
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.forEachDynamicImportOrRequireCall",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.getDefaultResolutionModeForFileWorker",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.getImpliedNodeFormatForFile",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.getIsolatedModules",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.getJSXImplicitImportBase",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.getJSXRuntimeImport",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.getModeForUsageLocation",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": "Program.getModeForUsageLocation",
+      "status": "sdk-present-consumer-unqualified"
+    },
+    {
+      "call": "ts.getSetExternalModuleIndicator",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isArrowFunction",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isCallChain",
+      "owners": [
+        "src/index/semantic/typescript-collector.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isClassDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isConstructorDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isElementAccessChain",
+      "owners": [
+        "src/index/semantic/typescript-collector.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isEnumDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isExportAssignment",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isExportDeclaration",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isExternalModule",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isExternalModuleReference",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isFunctionDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isFunctionExpression",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isFunctionLike",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isGetAccessorDeclaration",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isIdentifier",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isImportDeclaration",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isImportEqualsDeclaration",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isInterfaceDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isLiteralTypeNode",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isMethodDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isMethodSignature",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isModuleBlock",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isModuleDeclaration",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isNoSubstitutionTemplateLiteral",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isNumericLiteral",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isParameter",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isParenthesizedTypeNode",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isPrivateIdentifier",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isPropertyAccessChain",
+      "owners": [
+        "src/index/semantic/typescript-collector.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isPropertyDeclaration",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isPropertySignature",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isSetAccessorDeclaration",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isSourceFileJS",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isStringLiteral",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/resolution.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isStringLiteralLike",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isTemplateLiteralTypeNode",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isTypeAliasDeclaration",
+      "owners": [
+        "src/index/tooling/typescript-provider.js",
+        "src/index/tooling/typescript/type-ir/frontend.js",
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isTypeNode",
+      "owners": [
+        "src/index/semantic/typescript-collector.js"
+      ],
+      "target": "typescript/ast/is.isTypeNode",
+      "status": "sdk-export-present-consumer-unqualified"
+    },
+    {
+      "call": "ts.isTypeReferenceNode",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isUnionTypeNode",
+      "owners": [
+        "src/index/tooling/typescript/type-ir/frontend.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isVariableDeclaration",
+      "owners": [
+        "src/index/semantic/compiler-type-facts.js",
+        "src/index/tooling/typescript-provider.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.isVariableStatement",
+      "owners": [
+        "src/lang/typescript/chunks-ast.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    },
+    {
+      "call": "ts.parseJsonConfigFileContent",
+      "owners": [
+        "src/index/tooling/typescript/config.js"
+      ],
+      "target": "API.createSnapshot.openProjects",
+      "status": "profile-snapshot-config-discovery"
+    },
+    {
+      "call": "ts.readConfigFile",
+      "owners": [
+        "src/index/tooling/typescript/config.js"
+      ],
+      "target": "API.createSnapshot.openProjects",
+      "status": "profile-snapshot-config-discovery"
+    },
+    {
+      "call": "ts.resolveModuleName",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": "ModuleResolver.resolveModuleName(snapshot)",
+      "status": "sdk-present-consumer-unqualified"
+    },
+    {
+      "call": "ts.resolveTypeReferenceDirective",
+      "owners": [
+        "src/index/tooling/typescript/resolution.js"
+      ],
+      "target": "Program.getResolvedTypeReferenceDirective",
+      "status": "sdk-present-consumer-unqualified"
+    },
+    {
+      "call": "ts.tokenToString",
+      "owners": [
+        "src/index/semantic/typescript-collector.js"
+      ],
+      "target": null,
+      "status": "unsupported-no-reviewed-equivalent"
+    }
+  ],
+  "structuralProtocols": [
+    {
+      "owner": "src/index/tooling/typescript/host.js",
+      "status": "legacy-host-not-routed",
+      "replacement": "Full request filesystem; no host callback or ts.sys spread is admitted."
+    },
+    {
+      "owner": "src/lang/typescript/syntax-adapter.js",
+      "status": "legacy-slot-map-not-routed",
+      "replacement": "Raw SDK declaration full spans only; guards, preorder and slot mapping require paired qualification."
+    },
+    {
+      "owner": "src/index/tooling/typescript/type-ir/frontend.js",
+      "status": "legacy-symbolic-frontend-not-routed",
+      "replacement": "New profile lowers bounded exact native finite-string types into the existing TypeIR arena; annotation-before-checker lowering remains a separate promotion gate."
+    }
+  ]
+}

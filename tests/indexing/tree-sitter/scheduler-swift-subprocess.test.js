@@ -43,20 +43,27 @@ const scheduler = await runTreeSitterScheduler({
   log
 });
 
-assert.ok(scheduler, 'expected scheduler lookup');
-assert.ok(scheduler.index instanceof Map, 'expected scheduler index map');
-assert.equal(scheduler.index.size, 1, 'expected a single virtual doc entry');
+try {
+  assert.ok(scheduler, 'expected scheduler lookup');
+  assert.ok(scheduler.index instanceof Map, 'expected scheduler index map');
+  assert.equal(scheduler.index.size, 1, 'expected a single virtual doc entry');
 
-const [virtualPath] = Array.from(scheduler.index.keys());
-const containerPrefix = '.poc-vfs/tests/fixtures/tree-sitter/swift.swift';
-assert.ok(
-  typeof virtualPath === 'string'
-    && (virtualPath === containerPrefix || virtualPath.startsWith(`${containerPrefix}#seg:`)),
-  `unexpected virtualPath: ${virtualPath}`
-);
+  const [virtualPath] = Array.from(scheduler.index.keys());
+  const containerPrefix = '.poc-vfs/tests/fixtures/tree-sitter/swift.swift';
+  assert.ok(
+    typeof virtualPath === 'string'
+      && (virtualPath === containerPrefix || virtualPath.startsWith(`${containerPrefix}#seg:`)),
+    `unexpected virtualPath: ${virtualPath}`
+  );
 
-const chunks = await scheduler.loadChunks(virtualPath);
-assert.ok(Array.isArray(chunks) && chunks.length > 0, 'expected tree-sitter chunks for swift virtual doc');
+  const chunks = await scheduler.loadChunks(virtualPath);
+  assert.ok(Array.isArray(chunks) && chunks.length > 0, 'expected tree-sitter chunks for swift virtual doc');
+} finally {
+  await scheduler?.close();
+}
+assert.equal(scheduler.stats().openReaders, 0, 'fixture must explicitly close its result reader before completion');
+assert.equal(scheduler.stats().pendingCloseOperations, 0, 'native close must settle before completing the fixture');
+await assert.rejects(scheduler.loadChunks([...scheduler.index.keys()][0]), { code: 'ERR_TREE_SITTER_LOOKUP_CLOSED' });
 
 console.log('tree-sitter scheduler swift subprocess ok');
 

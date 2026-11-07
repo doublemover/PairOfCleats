@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -11,7 +12,7 @@ if (process.platform !== 'win32') {
   process.exit(0);
 }
 
-const root = path.resolve('tests', '.cache', 'worker-pool-windows');
+const root = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'worker-pool-windows');
 const deepDir = path.join(root, 'space dir', 'unicode-é', 'deep', 'path', 'more');
 await fs.mkdir(deepDir, { recursive: true });
 

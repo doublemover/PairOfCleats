@@ -31,8 +31,8 @@ const runtime = {
 const profilePath = resolveModalitySparsityProfilePath(runtime);
 assert.equal(typeof profilePath, 'string', 'expected profile path');
 assert.equal(
-  profilePath.endsWith(path.join('.testCache', 'modality-sparsity-profile', 'modality-sparsity-profile.json')),
-  true,
+  profilePath,
+  path.join(tempRoot, 'modality-sparsity-profile.json'),
   'expected deterministic sparsity profile path'
 );
 

@@ -1,11 +1,11 @@
 import { toArray } from '../../../shared/iterables.js';
 
-export const applyBucketCulling = ({ frustum, buckets, hiddenMatrix }) => {
+export const applyBucketCulling = ({ frustum, buckets, hiddenMatrix, forceVisible = null }) => {
   if (!frustum) return new Set();
   const meshUpdates = new Set();
   for (const bucket of toArray(buckets)) {
     if (!bucket?.sphere || !bucket?.mesh) continue;
-    const visible = frustum.intersectsSphere(bucket.sphere);
+    const visible = bucket === forceVisible || frustum.intersectsSphere(bucket.sphere);
     if (visible === bucket.visible) continue;
     bucket.visible = visible;
     for (const entry of toArray(bucket.instances)) {

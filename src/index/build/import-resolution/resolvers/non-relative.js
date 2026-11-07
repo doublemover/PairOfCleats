@@ -1,4 +1,6 @@
+import { isBazelSourceFile } from '../bazel-label.js';
 import path from 'node:path';
+import { pythonModuleName } from '../../../../lang/python/identifiers.js';
 import { listFilesInDir } from '../lookup.js';
 import { normalizeRelPath } from '../path-utils.js';
 import {
@@ -32,15 +34,17 @@ export const resolveLanguageNonRelativeImport = ({
   spec,
   lookup,
   goModulePath,
-  dartPackageName
+  dartPackageName,
+  bazelLabels = null
 }) => {
   if (importerInfo.isRuby) {
     const rubyResolved = resolveRubyLoadPathImport({ spec, lookup });
     if (rubyResolved) return { resolvedType: 'ruby-load-path', resolvedPath: rubyResolved };
   }
   if (importerInfo.isPython) {
-    if (/^[A-Za-z_][\w.]*$/.test(spec)) {
-      const modulePath = spec.replace(/\./g, '/');
+    const moduleName = typeof spec === 'string' ? pythonModuleName(spec) : null;
+    if (moduleName) {
+      const modulePath = moduleName.semantic.replace(/\./g, '/');
       const resolved = resolveFromCandidateList([
         `${modulePath}.py`,
         `${modulePath}.pyi`,
@@ -101,7 +105,7 @@ export const resolveLanguageNonRelativeImport = ({
   }
   if (importerInfo.isShell) {
     if (looksLikePathSpecifier(spec)) {
-      const resolved = resolvePathLikeImport({ spec, importerInfo, lookup });
+      const resolved = resolvePathLikeImport({ spec, importerInfo, lookup, bazelLabels });
       if (resolved) return { resolvedType: 'shell-path', resolvedPath: resolved };
     }
     return null;
@@ -282,8 +286,8 @@ export const resolveLanguageNonRelativeImport = ({
     if (resolved) return { resolvedType: 'rust-module', resolvedPath: resolved };
     return null;
   }
-  if (importerInfo.isPathLike && looksLikePathSpecifier(spec)) {
-    const resolved = resolvePathLikeImport({ spec, importerInfo, lookup });
+  if ((importerInfo.isPathLike || isBazelSourceFile(importerInfo.importerRel)) && looksLikePathSpecifier(spec)) {
+    const resolved = resolvePathLikeImport({ spec, importerInfo, lookup, bazelLabels });
     if (resolved) return { resolvedType: 'path-like', resolvedPath: resolved };
   }
   return null;

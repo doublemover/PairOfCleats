@@ -1,3 +1,4 @@
+import { resolveWarmLaneProfileIdentity } from './warm-lane-profile.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-runtime.js';
@@ -191,6 +192,7 @@ const main = async () => {
     languageOptions: { treeSitter: treeSitterConfig }
   };
 
+  let warmupMeasured = false;
   if (treeSitterConfig?.nativeWarmup === true) {
     const warmupLanguages = Array.from(new Set(groups.flatMap((group) => (
       Array.isArray(group?.languages) ? group.languages : []
@@ -200,6 +202,7 @@ const main = async () => {
         treeSitter: treeSitterConfig,
         log: emitInfo
       });
+      warmupMeasured = warmup.failed.length === 0;
       if (warmup.failed.length) {
         emitWarn(
           `[tree-sitter:schedule] warmup failed for ${warmup.failed.length} language(s): ${warmup.failed.join(', ')}`
@@ -208,6 +211,8 @@ const main = async () => {
     }
   }
 
+  const warmLaneIdentity = warmupMeasured ? await resolveWarmLaneProfileIdentity(treeSitterConfig) : null;
+  const startupMs = Math.max(1, process.uptime() * 1000);
   const profileRows = [];
   const crashInjectionTokens = parseCrashInjectionTokens();
   for (const group of groups) {
@@ -236,9 +241,28 @@ const main = async () => {
       baseGrammarKey: group.baseGrammarKey || group.grammarKey,
       grammarKey: group.grammarKey,
       rows: Array.isArray(group.jobs) ? group.jobs.length : 0,
+      estimatedParseCost: groupMetaByGrammarKey?.[group.grammarKey]?.estimatedParseCost || null,
       durationMs: Math.max(1, Date.now() - startedAt),
       at: new Date().toISOString()
     });
+  }
+  // Qualify one startup/memory observation per base grammar/process, after all
+  // waves settle. The whole child high-water is conservative for parser caches.
+  if (warmLaneIdentity && warmLaneIdentity === plan.warmLaneProfileIdentity) {
+    const memoryBytes = Math.max(process.memoryUsage().rss, Number(process.resourceUsage().maxRSS) * 1024);
+    const byBase = new Map();
+    for (const row of profileRows) {
+      if (!byBase.has(row.baseGrammarKey)) byBase.set(row.baseGrammarKey, []);
+      byBase.get(row.baseGrammarKey).push(row);
+    }
+    for (const rows of byBase.values()) {
+      const cost = rows.reduce((sum, row) => sum + Number(row.estimatedParseCost || 0), 0);
+      const duration = rows.reduce((sum, row) => sum + row.durationMs, 0);
+      if (!rows.every(row => Number.isFinite(row.estimatedParseCost) && row.estimatedParseCost > 0)
+        || !Number.isFinite(memoryBytes) || memoryBytes <= 0) continue;
+      rows[0].warmLane = { identity: warmLaneIdentity, startupMs, memoryBytes,
+        costPerMs: cost / duration, samples: 1, at: new Date().toISOString() };
+    }
   }
   if (profileOutPath) {
     await fs.mkdir(path.dirname(profileOutPath), { recursive: true });

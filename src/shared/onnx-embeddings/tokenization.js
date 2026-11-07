@@ -1,42 +1,62 @@
 import { DEFAULT_EMBEDDING_TRUNCATION } from '../embedding-utils.js';
 
-const normalizeTokenValue = (value, fallback = 0) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.trunc(parsed);
+const invalid = message => Object.assign(new Error(message), { code: 'ERR_ONNX_TOKENIZER_OUTPUT' });
+const tokenizers = new WeakMap();
+let nextTokenizerId = 0;
+const isRow = value => Array.isArray(value) || ArrayBuffer.isView(value) && typeof value.length === 'number';
+const normalizeTokenValue = (value, field = 'input_ids') => {
+  const parsed = typeof value === 'bigint' ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < 0) throw invalid(`${field} contains an invalid token integer.`);
+  return parsed;
+};
+const normalizeMaskValue = value => {
+  if (value === true || value === 1 || value === 1n) return 1;
+  if (value === false || value === 0 || value === 0n) return 0;
+  throw invalid('attention_mask contains a value other than zero or one.');
+};
+const normalizeFieldRows = (value, rowCount, field, rowLengthLimit = null) => {
+  if (!isRow(value)) throw invalid(`${field} is not an array of token rows.`);
+  const nested = Array.isArray(value) && value.length > 0 && isRow(value[0]);
+  if (nested ? value.length !== rowCount : rowCount !== 1) throw invalid(`${field} row count differs from the requested texts.`);
+  const source = nested ? value : [value];
+  return source.map(row => {
+    if (!isRow(row)) throw invalid(`${field} contains a missing or malformed row.`);
+    if (rowLengthLimit !== null && row.length > rowLengthLimit) throw invalid(`${field} exceeds its admitted tokenizer geometry.`);
+    return Array.from(row, entry => field === 'attention_mask' ? normalizeMaskValue(entry) : normalizeTokenValue(entry, field));
+  });
 };
 
-const normalizeFieldRows = (value, rowCount) => {
-  if (rowCount <= 0) return [];
-  const emptyRows = Array.from({ length: rowCount }, () => []);
-  if (!Array.isArray(value) || !value.length) return emptyRows;
-  const first = value[0];
-  if (Array.isArray(first) || ArrayBuffer.isView(first)) {
-    const rows = value.map((row) => Array.from(row || [], (entry) => normalizeTokenValue(entry, 0)));
-    while (rows.length < rowCount) rows.push([]);
-    return rows.slice(0, rowCount);
-  }
-  const row = Array.from(value, (entry) => normalizeTokenValue(entry, 0));
-  return [row, ...Array.from({ length: rowCount - 1 }, () => [])];
+// These keys identify only pure token data, never model/session ownership. Each
+// adapter retains the exact tokenizer object and preprocessing policy it uses.
+export const createTokenizationIdentity = ({ tokenizer, wantsTokenTypeIds = false,
+  truncation = DEFAULT_EMBEDDING_TRUNCATION, maxLength = null }) => {
+  if (typeof tokenizer !== 'function') throw invalid('Tokenizer is not callable.');
+  if (typeof truncation !== 'boolean' && typeof truncation !== 'string') throw invalid('Tokenizer truncation policy is unsupported.');
+  if (maxLength != null && (!Number.isSafeInteger(maxLength) || maxLength <= 0)) throw invalid('Tokenizer maximum length is invalid.');
+  if (!tokenizers.has(tokenizer)) tokenizers.set(tokenizer, ++nextTokenizerId);
+  return JSON.stringify([tokenizers.get(tokenizer), wantsTokenTypeIds === true, truncation, maxLength]);
 };
 
-const buildRowsFromTokenizerOutput = (encoded, rowCount, { wantsTokenTypeIds = false } = {}) => {
-  const inputRows = normalizeFieldRows(encoded?.input_ids, rowCount);
-  const maskRows = normalizeFieldRows(encoded?.attention_mask, rowCount);
-  const tokenTypeRows = wantsTokenTypeIds
-    ? normalizeFieldRows(encoded?.token_type_ids, rowCount)
+const count = (measurements, field, amount) => {
+  if (measurements) measurements[field] = Math.min(Number.MAX_SAFE_INTEGER, (measurements[field] || 0) + amount);
+};
+
+const buildRowsFromTokenizerOutput = (encoded, rowCount, { wantsTokenTypeIds = false, rowLengthLimit = null } = {}) => {
+  const inputRows = normalizeFieldRows(encoded?.input_ids, rowCount, 'input_ids', rowLengthLimit);
+  const maskRows = encoded?.attention_mask == null ? null : normalizeFieldRows(encoded.attention_mask, rowCount, 'attention_mask', rowLengthLimit);
+  const tokenTypeRows = wantsTokenTypeIds && encoded?.token_type_ids != null
+    ? normalizeFieldRows(encoded.token_type_ids, rowCount, 'token_type_ids', rowLengthLimit)
     : null;
   const rows = new Array(rowCount);
   for (let i = 0; i < rowCount; i += 1) {
     const inputIds = inputRows[i] || [];
     const width = inputIds.length;
-    const mask = new Array(width);
-    const sourceMask = maskRows[i] || [];
-    for (let c = 0; c < width; c += 1) {
-      mask[c] = Number(sourceMask[c] ?? 1) ? 1 : 0;
+    if (maskRows && maskRows[i].length !== width || tokenTypeRows && tokenTypeRows[i].length !== width) {
+      throw invalid('Tokenizer mask or token-type width differs from its input token row.');
     }
+    const mask = maskRows ? maskRows[i] : Array(width).fill(1);
     const tokenTypeIds = wantsTokenTypeIds
-      ? Array.from({ length: width }, (_, c) => normalizeTokenValue(tokenTypeRows?.[i]?.[c], 0))
+      ? tokenTypeRows ? tokenTypeRows[i] : Array(width).fill(0)
       : null;
     rows[i] = {
       input_ids: inputIds,
@@ -65,9 +85,10 @@ const setTokenCacheValue = (cache, key, value, maxEntries) => {
   }
 };
 
-const buildTokenizationCacheKey = (text, wantsTokenTypeIds) => `${wantsTokenTypeIds ? 1 : 0}:${text}`;
+const buildTokenizationCacheKey = (text, identity) => JSON.stringify([identity, text]);
 
-const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId = 0 } = {}) => {
+export const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId = 0, measurements = null } = {}) => {
+  padTokenId = normalizeTokenValue(padTokenId, 'pad_token_id');
   const width = rows.reduce((max, row) => Math.max(max, row?.input_ids?.length || 0), 0);
   const input_ids = new Array(rows.length);
   const attention_mask = new Array(rows.length);
@@ -82,16 +103,18 @@ const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId 
     const tokenTypeRow = wantsTokenTypeIds ? new Array(width) : null;
     for (let c = 0; c < width; c += 1) {
       const hasToken = c < ids.length;
-      idRow[c] = hasToken ? normalizeTokenValue(ids[c], padTokenId) : padTokenId;
-      maskRow[c] = hasToken ? (Number(maskSrc[c] ?? 1) ? 1 : 0) : 0;
+      idRow[c] = hasToken ? normalizeTokenValue(ids[c]) : padTokenId;
+      maskRow[c] = hasToken ? normalizeMaskValue(maskSrc[c] ?? 1) : 0;
       if (tokenTypeRow) {
-        tokenTypeRow[c] = hasToken ? normalizeTokenValue(tokenTypeSrc[c], 0) : 0;
+        tokenTypeRow[c] = hasToken ? normalizeTokenValue(tokenTypeSrc[c] ?? 0, 'token_type_ids') : 0;
       }
     }
     input_ids[r] = idRow;
     attention_mask[r] = maskRow;
     if (tokenTypeRow) token_type_ids[r] = tokenTypeRow;
   }
+  count(measurements, 'paddedTokenCells', rows.length * width);
+  count(measurements, 'paddedFieldCells', rows.length * width * (wantsTokenTypeIds ? 3 : 2));
   return {
     input_ids,
     attention_mask,
@@ -99,21 +122,23 @@ const buildPaddedBatchEncoding = (rows, { wantsTokenTypeIds = false, padTokenId 
   };
 };
 
-export const tokenizeBatchWithCache = ({
+export const prepareTokenRowsWithCache = ({
   tokenizer,
   texts,
   wantsTokenTypeIds = false,
   truncation = DEFAULT_EMBEDDING_TRUNCATION,
-  tokenizationCache = null
+  maxLength = null,
+  tokenizationCache = null,
+  preparedRows = null,
+  rowLengthLimit = null,
+  measurements = null
 }) => {
+  if (rowLengthLimit !== null && (!Number.isSafeInteger(rowLengthLimit) || rowLengthLimit < 1)) throw invalid('Invalid admitted tokenizer geometry.');
   const list = Array.isArray(texts) ? texts.map((text) => (typeof text === 'string' ? text : String(text ?? ''))) : [];
   if (!list.length) {
-    return {
-      input_ids: [],
-      attention_mask: [],
-      token_type_ids: wantsTokenTypeIds ? [] : undefined
-    };
+    return [];
   }
+  const identity = createTokenizationIdentity({ tokenizer, wantsTokenTypeIds, truncation, maxLength });
   const rows = new Array(list.length);
   const missingByText = new Map();
   const cacheEnabled = tokenizationCache?.enabled === true;
@@ -123,11 +148,14 @@ export const tokenizeBatchWithCache = ({
     : 0;
   for (let i = 0; i < list.length; i += 1) {
     const text = list[i];
+    const prepared = preparedRows?.read(text, identity);
+    if (prepared) { rows[i] = prepared; count(measurements, 'preparedTokenRowHits', 1); continue; }
     if (cacheEnabled) {
-      const key = buildTokenizationCacheKey(text, wantsTokenTypeIds);
+      const key = buildTokenizationCacheKey(text, identity);
       const cached = getTokenCacheValue(cache, key);
       if (cached) {
         rows[i] = cached;
+        count(measurements, 'tokenCacheRowHits', 1);
         continue;
       }
     }
@@ -137,24 +165,23 @@ export const tokenizeBatchWithCache = ({
   }
   if (missingByText.size) {
     const missingTexts = Array.from(missingByText.keys());
+    count(measurements, 'tokenizerCalls', 1);
+    count(measurements, 'tokenizerInputTexts', missingTexts.length);
     const encodedMissing = tokenizer(missingTexts, {
       padding: false,
       truncation,
+      ...(maxLength ? { max_length: maxLength } : {}),
       return_tensor: false,
       return_token_type_ids: wantsTokenTypeIds
     });
     const missingRows = buildRowsFromTokenizerOutput(encodedMissing, missingTexts.length, {
-      wantsTokenTypeIds
+      wantsTokenTypeIds, rowLengthLimit
     });
     for (let i = 0; i < missingTexts.length; i += 1) {
       const text = missingTexts[i];
-      const row = missingRows[i] || {
-        input_ids: [],
-        attention_mask: [],
-        token_type_ids: wantsTokenTypeIds ? [] : null
-      };
+      const row = missingRows[i];
       if (cacheEnabled) {
-        const key = buildTokenizationCacheKey(text, wantsTokenTypeIds);
+        const key = buildTokenizationCacheKey(text, identity);
         setTokenCacheValue(cache, key, row, maxEntries);
       }
       const indexes = missingByText.get(text) || [];
@@ -163,8 +190,94 @@ export const tokenizeBatchWithCache = ({
       }
     }
   }
-  const padTokenId = normalizeTokenValue(tokenizer?.pad_token_id, 0);
-  return buildPaddedBatchEncoding(rows, { wantsTokenTypeIds, padTokenId });
+  if (rowLengthLimit !== null) for (const row of rows) {
+    if (row.input_ids.length > rowLengthLimit) throw invalid('Cached token row exceeds its admitted tokenizer geometry.');
+  }
+  count(measurements, 'preparedTokenRows', rows.length);
+  count(measurements, 'preparedUsefulTokens', rows.reduce((sum, row) => sum + row.attention_mask.reduce((tokens, value) => tokens + value, 0), 0));
+  return rows;
 };
+
+// Adapter-local, bounded ownership between planning and dispatch. A lease is
+// released by the admitted request even on failure; expiry also bounds callers
+// that estimate without subsequently dispatching.
+export const createPreparedTokenRows = ({ maxEntries = 4096, maxBytes = 16 * 1024 * 1024, ttlMs = 60000 } = {}) => {
+  if (![maxEntries, maxBytes, ttlMs].every(value => Number.isSafeInteger(value) && value > 0)) throw new RangeError('Invalid prepared token row capacity.');
+  const entries = new Map(), leases = new Set(), reservedKeys = new Set();
+  let bytes = 0, reservedBytes = 0, timer = null;
+  const expire = () => {
+    timer = null;
+    const now = Date.now();
+    for (const lease of leases) if (lease.expiresAt <= now) lease.release();
+    if (leases.size) { timer = setTimeout(expire, Math.max(1, Math.min(...[...leases].map(lease => lease.expiresAt - now)))); timer.unref?.(); }
+  };
+  return {
+    reserve({ texts, identity, maxLength, wantsTokenTypeIds = false }) {
+      if (!Array.isArray(texts) || !texts.length || texts.length > maxEntries || leases.size >= maxEntries || typeof identity !== 'string'
+        || !Number.isSafeInteger(maxLength) || maxLength < 1) return null;
+      const rowBytes = maxLength * (wantsTokenTypeIds ? 3 : 2) * 8;
+      if (!Number.isSafeInteger(rowBytes) || rowBytes > maxBytes) return null;
+      const textCount = texts.length, keys = new Map(); let projected = 0;
+      for (let i = 0; i < texts.length; i++) {
+        if (typeof texts[i] !== 'string' || texts[i].length * 2 > Math.min(maxBytes, 4 * 1024 * 1024)) return null;
+        const key = buildTokenizationCacheKey(texts[i], identity);
+        if (keys.has(key)) continue;
+        if (entries.has(key) || reservedKeys.has(key)) return null;
+        projected += key.length * 2 + 128 + rowBytes;
+        if (!Number.isSafeInteger(projected) || projected > maxBytes - bytes - reservedBytes) return null;
+        keys.set(key, i);
+      }
+      if (keys.size + entries.size + reservedKeys.size > maxEntries) return null;
+      let released = false, committed = false;
+      const lease = { expiresAt: Date.now() + ttlMs, release() {
+        if (released) return;
+        released = true;
+        if (!committed) reservedBytes -= projected;
+        for (const key of keys.keys()) {
+          reservedKeys.delete(key);
+          const entry = entries.get(key);
+          if (entry?.owner === lease) { entries.delete(key); bytes -= entry.bytes; }
+        }
+        leases.delete(lease);
+        if (!leases.size && timer) { clearTimeout(timer); timer = null; }
+      }, commit(rows) {
+        if (released || committed) throw invalid('Prepared token reservation is no longer open.');
+        if (Date.now() >= lease.expiresAt) { lease.release(); throw invalid('Prepared token reservation expired before commit.'); }
+        if (!Array.isArray(rows) || rows.length !== textCount) throw invalid('Prepared token reservation row count differs from its admission.');
+        const admitted = [];
+        for (const [key, index] of keys) {
+          const row = rows[index], length = row?.input_ids?.length;
+          if (!Number.isSafeInteger(length) || length < 1 || length > maxLength || row.attention_mask?.length !== length
+            || (wantsTokenTypeIds ? row.token_type_ids?.length !== length : row.token_type_ids != null)) throw invalid('Prepared token row differs from its admitted geometry.');
+          admitted.push({ key, row, bytes: key.length * 2 + 128 + length * (wantsTokenTypeIds ? 3 : 2) * 8 });
+        }
+        reservedBytes -= projected; committed = true;
+        for (const entry of admitted) {
+          reservedKeys.delete(entry.key); entries.set(entry.key, { ...entry, owner: lease }); bytes += entry.bytes;
+        }
+        return lease.release;
+      } };
+      leases.add(lease); reservedBytes += projected;
+      for (const key of keys.keys()) reservedKeys.add(key);
+      if (!timer) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
+      return Object.freeze(lease);
+    },
+    read(text, identity) {
+      const key = buildTokenizationCacheKey(text, identity), entry = entries.get(key);
+      if (!entry) return null;
+      if (entry.owner.expiresAt <= Date.now()) { entry.owner.release(); return null; }
+      return entry.row;
+    },
+    clear() { for (const lease of leases) lease.release(); },
+    stats: () => ({ entries: entries.size, bytes, reservedBytes, reservedEntries: reservedKeys.size,
+      reservations: leases.size, maxEntries, maxBytes })
+  };
+};
+
+export const tokenizeBatchWithCache = input => buildPaddedBatchEncoding(prepareTokenRowsWithCache(input), {
+  wantsTokenTypeIds: input.wantsTokenTypeIds,
+  padTokenId: input.tokenizer?.pad_token_id ?? 0,
+  measurements: input.measurements
+});
 
 export const __tokenizeBatchWithCacheForTests = (input = {}) => tokenizeBatchWithCache(input);

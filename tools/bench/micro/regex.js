@@ -5,9 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 const { default: yargs } = await import('yargs/yargs');
 const { hideBin } = await import('yargs/helpers');
-const { createSafeRegex } = await import('../../../src/shared/safe-regex.js');
-const { tryRequire } = await import('../../../src/shared/optional-deps.js');
-const { formatStats, runSampledBench } = await import('./utils.js');
+const { formatStats } = await import('./utils.js');
+const { runRegexBenchmark } = await import('./regex-runner.js');
 
 const argv = yargs(hideBin(process.argv))
   .option('pattern', {
@@ -57,9 +56,7 @@ const argv = yargs(hideBin(process.argv))
 
 const pattern = String(argv.pattern || '');
 const flags = String(argv.flags || '');
-const iterations = Math.max(1, Math.floor(argv.iterations));
-const samples = Math.max(1, Math.floor(argv.samples));
-const warmup = Math.max(0, Math.floor(argv.warmup));
+const { iterations, samples, warmup } = argv;
 
 const input = resolveInput(argv);
 if (!input) {
@@ -67,44 +64,7 @@ if (!input) {
   process.exit(1);
 }
 
-const results = {
-  generatedAt: new Date().toISOString(),
-  pattern,
-  flags,
-  inputBytes: Buffer.byteLength(input, 'utf8'),
-  iterations,
-  warmup,
-  engines: {}
-};
-
-const re2js = createSafeRegex(pattern, flags, {
-  maxPatternLength: 0,
-  maxInputLength: 0,
-  maxProgramSize: 0,
-  timeoutMs: 0
-});
-if (!re2js) {
-  console.error('[regex] Failed to compile re2js pattern.');
-  process.exit(1);
-}
-
-results.engines.re2js = await runBench('re2js', () => re2js.test(input), {
-  iterations,
-  samples,
-  warmup
-});
-
-const re2Engine = loadRe2();
-if (re2Engine) {
-  const re2 = new re2Engine(pattern, flags);
-  results.engines.re2 = await runBench('re2', () => re2.test(input), {
-    iterations,
-    samples,
-    warmup
-  });
-} else {
-  results.engines.re2 = { available: false };
-}
+const results = await runRegexBenchmark({ pattern, flags, input, iterations, samples, warmup });
 
 if (argv.out) {
   const outPath = path.resolve(argv.out);
@@ -115,7 +75,8 @@ if (argv.out) {
 if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
-  console.error(`[regex] iterations=${iterations} samples=${samples} warmup=${warmup}`);
+  console.error(`[regex] iterations=${results.iterations} samples=${results.samples} warmup=${results.warmup}`);
+  console.error(`[regex] ${results.comparison}; ${results.operation}`);
   printEngine('re2js', results.engines.re2js);
   if (results.engines.re2.available === false) {
     console.error('- re2: unavailable (install optional "re2" dependency to compare)');
@@ -138,27 +99,9 @@ function resolveInput(args) {
   return 'error alpha\nwarn beta\ninfo gamma\n'.repeat(200);
 }
 
-function loadRe2() {
-  const result = tryRequire('re2');
-  if (!result.ok || !result.mod) return null;
-  const engine = result.mod.default || result.mod;
-  return typeof engine === 'function' ? engine : null;
-}
-
-async function runBench(label, fn, { iterations, samples, warmup }) {
-  const { totalMs, stats } = await runSampledBench(fn, { iterations, samples, warmup });
-  const opsPerSec = totalMs > 0 ? (iterations / (totalMs / 1000)) : 0;
-  return {
-    available: true,
-    totalMs,
-    opsPerSec,
-    stats
-  };
-}
-
 function printEngine(name, payload) {
   const stats = payload.stats || null;
   const ops = Number.isFinite(payload.opsPerSec) ? payload.opsPerSec.toFixed(0) : 'n/a';
   const summary = stats ? formatStats(stats) : 'n/a';
-  console.error(`- ${name}: ${summary} | ops/sec ${ops}`);
+  console.error(`- ${name} (effective ${payload.effectiveEngine}; package ${payload.package?.version || 'unknown'}): bucket ${summary} | ops/sec ${ops}`);
 }

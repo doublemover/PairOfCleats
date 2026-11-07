@@ -1,20 +1,21 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
-process.env.PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS = '1';
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'extensions');
 const tempRoot = resolveTestCachePath(root, 'download-extensions');
-const verifyEnv = applyTestEnv({ syncProcess: false });
+const verifyEnv = applyTestEnv({ syncProcess: false,
+  extraEnv: { PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS: '1' } });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -24,8 +25,10 @@ const cases = [
   { label: 'tar', archive: 'vec0.tar', expectedArchive: 'tar' }
 ];
 const maliciousCases = [
-  { label: 'zip-slip', archive: 'vec0-slip.zip', escapeName: 'pwned-zip.txt' },
-  { label: 'tar-slip', archive: 'vec0-slip.tar', escapeName: 'pwned-tar.txt' }
+  { label: 'zip-slip', archive: 'vec0-slip.zip', escapeName: 'pwned-zip.txt',
+    expectedError: /No extension binary found/ },
+  { label: 'tar-slip', archive: 'vec0-slip.tar', escapeName: 'pwned-tar.txt',
+    expectedError: /unsafe tar entry: \.\.\/pwned-tar\.txt/ }
 ];
 const allowedArchives = new Set([
   ...cases.map((entry) => entry.archive),
@@ -53,9 +56,11 @@ const server = http.createServer((req, res) => {
 });
 
 function runDownload(args) {
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, args, { cwd: root, stdio: 'inherit' });
-    child.on('close', (code) => resolve(code ?? 1));
+  return spawnSubprocess(process.execPath, args, {
+    cwd: root, env: verifyEnv, stdio: 'pipe', maxOutputBytes: 64 * 1024,
+    timeoutMs: 5000, rejectOnNonZeroExit: false, killTree: true, cleanupOnParentExit: true,
+    onStdout: chunk => process.stdout.write(chunk),
+    onStderr: chunk => process.stderr.write(chunk)
   });
 }
 
@@ -69,11 +74,12 @@ const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
 
 const failures = [];
+const expectedBinaryHash = crypto.createHash('sha256').update('stub-extension\n').digest('hex');
 for (const entry of cases) {
   const extensionDir = path.join(tempRoot, entry.label);
   const url = `http://127.0.0.1:${port}/${entry.archive}`;
   const archiveHash = await hashFile(path.join(fixturesRoot, entry.archive));
-  const status = await runDownload([
+  const result = await runDownload([
     path.join(root, 'tools', 'download', 'extensions.js'),
     '--url',
     `vec0=${url}`,
@@ -89,7 +95,7 @@ for (const entry of cases) {
     'x64',
     '--force'
   ]);
-  if (status !== 0) {
+  if (result.exitCode !== 0) {
     failures.push(`${entry.label} download failed`);
     continue;
   }
@@ -138,6 +144,8 @@ for (const entry of cases) {
       'win32',
       '--arch',
       'x64',
+      '--sha256',
+      expectedBinaryHash,
       '--no-load',
       '--json'
     ],
@@ -154,6 +162,10 @@ for (const entry of cases) {
   if (!verifyPayload.exists) {
     failures.push(`${entry.label} verify-extensions missing path`);
   }
+  assert.equal(verifyPayload.verification?.ok, true);
+  assert.equal(verifyPayload.verification?.sha256, expectedBinaryHash);
+  assert.equal(verifyPayload.verification?.verificationLevel, 'artifact-existence-and-approved-integrity');
+  assert.equal(verifyPayload.load.attempted, false, 'fixture bytes must never be loaded as native code');
 }
 
 for (const entry of maliciousCases) {
@@ -162,7 +174,7 @@ for (const entry of maliciousCases) {
   const archiveHash = await hashFile(path.join(fixturesRoot, entry.archive));
   const escapePath = path.join(tempRoot, entry.escapeName);
   await fsPromises.rm(escapePath, { force: true });
-  await runDownload([
+  const result = await runDownload([
     path.join(root, 'tools', 'download', 'extensions.js'),
     '--url',
     `vec0=${url}`,
@@ -178,6 +190,9 @@ for (const entry of maliciousCases) {
     'x64',
     '--force'
   ]);
+  assert.equal(result.exitCode, 1, `${entry.label}: the malformed archive must fail`);
+  assert.equal(result.signal, null, `${entry.label}: rejection must not be a killed process`);
+  assert.match(result.stderr, entry.expectedError, `${entry.label}: assert the initiating archive rejection`);
   const expectedPath = path.join(extensionDir, 'sqlite-vec', 'win32-x64', 'vec0.dll');
   if (fs.existsSync(escapePath)) {
     failures.push(`${entry.label} wrote outside extraction root`);

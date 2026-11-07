@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
+import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 
 const empty = applyToolchainDaemonPolicyEnv({});
 assert.equal(empty.ORG_GRADLE_DAEMON, 'false');
@@ -27,15 +28,15 @@ const withCacheRoot = applyToolchainDaemonPolicyEnv({
 });
 assert.equal(
   withCacheRoot.ERL_CRASH_DUMP,
-  path.join('tmp', 'cache-root', 'erl_crash.dump'),
-  'expected BEAM crash dumps to route into the test cache root when available'
+  path.join(resolveStorageLayout({ env: { PAIROFCLEATS_CACHE_ROOT: path.join('tmp', 'cache-root') } }).descriptors.tmp.path, 'toolchain', 'beam', 'erl_crash.dump'),
+  'cache-only aliases cannot redirect durable crash evidence into project cwd'
 );
 
 const withCwdFallback = applyToolchainDaemonPolicyEnv({}, { cwd: path.join('tmp', 'workspace-root') });
 assert.equal(
   withCwdFallback.ERL_CRASH_DUMP,
-  path.join('tmp', 'workspace-root', 'erl_crash.dump'),
-  'expected cwd fallback when no cache root is available'
+  path.join(resolveStorageLayout({ env: {} }).descriptors.tmp.path, 'toolchain', 'beam', 'erl_crash.dump'),
+  'owned scratch replaces the project cwd fallback'
 );
 
 const explicitCrashDump = applyToolchainDaemonPolicyEnv({

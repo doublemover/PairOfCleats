@@ -41,7 +41,7 @@ assert.deepEqual(payload, {
   filter: 'lang:javascript',
   author: 'Jane Doe',
   modifiedAfter: '2025-01-01',
-  modifiedSince: '30',
+  modifiedSince: 30,
   churnMin: 10,
   case: true
 });

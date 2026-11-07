@@ -1,5 +1,6 @@
 import { MAX_CANDIDATES_GLOBAL_SCAN, MAX_CANDIDATES_PER_REF } from './constants.js';
 import { resolveRelativeImport } from './resolve-relative-import.js';
+import { selectImportedTargets } from './import-targets.js';
 
 const toKey = (value) => (value ? String(value) : '');
 
@@ -10,9 +11,21 @@ const leafName = (value) => {
   return parts.length ? parts[parts.length - 1] : text;
 };
 
+const resolveOwnedSymbol = entry => {
+  const symbol = entry?.symbol || entry?.meta?.symbol || null;
+  if (!symbol || typeof symbol !== 'object' || Array.isArray(symbol)) return null;
+  const ownerUid = entry.chunkUid, symbolUid = symbol.chunkUid;
+  // Legacy entries may supply only one identity. A supplied disagreement or
+  // malformed identity must not redirect this definition to another chunk.
+  if (ownerUid != null && (typeof ownerUid !== 'string' || !ownerUid.length)) return null;
+  if (symbolUid != null && (typeof symbolUid !== 'string' || !symbolUid.length)) return null;
+  if (ownerUid != null && symbolUid != null && ownerUid !== symbolUid) return null;
+  return symbol;
+};
+
 const buildCandidate = (entry) => {
   if (!entry) return null;
-  const symbol = entry.symbol || entry.meta?.symbol || null;
+  const symbol = resolveOwnedSymbol(entry);
   if (!symbol) return null;
   return {
     symbolId: symbol.symbolId || null,
@@ -23,13 +36,13 @@ const buildCandidate = (entry) => {
   };
 };
 
-const scoreCandidate = ({ entry, targetName, leaf, kindHint, importedName }) => {
+const scoreCandidate = ({ entry, targetName, leaf, kindHint, importMatched }) => {
   let score = 0;
   const name = entry?.qualifiedName || entry?.name || '';
   if (name === targetName) score += 3;
-  if (leaf && name === leaf) score += 2;
-  if (importedName && name === importedName) score += 2;
-  if (kindHint && entry?.kind && entry.kind === kindHint) score += 1;
+  if (leaf && leafName(name) === leaf) score += 2;
+  if (importMatched) score += 3;
+  if (score > 0 && kindHint && entry?.kind && entry.kind === kindHint) score += 1;
   return score;
 };
 
@@ -38,7 +51,7 @@ export const buildSymbolIndex = (entries) => {
   const byFile = new Map();
   for (const entry of entries || []) {
     if (!entry) continue;
-    const symbol = entry.symbol || entry.meta?.symbol || null;
+    const symbol = resolveOwnedSymbol(entry);
     if (!symbol) continue;
     const name = entry.qualifiedName || entry.name;
     if (name) {
@@ -67,15 +80,19 @@ export const resolveSymbolRef = ({
   fromFile = null,
   fileRelations = null,
   symbolIndex,
-  fileSet
+  fileSet,
+  runtimeOnly = false
 }) => {
   const name = toKey(targetName);
   const leaf = leafName(name);
   const candidates = [];
   const importHint = { moduleSpecifier: null, resolvedFile: null };
   let importedName = null;
+  let importedTarget = null;
   let narrowedEntries = [];
   let hasImportNarrowing = false;
+  let runtimeTypeOnly = false;
+  let runtimeExportUnavailable = false;
 
   if (fileRelations && fromFile) {
     const relation = typeof fileRelations.get === 'function'
@@ -86,13 +103,31 @@ export const resolveSymbolRef = ({
       const rootName = name.split(/::|\./)[0] || '';
       const binding = bindings[rootName];
       if (binding && typeof binding.module === 'string') {
+        // A known import owns this root even when this resolver cannot establish
+        // its module. An empty admitted target set must not escape to unrelated
+        // repository-global same-name or same-leaf candidates.
+        hasImportNarrowing = true;
+        runtimeTypeOnly = runtimeOnly === true && binding.typeOnly === true;
         importHint.moduleSpecifier = binding.module;
-        if (binding.imported) importedName = binding.imported;
+        if (typeof binding.imported === 'string' && binding.imported) importedName = binding.imported;
+        const suffix = name.slice(rootName.length);
+        importedTarget = importedName === '*'
+          ? suffix.replace(/^(?:\.|::)/u, '') || null
+          : importedName === 'default'
+            ? suffix ? null : 'default'
+            : importedName ? `${importedName}${suffix}` : null;
         const resolvedFile = resolveRelativeImport(fromFile, binding.module, fileSet);
         if (resolvedFile) {
           importHint.resolvedFile = resolvedFile;
-          narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || [];
-          hasImportNarrowing = true;
+          if (!runtimeTypeOnly) {
+            const moduleEntries = (symbolIndex?.byFile?.get(resolvedFile) || []).filter(entry => resolveOwnedSymbol(entry));
+            narrowedEntries = selectImportedTargets(moduleEntries, {
+              imported: importedName, suffix, legacyTarget: importedTarget, runtimeOnly,
+              lookupName: symbolIndex?.byName ? target => symbolIndex.byName.get(target) || [] : null
+            });
+            runtimeExportUnavailable = runtimeOnly === true && !narrowedEntries.length
+              && moduleEntries.some(entry => entry.moduleExports !== undefined);
+          }
         }
       }
     }
@@ -107,11 +142,7 @@ export const resolveSymbolRef = ({
   const allEntries = baseEntries.length ? baseEntries : leafEntries;
 
   for (const entry of allEntries) {
-    if (importedName && importedName !== '*' && importedName !== 'default') {
-      const entryName = entry?.qualifiedName || entry?.name || '';
-      const entryLeaf = leafName(entryName);
-      if (entryLeaf !== importedName) continue;
-    }
+    if (!resolveOwnedSymbol(entry)) continue;
     candidates.push(entry);
   }
 
@@ -132,7 +163,7 @@ export const resolveSymbolRef = ({
 
   const scored = candidates.map((entry) => ({
     entry,
-    score: scoreCandidate({ entry, targetName: name, leaf, kindHint, importedName })
+    score: scoreCandidate({ entry, targetName: name, leaf, kindHint, importMatched: hasImportNarrowing })
   }));
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
@@ -144,8 +175,8 @@ export const resolveSymbolRef = ({
     return uidA.localeCompare(uidB);
   });
 
-  const top = scored.filter((item) => item.score > 0 || !scored.length);
-  const limited = (top.length ? top : scored).slice(0, MAX_CANDIDATES_PER_REF);
+  const top = scored.filter((item) => item.score > 0);
+  const limited = top.slice(0, MAX_CANDIDATES_PER_REF);
   const formatted = limited.map(({ entry }) => buildCandidate(entry)).filter(Boolean);
 
   if (formatted.length === 1) {
@@ -168,6 +199,8 @@ export const resolveSymbolRef = ({
     importHint: resolvedImportHint,
     candidates: formatted,
     status: formatted.length ? 'ambiguous' : 'unresolved',
-    resolved: null
+    resolved: null,
+    ...(runtimeTypeOnly ? { reason: 'type-only-import' }
+      : runtimeExportUnavailable ? { reason: 'module-export-unavailable' } : {})
   };
 };

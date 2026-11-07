@@ -6,6 +6,8 @@ import { getDictConfig } from '../config.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { getDefaultCacheRoot } from '../cache.js';
 import { getRepoId, getLegacyRepoId, resolvePath } from './repo.js';
+import { registerDictionaryStorageRoot, acquireDictionaryStorageRead } from '../../../src/shared/storage/dictionary-access.js';
+import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
 import {
   CODE_DICT_COMMON_FILE,
   CODE_DICT_DIR_NAME,
@@ -16,6 +18,11 @@ import {
 const BUNDLED_CODE_DICTIONARY_MANIFEST = 'manifest.json';
 const BUNDLED_CODE_DICTIONARY_RELATIVE_ROOT = path.join('assets', 'dictionary', 'packs');
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const optionalDictionaryMissing = error => describeStorageFailure(error, { phase: 'dictionary-input-selection' }).code === 'ENOENT';
+const dictionaryPathExists = file => {
+  try { fs.lstatSync(file); return true; }
+  catch (error) { if (optionalDictionaryMissing(error)) return false; throw error; }
+};
 
 const resolveBundledCodeDictionaryRoot = () => (
   path.resolve(MODULE_DIR, '../../../', BUNDLED_CODE_DICTIONARY_RELATIVE_ROOT)
@@ -25,10 +32,11 @@ const loadBundledCodeDictionaryManifest = async (baseDir) => {
   const manifestPath = path.join(baseDir, BUNDLED_CODE_DICTIONARY_MANIFEST);
   try {
     const parsed = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
-    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Invalid bundled dictionary manifest.');
     return parsed;
-  } catch {
-    return null;
+  } catch (error) {
+    if (optionalDictionaryMissing(error)) return null;
+    throw error;
   }
 };
 
@@ -78,7 +86,7 @@ const resolveBundledCodeDictionaryPaths = async ({ languages = null } = {}) => {
       const stat = await fsPromises.stat(resolved);
       if (!stat.isFile()) return;
       bucket.push(resolved);
-    } catch {}
+    } catch (error) { if (!optionalDictionaryMissing(error)) throw error; }
   };
   const common = [];
   for (const relativePath of resolveBundledCommonEntries(manifest)) {
@@ -131,8 +139,9 @@ async function listTxtFiles(dirPath) {
     return entries
       .filter((entry) => entry.isFile() && entry.name.endsWith('.txt'))
       .map((entry) => path.join(dirPath, entry.name));
-  } catch {
-    return [];
+  } catch (error) {
+    if (optionalDictionaryMissing(error)) return [];
+    throw error;
   }
 }
 
@@ -157,8 +166,9 @@ async function listTxtFilesNested(dirPath) {
         }
       }
     }
-  } catch {
-    return { root: [], byDir: new Map() };
+  } catch (error) {
+    if (optionalDictionaryMissing(error)) return { root: [], byDir: new Map() };
+    throw error;
   }
   return { root: rootFiles, byDir };
 }
@@ -169,7 +179,7 @@ async function listTxtFilesNested(dirPath) {
  * @param {object|null} dictConfig
  * @returns {Promise<string[]>}
  */
-export async function getDictionaryPaths(repoRoot, dictConfig = null, options = {}) {
+async function getDictionaryPathsOwned(repoRoot, dictConfig = null, options = {}) {
   const config = dictConfig || getDictConfig(repoRoot);
   const allowFallback = options?.allowFallback !== false;
   const buildPaths = async (dictDir) => {
@@ -177,22 +187,22 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null, options = 
     const paths = [];
 
     const combinedPath = path.join(dictDir, 'combined.txt');
-    if (fs.existsSync(combinedPath)) {
+    if (dictionaryPathExists(combinedPath)) {
       paths.push(combinedPath);
     }
 
     const languages = Array.from(new Set(resolvedConfig.languages || []));
     for (const lang of languages) {
       const langFile = path.join(dictDir, `${lang}.txt`);
-      if (fs.existsSync(langFile)) paths.push(langFile);
+      if (dictionaryPathExists(langFile)) paths.push(langFile);
     }
 
     const legacyWords = path.join(dictDir, 'words_alpha.txt');
-    if (!paths.length && fs.existsSync(legacyWords)) paths.push(legacyWords);
+    if (!paths.length && dictionaryPathExists(legacyWords)) paths.push(legacyWords);
 
     for (const filePath of resolvedConfig.files) {
       const resolved = resolvePath(repoRoot, filePath);
-      if (resolved && fs.existsSync(resolved)) paths.push(resolved);
+      if (resolved && dictionaryPathExists(resolved)) paths.push(resolved);
     }
 
     if (resolvedConfig.includeSlang) {
@@ -207,20 +217,20 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null, options = 
       }
       for (const slangFile of resolvedConfig.slangFiles) {
         const resolved = resolvePath(repoRoot, slangFile);
-        if (resolved && fs.existsSync(resolved)) paths.push(resolved);
+        if (resolved && dictionaryPathExists(resolved)) paths.push(resolved);
       }
     }
 
     if (resolvedConfig.enableRepoDictionary) {
       const repoDict = getRepoDictPath(repoRoot, resolvedConfig);
-      if (fs.existsSync(repoDict)) paths.push(repoDict);
+      if (dictionaryPathExists(repoDict)) paths.push(repoDict);
       const legacyRepoDict = path.join(resolvedConfig.dir, 'repos', `${getLegacyRepoId(repoRoot)}.txt`);
-      if (fs.existsSync(legacyRepoDict)) paths.push(legacyRepoDict);
+      if (dictionaryPathExists(legacyRepoDict)) paths.push(legacyRepoDict);
     }
 
     if (!paths.length) {
       const fallback = path.join(repoRoot, 'tools', 'words_alpha.txt');
-      if (fs.existsSync(fallback)) paths.push(fallback);
+      if (dictionaryPathExists(fallback)) paths.push(fallback);
     }
 
     return Array.from(new Set(paths));
@@ -247,7 +257,7 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null, options = 
  * @param {{languages?:string[]|Set<string>}} [options]
  * @returns {Promise<{baseDir:string,common:string[],byLanguage:Map<string,string[]>,all:string[]}>}
  */
-export async function getCodeDictionaryPaths(repoRoot, dictConfig = null, options = {}) {
+async function getCodeDictionaryPathsOwned(repoRoot, dictConfig = null, options = {}) {
   const config = dictConfig || getDictConfig(repoRoot);
   const baseDir = path.join(config.dir, CODE_DICT_DIR_NAME);
   const hasLanguageFilter = Array.isArray(options.languages) || options.languages instanceof Set;
@@ -322,3 +332,18 @@ export async function getCodeDictionaryPaths(repoRoot, dictConfig = null, option
     bundledBaseDir: bundled?.baseDir || null
   };
 }
+
+const enumerateWithDictionaryAccess = async (repoRoot, dictConfig, options, enumerate, scope) => {
+  const config = dictConfig || getDictConfig(repoRoot);
+  const root = path.resolve(config.dir);
+  registerDictionaryStorageRoot(root);
+  const access = acquireDictionaryStorageRead(root, { root, scope });
+  try { return await enumerate(repoRoot, config, options); }
+  finally { access.releaseAfterClosure(); }
+};
+
+export const getDictionaryPaths = (repoRoot, dictConfig = null, options = {}) => enumerateWithDictionaryAccess(
+  repoRoot, dictConfig, options, getDictionaryPathsOwned, 'dictionary-path-enumeration');
+
+export const getCodeDictionaryPaths = (repoRoot, dictConfig = null, options = {}) => enumerateWithDictionaryAccess(
+  repoRoot, dictConfig, options, getCodeDictionaryPathsOwned, 'code-dictionary-path-enumeration');

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sparse-update-and-rebuild-oracle", "dense-fallback-and-sparse-resume", "coverage-and-atomic-replacement", "bounded-cancelled-and-replayed"]
+}

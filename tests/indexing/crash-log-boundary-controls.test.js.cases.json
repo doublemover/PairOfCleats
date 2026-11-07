@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["before-open", "pending-write-close", "bounded-existing-logs", "terminal-disk-failure", "latest-pointer-failure"]
+}

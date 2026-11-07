@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "helper-original-and-independent-observations", "helper-field-failure-and-projection", "helper-pending-before-fields",
+    "probe-positive-result", "probe-nonzero-result", "probe-nested-capture", "probe-settled-error", "probe-revocation-between-fields", "probe-field-failure",
+    "clangd-original-spawn-result", "publication-after-original-revocation",
+    "pyright-positive", "pyright-refusal", "native-typescript-positive", "native-typescript-refusal",
+    "csharp-positive", "csharp-refusal", "dotnet-positive", "dotnet-refusal", "dotnet-prior-probe-revocation",
+    "ast-grep-positive", "ast-grep-refusal", "ast-grep-prior-probe-revocation",
+    "api7-sdk-positive", "api7-sdk-refusal", "api7-native-positive", "api7-native-refusal"
+  ]
+}

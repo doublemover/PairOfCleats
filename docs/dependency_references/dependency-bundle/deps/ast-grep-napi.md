@@ -1,5 +1,10 @@
 # `@ast-grep/napi`
 
+> DEPRECATED proposed integration — 2026-10-27, PR #572. This unused direct root
+> was retired. [Current ownership](../../../guides/dependency-ownership.md)
+> retains structural search through its separately identified ast-grep CLI.
+> The original reference notes below remain historical.
+
 **Area:** Pattern-based AST search (high-performance)
 
 ## Why this matters for PairOfCleats

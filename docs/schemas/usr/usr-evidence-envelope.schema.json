@@ -1,10 +1,103 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "usr/usr-evidence-envelope.schema.json",
-  "title": "usr-evidence-envelope.schema.json",
-  "allOf": [
-    {
-      "$ref": "./evidence-envelope.schema.json"
+  "title": "usr-evidence-envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactId",
+    "generatedAt",
+    "producerId",
+    "runId",
+    "lane",
+    "buildId",
+    "status",
+    "scope"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "artifactId": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producerId": {
+      "type": "string"
+    },
+    "producerVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runId": {
+      "type": "string"
+    },
+    "lane": {
+      "type": "string"
+    },
+    "buildId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "error",
+        "partial"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scopeType",
+        "scopeId"
+      ],
+      "properties": {
+        "scopeType": {
+          "type": "string",
+          "enum": [
+            "global",
+            "lane",
+            "language",
+            "framework"
+          ]
+        },
+        "scopeId": {
+          "type": "string"
+        }
+      }
+    },
+    "blockingFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "advisoryFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
-  ]
+  },
+  "$id": "usr/usr-evidence-envelope.schema.json"
 }

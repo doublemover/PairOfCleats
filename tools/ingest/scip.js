@@ -16,6 +16,9 @@ import {
   writeJsonLine
 } from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
+import { withOperationalTool } from '../tooling/operational-execution.js';
+import { scipRoleInfo as roleInfo, normalizeScipFlatRange as normalizeRange,
+  extractScipSymbolInfo as extractSymbolInfo } from '../../src/index/tooling/scip-format.js';
 
 const argv = createCli({
   scriptName: 'scip-ingest',
@@ -25,7 +28,7 @@ const argv = createCli({
     out: { type: 'string' },
     json: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
-    scip: { type: 'string', default: 'scip' },
+    scip: { type: 'string' },
     args: { type: 'string' },
     'timeout-ms': { type: 'number' }
   }
@@ -39,7 +42,7 @@ const outputPath = argv.out
 const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runScip = argv.run === true;
-const scipCmd = argv.scip || 'scip';
+const scipCmd = argv.scip || null;
 const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
 
 const normalizePath = (value) => {
@@ -63,55 +66,6 @@ const stats = {
 };
 
 let writeStream = null;
-
-// https://github.com/scip-code/scip/blob/main/scip.proto#L502-L528
-const roleInfo = (roles) => {
-  const parsed = Number(roles);
-  const symbolRoles = Number.isInteger(parsed) ? parsed : 0;
-  const isDefinition = (symbolRoles & 1) !== 0;
-  return {
-    symbolRoles,
-    isDefinition,
-    isReference: !isDefinition,
-    isImport: (symbolRoles & 2) !== 0,
-    isWriteAccess: (symbolRoles & 4) !== 0,
-    isReadAccess: (symbolRoles & 8) !== 0,
-    isGenerated: (symbolRoles & 16) !== 0,
-    isTest: (symbolRoles & 32) !== 0,
-    isForwardDefinition: (symbolRoles & 64) !== 0
-  };
-};
-
-const normalizeRange = (range) => {
-  if (!Array.isArray(range) || !range.length) return null;
-  const startLine = Number.isFinite(Number(range[0])) ? Number(range[0]) : 0;
-  const startChar = Number.isFinite(Number(range[1])) ? Number(range[1]) : 0;
-  let endLine = startLine;
-  let endChar = startChar;
-  if (range.length === 3) {
-    endChar = Number.isFinite(Number(range[2])) ? Number(range[2]) : endChar;
-  } else if (range.length >= 4) {
-    endLine = Number.isFinite(Number(range[2])) ? Number(range[2]) : endLine;
-    endChar = Number.isFinite(Number(range[3])) ? Number(range[3]) : endChar;
-  }
-  return {
-    startLine: startLine + 1,
-    startChar,
-    endLine: endLine + 1,
-    endChar
-  };
-};
-
-const extractSymbolInfo = (doc) => {
-  const entries = doc?.symbols || doc?.symbolInformation || doc?.symbolInformations || [];
-  if (!Array.isArray(entries) || !entries.length) return new Map();
-  const map = new Map();
-  for (const entry of entries) {
-    if (!entry || !entry.symbol) continue;
-    map.set(entry.symbol, entry);
-  }
-  return map;
-};
 
 const writeOccurrence = async (doc, occurrence, symbolInfo) => {
   if (!occurrence || !occurrence.symbol) return;
@@ -205,14 +159,19 @@ const ingestJsonFile = async (filePath) => {
 };
 
 const runScipCommand = async () => {
-  const args = ['print', '--format=json'];
-  if (inputPath) args.push('--input', inputPath);
+  if (!inputPath) throw new Error('SCIP execution requires --input with a binary .scip file or - for protobuf stdin. Reading JSON input needs no --run or producer.');
+  // The selected official SCIP CLI uses a --json flag and positional input.
+  // https://github.com/scip-code/scip/blob/v0.10.0/cmd/scip/print.go
+  const args = ['print', '--json'];
   if (argv.args) {
-    args.push(...splitCliArgs(argv.args));
+    const extra = splitCliArgs(argv.args);
+    if (extra.some(token => token !== '--color=false')) throw new Error('SCIP ingest owns the print command, JSON format and input path. Only --color=false is supported as an extra print option.');
+    args.push(...extra);
   }
-  await runLineStreamingCommand({
-    command: scipCmd,
-    args,
+  args.push(inputPath === '-' ? '-' : path.resolve(inputPath));
+  await withOperationalTool('scip', { repoRoot, commandOverride: scipCmd }, tool => tool.stream(runLineStreamingCommand, args, {
+    cwd: repoRoot,
+    inputStream: inputPath === '-' ? process.stdin : null,
     timeoutMs: commandTimeoutMs,
     onStdoutLine: async (line) => {
       const trimmed = line.trim();
@@ -227,7 +186,7 @@ const runScipCommand = async () => {
       await handlePayload(parsed);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
-  });
+  }));
 };
 
 await withStagedIngestOutput(outputPath, async (stream) => {

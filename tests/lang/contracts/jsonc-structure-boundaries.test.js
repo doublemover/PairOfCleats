@@ -96,14 +96,13 @@ assert.deepEqual(collectJsonImports(deepReference.replace('{"payload":', '{/* co
 assert.equal(chunkJson(deepReference.replace('{"payload":', '{/* comment */"payload":'), { ext: '.jsonc' })[0].meta.parser, 'jsonc-unavailable');
 const partialDeep = '{\n"payload":' + '['.repeat(80) + '\n{"$ref":"excluded"}' + ']'.repeat(80) + '\n}';
 assert.deepEqual(collectJsonImports(partialDeep, { ext: '.jsonc', collectorScanBudget: { maxLines: 2, maxMs: 0 } }), [], 'positionless compatibility references are omitted for a partial line window');
-const nativeParse = JSON.parse;
 let compatibilityClock = 0;
 const compatibilityDiagnostics = [];
-try {
-  JSON.parse = (...args) => { compatibilityClock += 31; return nativeParse(...args); };
-  assert.deepEqual(collectJsonImports(deepReference, { ext: '.jsonc', collectorNow: () => compatibilityClock,
-    collectorScanBudget: { maxMs: 30 }, collectorDiagnostics: compatibilityDiagnostics }), []);
-} finally { JSON.parse = nativeParse; }
+const timedCompatibility = createJsoncImportCollector({ parseValue: text => {
+  compatibilityClock += 31; return JSON.parse(text);
+} });
+assert.deepEqual(timedCompatibility(deepReference, { ext: '.jsonc', collectorNow: () => compatibilityClock,
+  collectorScanBudget: { maxMs: 30 }, collectorDiagnostics: compatibilityDiagnostics }), []);
 assert.ok(compatibilityDiagnostics.some((entry) => entry.reasons.includes('scan_time')), 'native compatibility parse remains inside the actual caller deadline');
 const fake = (root) => createJsoncStructureParser({ now: () => 0, loadParser: () => ({ ...vendor, parseTree: () => root }) });
 assert.equal(fake({ type: 'object', offset: -1, length: 2, children: [] })('{}').reason, 'invalid-tree-range');

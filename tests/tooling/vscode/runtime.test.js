@@ -181,8 +181,9 @@ const fakeVscode = {
     }
   },
   window: {
-    async showTextDocument() {
+    async showTextDocument(document) {
       return {
+        document,
         selection: null,
         revealRange(range, mode) {
           revealCalls.push({ range, mode });

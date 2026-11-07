@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["default-one", "default-four", "all-four", "aliases-one", "memory-four", "fts-four"]
+}

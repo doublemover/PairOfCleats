@@ -1,0 +1,1000 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "294e971bb328feeb67c5049fb90f36935b895dc0",
+  "sourceTree": "324bc3efdfa32e8904b96335397e5ee3f1c07397",
+  "implementationCommits": [
+    "755acc8d5c6662f61eba843aa76171f6c7717e79",
+    "294e971bb328feeb67c5049fb90f36935b895dc0"
+  ],
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "closed": [
+      1006
+    ],
+    "qualificationPending": [
+      1544
+    ]
+  },
+  "setup": {
+    "dependenciesChanged": false,
+    "patchesChanged": false,
+    "nativeBinariesChanged": false,
+    "bootstrapRerun": false
+  },
+  "before": {
+    "method": "Selected prior owner sources are loaded through child-only synchronous Node hooks; checkout files were never reverted. Final regression assertions also execute against prior owners.",
+    "cases": [
+      {
+        "name": "query-cache-nonfinite",
+        "baselineHead": "89c25488cc30c969ecfe15fd2c4eed7db886770a",
+        "substitutedOwners": [
+          "src/retrieval/cli/run-search-session/embedding-cache.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 312,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-query-cache-nonfinite.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r"
+        ]
+      },
+      {
+        "name": "query-output-nonfinite",
+        "baselineHead": "89c25488cc30c969ecfe15fd2c4eed7db886770a",
+        "substitutedOwners": [
+          "src/retrieval/embedding.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 318,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-query-output-nonfinite.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r"
+        ]
+      },
+      {
+        "name": "native-ann-nonfinite",
+        "baselineHead": "89c25488cc30c969ecfe15fd2c4eed7db886770a",
+        "substitutedOwners": [
+          "src/shared/hnsw.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 304,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-native-ann-nonfinite.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\r"
+        ]
+      },
+      {
+        "name": "named-query-profile",
+        "baselineHead": "89c25488cc30c969ecfe15fd2c4eed7db886770a",
+        "substitutedOwners": [
+          "src/retrieval/cli/run-search-session/embedding-cache.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 340,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-named-query-profile.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: {\"selected\":\"prepared\",\"i\":0,\"runs\":0,\"warnings\":[\"[embeddings] Query embedder unavailable; skipping ANN. Embedding model artifact identity is unknown or changed. Download/verify the model and rebuild the dense index.\"]}\r"
+        ]
+      },
+      {
+        "name": "dimension-transform",
+        "baselineHead": "89c25488cc30c969ecfe15fd2c4eed7db886770a",
+        "substitutedOwners": [
+          "src/retrieval/ann/dims.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 464,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-dimension-transform.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r"
+        ]
+      },
+      {
+        "name": "result-cache-policy",
+        "baselineHead": "89c25488cc30c969ecfe15fd2c4eed7db886770a",
+        "substitutedOwners": [
+          "src/retrieval/cli/run-search-session/cache-policy.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 327,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-result-cache-policy.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r"
+        ]
+      },
+      {
+        "name": "persisted-query-width",
+        "baselineHead": "755acc8d5c6662f61eba843aa76171f6c7717e79",
+        "substitutedOwners": [
+          "src/retrieval/cli/run-search-session/embedding-cache.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 598,
+        "receipt": ".tmp/tasks/query-vector-admission-20261027/before-persisted-query-width.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected rejection.\r"
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "cohort": {
+      "sourceHead": "755acc8d5c6662f61eba843aa76171f6c7717e79",
+      "total": 27,
+      "passed": 27,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 11005,
+      "tests": [
+        {
+          "id": "indexing/embeddings/dense-model-encoding-contract",
+          "status": "passed",
+          "durationMs": 184,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/embeddinggemma2-contract",
+          "status": "passed",
+          "durationMs": 322,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/model-artifact-identity",
+          "status": "passed",
+          "durationMs": 239,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/model-aware-input-formatting",
+          "status": "passed",
+          "durationMs": 173,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/provider-output-admission",
+          "status": "passed",
+          "durationMs": 173,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/query-warm-cache-lifetime",
+          "status": "passed",
+          "durationMs": 894,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/warmup-query-cleanup-ownership",
+          "status": "passed",
+          "durationMs": 174,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/backend-contract-matrix",
+          "status": "passed",
+          "durationMs": 233,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/lancedb-close-ownership",
+          "status": "passed",
+          "durationMs": 86,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/lancedb-query-lifetime",
+          "status": "passed",
+          "durationMs": 88,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/lancedb-runtime-contract-matrix",
+          "status": "passed",
+          "durationMs": 405,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/provider-cancellation-health",
+          "status": "passed",
+          "durationMs": 247,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/admission",
+          "status": "passed",
+          "durationMs": 301,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/ann",
+          "status": "passed",
+          "durationMs": 297,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/cache",
+          "status": "passed",
+          "durationMs": 311,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/generic",
+          "status": "passed",
+          "durationMs": 1168,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/onnx",
+          "status": "passed",
+          "durationMs": 1266,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/prepared",
+          "status": "passed",
+          "durationMs": 335,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/query",
+          "status": "passed",
+          "durationMs": 305,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/utility-contract-matrix",
+          "status": "passed",
+          "durationMs": 464,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-flight-replacement",
+          "status": "passed",
+          "durationMs": 196,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-process-reuse",
+          "status": "passed",
+          "durationMs": 181,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-query-dims-lru",
+          "status": "passed",
+          "durationMs": 214,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-work-observation",
+          "status": "passed",
+          "durationMs": 181,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/query-effective-identity",
+          "status": "passed",
+          "durationMs": 252,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/query-signature-passthrough",
+          "status": "passed",
+          "durationMs": 313,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/federation/query-cache-key-contract-matrix",
+          "status": "passed",
+          "durationMs": 1976,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ],
+      "receipt": ".tmp/tasks/query-vector-admission-20261027/focused-final.json"
+    },
+    "finalAffected": {
+      "sourceHead": "294e971bb328feeb67c5049fb90f36935b895dc0",
+      "total": 14,
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 5589,
+      "tests": [
+        {
+          "id": "indexing/embeddings/embeddinggemma2-contract",
+          "status": "passed",
+          "durationMs": 324,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/embeddings/model-artifact-identity",
+          "status": "passed",
+          "durationMs": 236,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/admission",
+          "status": "passed",
+          "durationMs": 302,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/ann",
+          "status": "passed",
+          "durationMs": 296,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/cache",
+          "status": "passed",
+          "durationMs": 311,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/generic",
+          "status": "passed",
+          "durationMs": 1155,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/onnx",
+          "status": "passed",
+          "durationMs": 1283,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/prepared",
+          "status": "passed",
+          "durationMs": 336,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/ann/query-vector-admission/query",
+          "status": "passed",
+          "durationMs": 305,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-flight-replacement",
+          "status": "passed",
+          "durationMs": 189,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-process-reuse",
+          "status": "passed",
+          "durationMs": 187,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-query-dims-lru",
+          "status": "passed",
+          "durationMs": 213,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/embedding-work-observation",
+          "status": "passed",
+          "durationMs": 182,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cache/query-effective-identity",
+          "status": "passed",
+          "durationMs": 255,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ],
+      "receipt": ".tmp/tasks/query-vector-admission-20261027/focused-identity.json"
+    },
+    "format": {
+      "exitCode": 0,
+      "receipt": ".tmp/tasks/query-vector-admission-20261027/format-identity.stdout.log"
+    },
+    "frontGate": {
+      "sourceHead": "294e971bb328feeb67c5049fb90f36935b895dc0",
+      "steps": [
+        {
+          "executable": "npm.cmd",
+          "name": "config-budget",
+          "durationMs": 1904,
+          "exitCode": 0,
+          "arguments": [
+            "run",
+            "config:budget"
+          ]
+        },
+        {
+          "executable": "npm.cmd",
+          "name": "environment",
+          "durationMs": 1246,
+          "exitCode": 0,
+          "arguments": [
+            "run",
+            "env:check"
+          ]
+        },
+        {
+          "executable": "node",
+          "name": "generated",
+          "durationMs": 10437,
+          "exitCode": 0,
+          "arguments": [
+            "tools/docs/generated-surfaces.js",
+            "--check-freshness"
+          ]
+        },
+        {
+          "executable": "node",
+          "name": "command-surface",
+          "durationMs": 2607,
+          "exitCode": 0,
+          "arguments": [
+            "tools/ci/check-command-surface.js"
+          ]
+        },
+        {
+          "executable": "node",
+          "name": "workflow",
+          "durationMs": 226,
+          "exitCode": 0,
+          "arguments": [
+            "tests/ci/workflow-contract.test.js"
+          ]
+        },
+        {
+          "executable": "node",
+          "name": "gate-lane",
+          "durationMs": 24347,
+          "exitCode": 0,
+          "arguments": [
+            "tests/run.js",
+            "--lane",
+            "gate",
+            "--jobs",
+            "1",
+            "--timeout-ms",
+            "30000",
+            "--retries",
+            "0",
+            "--native-status-redo=false",
+            "--pairofcleats-threads",
+            "1",
+            "--json"
+          ]
+        },
+        {
+          "executable": "git",
+          "name": "diff",
+          "durationMs": 82,
+          "exitCode": 0,
+          "arguments": [
+            "diff",
+            "--check"
+          ]
+        }
+      ],
+      "summary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 23603
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 70,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 70,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 164,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 75,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 151,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 1441,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 221,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 201,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 264,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 258,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 250,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 269,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 252,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 264,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 470,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 237,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 585,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 755,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 761,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 932,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 675,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 870,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 1475,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1111,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1212,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 941,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1051,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 608,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2507,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1215,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 334,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 514,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1432,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1533,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ],
+      "receipt": ".tmp/tasks/query-vector-admission-20261027/front-gate.json"
+    },
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "coverage": {
+    "admission": "Finite numeric Float32-representable values, exact width, named normalized model nonzero/unit norm; every component of 3-wide array/F32/F64 inputs and all 128 profile-query components exercise NaN/+Infinity/-Infinity.",
+    "cache": "Invalid-first/valid-next/hit/corrupted-hit/next-valid paths, canonical profile identity, persisted width conflict before provider, unchanged flight replacement/LRU/identity controls.",
+    "ann": "Actual ANN stage retains sparse candidates/hits and invokes zero providers for invalid vectors; HNSW search boundary is instrumented, with a valid positive query reaching it.",
+    "providers": "Actual generic, ONNX and prepared query/resolver/adapter/decoder owners use controlled inference/tokenization/session objects. Prepared projection rejects invalid source values outside the retained dimensions. No actual model weights are executed.",
+    "resultCaches": "Local result signatures and federated keys include QUERY_EMBEDDING_ADMISSION_VERSION; prior namespaces differ."
+  },
+  "fixtureRepairs": [
+    "Gemma cache fixture supplies a valid unit vector of its requested width; dtype/cache isolation assertions remain.",
+    "Signature fixture includes the pre-existing effectivePlanIdentity:null; the negative differs only by query admission version.",
+    "ONNX fixture tokenizer is synchronous, as required by its actual tokenizer owner; prepared token feeds are actual common Tensor objects."
+  ],
+  "removedCode": "Incidental clipping/padding and their warning branches are replaced by exact admission. The helper never returns adjusted:true, proving those warning branches unreachable; named profile projections remain covered.",
+  "remaining": [
+    "#1544 actual supported model-export integration, representative large-batch throughput/allocation/copy/memory and full acceptance reconciliation.",
+    "Real-model quality, measured latency/performance, optional sqlite-vec, full deep/release qualification and other platforms."
+  ],
+  "rawEvidence": "Author-workspace .tmp/.testLogs receipts are historical; clean checkouts do not include them."
+}

@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
+import { SERVICE_SYNC_POLICIES, normalizeServiceSyncPolicy } from './sync-policy.js';
 
 const runGit = (args, cwd) => {
   try {
@@ -89,7 +90,8 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
   const repoPath = resolveRepoPath(entry, baseDir);
   if (!repoPath) return { ok: false, message: 'Missing repo path.' };
   const branch = entry.branch || 'main';
-  const policy = entry.syncPolicy || defaultPolicy;
+  const policy = normalizeServiceSyncPolicy(entry.syncPolicy ?? defaultPolicy);
+  if (!SERVICE_SYNC_POLICIES.has(policy)) return { ok: false, message: `Unsupported repository sync policy: ${String(policy)}` };
   const depth = Number.isFinite(Number(entry.cloneDepth)) ? Math.max(0, Number(entry.cloneDepth)) : 0;
 
   if (!fsSync.existsSync(repoPath)) {

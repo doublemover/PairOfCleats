@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "rejected-original",
+    "fulfilled-original",
+    "cleanup-original",
+    "metadata-original",
+    "initialization-original",
+    "falsey-errors",
+    "shared-account"
+  ]
+}

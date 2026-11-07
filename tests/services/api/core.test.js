@@ -5,6 +5,9 @@ import path from 'node:path';
 import { buildIndex, search, status } from '../../../src/integrations/core/index.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getRepoCacheRoot } from '../../../src/shared/repo-paths.js';
+import { assertDefaultToolingDiagnostics } from '../../helpers/default-tooling-diagnostics.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -20,18 +23,24 @@ if (!fs.existsSync(fixtureRoot)) {
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+applyTestEnv({ cacheRoot, embeddings: 'stub', testConfig: null });
 
+const startedAt = Date.now();
+const buildLogFile = path.join(cacheRoot, 'core-build.jsonl');
 await buildIndex(fixtureRoot, {
   stage: 'stage2',
   mode: 'code',
   sqlite: false,
   stubEmbeddings: true,
+  'log-file': buildLogFile,
   log: () => {}
 });
 
 const userConfig = loadUserConfig(fixtureRoot);
+const buildMessages = (await fsPromises.readFile(buildLogFile, 'utf8')).trim().split('\n')
+  .map(line => JSON.parse(line).msg);
+await assertDefaultToolingDiagnostics({ repoCacheRoot: getRepoCacheRoot(fixtureRoot, userConfig), startedAt,
+  messages: buildMessages });
 const indexDir = getIndexDir(fixtureRoot, 'code', userConfig);
 const extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
 await fsPromises.rm(extractedProseDir, { recursive: true, force: true });

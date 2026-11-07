@@ -3,9 +3,11 @@ import path from 'node:path';
 import { getRepoCacheRoot, getBuildsRoot } from '../shared/repo-paths.js';
 import { resolveCacheScopedBuildIdRoot } from '../shared/indexing/build-pointer-roots.js';
 import { resolveIndexDir } from '../retrieval/cli-index.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 /** Resolve a retained build by its exact immutable ID before considering current. */
-export const resolveSemanticGenerationIndexDir = async ({ repoRoot, generation, userConfig }) => {
+export const resolveSemanticGenerationIndexDir = async ({ repoRoot, generation, userConfig, signal = null }) => {
+  throwIfAborted(signal);
   const buildId = generation.baseBuildId;
   if (buildId === '.' || buildId === '..' || /[\\/:\0]/.test(buildId)) throw Object.assign(new Error('Semantic generation ID must be a single build identifier.'), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
@@ -14,11 +16,15 @@ export const resolveSemanticGenerationIndexDir = async ({ repoRoot, generation, 
   if (retained) {
     const indexDir = path.join(retained, 'index-code');
     for (const manifest of ['semantic_manifest.json', 'symbolic_type_manifest.json']) {
+      throwIfAborted(signal);
       try {
-        if ((await fs.stat(path.join(indexDir, manifest))).isFile()) return indexDir;
+        const stat = await fs.stat(path.join(indexDir, manifest));
+        throwIfAborted(signal);
+        if (stat.isFile()) return indexDir;
       } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
     }
   }
   // The opener must validate explicit generation equality; never substitute current facts.
+  throwIfAborted(signal);
   return resolveIndexDir(repoRoot, 'code', userConfig);
 };

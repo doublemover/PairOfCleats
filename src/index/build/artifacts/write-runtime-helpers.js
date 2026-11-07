@@ -3,6 +3,7 @@ import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { stripIndexStateNondeterministicFields } from './reporting.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 export const readStableIndexStateHash = async (indexStatePath, { maxBytes }) => {
   try {
@@ -11,7 +12,8 @@ export const readStableIndexStateHash = async (indexStatePath, { maxBytes }) => 
     if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return null;
     const stableState = stripIndexStateNondeterministicFields(fields, { forStableHash: true });
     return sha1(stableStringifyForSignature(stableState));
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'initial-index-state-stable-hash' }).requireSettled();
     return null;
   }
 };

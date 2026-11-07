@@ -74,20 +74,13 @@ assert.deepEqual(
   ['src/scripts/common.sh'],
   'expected the shell fixture import to resolve'
 );
-assert.equal(fixtureResolution.stats.resolved, 1);
+assert.equal(fixtureResolution.stats.resolved, 2);
 assert.equal(fixtureResolution.stats.unresolvedActionable, 0, 'expected no missing local fixture imports');
-// Existing product gap: classifyImporter does not treat extensionless BUILD as
-// path-like. The Bazel adapter sees the existing target but reports a suppressed
-// resolver gap. Keep that gap visible; this fixture repair does not fix it.
 assert.deepEqual(
-  fixtureResolution.unresolvedSamples.map(({ importer, reasonCode, disposition }) => ({
-    importer, reasonCode, disposition
-  })),
-  [{ importer: 'src/BUILD', reasonCode: 'IMP_U_RESOLVER_GAP', disposition: 'suppress_gate' }]
+  fixtureRelations.get('src/BUILD')?.importLinks,
+  ['tools/defs.bzl'],
+  'the existing extensionless BUILD import resolves through the Bazel label owner'
 );
-const bazelTrace = fixtureResolution.unresolvedSamples[0].resolverTrace.find(
-  (entry) => entry.adapter === 'bazel-label' && entry.details?.targetExists === true
-);
-assert.equal(bazelTrace?.details?.packageExists, true, 'expected the Bazel package and target to exist');
+assert.deepEqual(fixtureResolution.unresolvedSamples, [], 'neither existing local target is a suppressed gap');
 
 console.log('simple-language relations contract test passed');

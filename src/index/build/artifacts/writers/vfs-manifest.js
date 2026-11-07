@@ -40,7 +40,12 @@ const buildVfsPathMapRow = (row) => {
   if (!row || typeof row !== 'object') return null;
   const hashVirtualPath = buildVfsHashVirtualPath({
     docHash: row.docHash,
-    effectiveExt: row.effectiveExt
+    containerPath: row.containerPath,
+    segmentUid: row.segmentUid,
+    languageId: row.languageId,
+    effectiveExt: row.effectiveExt,
+    segmentStart: row.segmentStart,
+    segmentEnd: row.segmentEnd
   });
   if (!hashVirtualPath) return null;
   return {

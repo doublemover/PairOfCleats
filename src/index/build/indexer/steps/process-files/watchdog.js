@@ -123,15 +123,16 @@ export const createDurationHistogram = (bucketsMs = FILE_QUEUE_DELAY_HISTOGRAM_B
  * Resolve queue/active/write/total durations from lifecycle timestamps.
  *
  * @param {object} [lifecycle]
- * @returns {{queueDelayMs:number,activeDurationMs:number,writeDurationMs:number,totalDurationMs:number}}
+ * @returns {{queueDelayMs:number,activeDurationMs:number,scmProcQueueWaitMs:number,activeProcessingDurationMs:number,writeDurationMs:number,totalDurationMs:number}}
  */
 export const resolveFileLifecycleDurations = (lifecycle = {}) => {
-  const enqueuedAtMs = Number(lifecycle?.enqueuedAtMs);
-  const dequeuedAtMs = Number(lifecycle?.dequeuedAtMs);
-  const parseStartAtMs = Number(lifecycle?.parseStartAtMs);
-  const parseEndAtMs = Number(lifecycle?.parseEndAtMs);
-  const writeStartAtMs = Number(lifecycle?.writeStartAtMs);
-  const writeEndAtMs = Number(lifecycle?.writeEndAtMs);
+  const timestamp = (value) => value == null || value === '' ? NaN : Number(value);
+  const enqueuedAtMs = timestamp(lifecycle?.enqueuedAtMs);
+  const dequeuedAtMs = timestamp(lifecycle?.dequeuedAtMs);
+  const parseStartAtMs = timestamp(lifecycle?.parseStartAtMs);
+  const parseEndAtMs = timestamp(lifecycle?.parseEndAtMs);
+  const writeStartAtMs = timestamp(lifecycle?.writeStartAtMs);
+  const writeEndAtMs = timestamp(lifecycle?.writeEndAtMs);
   const queueDelayMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(dequeuedAtMs)
     ? Math.max(0, dequeuedAtMs - enqueuedAtMs)
     : 0;
@@ -144,9 +145,12 @@ export const resolveFileLifecycleDurations = (lifecycle = {}) => {
   const totalDurationMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(writeEndAtMs)
     ? Math.max(0, writeEndAtMs - enqueuedAtMs)
     : (queueDelayMs + activeDurationMs + writeDurationMs);
+  const scmProcQueueWaitMs = clampDurationMs(lifecycle?.scmProcQueueWaitMs);
   return {
     queueDelayMs,
     activeDurationMs,
+    scmProcQueueWaitMs,
+    activeProcessingDurationMs: Math.max(0, activeDurationMs - scmProcQueueWaitMs),
     writeDurationMs,
     totalDurationMs
   };

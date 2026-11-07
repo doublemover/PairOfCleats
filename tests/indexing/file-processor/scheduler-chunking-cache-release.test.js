@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { buildSchedulerDegradationReceipt } from '../../../src/index/build/tree-sitter-scheduler/degradation.js';
 import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { chunkWithScheduler } from '../../../src/index/build/file-processor/cpu/scheduler-chunking.js';
@@ -7,6 +8,7 @@ applyTestEnv();
 
 const text = 'export const value = 1;\n';
 const segment = {
+  segmentUid: 'seg-cache-release',
   start: 0,
   end: text.length,
   languageId: 'javascript'
@@ -41,7 +43,7 @@ const successScheduler = {
   releaseVirtualPathCaches: (virtualPath) => {
     releasedSuccess.push(virtualPath);
   },
-  isDegradedVirtualPath: () => false
+  getCrashSummary: () => ({ degradation: buildSchedulerDegradationReceipt() })
 };
 
 const success = await chunkWithScheduler({
@@ -59,7 +61,7 @@ const failingScheduler = {
   releaseVirtualPathCaches: (virtualPath) => {
     releasedFailure.push(virtualPath);
   },
-  isDegradedVirtualPath: () => false
+  getCrashSummary: () => ({ degradation: buildSchedulerDegradationReceipt() })
 };
 
 let threw = false;

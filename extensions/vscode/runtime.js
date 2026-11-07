@@ -1,8 +1,63 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { captureEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
+const responseCleanupOwners = new WeakMap();
 
 const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
 const DEFAULT_API_TIMEOUT_MS = 5000;
+const MINIMUM_NODE_VERSION = require('./editor-config-contract.json').cli.minimumNodeVersion;
+const MAXIMUM_NODE_MAJOR = Number(MINIMUM_NODE_VERSION.split('.')[0]) + 1;
+
+function resolveExternalNodeRuntime({ configuredPath = '', probe = require('node:child_process').spawnSync,
+  env = process.env } = {}) {
+  const fail = (reason) => ({ ok: false, message: `PairOfCleats requires external Node.js >=${MINIMUM_NODE_VERSION} <${MAXIMUM_NODE_MAJOR}. ${reason}`,
+    detail: 'Install the supported Node runtime or set an absolute pairofcleats.nodePath in VS Code User Settings.' });
+  const selected = String(configuredPath || '').trim() || 'node';
+  if (!path.isAbsolute(selected) && isPathLike(selected)) return fail('The Node path must be absolute.');
+  let command = path.isAbsolute(selected) ? selected : null;
+  if (!command) {
+    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
+    const suffixes = process.platform === 'win32' && !path.extname(selected) ? ['.exe'] : [''];
+    for (const raw of String(env[pathKey] || '').split(path.delimiter)) {
+      const directory = raw.trim().replace(/^"(.*)"$/, '$1');
+      // Never resolve an implicit workspace/current-directory executable.
+      if (!directory || !path.isAbsolute(directory)) continue;
+      command = suffixes.map(suffix => path.join(directory, selected + suffix)).find(candidate => {
+        try { return fs.statSync(candidate).isFile(); } catch { return false; }
+      }) || null;
+      if (command) break;
+    }
+  }
+  if (!command) return fail('No Node executable was found on the editor process PATH.');
+  let result;
+  try {
+    result = probe(command, ['-p', 'JSON.stringify({version:process.versions.node,execPath:process.execPath})'], {
+      cwd: path.dirname(command), env, encoding: 'utf8', shell: false,
+      windowsHide: true, timeout: 3000, maxBuffer: 8192
+    });
+  } catch (error) { return fail(`Runtime probe failed (${error.code || 'spawn failure'}).`); }
+  if (result.error || result.status !== 0 || String(result.stderr || '').trim()) {
+    return fail(`Runtime probe failed (${result.error?.code || (result.status === 0 ? 'unexpected diagnostics' : `exit ${result.status}`)}).`);
+  }
+  let evidence;
+  try { evidence = JSON.parse(String(result.stdout || '')); }
+  catch { return fail('Runtime probe did not return valid Node identity.'); }
+  const version = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(evidence?.version || ''));
+  const minimum = String(MINIMUM_NODE_VERSION).split('.').map(Number);
+  if (!version || Number(version[1]) !== minimum[0]
+    || Number(version[2]) < minimum[1]
+    || (Number(version[2]) === minimum[1] && Number(version[3]) < minimum[2])) {
+    return fail(`Selected runtime reports ${evidence?.version || 'an unknown version'}.`);
+  }
+  if (typeof evidence.execPath !== 'string' || !path.isAbsolute(evidence.execPath)) {
+    return fail('Runtime probe did not identify an absolute executable.');
+  }
+  try {
+    if (!fs.statSync(evidence.execPath).isFile()) return fail('The selected executable is not a file.');
+    return { ok: true, command: fs.realpathSync(evidence.execPath), version: evidence.version };
+  } catch { return fail('The selected executable is unavailable.'); }
+}
 
 function createChunkAccumulator(maxBytes = DEFAULT_MAX_BUFFER_BYTES) {
   const limit = Number.isFinite(Number(maxBytes)) ? Math.max(1, Number(maxBytes)) : DEFAULT_MAX_BUFFER_BYTES;
@@ -66,9 +121,12 @@ function resolveConfiguredCli(repoRoot, configuredPath, extraArgs = [], defaults
     };
   }
   if (resolvedPath.toLowerCase().endsWith(String(defaults.jsExtension || '.js').toLowerCase())) {
+    const node = typeof defaults.resolveNode === 'function'
+      ? defaults.resolveNode() : resolveExternalNodeRuntime({ configuredPath: defaults.nodePath });
+    if (!node.ok) return node;
     return {
       ok: true,
-      command: process.execPath,
+      command: node.command,
       argsPrefix: [resolvedPath, ...extraArgs]
     };
   }
@@ -147,27 +205,96 @@ function normalizeApiTimeoutMs(value) {
 
 function summarizeApiHttpFailure(label, status, payload, fallbackText) {
   const bodyMessage = payload && typeof payload === 'object'
-    ? String(payload.message || payload.error || payload.code || '').trim()
+    ? String(payload.message || payload.error || payload.code || '').trim().slice(0, 4096)
     : '';
   if (status === 401) {
     return {
       kind: 'api-unauthorized',
       message: `${label} failed: the PairOfCleats API rejected the request as unauthorized.`,
-      detail: bodyMessage || fallbackText || null
+      detail: bodyMessage || fallbackText?.slice(0, 4096) || null
     };
   }
   if (status === 403) {
     return {
       kind: 'api-forbidden',
       message: `${label} failed: the PairOfCleats API rejected the request as forbidden.`,
-      detail: bodyMessage || fallbackText || null
+      detail: bodyMessage || fallbackText?.slice(0, 4096) || null
     };
   }
   return {
     kind: 'api-http-error',
     message: `${label} failed via the PairOfCleats API (HTTP ${status}).`,
-    detail: bodyMessage || fallbackText || null
+    detail: bodyMessage || fallbackText?.slice(0, 4096) || null
   };
+}
+
+// Fetch exposes decoded bytes, so Content-Length is only an early admission
+// hint for identity encoding. The stream remains authoritative for every body.
+async function readApiResponseText(response, { signal, maxBytes = DEFAULT_MAX_BUFFER_BYTES } = {}) {
+  const limit = Number.isSafeInteger(maxBytes) && maxBytes > 0
+    ? Math.min(maxBytes, DEFAULT_MAX_BUFFER_BYTES) : DEFAULT_MAX_BUFFER_BYTES;
+  const blocks = [];
+  let block = null, used = 0, total = 0, reader = null, cancellation = null;
+  let primaryError, hasPrimary = false;
+  const cleanupFailures = [];
+  const tooLarge = (incoming = null) => {
+    const error = new Error(`API response exceeded the ${limit}-byte editor limit. Narrow the request or reduce result volume.`);
+    error.code = 'ERR_API_RESPONSE_TOO_LARGE';
+    const prefix = blocks[0] || block?.subarray(0, used) || incoming;
+    error.preview = prefix ? Buffer.from(prefix.subarray(0, 4096)).toString('utf8') : '';
+    return error;
+  };
+  const cancel = (reason) => {
+    cancellation ||= Promise.resolve().then(() => reader ? reader.cancel(reason) : response.body?.cancel?.(reason))
+      .catch(error => { cleanupFailures.push(captureEditorFailure(error)); });
+    return cancellation;
+  };
+  const abort = () => { void cancel(signal.reason); };
+  try {
+    const length = response.headers?.get?.('content-length');
+    const encoding = response.headers?.get?.('content-encoding');
+    if ((!encoding || encoding.toLowerCase() === 'identity') && /^\d+$/.test(length || '') && Number(length) > limit) {
+      throw tooLarge();
+    }
+    if (signal?.aborted) throw signal.reason;
+    if (!response.body) return '';
+    reader = response.body.getReader();
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) throw signal.reason;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (signal?.aborted) throw signal.reason;
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new Error('API response stream did not supply bytes.');
+      if (value.byteLength > limit - total) throw tooLarge(value);
+      total += value.byteLength;
+      for (let offset = 0; offset < value.byteLength;) {
+        if (!block) block = Buffer.allocUnsafe(Math.min(64 * 1024, limit - (total - value.byteLength + offset)));
+        const count = Math.min(block.length - used, value.byteLength - offset);
+        block.set(value.subarray(offset, offset + count), used);
+        used += count; offset += count;
+        if (used === block.length) { blocks.push(block); block = null; used = 0; }
+      }
+    }
+    if (used) blocks.push(block.subarray(0, used));
+    const text = Buffer.concat(blocks, total).toString('utf8');
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  } catch (error) {
+    primaryError = error; hasPrimary = true;
+    await cancel(error);
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', abort);
+    if (cancellation) await cancellation;
+    try { reader?.releaseLock(); } catch (error) { cleanupFailures.push(captureEditorFailure(error)); }
+    if (cleanupFailures.length) {
+      const failure = new Error('Owned API response cleanup remains unconfirmed.', {
+        cause: hasPrimary ? primaryError : cleanupFailures[0].primaryError });
+      responseCleanupOwners.set(failure, Object.freeze({ response, reader,
+        failureEvidence: editorFailureEvidence([...(hasPrimary ? [captureEditorFailure(primaryError)] : []), ...cleanupFailures]) }));
+      throw failure;
+    }
+  }
 }
 
 async function requestApiJson(baseUrl, requestPath, {
@@ -175,8 +302,11 @@ async function requestApiJson(baseUrl, requestPath, {
   payload = null,
   headers = null,
   timeoutMs = DEFAULT_API_TIMEOUT_MS,
-  label = 'PairOfCleats API request'
+  label = 'PairOfCleats API request',
+  signal = null,
+  maxResponseBytes = DEFAULT_MAX_BUFFER_BYTES
 } = {}) {
+  if (signal?.aborted) return { ok: false, kind: 'cancelled', message: `${label} was cancelled.` };
   const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   if (!normalizedBaseUrl) {
     return {
@@ -196,6 +326,9 @@ async function requestApiJson(baseUrl, requestPath, {
     };
   }
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const abort = () => controller?.abort?.(signal?.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener?.('abort', abort, { once: true });
   const timeout = setTimeout(() => controller?.abort?.(), normalizeApiTimeoutMs(timeoutMs));
   timeout.unref?.();
   try {
@@ -210,7 +343,7 @@ async function requestApiJson(baseUrl, requestPath, {
       redirect: 'error',
       signal: controller?.signal
     });
-    const text = await response.text();
+    const text = await readApiResponseText(response, { signal: controller?.signal, maxBytes: maxResponseBytes });
     let body = null;
     if (text.trim()) {
       try {
@@ -219,14 +352,14 @@ async function requestApiJson(baseUrl, requestPath, {
         if (!response.ok) {
           return {
             ok: false,
-            ...summarizeApiHttpFailure(label, response.status, null, text.trim() || error.message)
+            ...summarizeApiHttpFailure(label, response.status, null, text.trim().slice(0, 4096) || error.message)
           };
         }
         return {
           ok: false,
           kind: 'api-invalid-json',
           message: `${label} failed: PairOfCleats API returned invalid JSON.`,
-          detail: text.trim() || error.message
+          detail: text.trim().slice(0, 4096) || error.message
         };
       }
     }
@@ -236,19 +369,37 @@ async function requestApiJson(baseUrl, requestPath, {
         ...summarizeApiHttpFailure(label, response.status, body, text.trim())
       };
     }
+    if (body?.ok === false) return { ok: false, kind: 'api-operation-failed',
+      message: `${label} failed: the service reported an unsuccessful operation.`,
+      detail: typeof body.message === 'string' ? body.message.slice(0, 4096)
+        : typeof body.code === 'string' ? body.code.slice(0, 4096) : null };
     return { ok: true, payload: body || {} };
   } catch (error) {
-    const isAbort = error?.name === 'AbortError';
+    const owner = responseCleanupOwners.get(error);
+    if (owner) {
+      const failure = { ok: false, kind: 'api-response-cleanup-unconfirmed',
+        message: `${label} failed: owned API response cleanup remains unconfirmed. Automatic transport fallback is unavailable.`,
+        detail: 'Inspect the original response/cleanup failure; a closed reader lock does not prove underlying resource release.',
+        failureEvidence: owner.failureEvidence };
+      responseCleanupOwners.set(failure, owner);
+      return failure;
+    }
+    if (error?.code === 'ERR_API_RESPONSE_TOO_LARGE') return {
+      ok: false, kind: 'api-response-too-large', message: `${label} failed: ${error.message}`,
+      detail: error.preview || null
+    };
+    const isAbort = controller?.signal.aborted || error?.name === 'AbortError';
     return {
       ok: false,
-      kind: isAbort ? 'api-timeout' : 'api-request-error',
-      message: isAbort
+      kind: signal?.aborted ? 'cancelled' : isAbort ? 'api-timeout' : 'api-request-error',
+      message: signal?.aborted ? `${label} was cancelled.` : isAbort
         ? `${label} timed out after ${normalizeApiTimeoutMs(timeoutMs)}ms.`
         : `${label} failed: ${error?.message || error}`,
-      detail: String(error?.stack || error?.message || error)
+      detail: String(error?.stack || error?.message || error).slice(0, 4096)
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener?.('abort', abort);
   }
 }
 
@@ -261,10 +412,11 @@ async function probeApiHealth(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, heade
   });
 }
 
-async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, headers = null) {
+async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, headers = null, signal = null) {
   const response = await requestApiJson(baseUrl, '/capabilities', {
     method: 'GET',
     headers,
+    signal,
     timeoutMs,
     label: 'PairOfCleats API capability probe'
   });
@@ -344,36 +496,163 @@ function spawnBufferedProcess(childProcessModule, command, args, options) {
   }
 }
 
-async function openSearchHit(vscodeApi, repoRoot, hit) {
-  const target = resolveValidatedHitTarget(vscodeApi, repoRoot, hit);
-  if (!target.ok) {
-    return target;
-  }
-  try {
-    const document = await vscodeApi.workspace.openTextDocument(target.targetUri);
-    try {
-      const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
-      const range = buildHitRange(vscodeApi, hit);
-      if (range) {
-        editor.selection = new vscodeApi.Selection(range.start, range.end);
-        editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
-      }
-      return { ok: true, filePath: target.filePath };
-    } catch (error) {
-      return {
-        ok: false,
-        filePath: target.filePath,
-        message: `PairOfCleats could not navigate to ${target.filePath}: ${error?.message || error}`,
-        detail: String(error?.stack || error?.message || error)
-      };
+function captureOpeningHit(original, isCurrent) {
+  if (!original || typeof original !== 'object' || Array.isArray(original)) throw new Error('Search opening requires an original hit object.');
+  const hit = {};
+  for (const name of ['file', 'sourceHash', 'coordinateUnit', 'startLine', 'startCol', 'endLine', 'endCol']) {
+    if (!isCurrent()) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(original, name);
+    if (!isCurrent()) return null;
+    if (!descriptor) {
+      if (name in original) throw new Error('Search opening cannot use inherited navigation fields.');
+      continue;
     }
+    if (!Object.hasOwn(descriptor, 'value')) throw new Error('Search opening requires passive navigation fields.');
+    hit[name] = descriptor.value;
+  }
+  if (typeof hit.file !== 'string' || !hit.file) throw new Error('Search opening requires an original file path.');
+  if (hit.sourceHash != null && (typeof hit.sourceHash !== 'string' || !/^[a-f0-9]{64}$/.test(hit.sourceHash))) throw new Error('Search source hash is invalid.');
+  for (const name of ['startLine', 'startCol', 'endLine', 'endCol']) {
+    if (hit[name] != null && !Number.isSafeInteger(hit[name])) throw new Error('Search opening requires integer navigation coordinates.');
+  }
+  return Object.freeze(hit);
+}
+
+function captureOpeningRepo(original, isCurrent) {
+  if (original == null || typeof original === 'string') return Object.freeze({ repoRoot: original || null, repoUri: null });
+  if (typeof original !== 'object' || Array.isArray(original)) throw new Error('Search opening requires its original repository context.');
+  const captured = {};
+  for (const name of ['repoRoot', 'repoUri']) {
+    if (!isCurrent()) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(original, name);
+    if (!isCurrent()) return null;
+    if (!descriptor) {
+      if (name in original) throw new Error('Search opening cannot use inherited repository context.');
+      captured[name] = null;
+    } else {
+      if (!Object.hasOwn(descriptor, 'value')) throw new Error('Search opening requires passive repository context.');
+      captured[name] = descriptor.value ?? null;
+    }
+  }
+  if (captured.repoRoot !== null && typeof captured.repoRoot !== 'string'
+    || captured.repoUri !== null && typeof captured.repoUri !== 'object') throw new Error('Search opening repository identity is invalid.');
+  return Object.freeze(captured);
+}
+
+function openingUriIdentity(uri, isCurrent) {
+  if (!uri || typeof uri !== 'object') throw new Error('Opened search document has no original URI.');
+  const parts = [];
+  for (const name of ['scheme', 'authority', 'path', 'fsPath']) {
+    if (!isCurrent()) return null;
+    const value = uri[name];
+    if (!isCurrent()) return null;
+    parts.push(value ?? null);
+  }
+  if (typeof parts[0] !== 'string' || !parts[0] || !parts.slice(1).every(value => value === null || typeof value === 'string')
+    || !parts[2] && !parts[3]) throw new Error('Opened search document has no original URI identity.');
+  return Object.freeze({ key: JSON.stringify(parts), scheme: parts[0] });
+}
+
+async function openSearchHit(vscodeApi, repoRoot, originalHit, { isCurrent = () => true } = {}) {
+  let revoked = false, filePath = '', phase = 'open';
+  const current = () => {
+    if (revoked) return false;
+    try { if (typeof isCurrent !== 'function' || isCurrent() !== true) revoked = true; }
+    catch (error) { revoked = true; throw error; }
+    return !revoked;
+  };
+  const cancelled = () => Object.freeze({ ok: false, kind: 'cancelled', filePath, message: 'PairOfCleats opening was superseded.' });
+  try {
+    if (!current()) return cancelled();
+    const hit = captureOpeningHit(originalHit, current);
+    if (!hit || !current()) return cancelled();
+    const repoContext = captureOpeningRepo(repoRoot, current);
+    if (!repoContext || !current()) return cancelled();
+    if (!current()) return cancelled();
+    const target = resolveValidatedHitTarget(vscodeApi, repoContext, hit);
+    if (!target.ok) return target;
+    filePath = target.filePath;
+    const root = repoContext.repoRoot, targetIdentity = openingUriIdentity(target.targetUri, current);
+    if (!current()) return cancelled();
+    const workspace = vscodeApi.workspace;
+    if (!current()) return cancelled();
+    const window = vscodeApi.window;
+    if (!current()) return cancelled();
+    const open = workspace.openTextDocument;
+    if (!current()) return cancelled();
+    const show = window.showTextDocument;
+    if (!current()) return cancelled();
+    if (typeof open !== 'function' || typeof show !== 'function') throw new Error('Search opening requires original document/display callbacks.');
+    const precise = hit.sourceHash && hit.coordinateUnit === 'utf16'
+      && [hit.startLine, hit.startCol, hit.endLine, hit.endCol].every(value => Number.isSafeInteger(value) && value > 0);
+    let document, qualified = null, authority = null, range = null;
+    if (hit.sourceHash) {
+      if (targetIdentity.scheme !== 'file') throw new Error('Hash-qualified source opening requires a contained local file.');
+      authority = createDocumentAuthority({ workspace: { openTextDocument: uri => Reflect.apply(open, workspace, [uri]) }, isCurrent: current, maxDocuments: 1 });
+      qualified = await authority.qualify({ repoRoot: root, file: filePath, uri: target.targetUri, sourceHash: hit.sourceHash,
+        ...(precise ? { range: hit } : { fileOnly: true }) });
+      if (!qualified || !current()) return cancelled();
+      document = qualified.document;
+      await authority.assertCurrent();
+    } else {
+      // Legacy unqualified positions are display hints. Capture them before the
+      // first await; they never acquire an original-source or exact-range claim.
+      range = buildHitRange(vscodeApi, hit, current);
+      if (!current()) return cancelled();
+      document = await Reflect.apply(open, workspace, [target.targetUri]);
+    }
+    if (!current()) return cancelled();
+    if (!document || document.isClosed === true) throw new Error('Opened search document is unavailable.');
+    const openedIdentity = openingUriIdentity(document.uri, current);
+    if (!current()) return cancelled();
+    if (openedIdentity.key !== targetIdentity.key) throw new Error('Opened search document URI differs from its original target.');
+    const version = document.version;
+    if (!current()) return cancelled();
+    phase = 'navigate';
+    const editor = await Reflect.apply(show, window, [document, { preview: true }]);
+    if (!current()) return cancelled();
+    if (authority) await authority.assertCurrent();
+    if (!current()) return cancelled();
+    if (!editor || editor.document !== document || document.isClosed === true || document.version !== version) throw new Error('Displayed search editor does not identify the original opened document/version.');
+    const displayedIdentity = openingUriIdentity(document.uri, current);
+    if (!current()) return cancelled();
+    if (displayedIdentity.key !== targetIdentity.key) throw new Error('Displayed search document URI differs from its original target.');
+    if (qualified) {
+      assertQualifiedEditor(editor, qualified);
+      if (precise) {
+        const positionAt = document.positionAt;
+        if (!current()) return cancelled();
+        if (typeof positionAt !== 'function') throw new Error('Qualified document has no original position callback.');
+        const start = Reflect.apply(positionAt, document, [qualified.offsets.start]);
+        if (!current()) return cancelled();
+        const end = Reflect.apply(positionAt, document, [qualified.offsets.end]);
+        if (!current()) return cancelled();
+        assertQualifiedEditor(editor, qualified);
+        const Range = vscodeApi.Range;
+        if (!current()) return cancelled();
+        range = new Range(start, end);
+      }
+    }
+    if (!current()) return cancelled();
+    if (range) {
+      const Selection = vscodeApi.Selection;
+      if (!current()) return cancelled();
+      const selection = new Selection(range.start, range.end);
+      if (!current()) return cancelled();
+      editor.selection = selection;
+      if (!current()) return cancelled();
+      if (editor.document !== document || document.isClosed === true || document.version !== version) throw new Error('Selected search editor no longer identifies the original opened document/version.');
+      if (qualified) assertQualifiedEditor(editor, qualified);
+      if (!current()) return cancelled();
+      editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
+    }
+    return { ok: true, filePath, sourceVerified: qualified !== null, rangeApplied: range !== null,
+      rangeEvidence: qualified ? precise ? 'qualified-original-utf16' : 'file-only-no-qualified-range' : 'unqualified-display-hint' };
   } catch (error) {
-    return {
-      ok: false,
-      filePath: target.filePath,
-      message: `PairOfCleats could not open ${target.filePath}: ${error?.message || error}`,
-      detail: String(error?.stack || error?.message || error)
-    };
+    const captured = captureEditorFailure(error);
+    return Object.freeze({ ok: false, filePath,
+      message: `PairOfCleats could not ${phase === 'open' ? 'open' : 'navigate to'} ${filePath || 'the selected source'}: ${captured.message}`,
+      detail: captured.message, primaryError: error, inspectionErrors: captured.inspectionErrors });
   }
 }
 
@@ -435,7 +714,7 @@ function resolveHitUri(vscodeApi, repoContext, hitFile) {
   return vscodeApi.Uri.file(path.join(repoContext.repoRoot || '', String(hitFile || '')));
 }
 
-function buildHitRange(vscodeApi, hit) {
+function buildHitRange(vscodeApi, hit, isCurrent = () => true) {
   if (!Number.isFinite(hit?.startLine) || hit.startLine <= 0) return null;
   const startLine = Math.max(0, Number(hit.startLine) - 1);
   const startCol = Number.isFinite(hit?.startCol) && hit.startCol > 0 ? Number(hit.startCol) - 1 : 0;
@@ -443,11 +722,17 @@ function buildHitRange(vscodeApi, hit) {
     ? Math.max(startLine, Number(hit.endLine) - 1)
     : startLine;
   const endCol = Number.isFinite(hit?.endCol) && hit.endCol > 0
-    ? Math.max(startCol, Number(hit.endCol) - 1)
-    : startCol;
-  const start = new vscodeApi.Position(startLine, startCol);
-  const end = new vscodeApi.Position(endLine, endCol);
-  return new vscodeApi.Range(start, end);
+    ? Math.max(endLine === startLine ? startCol : 0, Number(hit.endCol) - 1)
+    : (endLine === startLine ? startCol : 0);
+  const Position = vscodeApi.Position;
+  if (!isCurrent()) return null;
+  const Range = vscodeApi.Range;
+  if (!isCurrent()) return null;
+  const start = new Position(startLine, startCol);
+  if (!isCurrent()) return null;
+  const end = new Position(endLine, endCol);
+  if (!isCurrent()) return null;
+  return new Range(start, end);
 }
 
 function validateHitPath(repoContext, hitFile) {
@@ -515,11 +800,13 @@ module.exports = {
   DEFAULT_API_TIMEOUT_MS,
   createChunkAccumulator,
   resolveConfiguredCli,
+  resolveExternalNodeRuntime,
   parseJsonPayload,
   parseSearchPayload,
   normalizeApiBaseUrl,
   normalizeApiTimeoutMs,
   requestApiJson,
+  getApiResponseCleanupOwner: result => result && typeof result === 'object' ? responseCleanupOwners.get(result) : null,
   probeApiHealth,
   probeApiCapabilities,
   summarizeProcessFailure,

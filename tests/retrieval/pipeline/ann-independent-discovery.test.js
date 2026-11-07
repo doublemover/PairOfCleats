@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { parseQueryInput, annotateQueryAst } from '../../../src/retrieval/query.js';
 import { createAvailableDenseAnnProvider, createInMemorySearchPipeline } from './helpers/in-memory-search-pipeline-fixture.js';
 applyTestEnv();
 const chunks = Array.from({length: 180}, (_,id)=>({id,file:'src/'+id+'.js',tokens:id===179?['semantic','refresh']:['cache','refresh'],phraseTokens:id===178?['refresh','cache']:['cache','refresh'],weight:1}));
-const index={chunkMeta:chunks,tokenIndex:{vocab:['cache','refresh','semantic'],postings:[chunks.slice(0,179).map(c=>[c.id,1]),chunks.map(c=>[c.id,1]),[[179,1]]],docLengths:chunks.map(()=>2),totalDocs:180,avgDocLen:2},denseVec:{vectors:chunks.map(()=>[0.1,0.2])}};
+const index={chunkMeta:chunks,tokenIndex:{vocab:['cache','refresh','semantic'],postings:[chunks.slice(0,179).map(c=>[c.id,1]),chunks.map(c=>[c.id,1]),[[179,1]]],docLengths:chunks.map(()=>2),totalDocs:180,avgDocLen:2},denseVec:{vectors:chunks.map(()=>quantizeEmbeddingVector([0.1,0.2]))}};
 let observed;
 const provider=createAvailableDenseAnnProvider(async ({candidateSet,topN})=>{
   observed=candidateSet;

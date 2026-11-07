@@ -4,9 +4,8 @@ import { buildHighlightRegex } from './highlight.js';
 import {
   buildPhraseNgrams,
   annotateQueryAst,
-  parseQueryWithFallback,
-  tokenizePhrase,
-  tokenizeQueryTerms
+  createQueryLeafAnalysis,
+  parseQueryWithFallback
 } from '../query-parse.js';
 import {
   classifyQuery,
@@ -43,6 +42,7 @@ export function buildQueryPlan({
   caseFile,
   searchRegexConfig,
   filePrefilterEnabled,
+  filePrefilterConfig = {},
   fileChargramN,
   searchType,
   searchAuthor,
@@ -64,6 +64,7 @@ export function buildQueryPlan({
   extImpossible,
   langImpossible
 }) {
+  const queryMatch = argv.match || 'auto';
   const requestedLanguage = Array.isArray(langFilter)
     ? (langFilter[0] || null)
     : (typeof langFilter === 'string' ? langFilter : null);
@@ -74,26 +75,28 @@ export function buildQueryPlan({
   };
   const parseResult = parseQueryWithFallback(query);
   const parsedQuery = parseResult.parsed;
-  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig), argv.match || 'auto');
-  const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, tokenizationOptions);
+  const leafAnalysis = createQueryLeafAnalysis(dict, tokenizationOptions, { postingsConfig: postingsConfig || {}, queryMatch });
+  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig, leafAnalysis), queryMatch);
+  const includeTokens = leafAnalysis.tokenizeTerms(parsedQuery.includeTerms);
   const phraseTokens = parsedQuery.phrases
-    .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
+    .map((phrase) => leafAnalysis.tokenizePhrase(phrase))
     .filter((tokens) => tokens.length);
   const phraseInfo = buildPhraseNgrams(phraseTokens, postingsConfig);
   const phraseNgrams = phraseInfo.ngrams;
   const phraseNgramSet = phraseNgrams.length ? new Set(phraseNgrams) : null;
   const phraseRange = { min: phraseInfo.minLen, max: phraseInfo.maxLen };
-  const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, tokenizationOptions);
+  const excludeTokens = leafAnalysis.tokenizeTerms(parsedQuery.excludeTerms);
   const excludePhraseTokens = parsedQuery.excludePhrases
-    .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
+    .map((phrase) => leafAnalysis.tokenizePhrase(phrase))
     .filter((tokens) => tokens.length);
   const excludePhraseInfo = buildPhraseNgrams(excludePhraseTokens, postingsConfig);
   const excludePhraseNgrams = excludePhraseInfo.ngrams;
   const excludePhraseRange = excludePhraseInfo.minLen && excludePhraseInfo.maxLen
     ? { min: excludePhraseInfo.minLen, max: excludePhraseInfo.maxLen }
     : null;
-  const queryTokens = [...includeTokens, ...phraseTokens.flat()];
-  const rx = buildHighlightRegex(queryTokens);
+  const phraseScoringTokens = leafAnalysis.tokenizeScoringTerms(parsedQuery.phrases);
+  const queryTokens = [...includeTokens, ...phraseScoringTokens];
+  const rx = buildHighlightRegex(queryTokens, { caseSensitive: caseTokens });
   const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
     .join(' ')
     .trim() || query;
@@ -140,6 +143,7 @@ export function buildQueryPlan({
     caseTokens,
     regexConfig: fileFilter ? searchRegexConfig : null,
     filePrefilter: {
+      ...filePrefilterConfig,
       enabled: filePrefilterEnabled,
       chargramN: fileChargramN
     },
@@ -150,9 +154,11 @@ export function buildQueryPlan({
     meta: metaFilters,
     chunkAuthor: chunkAuthorFilter,
     modifiedAfter,
-    excludeTokens,
-    excludePhrases: excludePhraseNgrams,
-    excludePhraseRange
+    // The full AST owns query exclusions. Flattening a NOT below OR into
+    // an independent filter would incorrectly reject its positive branch.
+    excludeTokens: queryAst ? [] : excludeTokens,
+    excludePhrases: queryAst ? [] : excludePhraseNgrams,
+    excludePhraseRange: queryAst ? null : excludePhraseRange
   };
   const intentInfo = classifyQuery({
     query,
@@ -168,6 +174,11 @@ export function buildQueryPlan({
   const filterPredicates = compileFilterPredicates(filters, { fileChargramN });
 
   const cacheFilters = {
+    queryMatch,
+    branches: branchesMin ?? null,
+    loops: loopsMin ?? null,
+    breaks: breaksMin ?? null,
+    continues: continuesMin ?? null,
     type: searchType,
     author: searchAuthor,
     calls: argv.calls || null,
@@ -208,6 +219,7 @@ export function buildQueryPlan({
     caseTokens,
     regexConfig: fileFilter ? searchRegexConfig : null,
     filePrefilter: fileFilter ? {
+      ...filePrefilterConfig,
       enabled: filePrefilterEnabled,
       chargramN: fileChargramN
     } : null,

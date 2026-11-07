@@ -13,7 +13,8 @@ const activeFile = workspace.resolvePath('src', 'app.ts');
 const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
-  activeFile
+  activeFile,
+  globalConfigValues: { cliPath: workspace.resolvePath('bin', 'pairofcleats.js') }
 });
 
 harness.activate();
@@ -83,7 +84,8 @@ const completionItems = await harness.completionProviders[0].provider.provideCom
 );
 assert.equal(completionItems.length, 2);
 assert.equal(completionItems[0].label, 'WidgetBuilder');
-assert.equal(completionItems[0].detail, 'demo.WidgetBuilder');
+assert.equal(completionItems[0].detail, 'Indexed symbol suggestion • demo.WidgetBuilder');
+assert.match(completionItems[0].documentation, /does not establish a current source binding/);
 assert.equal(completionItems[0].kind, harness.fakeVscode.CompletionItemKind.Function);
 assert.equal(completionItems[1].kind, harness.fakeVscode.CompletionItemKind.Class);
 

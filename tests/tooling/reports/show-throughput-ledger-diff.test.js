@@ -71,6 +71,7 @@ const stripAnsi = (value) => String(value || '').replace(/\u001b\[[0-9;]*m/g, ''
 const first = runShowThroughputReport([], { cwd: runRoot });
 assert.equal(first.status, 0, first.stderr || first.stdout);
 const firstOutput = stripAnsi(first.stdout);
+assert.ok(firstOutput.includes('Ledger observations:'), 'human output exposes numeric comparison availability');
 assert.equal(stripAnsi(first.stderr).trim(), '', 'expected overview text on stdout only');
 assert.equal(
   firstOutput.toLowerCase().includes('ledger regression'),

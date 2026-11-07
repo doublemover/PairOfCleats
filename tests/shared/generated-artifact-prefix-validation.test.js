@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { hasAmbiguousGeneratedArtifactPrefix } from '../../src/shared/generated-artifact-prefix.js';
 import { withGeneratedArtifactMetadata, classifyGeneratedArtifactCorePrefix } from '../../src/shared/generated-artifact-core.js';
 import { withGeneratedCacheMetadata, classifyGeneratedArtifactCachePrefix } from '../../src/shared/generated-artifact-cache.js';
+import { createGeneratedArtifactPrefixObservation } from '../../src/shared/generated-artifact-observation.js';
 
 const completeJsonObject = (text) => {
   try {
@@ -88,8 +89,9 @@ for (const { make, classify, relativePath, kind } of classifiers) {
     assert.equal(completeJsonObject(text), true, `fixture ${tail}`);
     const prefix = Buffer.from(text).subarray(0, 8192);
     assert.equal(prefix.length, 8192);
-    assert.equal(classify({ prefix, relativePath })?.kind, kind, `valid cap tail ${tail}`);
-    assert.equal(classify({ prefix })?.kind, kind, 'content-only path has the same validation');
+    const observation = createGeneratedArtifactPrefixObservation({ bytes: prefix, sourceBytes: Buffer.byteLength(text) });
+    assert.equal(classify({ prefix: observation, relativePath })?.kind, kind, `valid cap tail ${tail}`);
+    assert.equal(classify({ prefix: observation })?.kind, kind, 'content-only path has the same validation');
   }
   for (const cutBytes of [1, 2, 3]) {
     const before = start + '"漢字é';
@@ -97,19 +99,23 @@ for (const { make, classify, relativePath, kind } of classifiers) {
     assert.equal(completeJsonObject(text), true);
     const prefix = Buffer.from(text).subarray(0, 8192);
     assert.ok(prefix.toString('utf8').length < prefix.length, 'byte and string offsets intentionally differ');
-    assert.equal(classify({ prefix, relativePath })?.kind, kind, `UTF-8 character cut after ${cutBytes} byte(s)`);
+    const observation = createGeneratedArtifactPrefixObservation({ bytes: prefix, sourceBytes: Buffer.byteLength(text) });
+    assert.equal(classify({ prefix: observation, relativePath })?.kind, kind, `UTF-8 character cut after ${cutBytes} byte(s)`);
   }
   for (const bad of ['oops', '[1,,2]', '[1,]', '{"a":1,}', '{"a" 1}', '{"a":1,"\\u0061":2}', '/*comment*/0']) {
-    const prefix = Buffer.from(start + bad + ' '.repeat(9000)).subarray(0, 8192);
+    const bytes = Buffer.from(start + bad + ' '.repeat(9000));
+    const prefix = createGeneratedArtifactPrefixObservation({ bytes, sourceBytes: bytes.length });
     assert.equal(classify({ prefix, relativePath }), null, `visible syntax error: ${bad}`);
     assert.equal(classify({ prefix }), null);
   }
   for (const bad of ['"é\\q', '"é\\u00G0', '"é\n', '"é' + String.fromCharCode(1)]) {
-    const prefix = Buffer.from(start + bad + 'a'.repeat(9000)).subarray(0, 8192);
+    const bytes = Buffer.from(start + bad + 'a'.repeat(9000));
+    const prefix = createGeneratedArtifactPrefixObservation({ bytes, sourceBytes: bytes.length });
     assert.equal(classify({ prefix, relativePath }), null, 'later string truncation cannot hide earlier lexical errors');
   }
   for (const bad of ['"valid\\q', '"valid\\u12G', '{"a":1,tru', '01', '1.e', '+', '--']) {
-    const prefix = Buffer.from(atBoundary(bad, 'padding')).subarray(0, 8192);
+    const bytes = Buffer.from(atBoundary(bad, 'padding'));
+    const prefix = createGeneratedArtifactPrefixObservation({ bytes, sourceBytes: bytes.length });
     assert.equal(classify({ prefix, relativePath }), null, `invalid boundary token: ${bad}`);
   }
 }

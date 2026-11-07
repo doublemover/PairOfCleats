@@ -1,4 +1,8 @@
 import fs from 'node:fs';
+import { admitSortedPostings } from '../../posting-order.js';
+import { withContainedFileSync } from '../../contained-file.js';
+import { createContainedFileResource } from '../../contained-file-resource.js';
+import { readBuffer } from '../compression.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
@@ -12,9 +16,9 @@ import {
 } from '../manifest.js';
 import {
   DEFAULT_PACKED_BLOCK_SIZE,
+  createPackedTfPostingDecoder,
   decodePackedOffsets,
-  unpackTfPostingSlice,
-  unpackTfPostings
+  unpackTfPostingSlice
 } from '../../packed-postings.js';
 import { joinPathSafe } from '../../path-normalize.js';
 import { formatHash64 } from '../../token-id.js';
@@ -93,12 +97,13 @@ const tryLoadTokenPostingsBinaryColumnar = (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
-    enforceDataBudget = true
+    enforceDataBudget = true,
+    containedRoot = null
   } = {}
 ) => {
   const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
+  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes, containedRoot });
   try {
     assertSupportedBinaryColumnarMeta(metaRaw, 'token_postings binary-columnar');
   } catch (error) {
@@ -135,7 +140,8 @@ const tryLoadTokenPostingsBinaryColumnar = (
     lengthsPath,
     count,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot
   });
   if (!payloads) return null;
   const postings = new Array(payloads.length);
@@ -180,7 +186,7 @@ const tryLoadTokenPostingsBinaryColumnar = (
  * }} [options]
  * @returns {any}
  */
-export const loadTokenPostings = (
+const loadTokenPostingsRaw = (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
@@ -193,9 +199,44 @@ export const loadTokenPostings = (
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
+  let useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
     fallback: preferBinaryColumnar
   });
+  let sources = null;
+  let admittedRepresentationPlan = null;
+  const primaryPieces = resolvedManifest?.pieces?.filter(piece => piece?.name === 'token_postings') || [];
+  const representationPlans = primaryPieces.map(piece => piece.extensions?.representationPlan).filter(plan => plan != null);
+  if (representationPlans.length) {
+    const failPlan = message => Object.assign(new Error(message), { code: 'ERR_MANIFEST_INVALID' });
+    const plan = representationPlans[0];
+    if (representationPlans.length !== primaryPieces.length || plan.schemaVersion !== 1 || plan.family !== 'token-postings'
+      || !['packed', 'json', 'sharded'].includes(plan.primary) || typeof plan.emitBinaryColumnar !== 'boolean'
+      || !Array.isArray(plan.compatibility) || plan.compatibility.length !== (plan.emitBinaryColumnar ? 1 : 0)
+      || (plan.emitBinaryColumnar && plan.compatibility[0] !== 'binary-columnar-v1')
+      || representationPlans.some(other => other.schemaVersion !== plan.schemaVersion || other.family !== plan.family
+        || other.primary !== plan.primary || other.emitBinaryColumnar !== plan.emitBinaryColumnar
+        || JSON.stringify(other.compatibility) !== JSON.stringify(plan.compatibility))) {
+      throw failPlan('Token-postings primary pieces disagree with their recorded representation plan.');
+    }
+    sources = resolveManifestArtifactSources({ dir, manifest: resolvedManifest, name: 'token_postings', strict, maxBytes });
+    if (sources?.format !== plan.primary) throw failPlan('Token-postings recorded primary layout differs from the selected source.');
+    admittedRepresentationPlan = plan;
+    useBinaryColumnar &&= plan.emitBinaryColumnar;
+    if (plan.emitBinaryColumnar) {
+      const required = [
+        ['token_postings_binary_columnar', 'token_postings.binary-columnar.bin'],
+        ['token_postings_binary_columnar_offsets', 'token_postings.binary-columnar.offsets.bin'],
+        ['token_postings_binary_columnar_lengths', 'token_postings.binary-columnar.lengths.varint'],
+        ['token_postings_binary_columnar_meta', 'token_postings.binary-columnar.meta.json']
+      ];
+      for (const [name, filename] of required) {
+        const pieces = resolvedManifest.pieces.filter(piece => piece.name === name);
+        if (pieces.length !== 1 || pieces[0].path !== filename || !existsOrBak(path.join(dir, filename))) {
+          throw Object.assign(new Error(`Token-postings compatibility plan is missing ${name}.`), { code: 'ERR_MANIFEST_INCOMPLETE' });
+        }
+      }
+    }
+  }
   const resolveManifestPiece = (targetPath, expectedName = null) => {
     if (!resolvedManifest || typeof resolvedManifest !== 'object') return null;
     const pieces = Array.isArray(resolvedManifest.pieces) ? resolvedManifest.pieces : [];
@@ -209,15 +250,21 @@ export const loadTokenPostings = (
       return true;
     }) || null;
   };
+  const requirePlannedPiece = (targetPath, name) => {
+    const pieces = resolvedManifest.pieces.filter(piece => piece.name === name);
+    if (pieces.length !== 1 || resolveManifestPiece(targetPath, name) !== pieces[0]) {
+      throw Object.assign(new Error(`Planned packed token_postings ${name} is not uniquely authorized by the selected manifest.`),
+        { code: 'ERR_MANIFEST_INCOMPLETE' });
+    }
+  };
 
   const createManifestChecksumValidator = (targetPath, expectedName, label) => {
     const piece = resolveManifestPiece(targetPath, expectedName);
-    if (!piece || typeof piece.checksum !== 'string' || !piece.checksum.includes(':')) return null;
-    try {
-      return createPackedChecksumValidator({ checksum: piece.checksum }, { label });
-    } catch {
-      return null;
+    if (!piece || piece.checksum == null) return null;
+    if (typeof piece.checksum !== 'string' || !/^(?:sha1:[a-f0-9]{40}|sha256:[a-f0-9]{64})$/i.test(piece.checksum)) {
+      throw Object.assign(new Error(`Invalid declared checksum for ${label}.`), { code: 'ERR_MANIFEST_INVALID' });
     }
+    return createPackedChecksumValidator({ checksum: piece.checksum }, { label });
   };
 
   /**
@@ -236,12 +283,26 @@ export const loadTokenPostings = (
     }
     const resolvedPackedPath = resolvePathOrBak(packedPath);
     const resolvedMetaPath = resolvePathOrBak(metaPath);
-    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
+    if (admittedRepresentationPlan) requirePlannedPiece(metaPath, 'token_postings_meta');
+    const metaChecksum = createManifestChecksumValidator(metaPath, 'token_postings_meta', 'token_postings packed metadata');
+    let metaRaw;
+    if (metaChecksum || admittedRepresentationPlan) {
+      const bytes = readBuffer(resolvedMetaPath, maxBytes, { containedRoot: strict ? dir : null });
+      metaChecksum?.update(bytes); metaChecksum?.verify();
+      metaRaw = JSON.parse(bytes.toString('utf8'));
+    } else metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes, containedRoot: strict ? dir : null });
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
     const vocabIds = Array.isArray(arrays?.vocabIds) ? arrays.vocabIds : [];
     const docLengths = Array.isArray(arrays?.docLengths) ? arrays.docLengths : [];
+    if (admittedRepresentationPlan && (fields?.format !== 'packed' || fields?.encoding !== 'delta-varint'
+      || JSON.stringify(fields.extensions?.representationPlan) !== JSON.stringify(admittedRepresentationPlan))) {
+      throw Object.assign(new Error('Packed token_postings metadata differs from its selected representation plan.'), { code: 'ERR_MANIFEST_INVALID' });
+    }
+    if (fields?.vocabCount != null && (!Number.isSafeInteger(fields.vocabCount) || fields.vocabCount !== vocab.length)) {
+      throw Object.assign(new Error('Packed token_postings metadata vocabulary count differs from its payload.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
     const offsetsName = typeof fields?.offsets === 'string'
       ? fields.offsets
       : 'token_postings.packed.offsets.bin';
@@ -249,11 +310,12 @@ export const loadTokenPostings = (
     if (!offsetsPath) {
       throw new Error('Invalid token_postings packed offsets path');
     }
+    if (admittedRepresentationPlan) requirePlannedPiece(offsetsPath, 'token_postings_offsets');
     if (!existsOrBak(offsetsPath)) {
       throw new Error('Missing token_postings packed offsets');
     }
     const resolvedOffsetsPath = resolvePathOrBak(offsetsPath);
-    const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
+    const offsetsBuffer = readBuffer(resolvedOffsetsPath, maxBytes, { containedRoot: strict ? dir : null });
     const offsetsChecksum = createManifestChecksumValidator(
       offsetsPath,
       'token_postings_offsets',
@@ -264,10 +326,14 @@ export const loadTokenPostings = (
       offsetsChecksum.verify();
     }
     const offsets = decodePackedOffsets(offsetsBuffer);
-    const blockSize = Number.isFinite(Number(fields?.blockSize))
-      ? Math.max(1, Math.floor(Number(fields.blockSize)))
-      : DEFAULT_PACKED_BLOCK_SIZE;
+    const blockSize = fields?.blockSize ?? DEFAULT_PACKED_BLOCK_SIZE;
+    if (!Number.isSafeInteger(blockSize) || blockSize < 1) {
+      throw Object.assign(new Error('Packed token_postings block size must be a positive safe integer.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
     const totalTokens = Math.max(0, offsets.length - 1);
+    if (offsets.length !== vocab.length + 1 || (vocabIds.length > 0 && vocabIds.length !== vocab.length)) {
+      throw Object.assign(new Error('Packed token_postings vocabulary/offset cardinality does not match.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
     const postings = new Array(totalTokens);
     const resolvedWindowTokens = Number.isFinite(Number(packedWindowTokens))
       ? Math.max(1, Math.floor(Number(packedWindowTokens)))
@@ -280,10 +346,15 @@ export const loadTokenPostings = (
       'token_postings',
       'token_postings packed'
     );
-    const readWindow = (fd, startToken, endToken) => {
+    const readWindow = (descriptor, startToken, endToken) => {
       const byteStart = offsets[startToken] ?? 0;
       const byteEnd = offsets[endToken] ?? byteStart;
-      const byteLen = Math.max(0, byteEnd - byteStart);
+      const byteLen = byteEnd - byteStart;
+      if (!Number.isSafeInteger(byteStart) || !Number.isSafeInteger(byteEnd)
+        || byteStart < 0 || byteEnd < byteStart || byteLen > resolvedWindowBytes) {
+        throw Object.assign(new Error('Packed token_postings window exceeds its bounded read allowance.'),
+          { code: 'ERR_ARTIFACT_TOO_LARGE' });
+      }
       if (!byteLen) {
         for (let i = startToken; i < endToken; i += 1) {
           postings[i] = [];
@@ -291,9 +362,15 @@ export const loadTokenPostings = (
         return;
       }
       const windowBuffer = Buffer.allocUnsafe(byteLen);
-      const bytesRead = fs.readSync(fd, windowBuffer, 0, byteLen, byteStart);
-      if (bytesRead < byteLen) {
-        throw new Error('Packed token_postings truncated');
+      let bytesRead = 0;
+      while (bytesRead < byteLen) {
+        const remaining = byteLen - bytesRead;
+        const read = descriptor.read(windowBuffer, bytesRead, remaining, byteStart + bytesRead);
+        if (!Number.isSafeInteger(read) || read <= 0 || read > remaining) {
+          throw Object.assign(new Error('Packed token_postings truncated or invalid read progress.'),
+            { code: 'ERR_ARTIFACT_CORRUPT' });
+        }
+        bytesRead += read;
       }
       if (packedChecksum) {
         packedChecksum.update(windowBuffer, 0, bytesRead);
@@ -308,56 +385,58 @@ export const loadTokenPostings = (
         postings[i] = unpackTfPostingSlice(windowBuffer.subarray(localStart, localEnd), { blockSize });
       }
     };
-    const fallbackFullRead = () => {
-      const buffer = fs.readFileSync(resolvedPackedPath);
-      const fallbackChecksum = createManifestChecksumValidator(
-        packedPath,
-        'token_postings',
-        'token_postings packed'
-      );
-      if (fallbackChecksum) {
-        fallbackChecksum.update(buffer);
-        fallbackChecksum.verify();
+    const readLargeList = (descriptor, index) => {
+      const start = offsets[index], end = offsets[index + 1];
+      const decoder = createPackedTfPostingDecoder({ byteLength: end - start, blockSize });
+      const scratch = Buffer.allocUnsafe(resolvedWindowBytes);
+      for (let position = start; position < end;) {
+        const length = Math.min(scratch.length, end - position);
+        let used = 0;
+        while (used < length) {
+          const read = descriptor.read(scratch, used, length - used, position + used);
+          if (!Number.isSafeInteger(read) || read <= 0 || read > length - used) {
+            throw Object.assign(new Error('Packed token_postings truncated or invalid read progress.'),
+              { code: 'ERR_ARTIFACT_CORRUPT' });
+          }
+          used += read;
+        }
+        const bytes = scratch.subarray(0, length);
+        packedChecksum?.update(bytes);
+        decoder.push(bytes);
+        position += length;
       }
-      return unpackTfPostings(buffer, offsets, { blockSize });
+      postings[index] = decoder.finish();
     };
-    let fd = null;
-    try {
-      fd = fs.openSync(resolvedPackedPath, 'r');
+    const consumePacked = descriptor => {
+      const dataBytes = descriptor.stat().size;
+      if (!Number.isSafeInteger(dataBytes) || dataBytes < 0 || offsets[0] !== 0
+        || offsets[offsets.length - 1] !== dataBytes
+        || offsets.some((value, index) => value < 0 || value > dataBytes || (index > 0 && value < offsets[index - 1]))) {
+        throw Object.assign(new Error('Packed token_postings offsets do not cover the opened data in order.'), { code: 'ERR_ARTIFACT_INVALID' });
+      }
       let startToken = 0;
       while (startToken < totalTokens) {
-        let endToken = Math.min(totalTokens, startToken + resolvedWindowTokens);
-        // Keep each decode window bounded in bytes for lower peak RSS.
-        while (endToken < totalTokens) {
-          const candidateBytes = (offsets[endToken] ?? 0) - (offsets[startToken] ?? 0);
-          if (candidateBytes >= resolvedWindowBytes) break;
+        if (offsets[startToken + 1] - offsets[startToken] > resolvedWindowBytes) {
+          readLargeList(descriptor, startToken++);
+          continue;
+        }
+        let endToken = Math.min(totalTokens, startToken + 1);
+        while (endToken < totalTokens && endToken - startToken < resolvedWindowTokens) {
+          const candidateBytes = offsets[endToken + 1] - offsets[startToken];
+          if (candidateBytes > resolvedWindowBytes) break;
           endToken += 1;
         }
-        if (endToken <= startToken) {
-          endToken = Math.min(totalTokens, startToken + 1);
-        }
-        readWindow(fd, startToken, endToken);
+        readWindow(descriptor, startToken, endToken);
         startToken = endToken;
       }
       if (packedChecksum) packedChecksum.verify();
-    } catch {
-      return {
-        ...fields,
-        avgDocLen: Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
-          docLengths.length
-            ? docLengths.reduce((sum, len) => sum + (Number(len) || 0), 0) / docLengths.length
-            : 0
-        ),
-        totalDocs: Number.isFinite(fields?.totalDocs) ? fields.totalDocs : docLengths.length,
-        vocab,
-        ...(vocabIds.length ? { vocabIds } : {}),
-        postings: fallbackFullRead(),
-        docLengths
-      };
-    } finally {
-      if (fd !== null) {
-        try { fs.closeSync(fd); } catch {}
-      }
+      if (strict) descriptor.verify();
+    };
+    if (strict) withContainedFileSync(dir, resolvedPackedPath, consumePacked);
+    else {
+      const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
+      const fd = fs.openSync(resolvedPackedPath, 'r');
+      createContainedFileResource({ fd, sync: true, methods }).runSync(consumePacked);
     }
     const avgDocLen = Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
       docLengths.length
@@ -397,7 +476,7 @@ export const loadTokenPostings = (
       }
     };
     for (const shardPath of shardPaths) {
-      const shard = readJsonFile(shardPath, { maxBytes });
+      const shard = readJsonFile(shardPath, { maxBytes, containedRoot: strict ? dir : null });
       const shardVocab = Array.isArray(shard?.vocab)
         ? shard.vocab
         : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
@@ -425,11 +504,12 @@ export const loadTokenPostings = (
   if (useBinaryColumnar) {
     const binary = tryLoadTokenPostingsBinaryColumnar(dir, {
       maxBytes,
+      containedRoot: strict ? dir : null,
       enforceDataBudget: enforceBinaryDataBudget
     });
     if (binary) return binary;
   }
-  const sources = resolveManifestArtifactSources({
+  sources ||= resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
     name: 'token_postings',
@@ -443,7 +523,7 @@ export const loadTokenPostings = (
     if (sources.paths.length > 1) {
       throw new Error('Ambiguous JSON sources for token_postings');
     }
-    return readJsonFile(sources.paths[0], { maxBytes });
+    return readJsonFile(sources.paths[0], { maxBytes, containedRoot: strict ? dir : null });
   }
   if (sources.format === 'packed') {
     if (sources.paths.length > 1) {
@@ -457,9 +537,12 @@ export const loadTokenPostings = (
   if (sources.format === 'binary-columnar') {
     const binary = tryLoadTokenPostingsBinaryColumnar(dir, {
       maxBytes,
+      containedRoot: strict ? dir : null,
       enforceDataBudget: enforceBinaryDataBudget
     });
     if (binary) return binary;
   }
   throw new Error(`Unsupported token_postings format: ${sources.format}`);
 };
+
+export const loadTokenPostings = (...args) => admitSortedPostings(loadTokenPostingsRaw(...args), { completeVocabulary: true });

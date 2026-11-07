@@ -1,9 +1,35 @@
-const vscode = require('vscode');
+const { createEditorOperations } = require('./editor-operations.js');
+const operations = createEditorOperations({ spawn: (...args) => cp.spawn(...args) });
+const vscode = operations.wrapVscode(require('vscode'));
 const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
+const { snapshotConfiguration, renderEffectiveSettings } = require('./effective-settings.js');
+const { inspectCliVersion } = require('./installation-evidence.js');
+const { createDocumentAuthority, assertQualifiedEditor } = require('./document-authority.js');
+const { qualifyDocumentSymbols } = require('./document-symbols.js');
+const { captureTaskObservation, createTaskObservations, taskRecoveryActions } = require('./task-observations.js');
+const taskObservations = createTaskObservations();
+const { generationFromContextPack, contextDiscoveryRequest, contextDiscoveryCliArgs } = require('./semantic-discovery.js');
+const { normalizeFilterPagination, admitFilterPage, mergeFilterPage, carryFilterPageHistory, continuationInvocation } = require('./filter-pagination.js');
+const { resultTreeItemId, resultTreeHitOccurrences } = require('./results-tree-identity.js');
+const { createSemanticEvidenceWorkflow, sourceQualifiedSelection, qualifiedBindingSeed } = require('./semantic-evidence.js');
+let latestNavigationEvidence = null;
+const navigationLocationSources = new WeakMap();
+const { captureNavigationRequest, sourceNavigationArgs, qualifiedNavigationRows, qualifiedDocumentSymbolRows } = require('./source-navigation.js');
+const { readGitHead, validateServiceRoot, mapServicePayload, assertServiceStatus, assertServiceMappingCurrent } = require('./service-repository.js');
+const { createEditorProgressDecoder, applyProgressEvent, apiReadinessFrame, describeTask,
+  boundedLogLine, retainTaskLog } = require('./progress-view.js');
+const { readWatchProgress } = require('./watch-progress.js');
+const { collectEvidenceSources, createEvidenceCollection } = require('./evidence-collection.js');
+const { createCapturedEvidenceOpener } = require('./captured-evidence-open.js');
+let latestAnalysisEvidence = null;
+const { resolveRiskSource, validateRiskSource } = require('./risk-source.js');
+const { summarizeIndexHealth } = require('./index-health.js');
+const { withSemanticRequestFile } = require('./semantic-request-file.js');
 const {
   buildRiskExplanationModelFromStandalone,
   renderCompositeContextPack,
@@ -20,25 +46,40 @@ const {
   DEFAULT_API_TIMEOUT_MS,
   createChunkAccumulator,
   resolveConfiguredCli,
+  resolveExternalNodeRuntime,
   parseJsonPayload,
   parseSearchPayload,
   normalizeApiBaseUrl,
   normalizeApiTimeoutMs,
   requestApiJson: requestApiJsonUnchecked,
+  getApiResponseCleanupOwner,
   probeApiCapabilities: probeApiCapabilitiesRequest,
   summarizeProcessFailure,
   summarizeSpawnFailure,
   spawnBufferedProcess: spawnBufferedProcessUnchecked,
   resolveValidatedHitTarget,
-  openSearchHit
+  openSearchHit: openSearchHitUnchecked
 } = require('./runtime.js');
 const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
+const { normalizeWorkflowRequest, hasRequiredWorkflowInput } = require('./workflow-replay.js');
+const { captureEditorFailure, editorFailureEvidence } = require('./editor-failure-evidence.js');
+const { normalizeSearchRequest, captureSearchRequest, admitSearchReplay } = require('./search-replay.js');
+const { boundedFacts, captureSearchExplanation, renderSearchExplanation, normalizeCapturedExplanation, normalizeSearchDiagnostics } = require('./search-explanation.js');
 
 // Check immediately at each sink, including after async prompts/probes and
 // saved/background workflows. Trust may change while a command is pending.
+function openSearchHit(vscodeApi, repoContext, hit) {
+  const scope = operations.current();
+  return openSearchHitUnchecked(vscodeApi, repoContext, hit, { isCurrent: () => operations.isCurrent(scope) });
+}
+
 function spawnBufferedProcess(...args) {
+  if (!operations.isCurrent()) return { ok: false, error: new Error('PairOfCleats operation was cancelled.') };
   if (vscode.workspace.isTrusted !== true) return { ok: false, error: workspaceTrustError() };
-  return spawnBufferedProcessUnchecked(...args);
+  operations.bindRepository(args[3]?.cwd);
+  const result = spawnBufferedProcessUnchecked(...args);
+  if (result.ok) operations.trackChild(result.child);
+  return result;
 }
 
 async function requestApiJson(baseUrl, requestPath, options = {}) {
@@ -49,7 +90,13 @@ async function requestApiJson(baseUrl, requestPath, options = {}) {
   delete headers.Authorization;
   delete headers.authorization;
   Object.assign(headers, buildApiHeaders(getExtensionConfiguration(), baseUrl));
-  return requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers });
+  return operations.request(async signal => retainResponseOwner(await requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers, signal })));
+}
+
+function retainResponseOwner(result) {
+  const owner = getApiResponseCleanupOwner(result);
+  if (owner) operations.retainUnconfirmed(owner, owner.failureEvidence);
+  return result;
 }
 const EDITOR_CONFIG_CONTRACT = Object.freeze(require('./editor-config-contract.json'));
 const DEFAULT_EDITOR_CONFIG_CONTRACT = EDITOR_CONFIG_CONTRACT;
@@ -76,6 +123,7 @@ function readContract(pathParts, fallback) {
 const VSCODE_SETTINGS = Object.freeze({
   namespace: String(readContract(['settings', 'vscode', 'namespace'], DEFAULT_VSCODE_SETTINGS.namespace)),
   cliPathKey: String(readContract(['settings', 'vscode', 'cliPathKey'], DEFAULT_VSCODE_SETTINGS.cliPathKey)),
+  nodePathKey: String(readContract(['settings', 'vscode', 'nodePathKey'], DEFAULT_VSCODE_SETTINGS.nodePathKey)),
   cliArgsKey: String(readContract(['settings', 'vscode', 'cliArgsKey'], DEFAULT_VSCODE_SETTINGS.cliArgsKey)),
   apiServerUrlKey: String(readContract(
     ['settings', 'vscode', 'apiServerUrlKey'],
@@ -206,7 +254,10 @@ const WORKFLOW_TRANSPORTS = Object.freeze({
   search: { label: 'search', supportsCli: true, supportsApi: true },
   'search-symbol': { label: 'search symbol lookup', supportsCli: true, supportsApi: true },
   'explain-search': { label: 'explain search', supportsCli: true, supportsApi: false },
-  'index-health': { label: 'index health', supportsCli: true, supportsApi: true }
+  'index-health': { label: 'index health', supportsCli: true, supportsApi: true },
+  'context-collection': { label: 'selected context collection', supportsCli: true, supportsApi: true },
+  ...Object.fromEntries(['find', 'detail', 'trace', 'explain'].map(operation => [
+    `semantic-${operation}`, { label: `semantic ${operation}`, supportsCli: true, supportsApi: true }]))
 });
 const apiCapabilityCache = new Map();
 const navigationDegradationNotes = new Set();
@@ -228,8 +279,70 @@ function normalizeStringArray(value) {
  *
  * @returns {import('vscode').WorkspaceConfiguration}
  */
-function getExtensionConfiguration() {
-  return vscode.workspace.getConfiguration(VSCODE_SETTINGS.namespace);
+function getExtensionConfiguration(repoContext = null) {
+  operations.bindRepository(repoContext?.repoRoot);
+  let resource = repoContext?.repoUri || repoContext?.uri || null;
+  if (!resource) {
+    const folders = vscode.workspace.workspaceFolders || [];
+    const candidates = collectRepoCandidates(folders, { allowRemote: true });
+    resource = resolveSelectedRepoCandidate(candidates)?.repoUri
+      || vscode.window.activeTextEditor?.document?.uri || folders[0]?.uri;
+  }
+  const configuration = vscode.workspace.getConfiguration(VSCODE_SETTINGS.namespace, resource);
+  const keys = Object.keys(require('./package.json').contributes.configuration.properties)
+    .map(key => key.slice(VSCODE_SETTINGS.namespace.length + 1));
+  return snapshotConfiguration(configuration, keys);
+}
+
+async function showEffectiveSettings(seededRepoContext = null) {
+  const repoContext = seededRepoContext?.ok === true && seededRepoContext.repoRoot
+    ? seededRepoContext : await resolveSearchRepoContext({ allowRemote: true });
+  if (!repoContext) return;
+  const snapshot = getExtensionConfiguration(repoContext);
+  const cli = resolveCli(repoContext.repoRoot, snapshot);
+  const api = readApiSettings(snapshot);
+  let searchValidation;
+  try {
+    const options = readSearchOptions(snapshot, VSCODE_SETTINGS);
+    if (api.mode === 'require') buildSearchPayload('', repoContext.repoRoot, options);
+    else buildSearchArgs('', repoContext.repoRoot, options);
+    searchValidation = { state: 'valid for the selected transport option contract' };
+  } catch (error) { searchValidation = { state: 'invalid', message: captureEditorFailure(error).message }; }
+  const present = async facts => {
+    const text = renderEffectiveSettings({ snapshot, repoContext,
+      remoteName: vscode.env?.remoteName, cli, api, searchValidation, ...facts });
+    const document = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+    await vscode.window.showTextDocument(document, { preview: true });
+  };
+  await present();
+  const action = await vscode.window.showQuickPick(['Inspect Installation / Transport Evidence',
+    'Open User Settings', 'Tooling Doctor', 'Done'], { title: 'Effective settings recovery and observations',
+    placeHolder: 'Version/capability observations are read-only and bounded; they do not install or build' });
+  if (action === 'Open User Settings') {
+    await vscode.commands.executeCommand('workbench.action.openSettings', 'pairofcleats');
+  } else if (action === 'Tooling Doctor') {
+    await runOperatorCommand(OPERATOR_COMMANDS_BY_ID.get('pairofcleats.doctor'), { repoContext });
+  } else if (action === 'Inspect Installation / Transport Evidence') {
+    const args = [...(cli.argsPrefix || []), '--version'];
+    const invocation = process.platform === 'win32' && /\.(cmd|bat)$/i.test(cli.command || '')
+      ? resolveWindowsCmdInvocation(cli.command, args) : { command: cli.command, args };
+    const env = buildSpawnEnv(snapshot);
+    const installation = cli.ok ? await inspectCliVersion({
+      spawn: (command, values, options) => spawnBufferedProcess(cp, command, values, { ...options,
+        env: invocation.env ? { ...env, ...invocation.env } : env,
+        windowsVerbatimArguments: invocation.windowsVerbatimArguments === true }),
+      stop: child => operations.stopChild(child), command: invocation.command, args: invocation.args,
+      cwd: repoContext.repoRoot, env
+    }) : { state: 'unobserved', reason: 'Correct the configured CLI/runtime path first.' };
+    let capability = { state: 'unobserved', reason: 'CLI policy does not contact a service.' };
+    if (!api.error && api.mode !== 'cli' && api.baseUrl && operations.isCurrent()) {
+      const response = await getCachedApiCapabilities(api.baseUrl, api.timeoutMs);
+      capability = response.ok ? { state: 'observed', names: Object.entries(response.capabilities || {})
+        .filter(([, enabled]) => enabled === true).map(([name]) => name.slice(0, 128)).sort().slice(0, 64) }
+        : { state: 'unavailable', reason: 'The configured service did not supply admitted capability evidence; inspect User Settings / Tooling Doctor.' };
+    }
+    if (operations.isCurrent()) await present({ installation, capability });
+  }
 }
 
 function getWorkflowTransport(workflow) {
@@ -254,9 +367,10 @@ function getWorkflowTransport(workflow) {
 function readApiSettings(config) {
   const baseUrl = normalizeApiBaseUrl(config.get(VSCODE_SETTINGS.apiServerUrlKey));
   const timeoutMs = normalizeApiTimeoutMs(config.get(VSCODE_SETTINGS.apiTimeoutKey));
-  const rawMode = String(config.get(VSCODE_SETTINGS.apiExecutionModeKey) || 'cli').trim().toLowerCase();
-  const mode = VALID_API_EXECUTION_MODES.has(rawMode) ? rawMode : 'cli';
-  return { baseUrl, timeoutMs, mode };
+  const configured = config.get(VSCODE_SETTINGS.apiExecutionModeKey);
+  const mode = String(configured == null ? 'cli' : configured).trim().toLowerCase();
+  return { baseUrl, timeoutMs, mode, ...(!VALID_API_EXECUTION_MODES.has(mode)
+    ? { error: 'PairOfCleats apiExecutionMode must be cli, prefer, or require. Correct User Settings.' } : {}) };
 }
 
 function readInlineSettings(config) {
@@ -289,7 +403,8 @@ async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
   if (cached && (Date.now() - cached.timestamp) < API_CAPABILITY_CACHE_TTL_MS) {
     return cached.result;
   }
-  const probe = await probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers);
+  const probe = await operations.request(async signal => retainResponseOwner(await probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers, signal)));
+  if (!operations.isCurrent()) return operations.cancelled();
   const result = probe.ok
     ? {
       ok: true,
@@ -311,6 +426,7 @@ async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
 async function resolveExecutionMode(config, workflow, requestedMode = null) {
   const transport = getWorkflowTransport(workflow);
   const apiSettings = readApiSettings(config);
+  if (apiSettings.error) return { ok: false, message: apiSettings.error, detail: 'Open PairOfCleats: Show Effective Settings.' };
   const configuredMode = apiSettings.mode;
   const { mode: _ignoredConfiguredMode, ...apiRuntimeSettings } = apiSettings;
   const headers = buildApiHeaders(config);
@@ -385,6 +501,7 @@ async function resolveExecutionMode(config, workflow, requestedMode = null) {
     };
   }
   const probe = await getCachedApiCapabilities(apiSettings.baseUrl, apiSettings.timeoutMs, headers);
+  if (getApiResponseCleanupOwner(probe)) return probe;
   if (probe.ok) {
     if (probe.capabilities?.[transport.workflow] === false) {
       if (apiSettings.mode === 'prefer' && transport.supportsCli) {
@@ -729,13 +846,30 @@ function resolveCli(repoRoot, config) {
   const extraArgs = normalizeStringArray(config.get(VSCODE_SETTINGS.cliArgsKey));
 
   if (configuredPath) {
-    return resolveConfiguredCli(repoRoot, configuredPath, extraArgs, {
+    let runtime = null;
+    const resolved = resolveConfiguredCli(repoRoot, configuredPath, extraArgs, {
       command: CLI_DEFAULT_COMMAND,
-      jsExtension: CLI_JS_EXTENSION
+      jsExtension: CLI_JS_EXTENSION,
+      resolveNode: () => { runtime = resolveNodeRuntime(config); return runtime; }
     });
+    const installationPath = runtime?.ok ? resolved.argsPrefix?.[0]
+      : path.isAbsolute(resolved.command || '') ? resolved.command : null;
+    return { ...resolved, ...(runtime?.ok ? { runtime: { command: runtime.command, version: runtime.version } } : {}),
+      ...(installationPath ? { installationPath } : {}) };
   }
 
   return { ok: true, command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
+}
+
+
+function resolveNodeRuntime(config) {
+  if (vscode.workspace.isTrusted !== true) return { ok: false, message: workspaceTrustError().message };
+  if (typeof cp.spawnSync !== 'function') return { ok: false, message: 'PairOfCleats cannot probe the external Node runtime.' };
+  return resolveExternalNodeRuntime({
+    configuredPath: config?.inspect?.(VSCODE_SETTINGS.nodePathKey)?.globalValue || '',
+    probe: cp.spawnSync,
+    env: process.env
+  });
 }
 
 /**
@@ -794,6 +928,9 @@ function normalizeWorkflowInvocation(rawInvocation, fallbackTimeoutMs = 60000) {
     args: Array.isArray(rawInvocation.args) ? rawInvocation.args.map((value) => String(value)) : [],
     timeoutMs: Number.isFinite(rawInvocation.timeoutMs) ? rawInvocation.timeoutMs : fallbackTimeoutMs,
     persistent: rawInvocation.persistent === true,
+    request: normalizeWorkflowRequest(rawInvocation.request),
+    requestInvalid: rawInvocation.requestInvalid === true
+      || (rawInvocation.request != null && !normalizeWorkflowRequest(rawInvocation.request)),
     baseUrl: rawInvocation.baseUrl ? normalizeApiBaseUrl(rawInvocation.baseUrl) : '',
     path: rawInvocation.path ? String(rawInvocation.path) : '',
     method: rawInvocation.method ? String(rawInvocation.method).toUpperCase() : '',
@@ -807,9 +944,12 @@ function normalizeWorkflowInvocation(rawInvocation, fallbackTimeoutMs = 60000) {
 function normalizeSearchInvocation(rawInvocation) {
   if (!rawInvocation || typeof rawInvocation !== 'object') return null;
   const kind = String(rawInvocation.kind || 'cli-search').trim() || 'cli-search';
+  const request = normalizeSearchRequest(rawInvocation.request);
+  const requestInvalid = rawInvocation.requestInvalid === true || rawInvocation.request != null && !request;
   if (kind === 'api-search') {
     return {
       kind,
+      request, requestInvalid,
       baseUrl: normalizeApiBaseUrl(rawInvocation.baseUrl),
       timeoutMs: Number.isFinite(rawInvocation.timeoutMs) ? rawInvocation.timeoutMs : DEFAULT_API_TIMEOUT_MS,
       transport: rawInvocation.transport ? String(rawInvocation.transport) : 'api',
@@ -820,6 +960,7 @@ function normalizeSearchInvocation(rawInvocation) {
   }
   return {
     kind,
+    request, requestInvalid,
     command: String(rawInvocation.command || '').trim(),
     args: Array.isArray(rawInvocation.args) ? rawInvocation.args.map((value) => String(value)) : [],
     transport: rawInvocation.transport ? String(rawInvocation.transport) : 'cli'
@@ -864,9 +1005,18 @@ function readWorkspaceState(key, fallback) {
   return extensionContext?.workspaceState?.get?.(key, fallback) ?? fallback;
 }
 
-async function writeWorkspaceState(key, value) {
+async function writeWorkspaceState(key, value, { updateCurrent = false } = {}) {
+  if (!operations.isCurrent()) return;
   if (typeof extensionContext?.workspaceState?.update !== 'function') return;
-  await extensionContext.workspaceState.update(key, value);
+  const scope = operations.current();
+  const previous = workspaceWrites.get(key) || Promise.resolve();
+  const next = previous.catch(() => {}).then(() => {
+    if (operations.isCurrent(scope)) return extensionContext.workspaceState.update(key,
+      updateCurrent ? value(readWorkspaceState(key)) : value);
+  });
+  operations.trackPromise(next);
+  workspaceWrites.set(key, next);
+  try { await next; } finally { if (workspaceWrites.get(key) === next) workspaceWrites.delete(key); }
 }
 
 async function persistWorkflowSessions() {
@@ -913,7 +1063,7 @@ function resolvePassiveRepoContext() {
     return {
       ok: false,
       kind: 'ambiguous-workspace',
-      repoLabel: `${candidates.length || eligibleFolders.length} repos`
+      repoLabel: `${candidates.length} repos`
     };
   }
   return {
@@ -928,8 +1078,10 @@ function updateWorkflowStatusBar() {
   const runningSession = getMostRecentRunningWorkflowSession();
   const passiveRepo = resolvePassiveRepoContext();
   if (runningSession) {
-    workflowStatusBar.text = `PairOfCleats: ${runningSession.repoLabel} • ${runningSession.title.replace(/^PairOfCleats:\s*/, '')}`;
-    workflowStatusBar.tooltip = `${runningSession.title}\n${runningSession.repoRoot}\nStatus: running`;
+    const task = [...managedProcesses.values()].find(entry => entry.sessionId === runningSession.sessionId);
+    const phase = task?.cleanupUnconfirmed ? 'stop-unconfirmed' : task?.progress?.phase || 'starting';
+    workflowStatusBar.text = `PairOfCleats: ${runningSession.repoLabel} • ${runningSession.title.replace(/^PairOfCleats:\s*/, '')} • ${phase}`;
+    workflowStatusBar.tooltip = task ? describeTask(task) : `${runningSession.title}\n${runningSession.repoRoot}\nStatus: ${phase}`;
   } else if (passiveRepo.ok) {
     const lastSession = getMostRecentWorkflowSession();
     const parts = [];
@@ -992,6 +1144,7 @@ async function beginWorkflowSession(spec, repoContext, invocation) {
         args: Array.isArray(invocation.args) ? invocation.args.map((value) => String(value)) : [],
         timeoutMs: Number.isFinite(invocation.timeoutMs) ? invocation.timeoutMs : spec.timeoutMs,
         persistent: invocation.persistent === true,
+        request: normalizeWorkflowRequest({ version: 1, inputContext: invocation.inputContext || null }),
         baseUrl: invocation.baseUrl ? normalizeApiBaseUrl(invocation.baseUrl) : '',
         path: invocation.path ? String(invocation.path) : '',
         method: invocation.method ? String(invocation.method).toUpperCase() : '',
@@ -1033,33 +1186,75 @@ async function selectRepo() {
       placeHolder: 'Select the repository root to use for subsequent commands'
     });
   if (!picked) return;
+  operations.invalidate('repository-selected', { preserveCurrent: true, preserveBackground: true });
   await persistSelectedRepoCandidate(picked);
   vscode.window.showInformationMessage(`PairOfCleats will use ${picked.repoLabel} until you clear the selection.`);
 }
 
 async function clearSelectedRepo() {
+  operations.invalidate('repository-selection-cleared', { preserveCurrent: true, preserveBackground: true });
   await persistSelectedRepoCandidate(null);
   vscode.window.showInformationMessage('PairOfCleats cleared the explicit repository selection.');
 }
 
-async function finishWorkflowSession(sessionId, patch) {
+async function finishWorkflowSession(sessionId, patch, { terminalOwner = false } = {}) {
   const session = workflowSessions.find((entry) => entry.sessionId === sessionId);
   if (!session) return;
   if (patch.status) session.status = patch.status;
   if (patch.summaryLine !== undefined) session.summaryLine = patch.summaryLine || '';
   if (patch.outputHint !== undefined) session.outputHint = patch.outputHint || '';
   session.finishedAt = new Date().toISOString();
-  await persistWorkflowSessions();
+  if (terminalOwner) await operations.terminalState(() => persistWorkflowSessions());
+  else await persistWorkflowSessions();
   updateWorkflowStatusBar();
 }
 
+async function finishRevokedWorkflowSession(session) {
+  if (operations.isCurrent()) return false;
+  const userCancelled = operations.current()?.controller.signal.reason === 'cancelled';
+  await finishWorkflowSession(session.sessionId, { status: userCancelled ? 'cancelled' : 'interrupted',
+    summaryLine: 'The editor request was revoked; retained results do not establish successful completion.' }, { terminalOwner: true });
+  return true;
+}
+
+function validateReplayRepoContext(repoContext, mode) {
+  try {
+    if (mode === 'cli' && repoContext.repoUri?.scheme && repoContext.repoUri.scheme !== 'file') throw new Error('local CLI requires a local repository');
+    const folder = (vscode.workspace.workspaceFolders || []).find(entry => entry.uri?.scheme === 'file'
+      && entry.uri.fsPath && isContainedPath(repoContext.repoRoot, entry.uri.fsPath));
+    if (!folder) throw new Error('repository is no longer in this workspace');
+    if (!fs.statSync(repoContext.repoRoot).isDirectory()) throw new Error('repository is not a directory');
+    return true;
+  } catch (error) {
+    vscode.window.showErrorMessage(`PairOfCleats cannot rerun this workflow: ${repoContext.repoRoot} is unavailable (${error.message}). Select an available repository and run the command again.`);
+    return false;
+  }
+}
+
+function captureWorkflowSession(session) {
+  const normalized = normalizeWorkflowSession(session);
+  if (!normalized) return null;
+  const json = JSON.stringify(normalized);
+  if (Buffer.byteLength(json) > 65536) return null;
+  const captured = JSON.parse(json), pending = [captured];
+  while (pending.length) {
+    const item = pending.pop();
+    if (!item || typeof item !== 'object') continue;
+    pending.push(...Object.values(item)); Object.freeze(item);
+  }
+  return captured;
+}
+
 async function rerunWorkflowSession(session) {
-  const spec = OPERATOR_COMMANDS_BY_ID.get(session.commandId) || {
-    id: session.commandId,
-    title: session.title,
-    progressTitle: session.title,
-    timeoutMs: session.invocation.timeoutMs || 60000
-  };
+  session = captureWorkflowSession(session);
+  const spec = OPERATOR_COMMANDS_BY_ID.get(session?.commandId);
+  const managedSpec = MANAGED_COMMANDS_BY_ID.get(session?.commandId);
+  if ((!spec && !managedSpec) || !session?.repoRoot || session.invocation?.requestInvalid
+    || (session.invocation?.request != null && !normalizeWorkflowRequest(session.invocation.request))
+    || !['operator', 'managed-process', 'api-request'].includes(session.invocation?.kind)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot rerun this historical workflow: its registered command or saved request is unavailable. Run the current command again.');
+    return;
+  }
   const repoContext = {
     ok: true,
     repoRoot: session.repoRoot,
@@ -1068,72 +1263,41 @@ async function rerunWorkflowSession(session) {
     workspaceUriString: session.workspaceUri || '',
     workspaceFolder: { uri: parsePersistedUri(session.workspaceUri, vscode.Uri.file(session.repoRoot)) }
   };
-  if (session.invocation?.kind === 'api-request') {
-    if (!session.invocation.baseUrl || !session.invocation.path || !session.invocation.method) {
-      vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its API invocation was not preserved.');
-      return;
-    }
-    return executeApiOperatorWorkflow(spec, repoContext, {
-      baseUrl: session.invocation.baseUrl,
-      timeoutMs: session.invocation.timeoutMs || spec.timeoutMs,
-      path: session.invocation.path,
-      method: session.invocation.method,
-      payload: session.invocation.payload || null,
-      transport: session.invocation.transport || 'api',
-      normalizePayload: spec.id === 'pairofcleats.indexHealth'
-        ? (payload) => payload?.status || payload
-        : null
-    });
-  }
-  if (!session?.invocation?.command || !Array.isArray(session?.invocation?.args)) {
-    vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its invocation was not preserved.');
+  if (managedSpec) return startManagedCommand(managedSpec, { repoContext });
+  const request = normalizeWorkflowRequest(session.invocation.request);
+  if (typeof spec.resolveInput === 'function' && !hasRequiredWorkflowInput(spec.id, request?.inputContext)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot exactly rerun this legacy workflow because its semantic inputs were not saved. Run the current command to choose them again.');
     return;
   }
-  if (session.invocation.kind === 'managed-process') {
-    const managedSpec = MANAGED_COMMANDS_BY_ID.get(session.commandId);
-    if (!managedSpec) {
-      vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its managed command is no longer registered.');
-      return;
-    }
-    return startManagedCommand(managedSpec, {
-      repoContext,
-      invocation: {
-        command: session.invocation.command,
-        args: session.invocation.args.slice(),
-        timeoutMs: session.invocation.timeoutMs,
-        persistent: session.invocation.persistent === true
-      }
-    });
-  }
-  return executeOperatorWorkflow(spec, repoContext, {
-    command: session.invocation.command,
-    args: session.invocation.args.slice()
-  });
+  return runOperatorCommand(spec, { repoContext, inputContext: request?.inputContext || undefined });
 }
 
 async function showRecentWorkflows() {
-  const sessions = workflowSessions.slice(0, 10);
+  const sessions = workflowSessions.slice(0, 10).map(captureWorkflowSession).filter(Boolean);
   if (!sessions.length || typeof vscode.window.showQuickPick !== 'function') {
     vscode.window.showInformationMessage('PairOfCleats has no recent workflows to show.');
     return;
   }
+  const items = Object.freeze(sessions.map((session) => Object.freeze({
+    label: `${session.title} (${session.status})`,
+    description: session.repoLabel,
+    detail: session.summaryLine || session.finishedAt || session.startedAt,
+    session
+  })));
   const selection = await vscode.window.showQuickPick(
-    sessions.map((session) => ({
-      label: `${session.title} (${session.status})`,
-      description: session.repoLabel,
-      detail: session.summaryLine || session.finishedAt || session.startedAt,
-      session
-    })),
+    items,
     {
       title: 'PairOfCleats recent workflows',
       placeHolder: 'Select a workflow to rerun'
     }
   );
   if (!selection?.session) return;
+  if (!items.includes(selection)) { vscode.window.showErrorMessage('Workflow selection must identify an original session from this picker.'); return; }
   await rerunWorkflowSession(selection.session);
 }
 
 async function showWorkflowStatus() {
+  const lastSession = captureWorkflowSession(getMostRecentWorkflowSession());
   const passiveRepo = resolvePassiveRepoContext();
   const items = [
     {
@@ -1155,7 +1319,7 @@ async function showWorkflowStatus() {
       action: 'select-repo'
     });
   }
-  const runningSession = getMostRecentRunningWorkflowSession();
+  const runningSession = captureWorkflowSession(getMostRecentRunningWorkflowSession());
   if (runningSession && MANAGED_COMMANDS_BY_ID.has(runningSession.commandId)) {
     const managedSpec = MANAGED_COMMANDS_BY_ID.get(runningSession.commandId);
     items.push({
@@ -1164,10 +1328,10 @@ async function showWorkflowStatus() {
       action: 'stop-running'
     });
   }
-  if (getMostRecentWorkflowSession()) {
+  if (lastSession) {
     items.push({
       label: 'Rerun last workflow',
-      description: getMostRecentWorkflowSession().title,
+      description: lastSession.title,
       action: 'rerun-last'
     });
     items.push({
@@ -1176,13 +1340,15 @@ async function showWorkflowStatus() {
       action: 'recent'
     });
   }
+  const issued = Object.freeze(items.map(item => Object.freeze(item)));
   const selection = typeof vscode.window.showQuickPick === 'function'
-    ? await vscode.window.showQuickPick(items, {
+    ? await vscode.window.showQuickPick(issued, {
       title: 'PairOfCleats workflow status',
       placeHolder: 'Choose an action'
     })
     : null;
   if (!selection) return;
+  if (!issued.includes(selection)) { vscode.window.showErrorMessage('Workflow status action must identify an original item from this picker.'); return; }
   if (selection.action === 'output') {
     getOutputChannel().show?.(true);
     return;
@@ -1196,19 +1362,18 @@ async function showWorkflowStatus() {
     return;
   }
   if (selection.action === 'rerun-last') {
-    const session = getMostRecentWorkflowSession();
-    if (!session) {
+    if (!lastSession) {
       vscode.window.showInformationMessage('PairOfCleats has no workflow to rerun.');
       return;
     }
-    await rerunWorkflowSession(session);
+    await rerunWorkflowSession(lastSession);
     return;
   }
   if (selection.action === 'stop-running') {
     if (!runningSession) return;
     const stopSpec = Array.from(MANAGED_STOP_COMMANDS_BY_ID.values()).find((entry) => entry.targetId === runningSession.commandId);
     if (stopSpec) {
-      await stopManagedCommand(stopSpec);
+      await stopManagedCommand(stopSpec, { sessionId: runningSession.sessionId, repoRoot: runningSession.repoRoot });
     }
     return;
   }
@@ -1242,6 +1407,7 @@ function createTreeChangeEmitter() {
 
 function normalizeSearchHit(hit) {
   if (!hit || typeof hit !== 'object' || !hit.file) return null;
+  const breakdown = hit.scoreBreakdown ? boundedFacts(hit.scoreBreakdown) : null;
   return {
     file: String(hit.file),
     section: String(hit.section || 'code'),
@@ -1249,6 +1415,13 @@ function normalizeSearchHit(hit) {
     name: hit.name ? String(hit.name) : '',
     score: Number.isFinite(hit.score) ? Number(hit.score) : null,
     scoreType: hit.scoreType ? String(hit.scoreType) : '',
+    chunkUid: typeof hit.chunkUid === 'string' ? hit.chunkUid : '',
+    id: typeof hit.id === 'string' || Number.isSafeInteger(hit.id) ? hit.id : null,
+    sourceHash: /^[a-f0-9]{64}$/.test(hit.sourceHash || '') ? hit.sourceHash : null,
+    coordinateUnit: hit.coordinateUnit === 'utf16' ? 'utf16' : null,
+    generation: hit.generation && typeof hit.generation === 'object' ? hit.generation : null,
+    ...(breakdown ? { scoreBreakdown: breakdown.facts } : {}),
+    explanationTruncated: hit.explanationTruncated === true || breakdown?.truncated === true,
     startLine: Number.isFinite(hit.startLine) ? Number(hit.startLine) : null,
     startCol: Number.isFinite(hit.startCol) ? Number(hit.startCol) : null,
     endLine: Number.isFinite(hit.endLine) ? Number(hit.endLine) : null,
@@ -1261,13 +1434,25 @@ function normalizeSearchResultSet(rawResultSet) {
   const resultSetId = String(rawResultSet.resultSetId || '').trim();
   const query = String(rawResultSet.query || '').trim();
   const repoRoot = String(rawResultSet.repoRoot || '').trim();
-  if (!resultSetId || !query || !repoRoot) return null;
+  const pagination = normalizeFilterPagination(rawResultSet.pagination);
+  if (!resultSetId || (!query && !pagination) || !repoRoot) return null;
   const hits = Array.isArray(rawResultSet.hits)
     ? rawResultSet.hits.map((hit) => normalizeSearchHit(hit)).filter(Boolean)
     : [];
+  carryFilterPageHistory(rawResultSet.hits, hits);
+  let explanationBytes = 64 * 1024;
+  for (const hit of hits) {
+    if (!hit.scoreBreakdown) continue;
+    const bytes = Buffer.byteLength(JSON.stringify(hit.scoreBreakdown));
+    if (bytes > explanationBytes) {
+      delete hit.scoreBreakdown;
+      hit.explanationTruncated = true;
+    } else explanationBytes -= bytes;
+  }
   return {
     resultSetId,
     query,
+    pagination,
     repoRoot,
     repoLabel: formatRepoLabel(repoRoot),
     repoUri: rawResultSet.repoUri ? String(rawResultSet.repoUri) : '',
@@ -1276,6 +1461,8 @@ function normalizeSearchResultSet(rawResultSet) {
     backend: rawResultSet.backend ? String(rawResultSet.backend) : '',
     totalHits: Number.isFinite(rawResultSet.totalHits) ? Number(rawResultSet.totalHits) : hits.length,
     invocation: normalizeSearchInvocation(rawResultSet.invocation),
+    explanation: normalizeCapturedExplanation(rawResultSet.explanation),
+    searchDiagnostics: normalizeSearchDiagnostics(rawResultSet.searchDiagnostics),
     hits
   };
 }
@@ -1336,13 +1523,14 @@ function getActiveSearchResultSet() {
   return searchHistory.find((entry) => entry.resultSetId === activeSearchResultId) || searchHistory[0] || null;
 }
 
-function createTreeItem(label, { description = '', tooltip = '', collapsibleState = 0, command = null, contextValue = '' } = {}) {
+function createTreeItem(label, { description = '', tooltip = '', collapsibleState = 0, command = null, contextValue = '', id = null } = {}) {
   if (typeof vscode.TreeItem === 'function') {
     const item = new vscode.TreeItem(label, collapsibleState);
     item.description = description;
     item.tooltip = tooltip || label;
     item.command = command || undefined;
     item.contextValue = contextValue || undefined;
+    if (id) item.id = id;
     return item;
   }
   return {
@@ -1351,7 +1539,8 @@ function createTreeItem(label, { description = '', tooltip = '', collapsibleStat
     tooltip: tooltip || label,
     collapsibleState,
     command,
-    contextValue
+    contextValue,
+    ...(id ? { id } : {})
   };
 }
 
@@ -1359,23 +1548,28 @@ function buildResultsTree() {
   const activeResultSet = getActiveSearchResultSet();
   if (!activeResultSet) return [];
   if (searchGroupMode === 'query') {
-    return searchHistory.slice(0, 10).map((resultSet) => ({
-      kind: 'result-set',
-      resultSet,
-      treeItem: createTreeItem(resultSet.query, {
-        description: `${resultSet.repoLabel} • ${resultSet.totalHits} hit(s)`,
-        tooltip: `${resultSet.repoRoot}\n${resultSet.query}`,
-        collapsibleState: 1,
-        contextValue: 'pairofcleats.resultSet'
-      }),
-      children: resultSet.hits.map((hit) => buildResultHitNode(resultSet, hit))
-    }));
+    return searchHistory.slice(0, 10).map((resultSet) => {
+      const occurrences = resultTreeHitOccurrences(resultSet.hits);
+      return {
+        kind: 'result-set',
+        resultSet,
+        treeItem: createTreeItem(resultSet.query || 'Indexed metadata matches', {
+          id: resultTreeItemId({ resultSetId: resultSet.resultSetId, groupMode: 'query', kind: 'result-set' }),
+          description: `${resultSet.repoLabel} • ${resultSet.totalHits} hit(s)`,
+          tooltip: `${resultSet.repoRoot}\n${resultSet.query}`,
+          collapsibleState: 1,
+          contextValue: 'pairofcleats.resultSet'
+        }),
+        children: resultSet.hits.map((hit, ordinal) => buildResultHitNode(resultSet, hit, ordinal, occurrences[ordinal]))
+      };
+    });
   }
   const groups = new Map();
-  for (const hit of activeResultSet.hits) {
+  const occurrences = resultTreeHitOccurrences(activeResultSet.hits);
+  for (const [ordinal, hit] of activeResultSet.hits.entries()) {
     const key = searchGroupMode === 'file' ? hit.file : hit.section;
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(hit);
+    groups.get(key).push({ hit, ordinal });
   }
   return Array.from(groups.entries()).map(([key, hits]) => ({
     kind: 'group',
@@ -1384,20 +1578,22 @@ function buildResultsTree() {
       {
         description: `${hits.length} hit(s)`,
         collapsibleState: 1,
-        contextValue: 'pairofcleats.resultGroup'
+        contextValue: 'pairofcleats.resultGroup',
+        id: resultTreeItemId({ resultSetId: activeResultSet.resultSetId, groupMode: searchGroupMode, kind: 'group', key })
       }
     ),
-    children: hits.map((hit) => buildResultHitNode(activeResultSet, hit))
+    children: hits.map(({ hit, ordinal }) => buildResultHitNode(activeResultSet, hit, ordinal, occurrences[ordinal]))
   }));
 }
 
-function buildResultHitNode(resultSet, hit) {
+function buildResultHitNode(resultSet, hit, ordinal, occurrence) {
   const label = hit.name || hit.headline || hit.file;
   return {
     kind: 'hit',
     resultSet,
     hit,
     treeItem: createTreeItem(label, {
+      id: resultTreeItemId({ resultSetId: resultSet.resultSetId, kind: 'hit', hit, ordinal, occurrence }),
       description: `${hit.file}${Number.isFinite(hit.startLine) ? `:${hit.startLine}` : ''}`,
       tooltip: `${hit.section}${hit.score !== null ? ` • score ${hit.score}` : ''}`,
       collapsibleState: 0,
@@ -1446,8 +1642,11 @@ async function recordSearchResultSet({
   query,
   searchOptions,
   invocation,
-  hits
+  hits,
+  payload = null,
+  explain = false
 }) {
+  if (!operations.isCurrent()) return null;
   const resultSet = normalizeSearchResultSet({
     resultSetId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     query,
@@ -1456,8 +1655,11 @@ async function recordSearchResultSet({
     createdAt: new Date().toISOString(),
     mode: searchOptions.mode,
     backend: searchOptions.backend,
+    pagination: normalizeFilterPagination(payload?.pagination),
     totalHits: hits.length,
-    invocation,
+    invocation: { ...invocation, request: invocation?.request || captureSearchRequest(repoContext.repoRoot, query, searchOptions) },
+    explanation: explain ? captureSearchExplanation(payload) : null,
+    searchDiagnostics: normalizeSearchDiagnostics(payload?.retrieval?.diagnostics),
     hits
   });
   if (!resultSet) return null;
@@ -1465,18 +1667,52 @@ async function recordSearchResultSet({
   activeSearchResultId = resultSet.resultSetId;
   await persistSearchHistory();
   refreshResultsExplorer();
+  presentSearchDiagnostics(resultSet);
   return resultSet;
 }
 
-async function openResultHitNode(node) {
-  if (!node?.hit || !node?.resultSet) return;
-  const repoContext = createStoredRepoContext(node.resultSet);
-  const result = await openSearchHit(vscode, repoContext, node.hit);
-  if (!result.ok) {
-    getOutputChannel().appendLine(result.detail || result.message);
-    getOutputChannel().show?.(true);
-    vscode.window.showErrorMessage(result.message);
+function presentSearchDiagnostics(resultSet, historical = false) {
+  const facts = resultSet.searchDiagnostics;
+  const output = getOutputChannel();
+  output.appendLine(`[search diagnostics] ${historical ? 'Saved evidence' : 'Captured response'}: ${facts.summary}`);
+  for (const line of facts.details) output.appendLine(line);
+  output.appendLine('Recorded generation identity does not verify current worktree freshness.');
+  if (facts.truncated) output.appendLine('Diagnostic projection is truncated by its display/history bound.');
+  if (!historical && !resultSet.hits.length) {
+    const message = facts.reasons.find(reason => reason.message)?.message || 'This response contains no hits; diagnostics are unknown.';
+    const actionIds = { 'Index Health': 'pairofcleats.indexHealth', 'Tooling Doctor': 'pairofcleats.doctor' };
+    const labels = facts.actions.map(action => action === 'index-report' ? 'Index Health' : 'Tooling Doctor');
+    // Labels resolve locally to registered read-only commands. Response text is
+    // never executable and receiving metadata never dispatches a workflow.
+    const scope = operations.current();
+    const repoContext = { ok: true, ...createStoredRepoContext(resultSet) };
+    Promise.resolve(vscode.window.showInformationMessage(`PairOfCleats: ${message}`, ...labels)).then(label => {
+      if (operations.isCurrent(scope) && labels.includes(label) && actionIds[label]) {
+        return runOperatorCommand(OPERATOR_COMMANDS_BY_ID.get(actionIds[label]), { repoContext });
+      }
+      return undefined;
+    }).catch(() => {});
+    output.show?.(true);
+  } else if (!historical && facts.backend.fidelity === 'fallback-derived') {
+    vscode.window.showInformationMessage(`PairOfCleats search used fallback results. ${facts.summary}`);
   }
+}
+
+async function openResultHitNode(node) {
+  return operations.run('result-hit-open', async () => {
+    if (!node?.hit || !node?.resultSet) return;
+    const repoContext = createStoredRepoContext(node.resultSet);
+    if (node.resultSet.explanation) {
+      appendOutputLines(getOutputChannel(), renderSearchExplanation(node.resultSet, node.hit));
+      getOutputChannel().show?.(true);
+    }
+    const result = await openSearchHit(vscode, repoContext, node.hit);
+    if (!result.ok && result.kind !== 'cancelled') {
+      getOutputChannel().appendLine(result.detail || result.message);
+      getOutputChannel().show?.(true);
+      vscode.window.showErrorMessage(result.message);
+    }
+  }, { key: 'result-hit-open' });
 }
 
 async function revealResultHitNode(node) {
@@ -1511,8 +1747,10 @@ async function copyResultHitPath(node) {
   vscode.window.showInformationMessage(`PairOfCleats copied ${printablePath}`);
 }
 
-async function reopenLastResults() {
-  const resultSet = getActiveSearchResultSet();
+async function activateSavedResultSet(savedResultSet) {
+  // Reopening selects existing evidence. Only the explicit rerun owner may
+  // dispatch a new query or append a new history entry.
+  const resultSet = searchHistory.find(entry => entry.resultSetId === savedResultSet?.resultSetId);
   if (!resultSet) {
     vscode.window.showInformationMessage('PairOfCleats has no saved search results.');
     return;
@@ -1520,16 +1758,20 @@ async function reopenLastResults() {
   activeSearchResultId = resultSet.resultSetId;
   await persistSearchHistory();
   refreshResultsExplorer();
-  vscode.window.showInformationMessage(`PairOfCleats reopened results for "${resultSet.query}".`);
+  presentSearchDiagnostics(resultSet, true);
+  vscode.window.showInformationMessage(`PairOfCleats reopened results for "${resultSet.query}" (saved evidence${resultSet.createdAt ? ` from ${resultSet.createdAt}` : ''}).`);
+}
+
+async function reopenLastResults() {
+  await activateSavedResultSet(getActiveSearchResultSet());
 }
 
 async function rerunResultSet(nodeOrResultSet) {
   const resultSet = nodeOrResultSet?.resultSet || nodeOrResultSet;
   const invocation = resultSet?.invocation || null;
-  const canRerun = (invocation?.kind === 'api-search' && invocation.payload)
-    || (invocation?.command && Array.isArray(invocation?.args));
+  const canRerun = normalizeSearchRequest(invocation?.request) && !invocation?.requestInvalid;
   if (!canRerun) {
-    vscode.window.showErrorMessage('PairOfCleats cannot rerun that result set because its invocation was not preserved.');
+    vscode.window.showErrorMessage('Saved search has no admitted semantic request. Reopen its evidence or deliberately run a new search.');
     return;
   }
   const output = getOutputChannel();
@@ -1559,7 +1801,7 @@ async function showSearchHistory() {
     }
   );
   if (!selection?.resultSet) return;
-  await rerunResultSet(selection.resultSet);
+  await activateSavedResultSet(selection.resultSet);
 }
 
 async function repeatLastSearch() {
@@ -1579,7 +1821,10 @@ async function openIndexDirectory() {
     vscode.window.showErrorMessage('PairOfCleats could not locate the config-dump command.');
     return;
   }
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
+  const execution = await resolveExecutionMode(config, spec.id);
+  if (!operations.isCurrent()) return;
+  if (!execution.ok) { vscode.window.showErrorMessage(execution.message); return; }
   const cliResolution = resolveCli(repoContext.repoRoot, config);
   const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, undefined);
   if (!invocation.ok) {
@@ -1598,7 +1843,7 @@ async function openIndexDirectory() {
     env: buildSpawnEnv(config),
     output
   });
-  if (!result?.payload) {
+  if (!result?.ok || !result.payload) {
     if (result?.detail) output.appendLine(result.detail);
     output.show?.(true);
     const show = result?.kind === 'cancelled'
@@ -1715,7 +1960,7 @@ function getWordPrefixQueryAtPosition(document, position) {
   const startCharacter = Number.isFinite(range?.start?.character) ? Number(range.start.character) : 0;
   const endCharacter = Number.isFinite(position?.character) ? Number(position.character) : startCharacter;
   const prefixLength = Math.max(0, Math.min(fullText.length, endCharacter - startCharacter));
-  return fullText.slice(0, prefixLength || fullText.length).trim();
+  return fullText.slice(0, prefixLength).trim();
 }
 
 function noteNavigationDegraded(key, message, detail = null) {
@@ -1751,17 +1996,37 @@ function buildInlineFileSeed(document, repoContext) {
 }
 
 function buildInlineSeed(document, position, repoContext) {
-  const query = getWordQueryAtPosition(document, position);
-  if (query) return `symbol:${query}`;
+  // A spelling is not a canonical symbol identity. Until navigation supplies
+  // one, hover consumes an explicitly labelled file-level indexed summary.
   return buildInlineFileSeed(document, repoContext);
 }
 
-function createInlineCacheKey(repoRoot, seed) {
-  return `${repoRoot}::${seed}`;
+function captureInlineIdentity(document, repoContext, position = null) {
+  const config = getExtensionConfiguration(repoContext);
+  const hash = (value) => createHash('sha256').update(value).digest('hex');
+  return {
+    repoRoot: repoContext.repoRoot,
+    uri: document?.uri?.toString?.() || getDocumentFilePath(document),
+    version: document?.version ?? null,
+    sourceHash: hash(String(document?.getText?.() || '')),
+    dirty: document?.isDirty === true,
+    closed: document?.isClosed === true,
+    publicationEpoch: inlinePublicationEpoch,
+    position: position ? [position.line, position.character] : null,
+    policy: hash(JSON.stringify(Object.values(VSCODE_SETTINGS).map((key) => config.get(key) ?? null))),
+    // The editor does not own index generation resolution. Missing generation
+    // authority prohibits cross-request reuse, including inside the old TTL.
+    generation: null
+  };
 }
 
-function getCachedInlineSignalPayload(repoRoot, seed) {
-  const key = createInlineCacheKey(repoRoot, seed);
+function createInlineCacheKey(repoRoot, seed, identity) {
+  return JSON.stringify([repoRoot, seed, identity]);
+}
+
+function getCachedInlineSignalPayload(repoRoot, seed, identity) {
+  if (!identity?.generation) return null;
+  const key = createInlineCacheKey(repoRoot, seed, identity);
   const cached = inlineSignalCache.get(key);
   if (!cached) return null;
   if ((Date.now() - cached.timestamp) > INLINE_SIGNAL_CACHE_TTL_MS) {
@@ -1771,11 +2036,15 @@ function getCachedInlineSignalPayload(repoRoot, seed) {
   return cached.payload;
 }
 
-function setCachedInlineSignalPayload(repoRoot, seed, payload) {
-  inlineSignalCache.set(createInlineCacheKey(repoRoot, seed), {
+function setCachedInlineSignalPayload(repoRoot, seed, payload, identity) {
+  if (!identity?.generation || !operations.isCurrent()) return;
+  const key = createInlineCacheKey(repoRoot, seed, identity);
+  inlineSignalCache.delete(key);
+  inlineSignalCache.set(key, {
     timestamp: Date.now(),
     payload
   });
+  while (inlineSignalCache.size > 64) inlineSignalCache.delete(inlineSignalCache.keys().next().value);
 }
 
 function countInlineWarnings(payload) {
@@ -1814,9 +2083,11 @@ function buildInlineSignalSummary(payload) {
   return parts.join(', ');
 }
 
-function buildInlineHoverMarkdown(payload, { seed, maxItems }) {
+function buildInlineHoverMarkdown(payload, { seed, maxItems, dirty = false }) {
   const lines = [
-    '### PairOfCleats inline context',
+    '### PairOfCleats indexed file summary',
+    '- Scope: indexed snapshot; aggregate counts are not precise findings in the current buffer.',
+    ...(dirty ? ['- Unsaved buffer: indexed facts may differ from the current text.'] : []),
     `- seed: \`${seed}\``
   ];
   const riskStatus = String(payload?.risk?.analysisStatus?.code || payload?.risk?.status || '').trim();
@@ -1868,15 +2139,15 @@ function buildInlineHoverMarkdown(payload, { seed, maxItems }) {
 function createInlineDiagnostic(document, payload) {
   const summary = buildInlineSignalSummary(payload);
   if (!summary) return null;
-  const severity = countInlineRiskFlows(payload) > 0 || countInlineWarnings(payload) > 0
-    ? vscode.DiagnosticSeverity.Warning
-    : vscode.DiagnosticSeverity.Information;
+  if (document?.isDirty === true) return null;
+  const severity = vscode.DiagnosticSeverity.Information;
   const diagnostic = new vscode.Diagnostic(
     createFallbackLineRange(0),
-    `PairOfCleats inline signal: ${summary}`,
+    `PairOfCleats indexed file summary (aggregate, not a finding at this line): ${summary}`,
     severity
   );
   diagnostic.source = 'PairOfCleats';
+  diagnostic.code = 'indexed-file-summary';
   return diagnostic;
 }
 
@@ -1890,6 +2161,15 @@ function clearInlineDecorations(editor = null) {
   inlineRiskDecorationType = null;
 }
 
+function invalidateInlineSignals() {
+  inlinePublicationEpoch++;
+  operations.cancelKey('inline-refresh');
+  operations.cancelLabel('inline-hover');
+  inlineSignalCache.clear();
+  inlineRiskDiagnostics?.clear?.();
+  clearInlineDecorations(vscode.window.activeTextEditor || null);
+}
+
 function applyInlineDecorations(editor, payload) {
   if (!editor?.setDecorations || typeof vscode.window?.createTextEditorDecorationType !== 'function') return;
   const summary = buildInlineSignalSummary(payload);
@@ -1898,7 +2178,7 @@ function applyInlineDecorations(editor, payload) {
   inlineRiskDecorationType = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
     after: {
-      contentText: ` PairOfCleats: ${summary}`,
+      contentText: ` PairOfCleats indexed file summary${editor.document?.isDirty ? ' (unsaved buffer differs)' : ''}: ${summary}`,
       color: 'rgba(120, 120, 120, 0.9)',
       margin: '0 0 0 1rem'
     }
@@ -1913,23 +2193,62 @@ function createRangeFromNavigationEntry(entry) {
     ? Math.max(startLine, Number(entry.endLine) - 1)
     : startLine;
   const startCol = Number.isFinite(entry?.startCol) && entry.startCol > 0 ? Number(entry.startCol) - 1 : 0;
-  const endCol = Number.isFinite(entry?.endCol) && entry.endCol > 0 ? Math.max(startCol, Number(entry.endCol) - 1) : startCol;
+  const endCol = Number.isFinite(entry?.endCol) && entry.endCol > 0
+    ? Math.max(endLine === startLine ? startCol : 0, Number(entry.endCol) - 1)
+    : (endLine === startLine ? startCol : 0);
   return new vscode.Range(
     new vscode.Position(startLine, startCol),
     new vscode.Position(endLine, endCol)
   );
 }
 
-function createNavigationLocation(repoContext, entry) {
+async function createNavigationLocation(repoContext, entry, authority, sourceRequest) {
   const target = resolveValidatedHitTarget(vscode, repoContext, {
     file: entry?.file || entry?.virtualPath || ''
   });
   if (!target.ok) return null;
-  const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
-    new vscode.Position(0, 0),
-    new vscode.Position(0, 0)
-  );
-  return new vscode.Location(target.targetUri, range);
+  if (entry?.coordinateUnit !== 'utf16' || !entry.sourceHash) return null;
+  const qualified = await authority.qualify({ repoRoot: repoContext.repoRoot, file: target.filePath,
+    uri: target.targetUri, sourceHash: entry.sourceHash, range: entry });
+  if (!qualified) return null;
+  const range = new vscode.Range(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+  const location = new vscode.Location(qualified.document.uri || target.targetUri, range);
+  navigationLocationSources.set(location, { repoContext, entry: Object.freeze({ ...entry }), sourceRequest });
+  return location;
+}
+
+async function createNavigationLocations(repoContext, rows, sourceRequest) {
+  const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(),
+    maxDocuments: NAVIGATION_RESULT_LIMIT });
+  const locations = [];
+  try {
+    for (const row of rows) {
+      const location = await createNavigationLocation(repoContext, row, authority, sourceRequest);
+      if (!location) return [];
+      locations.push(location);
+    }
+    await authority.assertCurrent();
+    return operations.isCurrent() ? locations : [];
+  } catch (error) {
+    if (operations.isCurrent()) noteNavigationDegraded('target-document-authority',
+      `Indexed target ranges remain unavailable: ${error.message}`);
+    return [];
+  }
+}
+
+async function publishNavigationLocations(repoContext, rows, sourceRequest) {
+  if (!rows.length || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
+  const locations = await createNavigationLocations(repoContext, rows, sourceRequest);
+  if (!locations.length || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
+  try {
+    // Opening each target document introduces another await after CLI source
+    // admission. Keep the original requesting buffer and saved bytes current.
+    sourceRequest.args(repoContext.repoRoot);
+    return operations.isCurrent() ? locations : [];
+  } catch (error) {
+    if (operations.isCurrent()) noteNavigationDegraded('source-changed-before-publication', error.message);
+    return [];
+  }
 }
 
 function mapNavigationSymbolKind(kind) {
@@ -1947,20 +2266,6 @@ function mapNavigationSymbolKind(kind) {
   if (normalized.includes('constant')) return vscode.SymbolKind.Constant;
   if (normalized.includes('struct')) return vscode.SymbolKind.Struct;
   return vscode.SymbolKind.Object;
-}
-
-function createDocumentSymbol(entry) {
-  const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
-    new vscode.Position(0, 0),
-    new vscode.Position(0, 0)
-  );
-  return new vscode.DocumentSymbol(
-    String(entry?.name || entry?.qualifiedName || 'symbol'),
-    String(entry?.qualifiedName || entry?.kind || ''),
-    mapNavigationSymbolKind(entry?.kind),
-    range,
-    range
-  );
 }
 
 function mapNavigationCompletionKind(kind) {
@@ -1985,6 +2290,8 @@ function createCompletionItem(entry) {
   if (!label) return null;
   const item = new vscode.CompletionItem(label, mapNavigationCompletionKind(entry?.kind));
   item.detail = String(entry?.qualifiedName || entry?.kind || '').trim();
+  item.detail = `Indexed symbol suggestion${item.detail ? ` • ${item.detail}` : ''}`;
+  item.documentation = 'Approximate indexed symbol name. This suggestion does not establish a current source binding or type inference.';
   item.sortText = `${String(9999 - Math.max(0, Number(entry?.score) || 0)).padStart(4, '0')}:${label}`;
   item.filterText = String(entry?.qualifiedName || label).trim();
   return item;
@@ -1995,10 +2302,21 @@ async function runNavigationCommand({
   repoContext,
   query = '',
   filePath = '',
+  sourceDocument = null,
+  sourceRequest = null,
+  position = null,
+  includeDeclaration = true,
   limit = NAVIGATION_RESULT_LIMIT
 }) {
-  const config = getExtensionConfiguration();
+  if (!operations.isCurrent()) return [];
+  const precise = kind === 'definitions' || kind === 'references';
+  const qualified = precise || kind === 'document-symbols' && sourceRequest !== null;
+  const request = sourceRequest || (precise ? captureNavigationRequest(sourceDocument, position, includeDeclaration) : null);
+  if (qualified && !request?.isCurrent()) return [];
+  const requestedSourceVersion = request?.version;
+  const config = getExtensionConfiguration(repoContext);
   const apiSettings = readApiSettings(config);
+  if (apiSettings.error) { noteNavigationDegraded('invalid-policy', apiSettings.error); return []; }
   if (apiSettings.mode === 'require') {
     noteNavigationDegraded(
       'api-require',
@@ -2027,6 +2345,10 @@ async function runNavigationCommand({
   ];
   if (filePath) args.push('--file', filePath);
   if (query) args.push('--symbol', query);
+  if (qualified) {
+    try { args.push(...request.args(repoContext.repoRoot)); }
+    catch (error) { noteNavigationDegraded('source-admission', error.message); return []; }
+  }
   const output = getOutputChannel();
   const env = buildSpawnEnv(config);
   const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
@@ -2052,7 +2374,7 @@ async function runNavigationCommand({
     const timeout = setTimeout(() => {
       timedOut = true;
       try {
-        child.kill('SIGKILL');
+        killChildProcess(child);
       } catch {}
     }, NAVIGATION_PROVIDER_TIMEOUT_MS);
     timeout.unref?.();
@@ -2091,6 +2413,7 @@ async function runNavigationCommand({
       resolve({ ok: true, payload: parsed.payload });
     });
   });
+  if (!operations.isCurrent()) return [];
   if (!result.ok) {
     appendRuntimeFailure(output, '[navigate]', result);
     return [];
@@ -2099,18 +2422,52 @@ async function runNavigationCommand({
     noteNavigationDegraded(`payload-${kind}`, result.payload.message || 'PairOfCleats navigation query failed.');
     return [];
   }
+  if (qualified) {
+    if (!request.isCurrent()) return [];
+    const expectedHash = args[args.indexOf('--source-hash') + 1];
+    try {
+      const currentArgs = request.args(repoContext.repoRoot);
+      if (currentArgs[currentArgs.indexOf('--source-hash') + 1] !== expectedHash) {
+        noteNavigationDegraded('source-changed', 'The saved source changed before indexed navigation completed.');
+        return [];
+      }
+    } catch (error) { noteNavigationDegraded('source-changed', error.message); return []; }
+    if (result.payload?.sourceHash !== expectedHash
+      || result.payload?.sourceVersion !== String(requestedSourceVersion ?? 0)
+      || result.payload?.coordinateUnit !== 'utf16') {
+      noteNavigationDegraded('source-echo', 'Indexed navigation did not retain the requested source identity/version.');
+      return [];
+    }
+    if (kind === 'document-symbols') {
+      if (result.payload?.results?.length > DOCUMENT_SYMBOL_LIMIT) {
+        noteNavigationDegraded('document-symbol-bound', 'Native Outline response exceeds its 200-symbol bound. Inspect indexed evidence instead.');
+        return [];
+      }
+      const rows = qualifiedDocumentSymbolRows(result.payload);
+      if (!rows.length) noteNavigationDegraded('document-symbols-unqualified',
+        'Native Outline needs current source-qualified symbol ranges. Use Inspect Indexed Document Symbols for retained evidence, then save/rebuild as needed.');
+      return rows;
+    }
+    latestNavigationEvidence = { payload: result.payload, repoContext, sourceFile: request.file,
+      position: request.position, sourceRequest: request };
+    const rows = qualifiedNavigationRows(result.payload);
+    if (!rows.length) noteNavigationDegraded(`binding-${result.payload?.status || 'unknown'}`,
+      `Indexed navigation: ${result.payload?.status || 'unqualified'}. Use PairOfCleats Related Search for approximate matches.`,
+      result.payload?.message);
+    return rows;
+  }
   return Array.isArray(result.payload?.results) ? result.payload.results : [];
 }
 
 async function runInlineContextCommand({
   repoContext,
-  seed
+  seed,
+  identity = null
 }) {
-  if (!repoContext?.repoRoot || !seed) return null;
-  const cached = getCachedInlineSignalPayload(repoContext.repoRoot, seed);
-  if (cached) return cached;
-  const config = getExtensionConfiguration();
+  if (!repoContext?.repoRoot || !seed || !operations.isCurrent()) return null;
+  const config = getExtensionConfiguration(repoContext);
   const apiSettings = readApiSettings(config);
+  if (apiSettings.error) { noteInlineSignalDegraded('invalid-policy', apiSettings.error); return null; }
   if (apiSettings.mode === 'require') {
     noteInlineSignalDegraded(
       'api-require',
@@ -2119,6 +2476,8 @@ async function runInlineContextCommand({
     );
     return null;
   }
+  const cached = getCachedInlineSignalPayload(repoContext.repoRoot, seed, identity);
+  if (cached) return cached;
   const cliResolution = resolveCli(repoContext.repoRoot, config);
   if (!cliResolution.ok) {
     noteInlineSignalDegraded('cli-invalid', cliResolution.message, cliResolution.detail || null);
@@ -2162,7 +2521,7 @@ async function runInlineContextCommand({
     const timeout = setTimeout(() => {
       timedOut = true;
       try {
-        child.kill('SIGKILL');
+        killChildProcess(child);
       } catch {}
     }, INLINE_SIGNAL_TIMEOUT_MS);
     timeout.unref?.();
@@ -2201,65 +2560,97 @@ async function runInlineContextCommand({
       resolve({ ok: true, payload: parsed.payload });
     });
   });
-  if (!result.ok || !result.payload || !hasInlineSignals(result.payload)) {
+  if (!operations.isCurrent()) return null;
+  if (!result.ok || !result.payload || result.payload.ok === false || !hasInlineSignals(result.payload)) {
     if (!result.ok) {
       noteInlineSignalDegraded(`inline-${result.kind || 'failed'}`, result.message || 'PairOfCleats inline context failed.', result.detail || null);
     }
     return null;
   }
-  setCachedInlineSignalPayload(repoContext.repoRoot, seed, result.payload);
+  setCachedInlineSignalPayload(repoContext.repoRoot, seed, result.payload, identity);
   return result.payload;
 }
 
-async function provideDefinitionsAtPosition(document, position) {
-  const query = getWordQueryAtPosition(document, position);
+function provideDefinitionsAtPosition(document, position, token) {
+  return operations.run('definitions', () => provideOwnedDefinitions(document, position), { token });
+}
+
+async function provideOwnedDefinitions(document, position, sourceRequest = captureNavigationRequest(document, position)) {
+  if (!sourceRequest) return [];
+  const query = getWordQueryAtPosition(document, sourceRequest.position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'definitions',
+    sourceDocument: document, sourceRequest, position: sourceRequest.position,
     repoContext,
     query,
     filePath: getDocumentFilePath(document),
     limit: NAVIGATION_RESULT_LIMIT
   });
-  return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
+  return publishNavigationLocations(repoContext, rows, sourceRequest);
 }
 
-async function provideReferencesAtPosition(document, position) {
-  const query = getWordQueryAtPosition(document, position);
+function provideReferencesAtPosition(document, position, context, token) {
+  return operations.run('references', () => provideOwnedReferences(document, position, context), { token });
+}
+
+async function provideOwnedReferences(document, position, context = {}, sourceRequest = captureNavigationRequest(document, position, context.includeDeclaration)) {
+  if (!sourceRequest) return [];
+  const query = getWordQueryAtPosition(document, sourceRequest.position);
   if (!query) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'references',
+    sourceDocument: document, sourceRequest, position: sourceRequest.position,
     repoContext,
     query,
     filePath: getDocumentFilePath(document),
     limit: NAVIGATION_RESULT_LIMIT
   });
-  return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
+  return publishNavigationLocations(repoContext, rows, sourceRequest);
 }
 
-async function provideDocumentSymbolsForDocument(document) {
+function provideDocumentSymbolsForDocument(document, token) {
+  return operations.run('document-symbols', () => provideOwnedDocumentSymbols(document), { token });
+}
+
+async function provideOwnedDocumentSymbols(document) {
+  const sourceRequest = captureNavigationRequest(document);
+  if (!sourceRequest) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const filePath = getDocumentFilePath(document);
   if (!filePath) return [];
   const rows = await runNavigationCommand({
     kind: 'document-symbols',
-    repoContext,
+    repoContext, sourceRequest,
     filePath,
     limit: DOCUMENT_SYMBOL_LIMIT
   });
-  return rows.map((entry) => createDocumentSymbol(entry));
+  try {
+    return await qualifyDocumentSymbols({ vscode, repoContext, rows, sourceRequest,
+      isCurrent: () => operations.isCurrent(), symbolKind: mapNavigationSymbolKind });
+  } catch (error) {
+    if (operations.isCurrent()) noteNavigationDegraded('document-symbol-source',
+      `Native Outline ranges remain unavailable: ${error.message} Use Inspect Indexed Document Symbols for retained evidence.`);
+    return [];
+  }
 }
 
-async function provideCompletionItemsAtPosition(document, position) {
-  const query = getWordPrefixQueryAtPosition(document, position);
+function provideCompletionItemsAtPosition(document, position, token) {
+  return operations.run('completions', () => provideOwnedCompletions(document, position), { token });
+}
+
+async function provideOwnedCompletions(document, position) {
+  const sourceRequest = captureNavigationRequest(document, position, true, { allowDirty: true });
+  if (!sourceRequest) return [];
+  const query = getWordPrefixQueryAtPosition(document, sourceRequest.position);
   if (!query || query.length < MIN_COMPLETION_QUERY_LENGTH) return [];
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return [];
+  if (!repoContext.ok || !operations.isCurrent() || !sourceRequest.isCurrent()) return [];
   const rows = await runNavigationCommand({
     kind: 'completions',
     repoContext,
@@ -2267,39 +2658,54 @@ async function provideCompletionItemsAtPosition(document, position) {
     filePath: getDocumentFilePath(document),
     limit: COMPLETION_RESULT_LIMIT
   });
-  return rows.map((entry) => createCompletionItem(entry)).filter(Boolean);
+  return operations.isCurrent() && sourceRequest.isCurrent() ? rows.map((entry) => createCompletionItem(entry)).filter(Boolean) : [];
 }
 
-async function provideInlineHoverAtPosition(document, position) {
-  const config = getExtensionConfiguration();
+function provideInlineHoverAtPosition(document, position, token) {
+  return operations.run('inline-hover', () => provideOwnedInlineHover(document, position), { token });
+}
+
+async function provideOwnedInlineHover(document, position) {
+  if (document?.isClosed === true) return null;
+  const config = getExtensionConfiguration({ uri: document?.uri });
   const inlineSettings = readInlineSettings(config);
   if (!inlineSettings.inlineHoverEnabled) return null;
   const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
-  if (!repoContext.ok) return null;
+  if (!repoContext.ok || !operations.isCurrent()) return null;
   const seed = buildInlineSeed(document, position, repoContext);
   if (!seed) return null;
+  const identity = captureInlineIdentity(document, repoContext, position);
   const payload = await runInlineContextCommand({
     repoContext,
-    seed
+    seed,
+    identity
   });
-  if (!payload) return null;
+  if (!payload || !operations.isCurrent()
+    || JSON.stringify(identity) !== JSON.stringify(captureInlineIdentity(document, repoContext, position))) return null;
   const range = typeof document?.getWordRangeAtPosition === 'function'
     ? (document.getWordRangeAtPosition(position) || createFallbackLineRange(position?.line || 0))
     : createFallbackLineRange(position?.line || 0);
   return new vscode.Hover(
     buildInlineHoverMarkdown(payload, {
       seed,
-      maxItems: inlineSettings.maxItems
+      maxItems: inlineSettings.maxItems,
+      dirty: document?.isDirty === true
     }),
     range
   );
 }
 
-async function refreshInlineSignalsForEditor(editor = null) {
+function refreshInlineSignalsForEditor(editor = null) {
+  return operations.run('inline-refresh', () => refreshOwnedInlineSignals(editor), { key: 'inline-refresh' });
+}
+
+async function refreshOwnedInlineSignals(editor = null) {
   const targetEditor = editor || vscode.window.activeTextEditor || null;
-  const config = getExtensionConfiguration();
-  const inlineSettings = readInlineSettings(config);
   const targetDocument = targetEditor?.document || null;
+  const config = getExtensionConfiguration({ uri: targetDocument?.uri });
+  const inlineSettings = readInlineSettings(config);
+  inlineRiskDiagnostics?.clear?.();
+  clearInlineDecorations(targetEditor);
   if (!targetDocument || targetDocument?.uri?.scheme !== 'file') {
     inlineRiskDiagnostics?.clear?.();
     clearInlineDecorations(targetEditor);
@@ -2311,6 +2717,7 @@ async function refreshInlineSignalsForEditor(editor = null) {
     return;
   }
   const repoContext = await resolveRepoContext({ pathHint: targetDocument.uri, allowPrompt: false });
+  if (!operations.isCurrent()) return;
   if (!repoContext.ok) {
     inlineRiskDiagnostics?.clear?.();
     clearInlineDecorations(targetEditor);
@@ -2322,10 +2729,15 @@ async function refreshInlineSignalsForEditor(editor = null) {
     clearInlineDecorations(targetEditor);
     return;
   }
+  const identity = captureInlineIdentity(targetDocument, repoContext);
   const payload = await runInlineContextCommand({
     repoContext,
-    seed
+    seed,
+    identity
   });
+  if (!operations.isCurrent() || targetDocument.isClosed === true
+    || vscode.window.activeTextEditor !== targetEditor
+    || JSON.stringify(identity) !== JSON.stringify(captureInlineIdentity(targetDocument, repoContext))) return;
   if (!payload) {
     inlineRiskDiagnostics?.set?.(targetDocument.uri, []);
     clearInlineDecorations(targetEditor);
@@ -2536,19 +2948,20 @@ async function promptPositiveInteger({
   const raw = await promptTextInput({
     prompt,
     placeHolder,
-    value: String(value)
+    value: String(value),
+    validateInput: text => /^\d+$/.test(text.trim()) && Number.isSafeInteger(Number(text)) && Number(text) > 0
+      ? null : 'Enter a positive safe integer. Your unsaved input remains editable.'
   });
   if (!raw) return null;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 1) {
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(parsed) || parsed < 1) {
     vscode.window.showErrorMessage(`PairOfCleats expected a positive integer, got "${raw}".`);
     return null;
   }
-  return Math.max(1, Math.floor(parsed));
+  return parsed;
 }
 
 async function promptImpactInput(repoContext) {
-  const activeFile = resolveRelativeActiveFile(repoContext);
   const seed = await promptTextInput({
     prompt: 'Impact seed ref (optional). Leave empty to use changed paths.',
     placeHolder: 'e.g. file:src/app.ts or chunk:chunkUid',
@@ -2585,8 +2998,7 @@ async function promptImpactInput(repoContext) {
     seed: seed || '',
     changed,
     direction: direction.value,
-    depth,
-    activeFile
+    depth
   };
 }
 
@@ -2679,7 +3091,8 @@ async function buildOperatorPresentation(spec, payload, inputContext) {
   }
   if (spec.id === 'pairofcleats.riskExplain') {
     return {
-      markdown: renderRiskExplainMarkdownDocument(payload),
+      markdown: renderRiskExplainMarkdownDocument(payload) + (payload.sourceQualification
+        ? `\nSource: code generation ${payload.sourceQualification.indexSignature} at ${payload.sourceQualification.indexDir}\n` : ''),
       json: JSON.stringify(payload, null, 2)
     };
   }
@@ -2688,36 +3101,51 @@ async function buildOperatorPresentation(spec, payload, inputContext) {
 
 async function openPresentationDocument(filePath, languageHint = null) {
   const fileUri = vscode.Uri.file(filePath);
+  const failures = [];
   if (languageHint === 'markdown' && typeof vscode.commands?.executeCommand === 'function') {
     try {
       await vscode.commands.executeCommand('markdown.showPreviewToSide', fileUri);
       return;
-    } catch {}
+    } catch (error) { failures.push(captureEditorFailure(error)); }
   }
   const document = await vscode.workspace.openTextDocument(fileUri);
   await vscode.window.showTextDocument(document);
+  return editorFailureEvidence(failures);
 }
 
 async function presentOperatorPayload(spec, payload, repoContext, inputContext, output) {
+  const assertRiskGeneration = () => {
+    if (spec.id !== 'pairofcleats.riskExplain') return;
+    const message = validateRiskSource(inputContext, repoContext.repoRoot);
+    if (message) throw Object.assign(new Error(message), { code: 'ERR_EDITOR_RISK_SOURCE_CHANGED' });
+  };
+  assertRiskGeneration();
+  if (spec.id === 'pairofcleats.contextPack' || spec.id === 'pairofcleats.riskExplain') {
+    latestAnalysisEvidence = { payload, repoContext };
+  }
   const presentationMode = inputContext?.presentationMode || 'both';
   if (presentationMode === 'output') return null;
   const rendered = await buildOperatorPresentation(spec, payload, inputContext);
-  if (!rendered) return null;
+  if (!rendered || !operations.isCurrent()) return null;
+  assertRiskGeneration();
   const exportDir = ensureOperatorExportDir(repoContext.repoRoot, spec);
   const baseName = buildPresentationExportBase(spec, payload, inputContext);
   const jsonPath = path.join(exportDir, `${baseName}.json`);
   const markdownPath = path.join(exportDir, `${baseName}.md`);
+  const failures = [];
   fs.writeFileSync(jsonPath, rendered.json, 'utf8');
   fs.writeFileSync(markdownPath, rendered.markdown, 'utf8');
   output.appendLine(`- exported markdown: ${markdownPath}`);
   output.appendLine(`- exported json: ${jsonPath}`);
   if (presentationMode === 'markdown' || presentationMode === 'both') {
-    await openPresentationDocument(markdownPath, 'markdown');
+    const failure = await openPresentationDocument(markdownPath, 'markdown');
+    if (failure) failures.push(...failure.failures);
   }
   if (presentationMode === 'json' || presentationMode === 'both') {
-    await openPresentationDocument(jsonPath, 'json');
+    const failure = await openPresentationDocument(jsonPath, 'json');
+    if (failure) failures.push(...failure.failures);
   }
-  return { jsonPath, markdownPath };
+  return { jsonPath, markdownPath, failureEvidence: editorFailureEvidence(failures) };
 }
 
 async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output }) {
@@ -2743,7 +3171,7 @@ async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed,
     repoRoot: repoContext.repoRoot,
     command: cliResolution.command,
     args,
-    env: buildSpawnEnv(getExtensionConfiguration()),
+    env: buildSpawnEnv(getExtensionConfiguration(repoContext)),
     output
   });
   if (!result.ok || !result.payload) {
@@ -2753,28 +3181,11 @@ async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed,
       detail: result.detail || null
     };
   }
-  const chunkUid = String(
-    result.payload?.risk?.anchor?.chunkUid
-    || result.payload?.primary?.ref?.chunkUid
-    || result.payload?.risk?.summary?.chunkUid
-    || ''
-  ).trim();
-  if (!chunkUid) {
-    return {
-      ok: false,
-      message: 'PairOfCleats could not resolve a risk anchor chunk for the selected seed.',
-      detail: 'Try selecting a more specific file, chunk, or symbol seed.'
-    };
+  try {
+    return { ok: true, ...resolveRiskSource(result.payload, { repoRoot: repoContext.repoRoot, seed }) };
+  } catch (error) {
+    return { ok: false, message: error.message };
   }
-  const relativeIndexDir = String(result.payload?.indexDir || '').trim();
-  const indexDir = relativeIndexDir
-    ? path.resolve(repoContext.repoRoot, relativeIndexDir)
-    : path.join(repoContext.repoRoot, 'index-code');
-  return {
-    ok: true,
-    chunkUid,
-    indexDir
-  };
 }
 
 async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
@@ -2792,9 +3203,7 @@ async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
   if (!maxFlows) return null;
   const presentationMode = await promptPresentationMode('PairOfCleats risk explain presentation');
   if (!presentationMode) return null;
-  const resolved = seed.startsWith('chunk:')
-    ? { ok: true, chunkUid: seed.slice('chunk:'.length).trim(), indexDir: path.join(repoContext.repoRoot, 'index-code') }
-    : await resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output });
+  const resolved = await resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output });
   if (!resolved.ok) {
     if (resolved.detail) output.appendLine(resolved.detail);
     output.show?.(true);
@@ -2805,6 +3214,7 @@ async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
     seed,
     chunkUid: resolved.chunkUid,
     indexDir: resolved.indexDir,
+    sourceQualification: resolved.sourceQualification,
     maxFlows,
     presentationMode
   };
@@ -2819,7 +3229,7 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     invocation: 'cli',
     cliArgs: ['setup'],
     buildArgs(repoRoot) {
-      return ['--json', '--non-interactive', '--repo', repoRoot];
+      return ['--json', '--non-interactive', '--skip-install', '--repo', repoRoot];
     }
   },
   {
@@ -2830,7 +3240,7 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     invocation: 'cli',
     cliArgs: ['bootstrap'],
     buildArgs(repoRoot) {
-      return ['--json', '--repo', repoRoot];
+      return ['--json', '--skip-install', '--repo', repoRoot];
     }
   },
   {
@@ -2849,8 +3259,8 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     title: 'PairOfCleats: Config Dump',
     progressTitle: 'PairOfCleats config dump',
     timeoutMs: 2 * 60 * 1000,
-    invocation: 'script',
-    scriptParts: ['tools', 'config', 'dump.js'],
+    invocation: 'cli',
+    cliArgs: ['config', 'dump'],
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
@@ -2860,8 +3270,8 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     title: 'PairOfCleats: Index Health',
     progressTitle: 'PairOfCleats index health',
     timeoutMs: 2 * 60 * 1000,
-    invocation: 'script',
-    scriptParts: ['tools', 'index', 'report-artifacts.js'],
+    invocation: 'cli',
+    cliArgs: ['index', 'report'],
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
@@ -2871,8 +3281,8 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     title: 'PairOfCleats: Index Validate',
     progressTitle: 'PairOfCleats index validate',
     timeoutMs: 2 * 60 * 1000,
-    invocation: 'script',
-    scriptParts: ['tools', 'index', 'validate.js'],
+    invocation: 'cli',
+    cliArgs: ['index', 'validate'],
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
@@ -3104,7 +3514,7 @@ const MANAGED_COMMAND_SPECS = Object.freeze([
     timeoutMs: 30 * 60 * 1000,
     persistent: false,
     buildArgs(repoRoot) {
-      return ['--repo', repoRoot, '--progress', 'log'];
+      return ['--repo', repoRoot, '--progress', 'jsonl'];
     }
   },
   {
@@ -3117,7 +3527,7 @@ const MANAGED_COMMAND_SPECS = Object.freeze([
     persistent: true,
     stopCommandId: 'pairofcleats.indexWatchStop',
     buildArgs(repoRoot) {
-      return ['--repo', repoRoot, '--progress', 'log'];
+      return ['--repo', repoRoot, '--progress', 'jsonl'];
     }
   },
   {
@@ -3130,7 +3540,7 @@ const MANAGED_COMMAND_SPECS = Object.freeze([
     persistent: true,
     stopCommandId: 'pairofcleats.serviceApiStop',
     buildArgs(repoRoot) {
-      return ['--repo', repoRoot];
+      return ['--repo', repoRoot, '--json'];
     }
   },
   {
@@ -3173,21 +3583,10 @@ const MANAGED_STOP_COMMANDS_BY_ID = new Map(MANAGED_STOP_COMMAND_SPECS.map((spec
 function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext) {
   const repoRoot = repoContext.repoRoot;
   const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot, inputContext, repoContext) : [];
-  if (spec.invocation === 'script') {
-    const scriptPath = path.join(repoRoot, ...spec.scriptParts);
-    if (!fs.existsSync(scriptPath)) {
-      return {
-        ok: false,
-        message: `${spec.title} requires ${scriptPath}, but that file was not found in the selected repo.`,
-        detail: 'Open a PairOfCleats checkout or use the CLI directly for this workspace.'
-      };
-    }
-    return {
-      ok: true,
-      command: process.execPath,
-      args: [scriptPath, ...extraArgs],
-      inputContext
-    };
+  if (!cliResolution?.ok) return cliResolution || { ok: false, message: 'Configured CLI is unavailable.' };
+  if (spec.invocation !== 'cli' || !Array.isArray(spec.cliArgs) || !spec.cliArgs.length) {
+    return { ok: false, message: `${spec.title} has no canonical configured-CLI dispatch.`,
+      detail: 'Operator scripts are never discovered or executed from the target repository.' };
   }
   return {
     ok: true,
@@ -3298,31 +3697,7 @@ function summarizeConfigDumpPayload(payload) {
 }
 
 function summarizeIndexHealthPayload(payload) {
-  const lines = [
-    `- status: ${(Array.isArray(payload?.health?.issues) && payload.health.issues.length) || payload?.corruption?.ok === false ? 'issues' : 'ok'}`,
-    `- repo: ${payload?.repo?.root || 'unknown'}`,
-    `- cache root: ${payload?.repo?.cacheRoot || 'unknown'}`,
-    `- total cache bytes: ${payload?.repo?.totalBytes ?? 'n/a'}`
-  ];
-  if (payload?.repo?.sqlite) {
-    lines.push(`- sqlite code: ${payload.repo.sqlite.code ? 'present' : 'missing'}`);
-    lines.push(`- sqlite prose: ${payload.repo.sqlite.prose ? 'present' : 'missing'}`);
-    lines.push(`- sqlite extracted-prose: ${payload.repo.sqlite.extractedProse ? 'present' : 'missing'}`);
-    lines.push(`- sqlite records: ${payload.repo.sqlite.records ? 'present' : 'missing'}`);
-  }
-  if (payload?.corruption) {
-    lines.push(`- integrity: ${payload.corruption.ok ? 'ok' : 'issues'}`);
-  }
-  if (Array.isArray(payload?.health?.issues) && payload.health.issues.length) {
-    lines.push(`- health issues: ${payload.health.issues.length}`);
-  }
-  if (Array.isArray(payload?.health?.hints) && payload.health.hints.length) {
-    for (const hint of payload.health.hints.slice(0, 3)) {
-      lines.push(`- hint: ${hint}`);
-    }
-  }
-  lines.push('- next: rerun PairOfCleats: Bootstrap or rebuild indexes if health is not ok');
-  return lines;
+  return summarizeIndexHealth(payload);
 }
 
 function summarizeCodeMapPayload(payload) {
@@ -3606,14 +3981,14 @@ async function runBufferedJsonCommand({
         timedOut = true;
         output.appendLine(`[command] timeout after ${spec.timeoutMs}ms`);
         try {
-          child.kill('SIGKILL');
+          killChildProcess(child);
         } catch {}
       }, spec.timeoutMs);
       timeout.unref?.();
       const cancelSub = token.onCancellationRequested(() => {
         output.appendLine('[command] cancellation requested');
         try {
-          child.kill('SIGKILL');
+          killChildProcess(child);
         } catch {}
       });
       child.stdout?.on('data', (chunk) => {
@@ -3644,15 +4019,23 @@ async function runBufferedJsonCommand({
         }
         const stdout = stdoutAccumulator.text();
         const stderr = stderrAccumulator.text();
+        if (timedOut) {
+          resolve({ ok: false, ...summarizeProcessFailure({ code, timedOut, cancelled: false, stdout, stderr,
+            stdoutTruncated: stdoutAccumulator.truncated(), stderrTruncated: stderrAccumulator.truncated(), timeoutMs: spec.timeoutMs }) });
+          return;
+        }
         const parsed = parseJsonPayload(stdout, {
           stdoutTruncated: stdoutAccumulator.truncated(),
           label: spec.title
         });
         if (parsed.ok) {
+          const ok = code === 0 && parsed.payload?.ok !== false;
           resolve({
-            ok: code === 0,
+            ok,
             code,
             payload: parsed.payload,
+            ...(!ok ? { kind: 'command-result-failed', message: `${spec.title} reported issues. See PairOfCleats output for details.`,
+              detail: typeof parsed.payload?.message === 'string' ? parsed.payload.message.slice(0, 4096) : null } : {}),
             stdout,
             stderr,
             timedOut
@@ -3704,17 +4087,16 @@ async function runApiJsonCommand({
     {
       location: vscode.ProgressLocation.Notification,
       title: spec.progressTitle,
-      cancellable: false
+      cancellable: true
     },
-    async () => {
+    async (_, token) => {
+      const scope = operations.current();
+      const cancelSub = token?.onCancellationRequested?.(() => operations.cancelScope(scope));
+      if (token?.isCancellationRequested) operations.cancelScope(scope);
       output.appendLine(`[api] ${method} ${normalizeApiBaseUrl(baseUrl)}${requestPath}`);
-      return requestApiJson(baseUrl, requestPath, {
-        method,
-        payload,
-        headers,
-        timeoutMs,
-        label
-      });
+      try {
+        return await requestApiJson(baseUrl, requestPath, { method, payload, headers, timeoutMs, label });
+      } finally { cancelSub?.dispose?.(); }
     }
   );
 }
@@ -3733,6 +4115,7 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
     transport: 'api',
     payload: request.payload || null
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   const result = await runApiJsonCommand({
     spec,
     label: spec.title,
@@ -3744,19 +4127,29 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
     payload: request.payload,
     output
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   if (!result.ok) {
     if (result.detail) output.appendLine(result.detail);
     output.show?.(true);
     await finishWorkflowSession(session.sessionId, {
-      status: 'failed',
+      status: result.kind === 'cancelled' ? 'cancelled' : 'failed',
       summaryLine: result.message
     });
     vscode.window.showErrorMessage(result.message);
     return;
   }
-  const payload = typeof request.normalizePayload === 'function'
-    ? request.normalizePayload(result.payload)
-    : result.payload;
+  let payload;
+  try {
+    payload = typeof request.normalizePayload === 'function' ? request.normalizePayload(result.payload) : result.payload;
+  } catch (error) {
+    const failure = captureEditorFailure(error);
+    await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: failure.message });
+    vscode.window.showErrorMessage(failure.message); return editorFailureEvidence([failure]);
+  }
+  if (payload?.ok === false) {
+    await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: 'The service reported an unsuccessful operation.' });
+    vscode.window.showErrorMessage('The service reported an unsuccessful operation. Inspect its captured diagnostics.'); return;
+  }
   const summaryLines = summarizeOperatorPayload(spec, payload);
   for (const line of summaryLines) {
     output.appendLine(line);
@@ -3772,7 +4165,7 @@ async function executeApiOperatorWorkflow(spec, repoContext, request) {
 
 async function executeOperatorWorkflow(spec, repoContext, invocation) {
   const { repoRoot } = repoContext;
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
   const env = buildSpawnEnv(config);
   const output = getOutputChannel();
   output.appendLine('');
@@ -3780,6 +4173,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   output.appendLine(`[command] command=${invocation.command}`);
   output.appendLine(`[command] args=${JSON.stringify(invocation.args)}`);
   const session = await beginWorkflowSession(spec, repoContext, invocation);
+  if (await finishRevokedWorkflowSession(session)) return;
   const result = await runBufferedJsonCommand({
     spec,
     repoRoot,
@@ -3788,6 +4182,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
     env,
     output
   });
+  if (await finishRevokedWorkflowSession(session)) return;
   if (!result.payload) {
     if (result.detail) output.appendLine(result.detail);
     output.show?.(true);
@@ -3799,47 +4194,59 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
       ? vscode.window.showInformationMessage
       : vscode.window.showErrorMessage;
     show(result.message);
+    if (spec.id === 'pairofcleats.riskExplain' && result.kind !== 'cancelled') {
+      output.appendLine('The selected generation or chunk may no longer be available. Run Risk Explain again to deliberately select the current generation.');
+    }
     return;
+  }
+  if (spec.id === 'pairofcleats.riskExplain' && invocation.inputContext?.sourceQualification) {
+    const sourceError = validateRiskSource(invocation.inputContext, repoRoot);
+    const chunkError = result.ok && result.payload?.chunk?.chunkUid !== invocation.inputContext.chunkUid
+      ? 'Risk response does not identify the selected chunk in its captured code generation.' : null;
+    if (sourceError || chunkError) {
+      const message = sourceError || `${chunkError} Run Risk Explain again to deliberately select the current generation.`;
+      output.appendLine(message); output.show?.(true);
+      await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: message });
+      vscode.window.showErrorMessage(message); return;
+    }
+    result.payload = { ...result.payload, sourceQualification: invocation.inputContext.sourceQualification };
   }
   appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
   output.appendLine('- raw-json:');
   appendJsonBlock(output, result.payload);
-  try {
-    await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
-  } catch (err) {
-    output.appendLine(`- warning: failed to open operator artifacts: ${err?.message || err}`);
+  const failures = [];
+  if (result.ok) {
+    try {
+      await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
+      if (await finishRevokedWorkflowSession(session)) return;
+      const presentation = await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
+      if (presentation?.failureEvidence) failures.push(...presentation.failureEvidence.failures);
+    } catch (error) {
+      const original = captureEditorFailure(error); failures.push(original);
+      output.appendLine(`- presentation failed: ${original.message}`);
+    }
   }
-  try {
-    await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
-  } catch (err) {
-    output.appendLine(`- warning: failed to present operator payload: ${err?.message || err}`);
-  }
+  if (await finishRevokedWorkflowSession(session)) return editorFailureEvidence(failures);
   output.show?.(true);
   const summaryLines = summarizeOperatorPayload(spec, result.payload);
   await finishWorkflowSession(session.sessionId, {
-    status: result.ok ? 'succeeded' : 'failed',
-    summaryLine: summaryLines[0] || `${spec.title} ${result.ok ? 'completed' : 'reported issues'}.`
+    status: result.ok && !failures.length ? 'succeeded' : 'failed',
+    summaryLine: failures.length ? `Presentation failed: ${failures[0].message}`
+      : summaryLines[0] || `${spec.title} ${result.ok ? 'completed' : 'reported issues'}.`
   });
-  if (result.ok) {
+  if (result.ok && !failures.length) {
     vscode.window.showInformationMessage(`${spec.title} completed.`);
     return;
   }
+  if (spec.id === 'pairofcleats.riskExplain') {
+    output.appendLine('The selected generation or chunk may no longer be available. Run Risk Explain again to deliberately select the current generation.');
+  }
   vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
+  return editorFailureEvidence(failures);
 }
 
-async function runOperatorCommand(spec) {
-  const config = getExtensionConfiguration();
-  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : null;
-  const execution = workflow ? await resolveExecutionMode(config, workflow) : { ok: true, mode: 'cli', headers: buildApiHeaders(config) };
-  if (!execution.ok) {
-    const output = getOutputChannel();
-    output.appendLine(execution.detail || execution.message);
-    output.show?.(true);
-    vscode.window.showErrorMessage(execution.message);
-    return;
-  }
-  appendExecutionFallbackNote(getOutputChannel(), execution);
-  const repoContext = await resolveRepoContext({ allowRemote: execution.mode === 'api' });
+async function runOperatorCommand(spec, { repoContext: seededRepoContext = null, inputContext: seededInputContext = undefined } = {}) {
+  const repoContext = seededRepoContext || await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
       if (repoContext.detail) {
@@ -3851,9 +4258,21 @@ async function runOperatorCommand(spec) {
     }
     return;
   }
+  if (!operations.isCurrent()) return;
   const { repoRoot } = repoContext;
-  const cliResolution = resolveCli(repoRoot, config);
-  if (spec.invocation !== 'script' && !cliResolution.ok) {
+  const config = getExtensionConfiguration(repoContext);
+  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : spec.id;
+  const execution = await resolveExecutionMode(config, workflow);
+  if (!operations.isCurrent()) return;
+  if (!execution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(execution.detail || execution.message); output.show?.(true);
+    vscode.window.showErrorMessage(execution.message); return;
+  }
+  appendExecutionFallbackNote(getOutputChannel(), execution);
+  if (seededRepoContext && !validateReplayRepoContext(repoContext, execution.mode)) return;
+  const cliResolution = execution.mode === 'cli' ? resolveCli(repoRoot, config) : { ok: true };
+  if (execution.mode === 'cli' && !cliResolution.ok) {
     const output = getOutputChannel();
     output.appendLine(cliResolution.detail || cliResolution.message);
     output.show?.(true);
@@ -3861,15 +4280,32 @@ async function runOperatorCommand(spec) {
     return;
   }
   const output = getOutputChannel();
-  const inputContext = typeof spec.resolveInput === 'function'
+  const inputContext = seededInputContext !== undefined ? seededInputContext : typeof spec.resolveInput === 'function'
     ? await spec.resolveInput(repoContext, { cliResolution, config, output, execution })
     : undefined;
   if (inputContext === null) {
     return;
   }
+  if (typeof spec.resolveInput === 'function' && !hasRequiredWorkflowInput(spec.id, inputContext)) {
+    vscode.window.showErrorMessage('PairOfCleats command inputs are invalid or incomplete. Run the command again to choose valid inputs.');
+    return;
+  }
+  if (spec.id === 'pairofcleats.riskExplain') {
+    const sourceError = validateRiskSource(inputContext, repoRoot);
+    if (sourceError) {
+      output.appendLine(sourceError);
+      output.show?.(true);
+      vscode.window.showErrorMessage(sourceError);
+      return;
+    }
+  }
   if (execution.mode === 'api' && spec.id === 'pairofcleats.indexHealth') {
-    const requestPath = `/status?repo=${encodeURIComponent(repoRoot)}`;
-    await executeApiOperatorWorkflow(spec, repoContext, {
+    let mapping;
+    try { mapping = await resolveServiceRepository(repoContext, execution); }
+    catch (error) { vscode.window.showErrorMessage(error.message); return; }
+    if (!mapping) return;
+    const requestPath = `/status?repo=${encodeURIComponent(mapping.serviceRoot)}`;
+    return executeApiOperatorWorkflow(spec, repoContext, {
       baseUrl: execution.baseUrl,
       timeoutMs: execution.timeoutMs,
       headers: execution.headers || null,
@@ -3877,11 +4313,15 @@ async function runOperatorCommand(spec) {
       method: 'GET',
       payload: null,
       transport: 'api',
-      normalizePayload: (payload) => payload?.status || payload
+      normalizePayload: payload => {
+        assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+        const status = payload?.status || payload;
+        assertServiceStatus(status, mapping);
+        return status;
+      }
     });
-    return;
   }
-  const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext);
+  const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext, config);
   if (!invocation.ok) {
     const output = getOutputChannel();
     output.appendLine(invocation.detail || invocation.message);
@@ -3889,7 +4329,7 @@ async function runOperatorCommand(spec) {
     vscode.window.showErrorMessage(invocation.message);
     return;
   }
-  await executeOperatorWorkflow(spec, repoContext, invocation);
+  return executeOperatorWorkflow(spec, repoContext, invocation);
 }
 
 function resolveManagedInvocation(spec, repoContext, cliResolution) {
@@ -3909,31 +4349,8 @@ function getManagedProcessKey(spec, repoRoot) {
   return `${spec.id}:${repoRoot}`;
 }
 
-function appendStreamChunk(output, prefix, chunkState, chunk) {
-  const text = `${chunkState.carry}${String(chunk || '')}`;
-  const lines = text.split(/\r?\n/);
-  chunkState.carry = lines.pop() || '';
-  for (const line of lines) {
-    output.appendLine(`${prefix}${line}`);
-  }
-}
-
-function flushStreamChunk(output, prefix, chunkState) {
-  if (!chunkState.carry) return;
-  output.appendLine(`${prefix}${chunkState.carry}`);
-  chunkState.carry = '';
-}
-
 function killChildProcess(child) {
-  if (!child || typeof child.kill !== 'function') return;
-  try {
-    child.kill('SIGTERM');
-  } catch {}
-  setTimeout(() => {
-    try {
-      child.kill('SIGKILL');
-    } catch {}
-  }, 5000).unref?.();
+  void operations.stopChild(child);
 }
 
 function appendRuntimeFailure(output, prefix, failure) {
@@ -3949,16 +4366,30 @@ function appendExecutionFallbackNote(output, execution) {
 }
 
 async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLine } = {}) {
-  if (!entry || entry.stopping) return false;
+  if (!entry) return { ok: false };
+  if (entry.stopping || entry.settling) return entry.completion;
   entry.stopping = true;
   entry.stopReason = reason;
   entry.stopSummaryLine = summaryLine || '';
-  killChildProcess(entry.child);
+  entry.progress = { ...entry.progress, phase: 'stopping', cancellationRequestedAt: Date.now(),
+    message: 'Cancellation requested; waiting for owned process and termination-helper settlement.' };
+  updateWorkflowStatusBar();
+  entry.termination = Promise.resolve().then(() => operations.stopChild(entry.child));
   return entry.completion;
 }
 
-async function stopManagedCommand(stopSpec) {
-  const repoContext = await resolveRepoContext();
+async function stopManagedCommand(stopSpec, { sessionId = null, repoRoot = null } = {}) {
+  if (sessionId) {
+    const active = Array.from(managedProcesses.values()).find((entry) => entry.sessionId === sessionId
+      && entry.spec.id === stopSpec.targetId && (!repoRoot || entry.repoRoot === repoRoot));
+    if (!active) {
+      vscode.window.showInformationMessage('PairOfCleats: that workflow has already stopped; refresh workflow status.');
+      return;
+    }
+    await stopManagedProcessEntry(active, { reason: 'cancelled', summaryLine: `${active.spec.title} stopped.` });
+    return;
+  }
+  const repoContext = repoRoot ? { ok: true, repoRoot } : await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
       vscode.window.showErrorMessage(repoContext.message);
@@ -3979,14 +4410,18 @@ async function stopManagedCommand(stopSpec) {
   const output = getOutputChannel();
   output.appendLine(`[managed] stopping ${managedSpec.title}`);
   output.show?.(true);
-  await stopManagedProcessEntry(active, {
+  const result = await stopManagedProcessEntry(active, {
     reason: 'cancelled',
     summaryLine: `${managedSpec.title} stopped.`
   });
+  if (result?.ok !== true) {
+    vscode.window.showErrorMessage('PairOfCleats could not confirm the selected process-tree stop. Inspect Tasks and logs for recovery.');
+    return;
+  }
   vscode.window.showInformationMessage(`${managedSpec.title} stopped.`);
 }
 
-async function startManagedCommand(spec, { repoContext: seededRepoContext = null, invocation: seededInvocation = null } = {}) {
+async function startManagedCommand(spec, { repoContext: seededRepoContext = null } = {}) {
   const repoContext = seededRepoContext || await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
@@ -3994,10 +4429,15 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     }
     return;
   }
+  if (!operations.isCurrent()) return;
   const { repoRoot } = repoContext;
-  const config = getExtensionConfiguration();
+  const config = getExtensionConfiguration(repoContext);
+  const execution = await resolveExecutionMode(config, spec.id);
+  if (!operations.isCurrent()) return;
+  if (!execution.ok) { vscode.window.showErrorMessage(execution.message); return; }
+  if (seededRepoContext && !validateReplayRepoContext(repoContext, 'cli')) return;
   const cliResolution = resolveCli(repoRoot, config);
-  const invocation = seededInvocation || resolveManagedInvocation(spec, repoContext, cliResolution);
+  const invocation = resolveManagedInvocation(spec, repoContext, cliResolution);
   if (!invocation.ok) {
     const output = getOutputChannel();
     output.appendLine(invocation.detail || invocation.message);
@@ -4008,11 +4448,15 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const key = getManagedProcessKey(spec, repoRoot);
   const existing = managedProcesses.get(key);
   if (existing) {
+    if (existing.cleanupUnconfirmed) {
+      vscode.window.showErrorMessage(`${spec.title} cannot restart for ${formatRepoLabel(repoRoot)} while its earlier owned tree stop remains unconfirmed. Inspect the exact task logs and resolve that process lifetime first.`);
+      return { ok: false, status: 'cleanup-unconfirmed', sessionId: existing.sessionId };
+    }
     const output = getOutputChannel();
     output.appendLine(`[managed] ${spec.title} already running for ${repoRoot}`);
     output.show?.(true);
     vscode.window.showInformationMessage(`${spec.title} is already running for ${formatRepoLabel(repoRoot)}.`);
-    return existing.completion;
+    return spec.persistent ? { ok: true, status: 'already-running', sessionId: existing.sessionId } : existing.completion;
   }
   const output = getOutputChannel();
   const env = buildSpawnEnv(config);
@@ -4025,6 +4469,16 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const resolved = useShellWrapper
     ? resolveWindowsCmdInvocation(invocation.command, invocation.args)
     : { command: invocation.command, args: invocation.args };
+  // Persist the operation identity before spawning. No await may separate a
+  // successful spawn from attaching its output/terminal listeners.
+  const session = await beginWorkflowSession(spec, repoContext, {
+    kind: 'managed-process',
+    command: invocation.command,
+    args: invocation.args,
+    timeoutMs: Number.isFinite(spec.timeoutMs) ? spec.timeoutMs : 0,
+    persistent: spec.persistent === true
+  });
+  if (await finishRevokedWorkflowSession(session)) return;
   const spawned = spawnBufferedProcess(cp, resolved.command, resolved.args, {
     cwd: repoRoot,
     env: resolved.env ? { ...env, ...resolved.env } : env,
@@ -4034,44 +4488,74 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   });
   if (!spawned.ok) {
     const failure = summarizeSpawnFailure(spec.title, spawned.error);
+    await finishWorkflowSession(session.sessionId, { status: 'failed', summaryLine: failure.message });
     output.appendLine(failure.detail || failure.message);
     output.show?.(true);
     vscode.window.showErrorMessage(failure.message);
     return;
   }
   const child = spawned.child;
-  const session = await beginWorkflowSession(spec, repoContext, {
-    kind: 'managed-process',
-    command: invocation.command,
-    args: invocation.args,
-    timeoutMs: Number.isFinite(spec.timeoutMs) ? spec.timeoutMs : 0,
-    persistent: spec.persistent === true
-  });
+  operations.preserveBackground();
   noteRepoContext(repoContext);
-  const stdoutState = { carry: '' };
-  const stderrState = { carry: '' };
   let timedOut = false;
   let resolvedCompletion = false;
   let resolveCompletion;
   const completion = new Promise((resolve) => {
     resolveCompletion = resolve;
   });
-  const finalize = async ({ code = 0, error = null } = {}) => {
+  operations.trackPromise(completion);
+  const finalize = async ({ code = 0, error = null, processError = false } = {}) => {
     if (resolvedCompletion) return;
     resolvedCompletion = true;
-    managedProcesses.delete(key);
-    flushStreamChunk(output, '[stdout] ', stdoutState);
-    flushStreamChunk(output, '[stderr] ', stderrState);
+    entry.settling = true;
+    if (processError && !operations.isChildSettled(child)) {
+      entry.cleanupUnconfirmed = true;
+      entry.progress = { ...entry.progress, phase: 'settling', message: 'Process error observed; original child close remains pending.' };
+      if (Number.isInteger(child.pid) && child.pid > 0) entry.termination ||= operations.stopChild(child);
+      await operations.observeChildSettlement(child);
+    }
+    entry.progress = { ...entry.progress, phase: entry.stopping ? 'stopping' : 'settling' };
+    entry.stdoutDecoder?.flush();
+    entry.stderrDecoder?.flush();
+    const ownerCancelled = entry.scope?.controller.signal.aborted === true;
+    const terminationPromise = entry.termination || operations.observeTermination(entry.child);
+    const termination = terminationPromise ? await terminationPromise : null;
+    const stopUnconfirmed = (entry.stopping || ownerCancelled) && termination?.ok !== true;
+    const watchOwnershipPending = entry.watchOwnershipPending === true;
+    entry.cleanupUnconfirmed = stopUnconfirmed || watchOwnershipPending;
+    if (!entry.cleanupUnconfirmed && managedProcesses.get(key) === entry) managedProcesses.delete(key);
     const stoppedByUser = entry.stopReason === 'cancelled';
-    const failed = Boolean(error) || timedOut || (!stoppedByUser && code !== 0);
-    const status = stoppedByUser ? 'cancelled' : failed ? 'failed' : 'succeeded';
-    const summaryLine = stoppedByUser
-      ? (entry.stopSummaryLine || `${spec.title} stopped.`)
-      : failed
-        ? `${spec.title} exited with code ${code}.`
-        : `${spec.title} completed.`;
-    await finishWorkflowSession(session.sessionId, { status, summaryLine });
-    if (!stoppedByUser) {
+    const failed = processError || timedOut || entry.cleanupUnconfirmed || entry.watchFailure === true
+      || (!stoppedByUser && !ownerCancelled && code !== 0);
+    const status = failed ? 'failed' : stoppedByUser ? 'cancelled' : ownerCancelled ? 'interrupted' : 'succeeded';
+    const summaryLine = watchOwnershipPending
+      ? `${spec.title} canonical watch teardown ownership remains pending. Inspect Tasks before any deliberate recovery.`
+      : stopUnconfirmed
+        ? `${spec.title} stop remains unconfirmed: ${termination?.message || 'owned termination did not settle successfully'}`
+        : entry.watchFailure
+          ? `${spec.title} canonical watch teardown reported failure; cancellation does not prove success.`
+          : failed
+            ? `${spec.title} exited with code ${code}.`
+            : stoppedByUser
+              ? (entry.stopSummaryLine || `${spec.title} stopped.`)
+              : ownerCancelled
+                ? `${spec.title} interrupted after its editor/repository owner was revoked; process settlement confirmed.`
+                : `${spec.title} completed.`;
+    entry.status = status;
+    entry.summaryLine = summaryLine;
+    entry.progress = { ...entry.progress, phase: stopUnconfirmed ? 'stop-unconfirmed' : status, message: summaryLine };
+    taskObservations.remember(entry, { status, summaryLine });
+    try {
+      await finishWorkflowSession(session.sessionId, { status, summaryLine }, { terminalOwner: true });
+    } catch (error) {
+      const message = `${spec.title} process settled, but its terminal workflow state could not be saved: ${error.message}`;
+      entry.status = 'failed'; entry.summaryLine = message;
+      entry.progress = { ...entry.progress, phase: 'failed', message };
+      taskObservations.remember(entry, { status: 'failed', summaryLine: message });
+      output.appendLine(message); vscode.window.showErrorMessage(message);
+      resolveCompletion({ ok: false, status: 'failed', code, statePersisted: false }); return;
+    }
+    if (!stoppedByUser || failed) {
       if (failed) {
         output.appendLine(`[managed] ${summaryLine}`);
         vscode.window.showErrorMessage(`${summaryLine} See PairOfCleats output for details.`);
@@ -4079,12 +4563,18 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
         vscode.window.showInformationMessage(`${spec.title} completed.`);
       }
     }
-    resolveCompletion({ ok: !failed, status, code });
+    resolveCompletion({ ok: !failed && status !== 'interrupted', status, code,
+      ...(processError ? { failureEvidence: editorFailureEvidence([captureEditorFailure(error)]) } : {}) });
   };
   const entry = {
     key,
+    scope: operations.current(),
     spec,
     child,
+    repoRoot,
+    repoUri: repoContext.repoUri,
+    progress: { phase: 'starting', startedAt: Date.now(), lastActivityAt: Date.now() },
+    logBytes: 0,
     sessionId: session.sessionId,
     stopReason: null,
     stopping: false,
@@ -4099,12 +4589,58 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     }, spec.timeoutMs);
     entry.timeout.unref?.();
   }
-  child.stdout?.on('data', (chunk) => appendStreamChunk(output, '[stdout] ', stdoutState, chunk));
-  child.stderr?.on('data', (chunk) => appendStreamChunk(output, '[stderr] ', stderrState, chunk));
+  const taskText = (prefix, line, truncated) => {
+    entry.progress.lastActivityAt = Date.now();
+    if (!entry.stopping && !entry.settling && managedProcesses.get(key) === entry
+      && spec.id === 'pairofcleats.serviceApiStart' && prefix === '[stdout] ') {
+      const endpoint = !truncated && apiReadinessFrame(line, entry.repoRoot);
+      if (endpoint && entry.progress.endpoint !== endpoint) {
+        entry.progress = { ...entry.progress, phase: 'ready', endpoint,
+          message: 'API listener readiness observed in its authoritative startup frame.' };
+        vscode.window.showInformationMessage(`${spec.title} ready at ${endpoint}.`);
+        updateWorkflowStatusBar();
+      }
+    }
+    if (!line) return;
+    retainTaskLog(entry, prefix, line);
+    if (entry.logBytes >= 1024 * 1024 || (entry.logLinesShown || 0) >= 4096) return;
+    const bounded = boundedLogLine(line, Math.min(8192, 1024 * 1024 - entry.logBytes));
+    entry.logBytes += Buffer.byteLength(bounded);
+    entry.logLinesShown = (entry.logLinesShown || 0) + 1;
+    output.appendLine(`${prefix}${bounded}${truncated ? ' [line truncated]' : ''}`);
+    if (entry.logBytes >= 1024 * 1024 || entry.logLinesShown >= 4096) output.appendLine('[managed] Raw task log reached its byte/line display bound. Inspect Tasks retains a bounded tail; structured status remains active.');
+  };
+  for (const [stream, prefix] of [[child.stdout, '[stdout] '], [child.stderr, '[stderr] ']]) {
+    const decoder = createEditorProgressDecoder({
+      onEvent: event => {
+        if (managedProcesses.get(key) !== entry) return;
+        const watch = spec.id === 'pairofcleats.indexWatchStart' ? readWatchProgress(event, entry.progress.watch) : null;
+        if (watch && event.event === 'task:end') {
+          entry.watchFailure = entry.watchFailure === true || event.status === 'failed' || watch.ownershipPending;
+          entry.watchOwnershipPending = entry.watchOwnershipPending === true || watch.ownershipPending;
+          if (entry.stopping || entry.settling) entry.progress = { ...entry.progress, watch };
+        }
+        if (entry.stopping || entry.settling) return;
+        entry.progress = applyProgressEvent(entry.progress, event);
+        if (operations.isCurrent()) {
+          entry.progressReporter?.report?.({ message: `${entry.progress.stage}: ${entry.progress.message}` });
+          const now = Date.now();
+          if (now - (entry.statusReportedAt || 0) >= 100 || entry.statusReportedPhase !== entry.progress.phase) {
+            entry.statusReportedAt = now; entry.statusReportedPhase = entry.progress.phase;
+            updateWorkflowStatusBar();
+          }
+        }
+      },
+      onText: (line, truncated) => taskText(prefix, line, truncated)
+    });
+    if (prefix === '[stdout] ') entry.stdoutDecoder = decoder;
+    else entry.stderrDecoder = decoder;
+    stream?.on('data', chunk => decoder.push(chunk));
+  }
   child.once('error', async (error) => {
     clearTimeout(entry.timeout);
-    output.appendLine(`[managed] spawn error=${error?.message || error}`);
-    await finalize({ code: 1, error });
+    output.appendLine(`[managed] process error=${captureEditorFailure(error).message}`);
+    await finalize({ code: 1, error, processError: true });
   });
   child.once('close', async (code) => {
     clearTimeout(entry.timeout);
@@ -4114,7 +4650,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     const stopTitle = spec.stopCommandId
       ? (MANAGED_STOP_COMMANDS_BY_ID.get(spec.stopCommandId)?.title || 'the stop command')
       : 'the stop command';
-    vscode.window.showInformationMessage(`${spec.title} started. Use ${stopTitle} to stop it.`);
+    vscode.window.showInformationMessage(`${spec.title} is starting. Readiness has not been observed. Use ${stopTitle} or Inspect Tasks to stop it.`);
     return { ok: true, status: 'running', sessionId: session.sessionId };
   }
   return vscode.window.withProgress(
@@ -4123,7 +4659,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
       title: spec.progressTitle,
       cancellable: true
     },
-    async (_, token) => {
+    async (progress, token) => {
+      entry.progressReporter = progress;
       const cancelSub = token.onCancellationRequested(() => {
         output.appendLine(`[managed] cancellation requested for ${spec.title}`);
         void stopManagedProcessEntry(entry, {
@@ -4161,15 +4698,26 @@ async function promptSearchQuery({ prompt, placeHolder }) {
   return query && query.trim() ? query.trim() : null;
 }
 
-async function executeSearchCommand({
+function executeSearchCommand(options = {}) {
+  return operations.run('foreground-search', () => executeOwnedSearchCommand(options), { key: 'foreground-search' });
+}
+
+async function executeOwnedSearchCommand({
   query,
   explain = false,
   workflow = 'search',
   prompt = 'PairOfCleats search query',
-  placeHolder = 'e.g. auth token validation'
+  placeHolder = 'e.g. auth token validation',
+  enumeration = false,
+  promptFilter = false,
+  optionOverrides = null
 } = {}) {
-  const config = getExtensionConfiguration();
+  const repoContext = await resolveSearchRepoContext();
+  if (!repoContext || !operations.isCurrent()) return;
+  const { repoRoot } = repoContext;
+  const config = getExtensionConfiguration(repoContext);
   const execution = await resolveExecutionMode(config, explain ? 'explain-search' : workflow);
+  if (!operations.isCurrent()) return;
   if (!execution.ok) {
     const output = getOutputChannel();
     output.appendLine(execution.detail || execution.message);
@@ -4177,13 +4725,29 @@ async function executeSearchCommand({
     vscode.window.showErrorMessage(execution.message);
     return;
   }
-  const repoContext = await resolveSearchRepoContext({ allowRemote: execution.mode === 'api' });
-  if (!repoContext) return;
-  const { repoRoot } = repoContext;
-  const resolvedQuery = query && String(query).trim()
+  if (enumeration && promptFilter) {
+    let configured;
+    try {
+      configured = readSearchOptions(config, VSCODE_SETTINGS);
+      buildSearchArgs('', repoRoot, configured);
+    } catch (error) { vscode.window.showErrorMessage(error.message); return; }
+    const filter = await promptTextInput({ prompt: `Browse indexed metadata in ${repoRoot} • ${configured.mode} • ${
+      configured.backend || 'auto'} • ${configured.asOf || configured.snapshot || 'current generation'}`,
+    placeHolder: 'Filter expression, e.g. lang:javascript; blank/cancel leaves the previous results unchanged',
+    value: configured.filter });
+    if (!filter?.trim() || !operations.isCurrent()) return;
+    optionOverrides = { ...(optionOverrides || {}), filter: filter.trim() };
+  }
+  let serviceMapping = null;
+  if (execution.mode === 'api') {
+    try { serviceMapping = await resolveServiceRepository(repoContext, execution); }
+    catch (error) { vscode.window.showErrorMessage(error.message); return; }
+    if (!serviceMapping || !operations.isCurrent()) return;
+  }
+  const resolvedQuery = enumeration ? '' : query && String(query).trim()
     ? String(query).trim()
     : await promptSearchQuery({ prompt, placeHolder });
-  if (!resolvedQuery) return;
+  if ((!resolvedQuery && !enumeration) || !operations.isCurrent()) return;
 
   const cliResolution = resolveCli(repoRoot, config);
   if (execution.mode === 'cli' && !cliResolution.ok) {
@@ -4193,15 +4757,13 @@ async function executeSearchCommand({
     output.show?.(true);
     return;
   }
-  const searchOptions = {
-    ...readSearchOptions(config, VSCODE_SETTINGS),
-    explain
-  };
+  let searchOptions;
   let searchArgs = null;
   let searchPayload = null;
   try {
+    searchOptions = { ...readSearchOptions(config, VSCODE_SETTINGS), ...(optionOverrides || {}), explain };
     if (execution.mode === 'api') {
-      searchPayload = buildApiSearchRequest(resolvedQuery, repoRoot, searchOptions);
+      searchPayload = buildApiSearchRequest(resolvedQuery, serviceMapping.serviceRoot, searchOptions);
     } else {
       searchArgs = buildSearchArgs(resolvedQuery, repoRoot, searchOptions);
     }
@@ -4231,25 +4793,45 @@ async function executeSearchCommand({
     {
       location: vscode.ProgressLocation.Notification,
       title: 'PairOfCleats search',
-      cancellable: execution.mode !== 'api'
+      cancellable: true
     },
     async (_, token) => {
       if (execution.mode === 'api') {
-        const result = await requestApiJson(execution.baseUrl, '/search', {
-          method: 'POST',
-          payload: searchPayload,
-          headers: execution.headers || null,
-          timeoutMs: execution.timeoutMs,
-          label: 'PairOfCleats search'
-        });
+        try { assertServiceMappingCurrent(repoContext, serviceMapping, vscode.workspace.workspaceFolders); }
+        catch (error) { vscode.window.showErrorMessage(error.message); return; }
+        const scope = operations.current();
+        const cancelSub = token.onCancellationRequested(() => operations.cancelScope(scope));
+        if (token.isCancellationRequested) operations.cancelScope(scope);
+        let result;
+        try {
+          result = await requestApiJson(execution.baseUrl, '/search', {
+            method: 'POST',
+            payload: searchPayload,
+            headers: execution.headers || null,
+            timeoutMs: execution.timeoutMs,
+            label: 'PairOfCleats search'
+          });
+        } finally {
+          cancelSub.dispose();
+        }
+        if (!operations.isCurrent()) return;
         if (!result.ok) {
           appendRuntimeFailure(output, '[search api]', result);
           output.show?.(true);
           vscode.window.showErrorMessage(result.message);
           return;
         }
-        const payload = result.payload?.result || result.payload;
+        let payload;
+        try {
+          assertServiceMappingCurrent(repoContext, serviceMapping, vscode.workspace.workspaceFolders);
+          payload = mapServicePayload(result.payload?.result || result.payload, serviceMapping.serviceRoot);
+        }
+        catch (error) { vscode.window.showErrorMessage(error.message); return; }
         const hits = collectSearchHits(payload);
+        if (enumeration) {
+          try { admitFilterPage(payload?.pagination, hits); }
+          catch (error) { vscode.window.showErrorMessage(error.message); return; }
+        }
         await recordSearchResultSet({
           repoContext,
           query: resolvedQuery,
@@ -4261,10 +4843,11 @@ async function executeSearchCommand({
             payload: searchPayload,
             transport: 'api'
           },
-          hits
+          hits,
+          payload,
+          explain
         });
         if (!hits.length) {
-          vscode.window.showInformationMessage('PairOfCleats: no results.');
           return;
         }
         const items = hits.map((hit) => {
@@ -4274,12 +4857,12 @@ async function executeSearchCommand({
             ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
             : 'n/a';
           const label = hit.name || hit.headline || fileLabel;
-          return {
+          return Object.freeze({
             label,
             description: fileLabel,
             detail: `${hit.section} • score ${scoreLabel}`,
-            hit
-          };
+            hit: Object.freeze({ ...hit })
+          });
         });
         const selection = await vscode.window.showQuickPick(items, {
           title: `PairOfCleats results (${hits.length})`,
@@ -4287,6 +4870,7 @@ async function executeSearchCommand({
           matchOnDetail: true
         });
         if (!selection) return;
+        if (!items.includes(selection)) { vscode.window.showErrorMessage('Search selection must identify an original result from this picker.'); return; }
         const openResult = await openSearchHit(vscode, repoContext, selection.hit);
         if (!openResult.ok) {
           output.appendLine(`[search] open failure path=${openResult.filePath}`);
@@ -4326,14 +4910,14 @@ async function executeSearchCommand({
           timedOut = true;
           output.appendLine(`[search] timeout after ${searchTimeoutMs}ms`);
           try {
-            child.kill('SIGKILL');
+            killChildProcess(child);
           } catch {}
         }, searchTimeoutMs);
         timeout.unref?.();
         const cancelSub = token.onCancellationRequested(() => {
           output.appendLine('[search] cancellation requested');
           try {
-            child.kill('SIGKILL');
+            killChildProcess(child);
           } catch {}
         });
         child.stdout?.on('data', (chunk) => {
@@ -4353,6 +4937,7 @@ async function executeSearchCommand({
         child.once('close', async (code) => {
           clearTimeout(timeout);
           cancelSub.dispose();
+          if (!operations.isCurrent()) { resolve(); return; }
           if (token.isCancellationRequested) {
             output.appendLine('[search] cancelled by user');
             vscode.window.showInformationMessage('PairOfCleats search was cancelled.');
@@ -4394,9 +4979,12 @@ async function executeSearchCommand({
             return;
           }
           const payload = parsed.payload;
-
           const hits = collectSearchHits(payload);
-          await recordSearchResultSet({
+          if (enumeration) {
+            try { admitFilterPage(payload?.pagination, hits); }
+            catch (error) { vscode.window.showErrorMessage(error.message); resolve(); return; }
+          }
+          const resultSet = await recordSearchResultSet({
             repoContext,
             query: resolvedQuery,
             searchOptions,
@@ -4406,11 +4994,12 @@ async function executeSearchCommand({
               args,
               transport: 'cli'
             },
-            hits
+            hits,
+            payload,
+            explain
           });
 
           if (!hits.length) {
-            vscode.window.showInformationMessage('PairOfCleats: no results.');
             resolve();
             return;
           }
@@ -4422,12 +5011,12 @@ async function executeSearchCommand({
               ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
               : 'n/a';
             const label = hit.name || hit.headline || fileLabel;
-            return {
+            return Object.freeze({
               label,
               description: fileLabel,
               detail: `${hit.section} • score ${scoreLabel}`,
-              hit
-            };
+              hit: Object.freeze({ ...hit })
+            });
           });
 
           const selection = await vscode.window.showQuickPick(items, {
@@ -4439,8 +5028,15 @@ async function executeSearchCommand({
             resolve();
             return;
           }
+          if (!items.includes(selection)) {
+            vscode.window.showErrorMessage('Search selection must identify an original result from this picker.'); resolve(); return;
+          }
 
           const selected = selection.hit;
+          if (explain && resultSet) {
+            appendOutputLines(output, renderSearchExplanation(resultSet, normalizeSearchHit(selected)));
+            output.show?.(true);
+          }
           const openResult = await openSearchHit(vscode, repoContext, selected);
           if (!openResult.ok) {
             output.appendLine(`[search] open failure path=${openResult.filePath}`);
@@ -4463,6 +5059,402 @@ async function executeSearchCommand({
  *
  * @returns {Promise<void>}
  */
+function currentQualifiedSemanticSeed(repoContext) {
+  const captured = latestNavigationEvidence;
+  const editor = vscode.window.activeTextEditor;
+  const document = editor?.document;
+  const position = editor?.selection?.active;
+  if (!captured || captured.repoContext.repoRoot !== repoContext.repoRoot
+      || document?.uri?.fsPath !== captured.sourceFile || !position
+      || position.line !== captured.position.line || position.character !== captured.position.character) return null;
+  try {
+    const args = sourceNavigationArgs(document, position, true, repoContext.repoRoot);
+    if (args[args.indexOf('--source-hash') + 1] !== captured.payload.sourceHash
+        || args[args.indexOf('--source-version') + 1] !== captured.payload.sourceVersion) return null;
+    return qualifiedBindingSeed(captured.payload);
+  } catch { return null; }
+}
+
+const runSemanticEvidence = createSemanticEvidenceWorkflow({
+  vscode, operations,
+  getCursorSeed: currentQualifiedSemanticSeed,
+  resolveCursorSeed: async repoContext => {
+    const editor = vscode.window.activeTextEditor;
+    const document = editor?.document, position = editor?.selection?.active;
+    if (!document?.uri?.fsPath || !position) return null;
+    const relative = path.relative(repoContext.repoRoot, document.uri.fsPath);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return null;
+    await runNavigationCommand({ kind: 'definitions', repoContext, sourceDocument: document, position,
+      query: getWordQueryAtPosition(document, position), filePath: document.uri.fsPath, limit: NAVIGATION_RESULT_LIMIT });
+    const seed = currentQualifiedSemanticSeed(repoContext);
+    if (!seed && operations.isCurrent()) vscode.window.showInformationMessage(
+      `Current indexed cursor binding is ${latestNavigationEvidence?.payload?.status || 'unavailable'}. Select a source/structural query or explicit generation; no unique semantic target was inferred.`);
+    return seed;
+  },
+  resolveRepo: node => node?.resultSet ? Promise.resolve(createStoredRepoContext(node.resultSet)) : resolveSearchRepoContext(),
+  chooseTransport: async repoContext => {
+    const config = getExtensionConfiguration(repoContext);
+    const execution = await resolveExecutionMode(config, 'semantic-find');
+    if (!execution.ok) throw new Error(execution.message);
+    if (execution.mode === 'api' && execution.capabilities?.['semantic-find'] !== true) throw new Error('The selected service does not advertise semantic find. Use an explicitly supported transport.');
+    const mapping = execution.mode === 'api' ? await resolveServiceRepository(repoContext, execution) : null;
+    if (execution.mode === 'api' && !mapping) return null;
+    return { transport: execution.mode, execution, config, serviceMapping: mapping };
+  },
+  discoverGeneration: async (repoContext, state, seedNode, sourceFile) => {
+    const { execution, config } = state;
+    let seed = seedNode?.hit?.chunkUid ? `chunk:${seedNode.hit.chunkUid}` : null;
+    if (!seed) {
+      let file = seedNode?.hit?.file || sourceFile || '';
+      if (path.isAbsolute(file)) file = path.relative(repoContext.repoRoot, file).replace(/\\/g, '/');
+      if (!file || file === '..' || file.startsWith('../') || path.isAbsolute(file)) {
+        file = await vscode.window.showInputBox({ prompt: 'Retained source path for canonical semantic generation discovery',
+          placeHolder: 'Repository-relative path; no directory scan or build' });
+      }
+      if (!file) throw new Error('Select a source file or search hit to discover its published semantic generation.');
+      if (file.startsWith('/') || file.includes(':') || file.split(/[\\/]/).some(part => ['.', '..'].includes(part))) throw new Error('Generation discovery source must remain inside the selected repository.');
+      seed = `file:${file.replace(/\\/g, '/')}`;
+    }
+    let payload, expectedRepo = repoContext.repoRoot;
+    if (execution.mode === 'api') {
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
+      if (execution.capabilities?.['context-pack'] !== true) throw new Error('Service supports semantic requests but does not advertise context-pack generation discovery. Enter a known immutable generation.');
+      expectedRepo = state.serviceMapping.serviceRoot;
+      const response = await requestApiJson(execution.baseUrl, '/analysis/context-pack', { method: 'POST',
+        payload: contextDiscoveryRequest(expectedRepo, seed), timeoutMs: execution.timeoutMs,
+        label: 'Canonical semantic generation discovery' });
+      if (!response.ok) throw new Error(response.message);
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
+      payload = response.payload?.result || response.payload;
+    } else {
+      const cli = resolveCli(repoContext.repoRoot, config);
+      if (!cli.ok) throw new Error(cli.message);
+      const response = await runBufferedJsonCommand({
+        spec: { title: 'Semantic generation discovery', progressTitle: 'PairOfCleats semantic generation discovery', timeoutMs: 5000 },
+        repoRoot: repoContext.repoRoot, command: cli.command, args: [...cli.argsPrefix, ...contextDiscoveryCliArgs(repoContext.repoRoot, seed)],
+        env: buildSpawnEnv(config), output: getOutputChannel() });
+      if (!response?.ok) throw new Error(response?.message || 'Canonical semantic generation discovery failed.');
+      payload = response.payload;
+    }
+    if (Buffer.byteLength(JSON.stringify(payload)) > 131072) throw new Error('Generation discovery exceeds the 128 KiB editor response bound.');
+    const witness = generationFromContextPack(payload, expectedRepo);
+    if (!witness) throw new Error('Selected source has no authoritative semantic generation section. Choose another source or an explicit immutable generation.');
+    return witness;
+  },
+  execute: async (operation, request, state) => {
+    const { execution, config, repoContext } = state;
+    if (execution.mode === 'api') {
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
+      request = { ...request, repoRoot: state.serviceMapping.serviceRoot };
+      const probe = await getCachedApiCapabilities(execution.baseUrl, execution.timeoutMs);
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
+      if (probe.capabilities?.[`semantic-${operation}`] !== true) throw new Error(`Service does not advertise semantic ${operation}.`);
+      const response = await requestApiJson(execution.baseUrl, `/analysis/semantic-${operation}`, {
+        method: 'POST', payload: request, timeoutMs: execution.timeoutMs, label: `Semantic ${operation}` });
+      if (!response.ok) throw new Error(response.message);
+      assertServiceMappingCurrent(repoContext, state.serviceMapping, vscode.workspace.workspaceFolders);
+      return response.payload?.result || response.payload;
+    }
+    const cli = resolveCli(repoContext.repoRoot, config);
+    if (!cli.ok) throw new Error(cli.message);
+    const storage = extensionContext?.globalStorageUri?.fsPath;
+    return withSemanticRequestFile({ storage, request, operations, execute: async requestPath => {
+      const result = await runBufferedJsonCommand({
+        spec: { title: `Semantic ${operation}`, progressTitle: `PairOfCleats semantic ${operation}`, timeoutMs: 5000 },
+        repoRoot: repoContext.repoRoot, command: cli.command,
+        args: [...cli.argsPrefix, 'semantic', operation, '--request', requestPath],
+        env: buildSpawnEnv(config), output: getOutputChannel()
+      });
+      if (!result?.ok || !result.payload) throw new Error(result?.message || 'Semantic operation failed.');
+      if (Buffer.byteLength(JSON.stringify(result.payload)) > 128 * 1024) throw new Error('Semantic response exceeds the editor evidence bound.');
+      // Process-local CLI cursors cannot be resumed by another invocation.
+      if (result.payload.cursor) result.payload.warnings = [...(result.payload.warnings || []),
+        'Additional bounded pages require a persistent API session; CLI cursor expires with this process.'];
+      return result.payload;
+    } });
+  }
+});
+
+const copySelectedContext = createEvidenceCollection({
+  vscode, operations, getResults: getActiveSearchResultSet,
+  fetchContext: async (seed, resultSet) => {
+    const repoContext = createStoredRepoContext(resultSet);
+    const config = getExtensionConfiguration(repoContext);
+    const execution = await resolveExecutionMode(config, 'context-collection');
+    if (!execution.ok) throw new Error(execution.message);
+    if (execution.mode === 'api') {
+      const probe = await getCachedApiCapabilities(execution.baseUrl, execution.timeoutMs);
+      if (probe.capabilities?.['context-pack'] !== true) throw new Error('Service does not advertise context-pack.');
+      const mapping = await resolveServiceRepository(repoContext, execution);
+      if (!mapping) throw new Error('Service repository selection was cancelled.');
+      const response = await requestApiJson(execution.baseUrl, '/analysis/context-pack', {
+        method: 'POST', payload: { repo: mapping.serviceRoot, seed, hops: 0, includeRisk: true,
+          maxBytes: 24576, maxNodes: 16, maxEdges: 32 },
+        timeoutMs: execution.timeoutMs, label: 'PairOfCleats selected context' });
+      if (!response.ok) throw new Error(response.message);
+      assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+      return response.payload?.result || response.payload;
+    }
+    const cli = resolveCli(repoContext.repoRoot, config);
+    if (!cli.ok) throw new Error(cli.message);
+    const response = await runBufferedJsonCommand({ spec: { title: 'Selected context', progressTitle: 'PairOfCleats selected context', timeoutMs: 5000 },
+      repoRoot: repoContext.repoRoot, command: cli.command,
+      args: [...cli.argsPrefix, 'context-pack', '--repo', repoContext.repoRoot, '--seed', seed,
+        '--hops', '0', '--includeRisk', '--maxBytes', '24576', '--maxNodes', '16', '--maxEdges', '32', '--json'],
+      env: buildSpawnEnv(config), output: getOutputChannel() });
+    if (!response?.ok || !response.payload) throw new Error(response?.message || 'Canonical context collection failed.');
+    return response.payload;
+  }
+});
+
+const openCapturedEvidence = createCapturedEvidenceOpener({ vscode, operations,
+  getEvidence: () => latestAnalysisEvidence, collectSources: collectEvidenceSources,
+  resolveTarget: (repoContext, hit) => resolveValidatedHitTarget(vscode, repoContext, hit),
+  createContext: (node, isCurrent) => copySelectedContext(node, isCurrent) });
+
+function inspectIndexedNavigation(kind) {
+  return operations.run('indexed-navigation-picker', () => inspectOwnedIndexedNavigation(kind), { key: 'indexed-navigation-picker' });
+}
+
+function inspectIndexedDocumentSymbols() {
+  return operations.run('indexed-document-symbols', async () => {
+    const document = vscode.window.activeTextEditor?.document;
+    const request = captureNavigationRequest(document, null, true, { allowDirty: true });
+    if (!request) return;
+    const repoContext = await resolveRepoContext({ pathHint: document.uri, allowPrompt: false });
+    if (!repoContext.ok || !operations.isCurrent() || !request.isCurrent()) return;
+    const rows = await runNavigationCommand({ kind: 'document-symbols', repoContext,
+      filePath: request.file, limit: DOCUMENT_SYMBOL_LIMIT });
+    if (!operations.isCurrent() || !request.isCurrent()) return;
+    const evidence = await vscode.workspace.openTextDocument({ language: 'plaintext', content: [
+      'PairOfCleats indexed document symbols — retained evidence',
+      `Repository: ${repoContext.repoRoot}`, `Source: ${request.file}`,
+      'Indexed labels and chunk lines may be stale or unlocated. These are not native Outline positions.',
+      ...(document.isDirty ? ['Unsaved source differs: save before requesting exact native symbols.'] : []),
+      'Save source, then run PairOfCleats: Index Build to refresh indexed evidence.', '',
+      ...rows.map(row => `${row.name || row.qualifiedName || 'symbol'} • ${row.kind || 'unknown kind'} • indexed lines ${
+        row.startLine ?? 'unknown'}–${row.endLine ?? 'unknown'}`),
+      ...(rows.length ? [] : ['No retained indexed symbol evidence is available.'])
+    ].join('\n') });
+    if (!operations.isCurrent() || !request.isCurrent()) return;
+    await vscode.window.showTextDocument(evidence, { preview: true });
+  }, { key: 'indexed-document-symbols' });
+}
+
+function currentNavigationCursor(request) {
+  const editor = vscode.window.activeTextEditor, position = editor?.selection?.active;
+  return operations.isCurrent() && request.isCurrent() && editor?.document === request.document
+    && position?.line === request.position?.line && position?.character === request.position?.character;
+}
+
+async function inspectOwnedIndexedNavigation(kind) {
+  const editor = vscode.window.activeTextEditor;
+  const document = editor?.document;
+  const position = editor?.selection?.active;
+  if (!document || !position) return;
+  const sourceRequest = captureNavigationRequest(document, position);
+  if (!sourceRequest) return;
+  const locations = kind === 'references'
+    ? await provideOwnedReferences(document, sourceRequest.position, { includeDeclaration: true }, sourceRequest)
+    : await provideOwnedDefinitions(document, sourceRequest.position, sourceRequest);
+  if (!currentNavigationCursor(sourceRequest)) return;
+  if (!locations?.length && latestNavigationEvidence?.sourceRequest === sourceRequest && latestNavigationEvidence.payload?.binding?.candidates?.length) {
+    const evidence = latestNavigationEvidence;
+    const candidates = evidence.payload.binding.candidates.map(original => {
+      const value = Object.freeze({ ...original, span: Array.isArray(original.span) ? Object.freeze([...original.span]) : original.span });
+      return { label: `${value.status || 'candidate'} • ${value.targetId}`, description: value.file || 'external source',
+        detail: `Binding remains ${evidence.payload.status}; inspect one candidate without pooling references`, candidate: value };
+    });
+    const candidate = await vscode.window.showQuickPick(candidates, { title: 'Inspect ambiguous indexed binding candidates' });
+    if (!candidates.includes(candidate) || !currentNavigationCursor(sourceRequest)) return;
+    try {
+      sourceRequest.args(evidence.repoContext.repoRoot);
+      const value = candidate.candidate;
+      const target = sourceQualifiedSelection(evidence.repoContext, { path: value.file, sourceHash: value.sourceHash,
+        coordinateUnit: value.coordinateUnit }, { span: value.span });
+      const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+      const qualified = await authority.qualify({ repoRoot: evidence.repoContext.repoRoot, file: target.file,
+        uri: vscode.Uri.file(target.file), sourceHash: target.sourceHash, span: { start: target.start, end: target.end } });
+      if (!qualified) return;
+      if (!operations.isCurrent()) return;
+      sourceRequest.args(evidence.repoContext.repoRoot);
+      const editor = await vscode.window.showTextDocument(qualified.document);
+      await authority.assertCurrent();
+      if (!operations.isCurrent()) return;
+      sourceRequest.args(evidence.repoContext.repoRoot);
+      assertQualifiedEditor(editor, qualified);
+      editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+      editor.revealRange(editor.selection);
+      vscode.window.showInformationMessage('Opened candidate evidence. The indexed binding remains ambiguous; references were not pooled.');
+    } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(error.message); }
+    return;
+  }
+  if (!locations?.length) return;
+  const items = locations.map(location => ({
+    label: location.uri?.path || location.uri?.fsPath || 'source',
+    description: `${location.range?.start.line + 1}:${location.range?.start.character + 1}`, location
+  }));
+  const selected = await vscode.window.showQuickPick(items, { title: `Indexed ${kind}: source-qualified candidates` });
+  if (!items.includes(selected) || !currentNavigationCursor(sourceRequest)) return;
+  const source = navigationLocationSources.get(selected.location);
+  if (!source || source.sourceRequest !== sourceRequest) { vscode.window.showErrorMessage('The selected native location has no original request/source witness. Inspect indexed navigation again.'); return; }
+  try {
+    sourceRequest.args(source.repoContext.repoRoot);
+    const authority = createDocumentAuthority({ workspace: vscode.workspace, isCurrent: () => operations.isCurrent(), maxDocuments: 1 });
+    const target = resolveValidatedHitTarget(vscode, source.repoContext, source.entry);
+    if (!target.ok) throw new Error(target.message);
+    const qualified = await authority.qualify({ repoRoot: source.repoContext.repoRoot, file: target.filePath,
+      uri: target.targetUri, sourceHash: source.entry.sourceHash, range: source.entry });
+    if (!qualified) return;
+    if (!operations.isCurrent()) return;
+    sourceRequest.args(source.repoContext.repoRoot);
+    const editor = await vscode.window.showTextDocument(qualified.document);
+    await authority.assertCurrent();
+    if (!operations.isCurrent()) return;
+    sourceRequest.args(source.repoContext.repoRoot);
+    assertQualifiedEditor(editor, qualified);
+    editor.selection = new vscode.Selection(qualified.document.positionAt(qualified.offsets.start), qualified.document.positionAt(qualified.offsets.end));
+    editor.revealRange(editor.selection);
+  } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(`Indexed selection unavailable: ${error.message}`); }
+}
+
+async function resolveServiceRepository(repoContext, execution, { force = false } = {}) {
+  if (repoContext.repoUri?.scheme !== 'file' || repoContext.supportsLocalFs === false) {
+    throw new Error('Service mapping requires a file checkout on the workspace extension host. Virtual/non-file URI roots cannot be source-qualified.');
+  }
+  const editorUri = repoContext.repoUri?.toString?.() || '';
+  const mappings = { ...(readWorkspaceState('pairofcleats.serviceRepositories', {}) || {}) };
+  const key = `${execution.baseUrl}::${editorUri}`;
+  let mapping = force ? null : mappings[key];
+  if (mapping && (mapping.editorUri !== editorUri || !/^[a-f0-9]{40,64}$/.test(mapping.commit || ''))) {
+    throw new Error('Saved service mapping has no matching editor/source qualification. Select Service Repository again.');
+  }
+  const commit = readGitHead(repoContext.repoRoot);
+  if (!commit) throw new Error('Service mapping needs a readable Git HEAD for source identity. Use a supported local CLI checkout or select a source-qualified service workflow.');
+  let root = mapping?.serviceRoot;
+  if (!root) {
+    const value = await vscode.window.showInputBox({ prompt: `Repository path on ${execution.baseUrl} (service host)`,
+      value: repoContext.repoRoot, placeHolder: '/srv/repositories/project or C:\\repositories\\project' });
+    if (!value) return null;
+    root = value;
+  }
+  root = validateServiceRoot(root);
+  const pending = Object.freeze({ serviceRoot: root, editorUri, commit });
+  assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+  const response = await requestApiJson(execution.baseUrl, `/status?repo=${encodeURIComponent(root)}`, {
+    timeoutMs: execution.timeoutMs, label: 'PairOfCleats service repository identity' });
+  if (!response.ok) throw new Error(response.message);
+  assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+  const identity = assertServiceStatus(response.payload?.status, pending);
+  if (!mapping) {
+    const action = await vscode.window.showInformationMessage(
+      `Service ${execution.baseUrl} repository ${root} matches revision ${identity.commit.slice(0, 12)}. ` +
+      `Open results in ${editorUri}. Editor working-tree freshness remains unverified.`, 'Use repository mapping');
+    if (action !== 'Use repository mapping') return null;
+    assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+  }
+  if (!mapping || mapping.commit !== commit) {
+    mapping = { serviceRoot: root, editorUri, commit, verifiedAt: new Date().toISOString() };
+    const capturedMapping = mapping;
+    await writeWorkspaceState('pairofcleats.serviceRepositories', current => {
+      assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+      return { ...(current && typeof current === 'object' && !Array.isArray(current) ? current : {}), [key]: capturedMapping };
+    }, { updateCurrent: true });
+  }
+  assertServiceMappingCurrent(repoContext, pending, vscode.workspace.workspaceFolders);
+  return Object.freeze({ ...mapping, ...pending, ...identity });
+}
+
+async function inspectTasks() {
+  const active = Array.from(managedProcesses.values());
+  const activeIds = new Set(active.map(entry => entry.sessionId));
+  const entries = [...active, ...taskObservations.list().filter(entry => !activeIds.has(entry.sessionId))];
+  if (!entries.length) { await showWorkflowStatus(); return; }
+  const items = Object.freeze(entries.map(owner => {
+    const entry = captureTaskObservation(owner);
+    return Object.freeze({ label: entry.spec.title, description: `${entry.repoRoot} • ${entry.progress?.phase || 'starting'}`,
+      detail: entry.sessionId, entry });
+  }));
+  const picked = await vscode.window.showQuickPick(items,
+    { title: 'PairOfCleats exact task', placeHolder: 'Choose the repository and operation to inspect' });
+  if (!picked) return;
+  if (!items.includes(picked)) { vscode.window.showErrorMessage('Task selection must identify an original task from this picker.'); return; }
+  const entry = picked.entry;
+  const document = await vscode.workspace.openTextDocument({ content: describeTask(entry), language: 'plaintext' });
+  await vscode.window.showTextDocument(document, { preview: true });
+  const activeEntry = managedProcesses.get(entry.key)?.sessionId === entry.sessionId && !entry.cleanupUnconfirmed && !entry.settling;
+  const actions = taskRecoveryActions(entry, activeEntry);
+  const pickedAction = await vscode.window.showQuickPick(actions.map(item => item.label),
+    { title: `${entry.spec.title} • ${entry.repoRoot}`, placeHolder: 'Safe registered recovery actions' });
+  const action = actions.find(item => item.label === pickedAction)?.action;
+  const repoContext = { ok: true, ...createStoredRepoContext({ repoRoot: entry.repoRoot,
+    repoUri: entry.workspaceUri || entry.repoUri?.toString?.() || '' }) };
+  if (action === 'logs') {
+    const text = [describeTask(entry), '', `Task log tail${entry.logTailTruncated ? ' (older lines omitted)' : ''}:`,
+      ...(entry.logTail || []).map(row => row.text)].join('\n');
+    const logs = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+    await vscode.window.showTextDocument(logs, { preview: true });
+  }
+  else if (action === 'settings') await showEffectiveSettings(repoContext);
+  else if (action === 'doctor' || action === 'health') {
+    const id = action === 'doctor' ? 'pairofcleats.doctor' : 'pairofcleats.indexHealth';
+    await runOperatorCommand(OPERATOR_COMMANDS_BY_ID.get(id), { repoContext });
+  }
+  else if (action === 'select') await selectRepo();
+  else if (action === 'retry') {
+    const session = workflowSessions.find(item => item.sessionId === entry.sessionId);
+    if (session) await rerunWorkflowSession(session);
+    else vscode.window.showInformationMessage('This task observation has no admitted saved workflow. Run its registered command deliberately.');
+  }
+  else if (action === 'stop') {
+    const owned = managedProcesses.get(entry.key);
+    if (owned?.sessionId !== entry.sessionId || owned.stopping || owned.settling || owned.cleanupUnconfirmed) {
+      vscode.window.showInformationMessage('That exact task already settled. Inspect tasks again.');
+      return;
+    }
+    await stopManagedProcessEntry(owned, { reason: 'cancelled', summaryLine: `${entry.spec.title} stopped after owned process settlement.` });
+  }
+}
+
+async function selectServiceRepository() {
+  return operations.run('service-repository', async () => {
+    try {
+      const repoContext = await resolveSearchRepoContext();
+      if (!repoContext) return;
+      const config = getExtensionConfiguration(repoContext);
+      const execution = await resolveExecutionMode(config, 'search', 'api');
+      if (!execution.ok) throw new Error(execution.message);
+      await resolveServiceRepository(repoContext, execution, { force: true });
+    } catch (error) { if (operations.isCurrent()) vscode.window.showErrorMessage(error.message); }
+  });
+}
+
+async function browseIndexedMatches() {
+  await executeSearchCommand({ enumeration: true, promptFilter: true });
+}
+
+async function loadMoreIndexedMatches() {
+  const previous = getActiveSearchResultSet();
+  if (!previous?.pagination?.hasMore || !previous.pagination.nextCursor) {
+    vscode.window.showInformationMessage('No indexed continuation is available. Ranked text search is top-k.');
+    return;
+  }
+  const config = getExtensionConfiguration(createStoredRepoContext(previous));
+  const policy = readApiSettings(config);
+  if (policy.error) { vscode.window.showErrorMessage(policy.error); return; }
+  const capturedApi = previous.invocation?.kind === 'api-search';
+  if ((capturedApi && (policy.mode === 'cli' || policy.baseUrl !== previous.invocation.baseUrl))
+    || (!capturedApi && policy.mode === 'require')) {
+    vscode.window.showErrorMessage('Transport policy or endpoint changed. Restart indexed browsing with the intended transport.');
+    return;
+  }
+  let invocation;
+  try { invocation = continuationInvocation(previous.invocation, previous.pagination.nextCursor); }
+  catch (error) { vscode.window.showErrorMessage(`${error.message} Restart indexed browsing to capture its scope.`); return; }
+  await operations.run('foreground-search', () => runOwnedSavedSearch(
+    { ...previous, invocation }, createStoredRepoContext(previous), previous), { key: 'foreground-search' });
+}
+
 async function runSearch() {
   await executeSearchCommand({ workflow: 'search' });
 }
@@ -4494,16 +5486,49 @@ async function runExplainSearch() {
   });
 }
 
-async function runSavedSearchInvocation(resultSet, repoContext) {
+function runSavedSearchInvocation(resultSet, repoContext) {
+  return operations.run('foreground-search', () => runOwnedSavedSearch(resultSet, repoContext), { key: 'foreground-search' });
+}
+
+async function runOwnedSavedSearch(resultSet, repoContext, appendTo = null) {
   const output = getOutputChannel();
-  const invocation = resultSet?.invocation || null;
+  let invocation = normalizeSearchInvocation(resultSet?.invocation);
+  const config = getExtensionConfiguration(repoContext);
+  const policy = readApiSettings(config);
+  if (policy.error) { vscode.window.showErrorMessage(policy.error); return { ok: false }; }
+  const capturedApi = invocation?.kind === 'api-search';
+  if (capturedApi && (policy.mode === 'cli' || policy.baseUrl !== invocation.baseUrl)
+    || !capturedApi && policy.mode === 'require') {
+    vscode.window.showErrorMessage('Transport policy or endpoint changed. Run a new search with the intended transport.');
+    return { ok: false };
+  }
+  let request;
+  try {
+    request = admitSearchReplay(invocation, repoContext.repoRoot, resultSet.query,
+      normalizeStringArray(config.get(VSCODE_SETTINGS.extraSearchArgsKey)));
+  } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
+  if (!validateReplayRepoContext(repoContext, capturedApi ? 'api' : 'cli')) return { ok: false };
+  const execution = await resolveExecutionMode(config, request.options.explain ? 'explain-search' : 'search', capturedApi ? 'api' : 'cli');
+  if (!operations.isCurrent()) return { ok: false };
+  if (!execution.ok) { vscode.window.showErrorMessage(execution.message); return { ok: false }; }
   let hits = [];
-  if (invocation?.kind === 'api-search') {
+  let payload = null;
+  if (capturedApi) {
+    const key = `${invocation.baseUrl}::${repoContext.repoUri?.toString?.() || ''}`;
+    const mapping = readWorkspaceState('pairofcleats.serviceRepositories', {})?.[key];
+    try {
+      if (!mapping || mapping.serviceRoot !== invocation.payload?.repo) {
+        throw new Error('Saved search repository mapping changed or is unavailable. Select the service repository and restart browsing.');
+      }
+      assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+      invocation = { ...invocation, timeoutMs: execution.timeoutMs,
+        payload: buildApiSearchRequest(request.query, mapping.serviceRoot, request.options) };
+    } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
     const result = await requestApiJson(invocation.baseUrl, '/search', {
       method: 'POST',
       payload: invocation.payload,
-      headers: buildApiHeaders(getExtensionConfiguration(), invocation.baseUrl),
-      timeoutMs: invocation.timeoutMs || DEFAULT_API_TIMEOUT_MS,
+      headers: execution.headers,
+      timeoutMs: execution.timeoutMs,
       label: 'PairOfCleats search'
     });
     if (!result.ok) {
@@ -4512,20 +5537,28 @@ async function runSavedSearchInvocation(resultSet, repoContext) {
       vscode.window.showErrorMessage(result.message || 'PairOfCleats search failed.');
       return { ok: false };
     }
-    hits = collectSearchHits(result.payload?.result || result.payload);
+    try {
+      assertServiceMappingCurrent(repoContext, mapping, vscode.workspace.workspaceFolders);
+      payload = mapServicePayload(result.payload?.result || result.payload, invocation.payload.repo);
+    } catch (error) { vscode.window.showErrorMessage(error.message); return { ok: false }; }
+    hits = collectSearchHits(payload);
   } else {
+    const cliResolution = resolveCli(repoContext.repoRoot, config);
+    if (!cliResolution.ok) { vscode.window.showErrorMessage(cliResolution.message); return { ok: false }; }
+    invocation = { ...invocation, command: cliResolution.command,
+      args: [...cliResolution.argsPrefix, ...buildSearchArgs(request.query, repoContext.repoRoot, request.options)] };
     const searchTimeoutMs = 60000;
     const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
-    const env = buildSpawnEnv(getExtensionConfiguration());
+    const env = buildSpawnEnv(config);
     const result = await runBufferedJsonCommand({
       spec,
       repoRoot: repoContext.repoRoot,
-      command: resultSet.invocation.command,
-      args: resultSet.invocation.args,
+      command: invocation.command,
+      args: invocation.args,
       env,
       output
     });
-    if (!result?.payload) {
+    if (!result?.ok || !result.payload) {
       if (result?.detail) output.appendLine(result.detail);
       output.show?.(true);
       const show = result?.kind === 'cancelled'
@@ -4534,17 +5567,33 @@ async function runSavedSearchInvocation(resultSet, repoContext) {
       show(result?.message || 'PairOfCleats search failed.');
       return { ok: false };
     }
-    hits = collectSearchHits(result.payload);
+    payload = result.payload;
+    hits = collectSearchHits(payload);
+  }
+  if (appendTo) {
+    if (!operations.isCurrent() || getActiveSearchResultSet()?.resultSetId !== appendTo.resultSetId) return { ok: false };
+    try {
+      const pagination = normalizeFilterPagination(payload?.pagination);
+      const merged = mergeFilterPage(appendTo, pagination, hits);
+      const updated = normalizeSearchResultSet({ ...appendTo, hits: merged, totalHits: merged.length, pagination });
+      searchHistory = searchHistory.map(entry => entry.resultSetId === updated.resultSetId ? updated : entry);
+      await persistSearchHistory();
+      refreshResultsExplorer();
+      vscode.window.showInformationMessage(`PairOfCleats indexed matches: ${merged.length} loaded; ${pagination.total ?? 'unknown'} total. ${pagination.coverageNote}`);
+      return { ok: true, hits: merged };
+    } catch (error) {
+      vscode.window.showErrorMessage(error.message);
+      return { ok: false };
+    }
   }
   await recordSearchResultSet({
     repoContext,
-    query: resultSet.query,
-    searchOptions: {
-      mode: resultSet.mode,
-      backend: resultSet.backend
-    },
-    invocation: resultSet.invocation,
-    hits
+    query: request.query,
+    searchOptions: request.options,
+    invocation,
+    hits,
+    payload,
+    explain: request.options.explain === true
   });
   return { ok: true, hits };
 }
@@ -4668,17 +5717,60 @@ function activate(context) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
   }
+  context.subscriptions.push(
+    vscode.commands.registerCommand('pairofcleats.showEffectiveSettings', showEffectiveSettings),
+    vscode.commands.registerCommand('pairofcleats.browseIndexedMatches', browseIndexedMatches),
+    vscode.commands.registerCommand('pairofcleats.loadMoreResults', loadMoreIndexedMatches),
+    vscode.commands.registerCommand('pairofcleats.semanticEvidence', runSemanticEvidence),
+    vscode.commands.registerCommand('pairofcleats.selectServiceRepository', selectServiceRepository),
+    vscode.commands.registerCommand('pairofcleats.inspectTasks', inspectTasks),
+    vscode.commands.registerCommand('pairofcleats.copyContext', node => copySelectedContext(node)),
+    vscode.commands.registerCommand('pairofcleats.openEvidence', openCapturedEvidence),
+    vscode.commands.registerCommand('pairofcleats.navigateDefinitions', () => inspectIndexedNavigation('definitions')),
+    vscode.commands.registerCommand('pairofcleats.navigateReferences', () => inspectIndexedNavigation('references')),
+    vscode.commands.registerCommand('pairofcleats.inspectDocumentSymbols', inspectIndexedDocumentSymbols)
+  );
+  if (typeof vscode.workspace.onDidChangeConfiguration === 'function') {
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (!event?.affectsConfiguration || event.affectsConfiguration(VSCODE_SETTINGS.namespace)) {
+        operations.invalidate('configuration-changed', { preserveBackground: true });
+        if (typeof apiCapabilityCache !== 'undefined') apiCapabilityCache.clear();
+        invalidateInlineSignals();
+        updateWorkflowStatusBar();
+        void refreshInlineSignalsForActiveEditor();
+      }
+    }));
+  }
   if (typeof vscode.window.onDidChangeActiveTextEditor === 'function') {
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
+      invalidateInlineSignals();
       updateWorkflowStatusBar();
       void refreshInlineSignalsForActiveEditor();
     }));
   }
   if (typeof vscode.workspace.onDidChangeWorkspaceFolders === 'function') {
-    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(event => {
+      operations.invalidateRepositories((event?.removed || []).map(folder => folder.uri?.fsPath));
+      invalidateInlineSignals();
       updateWorkflowStatusBar();
       void refreshInlineSignalsForActiveEditor();
     }));
+  }
+  for (const event of ['onDidChangeTextDocument', 'onDidSaveTextDocument', 'onDidCloseTextDocument']) {
+    if (typeof vscode.workspace[event] !== 'function') continue;
+    context.subscriptions.push(vscode.workspace[event](() => {
+      invalidateInlineSignals();
+      void refreshInlineSignalsForActiveEditor();
+    }));
+  }
+  if (typeof vscode.workspace.createFileSystemWatcher === 'function') {
+    const watcher = vscode.workspace.createFileSystemWatcher('**/{current.json,artifacts.manifest.json}');
+    const refresh = () => { invalidateInlineSignals(); void refreshInlineSignalsForActiveEditor(); };
+    context.subscriptions.push(watcher);
+    for (const event of ['onDidCreate', 'onDidChange', 'onDidDelete']) {
+      const subscription = watcher[event]?.(refresh);
+      if (subscription) context.subscriptions.push(subscription);
+    }
   }
   void restoreWorkflowSessions();
   refreshResultsExplorer();
@@ -4690,16 +5782,28 @@ function activate(context) {
  *
  * @returns {void}
  */
-function deactivate() {
-  for (const entry of managedProcesses.values()) {
-    killChildProcess(entry.child);
-  }
-  managedProcesses.clear();
+async function deactivate() {
   inlineRiskDiagnostics?.clear?.();
   clearInlineDecorations(vscode.window.activeTextEditor || null);
+  inlineSignalCache.clear();
+  apiCapabilityCache.clear();
+  const result = await operations.dispose();
+  const pendingOwners = [...managedProcesses.values()].filter(entry => entry.cleanupUnconfirmed);
+  if (pendingOwners.length) {
+    result.ok = false;
+    result.pendingOwners = pendingOwners.map(entry => ({ sessionId: entry.sessionId, repoRoot: entry.repoRoot }));
+  }
+  if (result.ok) managedProcesses.clear();
+  else console.error('[PairOfCleats] Owned editor work did not finish shutdown:', {
+    ok: result.ok, pending: result.pending, children: result.children,
+    failures: result.failures, pendingOwners: result.pendingOwners, retainedOwners: result.retainedOwners
+  });
+  taskObservations.clear();
+  return result;
 }
 
 let outputChannel = null;
+const workspaceWrites = new Map();
 let extensionContext = null;
 let workflowSessions = [];
 let workflowStatusBar = null;
@@ -4712,8 +5816,10 @@ let resultsTreeView = null;
 let managedProcesses = new Map();
 let inlineRiskDiagnostics = null;
 let inlineRiskDecorationType = null;
+let inlinePublicationEpoch = 0;
 
 function getOutputChannel() {
+  if (!operations.isCurrent()) return { appendLine() {}, show() {}, clear() {} };
   if (!outputChannel) {
     outputChannel = vscode.window.createOutputChannel('PairOfCleats');
   }
@@ -4731,10 +5837,13 @@ module.exports = {
     getOutputChannel,
     openSearchHit,
     resolveCli,
+    resolveOperatorInvocation,
+    getExtensionConfiguration,
     resolveExecutionMode,
     resolveRepoContext,
     resolvePassiveRepoContext,
     resolveRepoRelativePathSeed,
+    resolveRiskExplainSeedContext,
     runOperatorCommand,
     executeOperatorWorkflow,
     runSavedSearchInvocation,
@@ -4763,6 +5872,7 @@ module.exports = {
     setSearchGroupingMode,
     buildResultsTree,
     OPERATOR_COMMAND_SPECS,
+    createRangeFromNavigationEntry,
     MANAGED_COMMAND_SPECS
   }
 };

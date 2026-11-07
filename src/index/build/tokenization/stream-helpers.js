@@ -1,11 +1,11 @@
 import { SYN } from '../../constants.js';
-import { extractPunctuationTokens } from '../../../shared/tokenize.js';
+import { capturePunctuationTokens, PUNCTUATION_TOKEN_LIMIT } from '../../../shared/tokenize.js';
 
 export const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   if (!Array.isArray(tokens) || !tokens.length) return [];
   let hasSynonyms = false;
   for (let i = 0; i < tokens.length; i += 1) {
-    if (SYN[tokens[i]]) {
+    if (Object.hasOwn(SYN, tokens[i]) && typeof SYN[tokens[i]] === 'string' && SYN[tokens[i]]) {
       hasSynonyms = true;
       break;
     }
@@ -18,7 +18,7 @@ export const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
     seq.push(token);
-    if (SYN[token]) seq.push(SYN[token]);
+    if (Object.hasOwn(SYN, token) && typeof SYN[token] === 'string' && SYN[token]) seq.push(SYN[token]);
   }
   return seqBuffer ? seq.slice() : seq;
 };
@@ -39,6 +39,7 @@ export const createFileLineTokenStreamInternal = ({
   const lines = typeof text === 'string' ? text.split('\n') : [];
   const lineTokens = new Array(lines.length);
   const linePunctuationTokens = mode === 'code' ? new Array(lines.length) : null;
+  const linePunctuationTruncated = mode === 'code' ? new Uint8Array(lines.length) : null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const built = buildTokenSequence({
@@ -52,10 +53,12 @@ export const createFileLineTokenStreamInternal = ({
     });
     lineTokens[i] = Array.isArray(built?.tokens) ? built.tokens : [];
     if (linePunctuationTokens) {
-      linePunctuationTokens[i] = extractPunctuationTokens(line);
+      const captured = capturePunctuationTokens(line);
+      linePunctuationTokens[i] = captured.tokens;
+      linePunctuationTruncated[i] = captured.coverage.truncated ? 1 : 0;
     }
   }
-  return { lineTokens, linePunctuationTokens };
+  return { lineTokens, linePunctuationTokens, linePunctuationTruncated };
 };
 
 /**
@@ -72,18 +75,25 @@ export const sliceFileLineTokenStreamInternal = ({ stream, startLine, endLine })
   const start = Math.max(1, Math.floor(Number(startLine) || 1));
   const end = Math.max(start, Math.floor(Number(endLine) || start));
   const tokens = [];
-  const appendList = (list) => {
-    for (let i = 0; i < list.length; i += 1) tokens.push(list[i]);
+  const appendList = (list, length = list.length) => {
+    for (let i = 0; i < length; i += 1) tokens.push(list[i]);
   };
   for (let line = start; line <= end; line += 1) {
     const list = lineTokens[line - 1];
     if (Array.isArray(list) && list.length) appendList(list);
   }
+  let punctuation = null;
   if (linePunctuationTokens) {
+    punctuation = { limit: PUNCTUATION_TOKEN_LIMIT, emitted: 0, truncated: false };
     for (let line = start; line <= end; line += 1) {
       const list = linePunctuationTokens[line - 1];
-      if (Array.isArray(list) && list.length) appendList(list);
+      if (Array.isArray(list) && list.length) {
+        const length = Math.min(list.length, PUNCTUATION_TOKEN_LIMIT - punctuation.emitted);
+        appendList(list, length); punctuation.emitted += length;
+        if (length < list.length || stream.linePunctuationTruncated?.[line - 1]) punctuation.truncated = true;
+        if (punctuation.emitted === PUNCTUATION_TOKEN_LIMIT && punctuation.truncated) break;
+      }
     }
   }
-  return { tokens, seq: buildSequenceFromTokens(tokens) };
+  return { tokens, seq: buildSequenceFromTokens(tokens), ...(punctuation ? { punctuation } : {}) };
 };

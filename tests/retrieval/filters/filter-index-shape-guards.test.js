@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { FILTER_FACTS_VERSION } from '../../../src/retrieval/effective-filter-facts.js';
 
 import {
   buildFilterIndex,
@@ -30,7 +31,8 @@ assert.deepEqual(
   'expected serializeFilterIndex to fail closed for non-iterable file chunk buckets'
 );
 
-const hydrated = hydrateFilterIndex({
+const raw = {
+  factsVersion: FILTER_FACTS_VERSION,
   byExt: { '.js': [1] },
   byKind: { function: [1] },
   byAuthor: { alice: [1] },
@@ -39,7 +41,10 @@ const hydrated = hydrateFilterIndex({
   fileById: ['src/a.js'],
   fileChunksById: [{ broken: true }, [1, 2]],
   fileChargrams: {}
-});
+};
+assert.equal(hydrateFilterIndex({ ...raw, factsVersion: undefined }), null, 'unversioned facts require authoritative rebuilding');
+assert.equal(hydrateFilterIndex({ ...raw, factsVersion: -1 }), null, 'stale facts cannot silently acquire current meaning');
+const hydrated = hydrateFilterIndex(raw);
 
 assert.deepEqual(
   Array.from(hydrated.fileChunksById[0] || []),

@@ -40,10 +40,10 @@ const text = 'function add(a, b) { return a + b; }\n';
 const lineIndex = buildLineIndex(text);
 const inlayInfo = parseInlayHintSignalInfo({
   hints: [{
-    position: { line: 0, character: 13 },
+    position: { line: 0, character: 14 },
     label: 'a: integer'
   }, {
-    position: { line: 0, character: 16 },
+    position: { line: 0, character: 17 },
     label: 'b: integer'
   }, {
     position: { line: 0, character: 18 },

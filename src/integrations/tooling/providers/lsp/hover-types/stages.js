@@ -1,3 +1,6 @@
+import { normalizeLspLocations } from '../../../../../index/semantic/lsp-locations.js';
+import { describeStorageFailure } from '../../../../../shared/storage/failure-observation.js';
+
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
   if (typeof contents === 'string') return contents;
@@ -23,22 +26,9 @@ const extractSignatureHelpText = (payload) => {
 };
 
 const extractDefinitionLocations = (payload) => {
-  const source = Array.isArray(payload) ? payload : [payload];
-  const out = [];
-  for (const entry of source) {
-    if (!entry || typeof entry !== 'object') continue;
-    const uri = typeof entry.uri === 'string'
-      ? entry.uri
-      : (typeof entry.targetUri === 'string' ? entry.targetUri : null);
-    const range = entry.range && typeof entry.range === 'object'
-      ? entry.range
-      : (entry.targetSelectionRange && typeof entry.targetSelectionRange === 'object'
-        ? entry.targetSelectionRange
-        : entry.targetRange);
-    if (!uri || !range) continue;
-    out.push({ uri, range });
-  }
-  return out;
+  return normalizeLspLocations(payload).filter(location => location.valid).map(location => ({
+    uri: location.uri, range: location.range, targetRange: location.targetRange
+  }));
 };
 
 const recordCircuitOpenCheck = ({ cmd, guard, checks, checkFlags }) => {
@@ -104,9 +94,10 @@ const recordSoftDeadlineCheck = ({
   });
 };
 
-const isTimeoutError = (err) => (
-  String(err?.message || err || '').toLowerCase().includes('timeout')
-);
+export const isTimeoutError = err => {
+  const diagnostic = describeStorageFailure(err, { phase: 'lsp-request-timeout-classification' });
+  return diagnostic.code === 'ERR_LSP_REQUEST_TIMEOUT' || diagnostic.message.toLowerCase().includes('timeout');
+};
 
 const TIMEOUT_METRIC_KEY_BY_STAGE = Object.freeze({
   hover: 'hoverTimedOut',

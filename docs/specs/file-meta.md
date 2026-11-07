@@ -1,9 +1,9 @@
 # Spec: file_meta artifact
 
 Status: Active implemented artifact contract v1.0
-Last audited: 2026-05-21
+Last audited: 2026-10-21
 Implementation anchors: `src/index/build/artifacts/file-meta.js`,
-`src/index/build/artifacts-write/family-dispatch.js`,
+`src/index/build/artifacts-write/index.js`,
 `src/shared/artifact-io/loaders/core-file-meta.js`, and
 `src/contracts/schemas/artifacts/core.js`.
 
@@ -11,7 +11,7 @@ Goal: store per-file metadata used by downstream tooling (language, sizes, paths
 
 Non-goals:
 - Replace `file_manifest`.
-- Change `file_meta` row schema (see `docs/specs/artifact-schemas.md`).
+- Change `file_meta` row schema (see `docs/contracts/artifact-schemas.md`).
 - Persist file contents.
 
 ---
@@ -57,6 +57,6 @@ Rules:
 
 ## 3) Related specs
 
-- `docs/specs/artifact-schemas.md`
+- `docs/contracts/artifact-schemas.md`
 - `docs/specs/cache-key-invalidation.md`
 - `docs/specs/byte-budget-policy.md`

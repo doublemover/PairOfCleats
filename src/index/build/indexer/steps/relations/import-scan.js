@@ -1,3 +1,4 @@
+import { canReuseImportExtraction } from '../../../../../shared/import-extraction.js';
 import { log, logLine } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import {
@@ -550,6 +551,7 @@ export const postScanImports = async ({
         entries,
         importsByFile,
         importHintsByFile,
+        importExtractionByFile: importResult?.importExtractionByFile || null,
         fileRelations: state.fileRelations,
         log,
         mode,
@@ -724,13 +726,21 @@ export const postScanImports = async ({
   if (importScanFingerprint) {
     for (const [file, imports] of Object.entries(importsByFile || {})) {
       const existing = state.fileRelations.get(file);
+      const coverage = importResult?.importCoverageByFile?.[file] || existing?.importScanCoverage || existing?.cssImportCoverage;
+      const extraction = resolution?.importExtractionByFile?.[file] || importResult?.importExtractionByFile?.[file] || existing?.importScanExtraction || null;
+      const retainedImports = existing && Array.isArray(existing.imports) ? existing.imports : imports;
+      const complete = (!coverage || coverage.state === 'complete') && canReuseImportExtraction(extraction, retainedImports);
       if (existing && typeof existing === 'object') {
-        existing.importScanFingerprint = importScanFingerprint;
+        if (coverage) existing.importScanCoverage = coverage;
+        if (extraction) existing.importScanExtraction = extraction;
+        existing.importScanFingerprint = complete ? importScanFingerprint : null;
         continue;
       }
       state.fileRelations.set(file, {
         imports: Array.isArray(imports) ? imports.slice() : [],
-        importScanFingerprint
+        importScanFingerprint: complete ? importScanFingerprint : null,
+        ...(coverage ? { importScanCoverage: coverage } : {}),
+        ...(extraction ? { importScanExtraction: extraction } : {})
       });
     }
   }

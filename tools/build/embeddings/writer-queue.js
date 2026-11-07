@@ -1,4 +1,13 @@
-import { isAbortError, raceAbort, throwIfAborted } from '../../../src/shared/abort.js';
+import { raceAbort, throwIfAborted } from '../../../src/shared/abort.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { isTerminalEmbeddingTokenEstimateFailure } from '../../../src/shared/embedding-token-estimation.js';
+
+const cancellationObserved = error => {
+  if (isTerminalEmbeddingTokenEstimateFailure(error)) return false;
+  const observed = observeStorageResource(error, { phase: 'embedding-writer-cancellation' });
+  observed.requireSettled();
+  return observed.read('name') === 'AbortError' || observed.read('code') === 'ABORT_ERR';
+};
 
 export const createBoundedWriterQueue = ({
   scheduleIo,
@@ -13,6 +22,11 @@ export const createBoundedWriterQueue = ({
   const byteLimit = Number.isSafeInteger(maxPendingBytes) && maxPendingBytes > 0
     ? maxPendingBytes : 256 * 1024 * 1024;
   const pending = new Set();
+  const terminal = new Set();
+  const throwTerminal = () => {
+    if (terminal.size === 1) throw terminal.values().next().value;
+    if (terminal.size) throw new AggregateError([...terminal], 'Embedding writer queue failed to settle.', { cause: terminal.values().next().value });
+  };
   let pendingBytes = 0;
   let producers = 0;
   let waitingProducerBytes = 0;
@@ -38,6 +52,7 @@ export const createBoundedWriterQueue = ({
   };
   const enqueue = async (fn, {bytes = 0, prepare = null, signal = runSignal} = {}) => {
     if (typeof fn !== 'function') return;
+    throwTerminal();
     throwIfAborted(signal);
     if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > byteLimit) {
       throw new RangeError('Writer payload exceeds pending byte budget.');
@@ -48,9 +63,11 @@ export const createBoundedWriterQueue = ({
     stats.peakWaitingProducerBytes = Math.max(stats.peakWaitingProducerBytes, waitingProducerBytes);
     try {
       while (pending.size >= effectiveLimit() || pendingBytes + bytes > byteLimit) {
+        throwTerminal();
         stats.waits++;
         await raceAbort(signal, Promise.race(pending));
       }
+      throwTerminal();
       throwIfAborted(signal);
       // Reserve synchronously before yielding, including work waiting in scheduleIo.
       let release;
@@ -64,15 +81,28 @@ export const createBoundedWriterQueue = ({
       stats.peakPendingBytes = Math.max(stats.peakPendingBytes, pendingBytes);
       let writeStartedAt = null;
       Promise.resolve().then(() => {
+        throwTerminal();
         throwIfAborted(signal);
         return prepare?.();
       }).then((prepared) => {
+        throwTerminal();
         throwIfAborted(signal);
         writeStartedAt = performance.now();
-        const write = () => { throwIfAborted(signal); return fn(prepared); };
+        const write = () => { throwTerminal(); throwIfAborted(signal); return fn(prepared); };
         return typeof scheduleIo === 'function' ? scheduleIo(write) : write();
       })
-        .catch(error => { stats.failed++; if (isAbortError(error)) stats.cancelled++; })
+        .catch(error => {
+          stats.failed++;
+          if (isTerminalEmbeddingTokenEstimateFailure(error)) { terminal.add(error); return; }
+          let cancelled;
+          try {
+            observeStorageResource(error, { phase: 'embedding-writer-settlement' }).requireSettled();
+            cancelled = cancellationObserved(error);
+          }
+          catch (pendingError) { terminal.add(pendingError); return; }
+          if (cancelled) stats.cancelled++;
+          if (cancelled || signal?.aborted || error instanceof AggregateError) terminal.add(error);
+        })
         .finally(() => {
           if (writeStartedAt != null) stats.writeMs += performance.now() - writeStartedAt;
           pending.delete(reservation);
@@ -80,7 +110,8 @@ export const createBoundedWriterQueue = ({
           release();
         });
     } catch (error) {
-      if (isAbortError(error)) stats.cancelled++;
+      try { if (cancellationObserved(error)) stats.cancelled++; }
+      catch (pendingError) { terminal.add(pendingError); throw pendingError; }
       throw error;
     } finally {
       if (waiting) waitingProducerBytes -= bytes;
@@ -108,6 +139,8 @@ export const createBoundedWriterQueue = ({
       if (pending.size) await Promise.race(pending);
       else await Promise.resolve();
     }
+    throwTerminal();
+    throwIfAborted(runSignal);
   };
   return {enqueue, enqueuePrepared, onIdle, stats: () => ({...stats, pending: pending.size, pendingBytes, producers, waitingProducerBytes, preparing})};
 };

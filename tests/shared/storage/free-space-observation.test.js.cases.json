@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact", "settled-error", "pending-error", "pending-ancestor", "pending-result", "diagnostic-owner", "exact-field-rejections", "pending-admission", "mutable-admission", "admission-getter-owner", "callable-probe-owner"]
+}

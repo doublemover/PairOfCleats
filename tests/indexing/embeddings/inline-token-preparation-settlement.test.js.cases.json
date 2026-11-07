@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["awaited-release-and-late-join", "provider-and-release-failures", "original-pending-preparation", "guarded-single-release", "strict-falsy-estimator-failures", "bounded-held-results-and-cancellation"]
+}

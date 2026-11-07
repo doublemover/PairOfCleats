@@ -6,6 +6,9 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler
 from socketserver import TCPServer
+from runtime_harness import install_fake_modules
+
+install_fake_modules()
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 PACKAGE_ROOT = os.path.join(REPO_ROOT, 'sublime')

@@ -6,10 +6,10 @@ import { getRepoCacheRoot } from '../../../../src/shared/repo-paths.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 import { runNode } from '../../../helpers/run-node.js';
+import { skip } from '../../../helpers/skip.js';
 
 if (process.platform === 'win32') {
-  console.log('embedding CLI signal injection skipped on Windows: POSIX termination signals required');
-  process.exit(0);
+  skip('embedding CLI signal injection requires POSIX termination signals');
 }
 
 const root = process.cwd();

@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { buildRiskSummaries } from '../../../../src/index/risk-interprocedural/summaries.js';
 import { computeInterproceduralRisk } from '../../../../src/index/risk-interprocedural/engine.js';
+import { normalizeRiskInterproceduralSemantics } from '../../../../src/index/risk-interprocedural/semantics.js';
 
 applyTestEnv();
+for (const field of ['fromArgs', 'toParams']) {
+  const invalid = [null, '', '  ', false, true, -1, '-1', 0.5, '0.5', Number.MAX_SAFE_INTEGER + 1, '9007199254740992', 'word', {}, []];
+  const normalized = normalizeRiskInterproceduralSemantics([{ kind: 'wrapper', patterns: ['foo'], [field]: [...invalid, 2, '0', 1, '2', ' 1 '] }]);
+  assert.deepEqual(normalized[0][field], [0, 1, 2], `${field}: only explicit nonnegative safe integral indices survive, ordered and deduplicated`);
+  assert.deepEqual(normalizeRiskInterproceduralSemantics([{ kind: 'unknown-semantic', patterns: ['foo'], [field]: [0] }]), []);
+}
 
 const createChunks = (frameworkId = 'express') => ([
   {
@@ -151,7 +158,15 @@ const runScenario = ({ semantics = [], frameworkId = 'express' } = {}) => {
 
 const noSemantics = runScenario();
 assert.equal(noSemantics.flowRows.length, 0, 'expected no interprocedural flow without framework semantics');
-assert.equal(noSemantics.partialFlowRows.length, 1, 'expected a retained partial flow without semantics');
+assert.deepEqual(noSemantics.partialFlowRows.map(row => ({
+  path: row.path.chunkUids,
+  frontier: row.frontier.chunkUid,
+  reason: row.frontier.terminalReason,
+  blocked: row.frontier.blockedExpansions.map(expansion => expansion.targetChunkUid)
+})), [
+  { path: ['uid-source'], frontier: 'uid-source', reason: 'incompleteArgumentEvidence', blocked: ['uid-wrapper'] },
+  { path: ['uid-source', 'uid-wrapper'], frontier: 'uid-wrapper', reason: 'incompleteArgumentEvidence', blocked: ['uid-sink'] }
+], 'without callback semantics, retain both missing-argument frontiers and their distinct paths');
 
 const semantics = [{
   id: 'sem.callback.register-handler-payload',
@@ -165,11 +180,13 @@ const semantics = [{
 }];
 const withSemantics = runScenario({ semantics });
 assert.equal(withSemantics.flowRows.length, 1, 'expected framework semantics to recover the interprocedural flow');
-assert.equal(
-  withSemantics.partialFlowRows.length,
-  1,
-  'expected the engine to retain the terminal no-callees frontier even when semantics recover a full flow'
-);
+assert.deepEqual(withSemantics.partialFlowRows.map(row => ({
+  path: row.path.chunkUids,
+  reason: row.frontier.terminalReason
+})), [
+  { path: ['uid-source', 'uid-wrapper', 'uid-sink'], reason: 'noCallees' },
+  ...noSemantics.partialFlowRows.map(row => ({ path: row.path.chunkUids, reason: row.frontier.terminalReason }))
+], 'modeled callback propagation retains the terminal frontier and both independent argument-evidence gaps');
 assert.deepEqual(
   withSemantics.flowRows[0]?.path?.watchByStep?.[0]?.semanticIds,
   ['sem.callback.register-handler-payload'],
@@ -202,3 +219,18 @@ const wrongFramework = runScenario({
 assert.equal(wrongFramework.flowRows.length, 0, 'expected framework-scoped semantics not to apply outside their framework');
 
 console.log('risk interprocedural framework semantics test passed');
+
+for (const cap of [0, 1, 2, undefined]) {
+  const chunks = createChunks(), runtime = createRuntime();
+  const source = chunks[0];
+  source.codeRelations.callDetails.push({ ...source.codeRelations.callDetails[0],
+    callee: 'query', calleeRaw: 'query', calleeNormalized: 'query', targetChunkUid: 'uid-sink', startLine: 5 });
+  if (cap === undefined) delete runtime.riskInterproceduralConfig.caps.maxBlockedExpansionsPerPartial;
+  else runtime.riskInterproceduralConfig.caps.maxBlockedExpansionsPerPartial = cap;
+  const { rows } = buildRiskSummaries({ chunks, runtime, mode: 'code' });
+  const result = computeInterproceduralRisk({ chunks, summaries: rows, runtime });
+  const frontier = result.partialFlowRows.find(row => row.frontier.chunkUid === 'uid-source');
+  assert.ok(frontier, 'the original missing-argument frontier remains present');
+  assert.equal(frontier.frontier.blockedExpansions.length, cap === undefined ? 0 : Math.min(cap, 2),
+    'zero, positive and default blocked-edge limits retain their exact meaning');
+}

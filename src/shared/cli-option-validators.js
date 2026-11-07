@@ -1,5 +1,7 @@
 import { validateConfig } from '../config/validate.js';
 import { BENCH_OPTIONS, INDEX_BUILD_OPTIONS } from './cli-option-sets.js';
+import { normalizeIndexBuildStage } from './indexing/stages.js';
+import { createCli } from './cli.js';
 
 const CLI_META_KEYS = new Set(['_', '$0', 'help', 'h']);
 
@@ -77,6 +79,43 @@ export function validateBuildArgs(argv) {
   }
   const result = validateConfig(INDEX_BUILD_SCHEMA, extractKnownArgs(argv, keys));
   if (!result.ok) throwOnErrors('build-index args', result.errors, 'ERR_BUILD_ARG_VALIDATION');
+  validateBuildIntent(argv);
+}
+
+/** Admission shared by CLI parsing and direct core calls, before any build work. */
+export function validateBuildIntent(argv = {}) {
+  const errors = [];
+  if (Array.isArray(argv._) && argv._.length) errors.push(`unexpected positional arguments: ${argv._.join(', ')}`);
+  if (argv.stage !== undefined && (typeof argv.stage !== 'string' || !normalizeIndexBuildStage(argv.stage))) {
+    errors.push('stage must be 1|2|3|4, stage1|stage2|stage3|stage4, sparse|enrich|full|embeddings|embed|sqlite|ann');
+  }
+  const modes = ['code', 'prose', 'extracted-prose', 'records', 'all', 'both'];
+  if (argv.mode !== undefined && (typeof argv.mode !== 'string' || !modes.includes(argv.mode.trim().toLowerCase()))) errors.push('mode must be code|prose|extracted-prose|records|all|both');
+  if (Array.isArray(argv.modes) && argv.modes.some(mode => !['code', 'prose', 'extracted-prose', 'records'].includes(mode))) errors.push('modes contains an unsupported index mode');
+  if (argv.quality !== undefined && (typeof argv.quality !== 'string' || !['fast', 'balanced', 'max'].includes(argv.quality.trim().toLowerCase()))) errors.push('quality must be fast|balanced|max');
+  throwOnErrors('build-index intent', errors, 'ERR_BUILD_ARG_VALIDATION');
+}
+
+/** Admit raw intent before defaults can turn a missing value into all-mode
+ * work, and before a wrapper resolves configuration or launches children. */
+export function validateBuildRawIntent(rawArgs = [], { parse = true } = {}) {
+  const end = rawArgs.indexOf('--');
+  const options = end < 0 ? rawArgs : rawArgs.slice(0, end);
+  if (options.some(value => ['--help', '-h', '--version', '-v'].includes(value))) return;
+  for (let index = 0; index < options.length; index++) {
+    const flag = options[index];
+    if (!['--stage', '--mode', '--quality'].includes(flag)) continue;
+    const value = options[index + 1];
+    if (typeof value !== 'string' || !value.trim() || value.startsWith('-')) {
+      throw createCliValidationError('ERR_BUILD_ARG_VALIDATION', flag + ' requires an explicit value.');
+    }
+  }
+  if (!parse) return;
+  const argv = createCli({ argv: ['node', 'build-index', ...rawArgs], options: INDEX_BUILD_OPTIONS })
+    .help(false).version(false).exitProcess(false).fail(message => {
+      throw createCliValidationError('ERR_BUILD_ARG_VALIDATION', message);
+    }).parseSync();
+  validateBuildArgs(argv);
 }
 
 export function validateBenchArgs(argv, { allowedOptions } = {}) {

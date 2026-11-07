@@ -61,7 +61,7 @@ const main = async () => {
   }
   await fsPromises.mkdir(outDir, { recursive: true });
   const cargoManifestPath = resolveCargoManifestPath(root);
-  const cargoInvocation = resolveCargoCommandInvocation(process.env);
+  const cargoInvocation = resolveCargoCommandInvocation(process.env, root);
   for (const fixturePath of resolvedFixtures) {
     if (!fs.existsSync(fixturePath)) {
       throw new Error(`missing TUI fixture: ${toPosixRelative(root, fixturePath)}`);
@@ -71,6 +71,7 @@ const main = async () => {
       [
         ...cargoInvocation.args,
         'run',
+        '--locked',
         '--quiet',
         '--manifest-path',
         cargoManifestPath

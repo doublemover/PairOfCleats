@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { getStatus } from '../../../src/integrations/core/status.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-diagnostics-'));
@@ -11,7 +12,7 @@ const repo = path.join(dir, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), '{}');
 const run = (script, args, env) => {
-  const result = spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', timeout: 10000, env: { ...process.env, ...env } });
+  const result = runNodeFixture([script, ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { encoding: 'utf8', timeout: 10000, env: { ...process.env, ...env } } });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout.trim());
 };

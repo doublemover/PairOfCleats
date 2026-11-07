@@ -262,9 +262,14 @@ export const createTreeSitterSchedulerLookup = ({
           timeoutMs: readerCloseStepTimeoutMs,
           log
         });
-        if (closeResult?.timedOut) {
-          closeError = closeResult.error || new Error(
-            `[cleanup] tree-sitter-lookup.reader-close timed out: ${entry.key}`
+        // The reader's bounded close can return while its original FileHandle
+        // close is still pending. Fulfillment closes read admission; only the
+        // original resource owner's settlement can release the reader entry.
+        if (closeResult?.timedOut || reader.stats().pendingCloseOperations > 0) {
+          closeError = closeResult?.error || createLookupReaderCloseError(
+            'ERR_TREE_SITTER_LOOKUP_READER_CLOSE_TIMEOUT',
+            `[tree-sitter:schedule] reader close remains pending: ${formatReaderEntryCloseTelemetry(entry)}`,
+            [entry]
           );
         }
       } catch (error) {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,7 +10,7 @@ import {
 } from '../../../src/index/tooling/command-resolver.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'command-profile-probe-cache-persistent');
+const tempRoot = resolveDevelopmentArtifactPath(root, 'test-cache', 'command-profile-probe-cache-persistent');
 const toolingDir = path.join(tempRoot, 'tooling');
 const binDir = path.join(tempRoot, 'bin');
 const fixtureCmd = path.join(

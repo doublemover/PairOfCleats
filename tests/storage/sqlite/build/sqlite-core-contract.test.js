@@ -32,7 +32,9 @@ assert.equal(stats.tables.chunks.durationMs, 200);
 assert.equal(stats.tables.chunks.rowsPerSec, 200);
 
 const preparedSql = [];
+const executedSql = [];
 const fakeDb = {
+  exec(sql) { executedSql.push(sql); },
   prepare(sql) {
     preparedSql.push(String(sql || '').trim());
     return {
@@ -66,6 +68,7 @@ insertContext.insertDocLengthMany([
 ]);
 assert.ok(preparedSql.some((sql) => sql.includes('INTO token_vocab')), 'expected token_vocab statement');
 assert.ok(preparedSql.some((sql) => sql.includes('INTO doc_lengths')), 'expected doc_lengths statement');
+assert.ok(executedSql.some(sql => sql.includes('chunk_filter_facts')), 'filter-fact schema is part of the real insert context');
 
 const txStats = { transaction: { begin: 0, commit: 0, rollback: 0 } };
 const txDb = {

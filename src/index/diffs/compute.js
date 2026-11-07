@@ -12,6 +12,7 @@ import {
   loadDiffInputs,
   loadDiffSummary,
   loadDiffsManifest,
+  resolveDiffDir,
   writeDiffInputs,
   writeDiffSummary,
   writeDiffsManifest
@@ -594,7 +595,7 @@ export const pruneDiffs = async ({
       if (keep) continue;
       removed.push(entry.id);
       if (!dryRunEnabled) {
-        await fsPromises.rm(path.join(repoCacheRoot, 'diffs', entry.id), {
+        await fsPromises.rm(resolveDiffDir(repoCacheRoot, entry.id), {
           recursive: true,
           force: true
         });

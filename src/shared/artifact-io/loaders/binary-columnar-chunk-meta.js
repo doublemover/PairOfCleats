@@ -10,10 +10,10 @@ import {
   shouldDegradeUnsupportedMeta
 } from './binary-columnar.js';
 
-const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES, containedRoot = null } = {}) => {
   const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
+  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes, containedRoot });
   try {
     assertSupportedBinaryColumnarMeta(metaRaw, 'chunk_meta binary-columnar');
   } catch (error) {
@@ -63,10 +63,11 @@ export const iterateChunkMetaBinaryColumnarRows = (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
-    enforceDataBudget = false
+    enforceDataBudget = false,
+    containedRoot = null
   } = {}
 ) => {
-  const layout = resolveChunkMetaBinaryColumnarLayout(dir, { maxBytes });
+  const layout = resolveChunkMetaBinaryColumnarLayout(dir, { maxBytes, containedRoot });
   if (!layout) return null;
   const {
     count,
@@ -82,7 +83,8 @@ export const iterateChunkMetaBinaryColumnarRows = (
     lengthsPath,
     count,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot
   });
   if (!payloads) return null;
   return (function* () {

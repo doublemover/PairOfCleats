@@ -1,0 +1,2142 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "sourceParent": "1e054bf1fc927ee4ffc869afffb19cdbb3262e40",
+  "candidateIdentity": "Containing commit and exact source digests. The original source owner is an isolated controlled baseline; raw-buffer controls retain their independent input authority. No historical whole-tree or latency speedup claim.",
+  "issue": 1240,
+  "runtime": {
+    "node": "26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "bounds": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "sources": [
+    {
+      "path": "src/index/semantic/source-storage.js",
+      "sha256": "61db46af8b0205f4e8bd4ffa9ce333550bb31dd88b12134e4dbfe1b25061f070",
+      "normalizedTextSha256": "3ffa961476d184bd8adf08aee4932fa3c4237355efc20a9b07e0567fe8512b9a"
+    },
+    {
+      "path": "src/index/semantic/source.js",
+      "sha256": "57f012287c95830e9f8246490080afb7af4ff41effe496100631592bd656bb13",
+      "normalizedTextSha256": "604308dd5fd3cf6654b957a27201d3a4c27d5d91e8cda13380e044a40ef31507"
+    },
+    {
+      "path": "src/index/semantic/source-capability.js",
+      "sha256": "f74877e9d45ebcf3bb49d50df35669dacc6d34d32b46c480b171c371fa84f713",
+      "normalizedTextSha256": "4f18ab38d14ebd4bc8c56c1dd833993e0a887dcf7a858072fe18314d290cc1d9"
+    },
+    {
+      "path": "src/index/semantic/disk-writes.js",
+      "sha256": "e03add55655a31935c186d516cc1ac068930950adc47faaebad18f952fd9cbb4",
+      "normalizedTextSha256": "64d0d26dcd324e1ce67a2c184adb1d3a981d0a717f28ec3aad851f4a6cb60e83"
+    },
+    {
+      "path": "src/index/build/artifacts/writers/semantic/partition.js",
+      "sha256": "b5ba92438695325120b45d234cb69ff12a51fb8a9a3c9aaafc9675712aa6acbe",
+      "normalizedTextSha256": "b5ba92438695325120b45d234cb69ff12a51fb8a9a3c9aaafc9675712aa6acbe"
+    },
+    {
+      "path": "tests/storage/semantic/source-retention-partition-work.test.js",
+      "sha256": "5fc4ea0b61fb01671f66756ffb71a65d988d03cf968fc9032181f810d2f26ad4",
+      "normalizedTextSha256": "5fc4ea0b61fb01671f66756ffb71a65d988d03cf968fc9032181f810d2f26ad4"
+    },
+    {
+      "path": "tests/storage/semantic/source-retention-partition-work.test.js.cases.json",
+      "sha256": "cb3a5064cc0728215b4b2bde57851f1c8aa815ec82f6d39422b951d1b46b0283",
+      "normalizedTextSha256": "cb3a5064cc0728215b4b2bde57851f1c8aa815ec82f6d39422b951d1b46b0283"
+    },
+    {
+      "path": "tests/storage/semantic/source-retention-native-lifetime.test.js",
+      "sha256": "dd9c85242a2ce51a74413b5f9e17573a11557adae60333fa18ddddc33e26a50a",
+      "normalizedTextSha256": "dd9c85242a2ce51a74413b5f9e17573a11557adae60333fa18ddddc33e26a50a"
+    },
+    {
+      "path": "tests/storage/semantic/source-retention-receipts.test.js",
+      "sha256": "a642109042e331d8dcddcf871fcc38a66a2e82d9af7fc91954b7b51ca5430301",
+      "normalizedTextSha256": "6067823ff36580fd35f0310a8407f027d589be8dc586eb8881200c3e85243837"
+    },
+    {
+      "path": "tests/indexing/semantic/astro-generated-source-evidence.test.js",
+      "sha256": "aa2ac4e7791c189b3f554829aaa32cb13d79e15749c3bd4e651b54a54a97021b",
+      "normalizedTextSha256": "aa2ac4e7791c189b3f554829aaa32cb13d79e15749c3bd4e651b54a54a97021b"
+    },
+    {
+      "path": "tests/indexing/semantic/compiler-file-url-source-joins.test.js",
+      "sha256": "26621fd98b437d3c21ab59e27ffb98f6a5071a3eaf6256988784dbe50159d9e3",
+      "normalizedTextSha256": "26621fd98b437d3c21ab59e27ffb98f6a5071a3eaf6256988784dbe50159d9e3"
+    },
+    {
+      "path": "tests/storage/semantic/partitions.test.js",
+      "sha256": "7c8345ca0ed95d18519b071e96701b88611da0d930b1d9088d59bca35c102d85",
+      "normalizedTextSha256": "7c8345ca0ed95d18519b071e96701b88611da0d930b1d9088d59bca35c102d85"
+    },
+    {
+      "path": "tests/tooling/ci/run-suite-api-plan.test.js",
+      "sha256": "e43a26fb5329e2f9ed6ca07e0d93556512c7427f7d6fbd1e12ab859d796cf683",
+      "normalizedTextSha256": "e43a26fb5329e2f9ed6ca07e0d93556512c7427f7d6fbd1e12ab859d796cf683"
+    },
+    {
+      "path": "tools/ci/run-suite.js",
+      "sha256": "87da88643e4bd4b9758f8555f091ec3065489eb1030e05d238328aaf11e2f9ef",
+      "normalizedTextSha256": "87da88643e4bd4b9758f8555f091ec3065489eb1030e05d238328aaf11e2f9ef"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "sha256": "f859be480cf84593875d9a69dd793ec056e428600b0b005fc54f25cb5e571630",
+      "normalizedTextSha256": "f859be480cf84593875d9a69dd793ec056e428600b0b005fc54f25cb5e571630"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.manifest.json",
+      "sha256": "bf3910b326ca56b1b613a4e101e8ba81297dd0801ddcff7028bac4e2986d450f",
+      "normalizedTextSha256": "bf3910b326ca56b1b613a4e101e8ba81297dd0801ddcff7028bac4e2986d450f"
+    }
+  ],
+  "original": {
+    "report": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914375149-pbw3yc",
+      "summary": {
+        "durationMs": 830,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 821,
+          "exitCode": 1,
+          "id": "storage/semantic/source-retention-partition-work/shared-16",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914375149-pbw3yc\\storage_semantic_source-retention-partition-work_shared-16.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914375149-pbw3yc\\storage_semantic_source-retention-partition-work_shared-16.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "rawSample": {
+      "case": "shared-16",
+      "arm": "capability",
+      "partitions": 16,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "retentionReadBytes": 16777216,
+      "retentionSourceOpens": 16,
+      "retentionCopies": 16,
+      "retentionCopyBytes": 16777216,
+      "retentionHashes": 16,
+      "retentionHashBytes": 16777216,
+      "receiptHits": 0,
+      "elapsedMs": 104.15530000000001,
+      "accountUsed": 1060016,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    "restoration": {
+      "restored": true,
+      "baselineCommit": "ce269279b0201a23d655035e6490bb6417ab29ae",
+      "restoredSourceSha256": "61DB46AF8B0205F4E8BD4FFA9CE333550BB31DD88B12134E4DBFE1B25061F070",
+      "baselineSourceSha256": "6EB5DB9CB9A50E017D94BBA1ED7415C7CA39D103CEC0DDE8168EECA9FE9CD73B"
+    },
+    "scope": "Only original source-storage.js from ce269279b0201a23d655035e6490bb6417ab29ae is restored; current original descriptor/disk/partition owners remain unchanged."
+  },
+  "focusedReports": [
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn",
+      "summary": {
+        "durationMs": 4980,
+        "failed": 0,
+        "passed": 8,
+        "skipped": 0,
+        "total": 8
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 450,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-native-lifetime",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-native-lifetime.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-native-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 532,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/distinct-1",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-partition-work_distinct-1.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 996,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/distinct-16",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-partition-work_distinct-16.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 615,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/distinct-4",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-partition-work_distinct-4.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 521,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/shared-1",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-partition-work_shared-1.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 769,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/shared-16",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-partition-work_shared-16.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 622,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/shared-4",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-partition-work_shared-4.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 462,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-receipts",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-receipts.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir",
+      "summary": {
+        "durationMs": 19710,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 687,
+          "exitCode": 0,
+          "id": "indexing/semantic/astro-generated-source-evidence",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\indexing_semantic_astro-generated-source-evidence.attempt-1.log"
+          ],
+          "path": "indexing/semantic/astro-generated-source-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4109,
+          "exitCode": 0,
+          "id": "indexing/semantic/compiler-file-url-source-joins",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\indexing_semantic_compiler-file-url-source-joins.attempt-1.log"
+          ],
+          "path": "indexing/semantic/compiler-file-url-source-joins.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 659,
+          "exitCode": 0,
+          "id": "storage/semantic/partitions",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\storage_semantic_partitions.attempt-1.log"
+          ],
+          "path": "storage/semantic/partitions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 14246,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue",
+      "summary": {
+        "durationMs": 3916,
+        "failed": 0,
+        "passed": 6,
+        "skipped": 0,
+        "total": 6
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 520,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/distinct-1",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_distinct-1.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 953,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/distinct-16",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_distinct-16.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 593,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/distinct-4",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_distinct-4.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 522,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/shared-1",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_shared-1.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 751,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/shared-16",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_shared-16.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 568,
+          "exitCode": 0,
+          "id": "storage/semantic/source-retention-partition-work/shared-4",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_shared-4.attempt-1.log"
+          ],
+          "path": "storage/semantic/source-retention-partition-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  ],
+  "latestFocused": {
+    "total": 12,
+    "passed": 12,
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 450,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-native-lifetime",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-native-lifetime.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-native-lifetime.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 520,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-partition-work/distinct-1",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_distinct-1.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-partition-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 953,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-partition-work/distinct-16",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_distinct-16.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-partition-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 593,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-partition-work/distinct-4",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_distinct-4.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-partition-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 522,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-partition-work/shared-1",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_shared-1.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-partition-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 751,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-partition-work/shared-16",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_shared-16.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-partition-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 568,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-partition-work/shared-4",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914497536-8g37ue\\storage_semantic_source-retention-partition-work_shared-4.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-partition-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 462,
+        "exitCode": 0,
+        "id": "storage/semantic/source-retention-receipts",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914202078-cen9rn\\storage_semantic_source-retention-receipts.attempt-1.log"
+        ],
+        "path": "storage/semantic/source-retention-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 687,
+        "exitCode": 0,
+        "id": "indexing/semantic/astro-generated-source-evidence",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\indexing_semantic_astro-generated-source-evidence.attempt-1.log"
+        ],
+        "path": "indexing/semantic/astro-generated-source-evidence.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 4109,
+        "exitCode": 0,
+        "id": "indexing/semantic/compiler-file-url-source-joins",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\indexing_semantic_compiler-file-url-source-joins.attempt-1.log"
+        ],
+        "path": "indexing/semantic/compiler-file-url-source-joins.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 659,
+        "exitCode": 0,
+        "id": "storage/semantic/partitions",
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\storage_semantic_partitions.attempt-1.log"
+        ],
+        "path": "storage/semantic/partitions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 14246,
+        "exitCode": 0,
+        "id": "tooling/ci/run-suite-api-plan",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914314244-tsobir\\tooling_ci_run-suite-api-plan.attempt-1.log"
+        ],
+        "path": "tooling/ci/run-suite-api-plan.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "rawMeasurements": [
+    {
+      "case": "distinct-1",
+      "arm": "capability",
+      "partitions": 1,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 1,
+      "retentionCopyBytes": 1048576,
+      "retentionHashes": 0,
+      "retentionHashBytes": 0,
+      "verifications": 1,
+      "receiptHits": 0,
+      "elapsedMs": 23.277199999999993,
+      "accountUsed": 1049291,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "distinct-1",
+      "arm": "raw-buffer-control",
+      "partitions": 1,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 1,
+      "retentionCopyBytes": 1048576,
+      "retentionHashes": 1,
+      "retentionHashBytes": 1048576,
+      "verifications": 1,
+      "receiptHits": 0,
+      "elapsedMs": 16.52279999999996,
+      "accountUsed": 1049291,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "distinct-16",
+      "arm": "capability",
+      "partitions": 16,
+      "distinctSources": 16,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "a193948aeadf6bc74c9675880f1879554207aec03ddd6b8a397e0d1bcb9866f0",
+        "0c6516b3b66fa8229b804f6c721281f90dcd28a5fb3a529678b2a8063c5eea3e",
+        "9d1ba079e9dc0d944174e3ad5a3fdb5f00ba929892923cd2ca255ceecb227637",
+        "cfeae156e6dcfa9cdf89a8531957080f80ccba458de722652bfb62d61b219053",
+        "addbae0e3ce41bbaa93ab6a1e5fb14bc52aba8f15195d676b2342a3475341cd3",
+        "edde2ec6c6706321126dd1bcec591205a0ec3414feee5844cfc75af12d768ea9",
+        "ad4831526707ce29e2347ddacf0138eeac37ee5142549ae858a4ddea0b9b3c09",
+        "a09571cdc59ad461317b445f17ed8fa4609a3f3809b524944395bf69c0429240",
+        "08d8ecaf9911ce7bc4fafd6c335ccc378a8a9cb9949ac2d3c0dc8579e43f1734",
+        "6620f311f4cbd88662a7fb12fecaa1c13c60816371c7c40ae5b5fe68bf5f785d",
+        "2b0d7b1f7f4a3f02486d0ef7466a6ea77790beb160b10f93dbc29d7086f33847",
+        "b7d528236ac70a03a664267ab65362b484ae7f57271184c76c6cb17c6099df4c",
+        "6f51931ea16da54f5e15659a01a66fbac90f1dc740957f7b38a942b1854ef376",
+        "029a85183e4c0a9320da9c1274cf446189b4c01ea03d9297c50332f4a3e84f3e",
+        "a3788badc84e8d2ecd30465b61e451ddbaa35693f1f729546158338e34e47d74"
+      ],
+      "retentionReadBytes": 16777216,
+      "retentionSourceOpens": 16,
+      "retentionCopies": 16,
+      "retentionCopyBytes": 16777216,
+      "retentionHashes": 0,
+      "retentionHashBytes": 0,
+      "verifications": 16,
+      "receiptHits": 0,
+      "elapsedMs": 118.54250000000002,
+      "accountUsed": 16788662,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "distinct-16",
+      "arm": "raw-buffer-control",
+      "partitions": 16,
+      "distinctSources": 16,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "a193948aeadf6bc74c9675880f1879554207aec03ddd6b8a397e0d1bcb9866f0",
+        "0c6516b3b66fa8229b804f6c721281f90dcd28a5fb3a529678b2a8063c5eea3e",
+        "9d1ba079e9dc0d944174e3ad5a3fdb5f00ba929892923cd2ca255ceecb227637",
+        "cfeae156e6dcfa9cdf89a8531957080f80ccba458de722652bfb62d61b219053",
+        "addbae0e3ce41bbaa93ab6a1e5fb14bc52aba8f15195d676b2342a3475341cd3",
+        "edde2ec6c6706321126dd1bcec591205a0ec3414feee5844cfc75af12d768ea9",
+        "ad4831526707ce29e2347ddacf0138eeac37ee5142549ae858a4ddea0b9b3c09",
+        "a09571cdc59ad461317b445f17ed8fa4609a3f3809b524944395bf69c0429240",
+        "08d8ecaf9911ce7bc4fafd6c335ccc378a8a9cb9949ac2d3c0dc8579e43f1734",
+        "6620f311f4cbd88662a7fb12fecaa1c13c60816371c7c40ae5b5fe68bf5f785d",
+        "2b0d7b1f7f4a3f02486d0ef7466a6ea77790beb160b10f93dbc29d7086f33847",
+        "b7d528236ac70a03a664267ab65362b484ae7f57271184c76c6cb17c6099df4c",
+        "6f51931ea16da54f5e15659a01a66fbac90f1dc740957f7b38a942b1854ef376",
+        "029a85183e4c0a9320da9c1274cf446189b4c01ea03d9297c50332f4a3e84f3e",
+        "a3788badc84e8d2ecd30465b61e451ddbaa35693f1f729546158338e34e47d74"
+      ],
+      "retentionReadBytes": 16777216,
+      "retentionSourceOpens": 16,
+      "retentionCopies": 16,
+      "retentionCopyBytes": 16777216,
+      "retentionHashes": 16,
+      "retentionHashBytes": 16777216,
+      "verifications": 16,
+      "receiptHits": 0,
+      "elapsedMs": 122.95140000000004,
+      "accountUsed": 16788662,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "distinct-4",
+      "arm": "capability",
+      "partitions": 4,
+      "distinctSources": 4,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "a193948aeadf6bc74c9675880f1879554207aec03ddd6b8a397e0d1bcb9866f0",
+        "0c6516b3b66fa8229b804f6c721281f90dcd28a5fb3a529678b2a8063c5eea3e",
+        "9d1ba079e9dc0d944174e3ad5a3fdb5f00ba929892923cd2ca255ceecb227637"
+      ],
+      "retentionReadBytes": 4194304,
+      "retentionSourceOpens": 4,
+      "retentionCopies": 4,
+      "retentionCopyBytes": 4194304,
+      "retentionHashes": 0,
+      "retentionHashBytes": 0,
+      "verifications": 4,
+      "receiptHits": 0,
+      "elapsedMs": 38.18169999999998,
+      "accountUsed": 4197164,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "distinct-4",
+      "arm": "raw-buffer-control",
+      "partitions": 4,
+      "distinctSources": 4,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "a193948aeadf6bc74c9675880f1879554207aec03ddd6b8a397e0d1bcb9866f0",
+        "0c6516b3b66fa8229b804f6c721281f90dcd28a5fb3a529678b2a8063c5eea3e",
+        "9d1ba079e9dc0d944174e3ad5a3fdb5f00ba929892923cd2ca255ceecb227637"
+      ],
+      "retentionReadBytes": 4194304,
+      "retentionSourceOpens": 4,
+      "retentionCopies": 4,
+      "retentionCopyBytes": 4194304,
+      "retentionHashes": 4,
+      "retentionHashBytes": 4194304,
+      "verifications": 4,
+      "receiptHits": 0,
+      "elapsedMs": 34.160499999999956,
+      "accountUsed": 4197164,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "shared-1",
+      "arm": "capability",
+      "partitions": 1,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 1,
+      "retentionCopyBytes": 1048576,
+      "retentionHashes": 0,
+      "retentionHashBytes": 0,
+      "verifications": 1,
+      "receiptHits": 0,
+      "elapsedMs": 21.224699999999984,
+      "accountUsed": 1049291,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "shared-1",
+      "arm": "raw-buffer-control",
+      "partitions": 1,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 1,
+      "retentionCopyBytes": 1048576,
+      "retentionHashes": 1,
+      "retentionHashBytes": 1048576,
+      "verifications": 1,
+      "receiptHits": 0,
+      "elapsedMs": 15.4409,
+      "accountUsed": 1049291,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "shared-16",
+      "arm": "capability",
+      "partitions": 16,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "2155c85389efb4859c7efb70bb394e36443e2403a6bafc0aefe57f8094282346",
+        "4844a4c248b50e27d02bffbef973d391753c4e5b5044bf57314568ab368c12d9",
+        "f8c48cb659c66df57657b39c49baf0c1ee1b9c24934d5b731b834114a2dc24b4",
+        "a36aa70d08ed80aa3b0b144925704f80a5a1afcf529c06901de491dcc263cf04",
+        "a561ade4435500442634d6beba85bdb3e6f52b90e0ea3942fc77c3b34f8d40ef",
+        "a52354cda62fce6a6e5c38aa5588802aaeb851a88bb9859dde383a1ee9fdb72b",
+        "3602e5e748ebc40bcfd5cf933fdf2fa3f8bdb70bd411f4d7986306f18e57188a",
+        "3c2f714c000e1c0c055c2ef05a8419e67873b3dcc604bc0b3f30858205a57dfb",
+        "1ff453dca166ad4f756adcdaa88068127205e97458a93f7fa840da1a6c59a990",
+        "20df2fb724a9f8065108f4e78d672b908e2e88cf55094a6225f18018800f511a",
+        "2034ee8236b7025155a46fdafcf306b41190ac989a8a5ca70c2c778baba1a414",
+        "9117c38d8966dd3e37cba380358ce1f1159a6cf383f4923bcc18602fe99786a7",
+        "bbb9ec3a13746646b81d6ca5ff01e909a0240155ce735daffda8fe58a1404043",
+        "42ad1f81feb55b41850416c1e46d07e3b2401631e5d4074b6df752448e0571bf",
+        "d2daf4396c68af1e631a6e63735c27754cb2f6983ccfc6df1c1399f0a8e7dd5c"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 1,
+      "retentionCopyBytes": 1048576,
+      "retentionHashes": 0,
+      "retentionHashBytes": 0,
+      "verifications": 1,
+      "receiptHits": 15,
+      "elapsedMs": 67.65180000000004,
+      "accountUsed": 1060016,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "shared-16",
+      "arm": "raw-buffer-control",
+      "partitions": 16,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "2155c85389efb4859c7efb70bb394e36443e2403a6bafc0aefe57f8094282346",
+        "4844a4c248b50e27d02bffbef973d391753c4e5b5044bf57314568ab368c12d9",
+        "f8c48cb659c66df57657b39c49baf0c1ee1b9c24934d5b731b834114a2dc24b4",
+        "a36aa70d08ed80aa3b0b144925704f80a5a1afcf529c06901de491dcc263cf04",
+        "a561ade4435500442634d6beba85bdb3e6f52b90e0ea3942fc77c3b34f8d40ef",
+        "a52354cda62fce6a6e5c38aa5588802aaeb851a88bb9859dde383a1ee9fdb72b",
+        "3602e5e748ebc40bcfd5cf933fdf2fa3f8bdb70bd411f4d7986306f18e57188a",
+        "3c2f714c000e1c0c055c2ef05a8419e67873b3dcc604bc0b3f30858205a57dfb",
+        "1ff453dca166ad4f756adcdaa88068127205e97458a93f7fa840da1a6c59a990",
+        "20df2fb724a9f8065108f4e78d672b908e2e88cf55094a6225f18018800f511a",
+        "2034ee8236b7025155a46fdafcf306b41190ac989a8a5ca70c2c778baba1a414",
+        "9117c38d8966dd3e37cba380358ce1f1159a6cf383f4923bcc18602fe99786a7",
+        "bbb9ec3a13746646b81d6ca5ff01e909a0240155ce735daffda8fe58a1404043",
+        "42ad1f81feb55b41850416c1e46d07e3b2401631e5d4074b6df752448e0571bf",
+        "d2daf4396c68af1e631a6e63735c27754cb2f6983ccfc6df1c1399f0a8e7dd5c"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 16,
+      "retentionCopyBytes": 16777216,
+      "retentionHashes": 16,
+      "retentionHashBytes": 16777216,
+      "verifications": 1,
+      "receiptHits": 15,
+      "elapsedMs": 74.6132,
+      "accountUsed": 1060016,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "shared-4",
+      "arm": "capability",
+      "partitions": 4,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "2155c85389efb4859c7efb70bb394e36443e2403a6bafc0aefe57f8094282346",
+        "4844a4c248b50e27d02bffbef973d391753c4e5b5044bf57314568ab368c12d9",
+        "f8c48cb659c66df57657b39c49baf0c1ee1b9c24934d5b731b834114a2dc24b4"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 1,
+      "retentionCopyBytes": 1048576,
+      "retentionHashes": 0,
+      "retentionHashBytes": 0,
+      "verifications": 1,
+      "receiptHits": 3,
+      "elapsedMs": 31.647700000000043,
+      "accountUsed": 1051436,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    },
+    {
+      "case": "shared-4",
+      "arm": "raw-buffer-control",
+      "partitions": 4,
+      "distinctSources": 1,
+      "bytesPerSource": 1048576,
+      "canonicalPartitionHashes": [
+        "ccce73c5a3bf0e2617f626b09ae2482f613f9500d8c19136064a51b847df0e04",
+        "2155c85389efb4859c7efb70bb394e36443e2403a6bafc0aefe57f8094282346",
+        "4844a4c248b50e27d02bffbef973d391753c4e5b5044bf57314568ab368c12d9",
+        "f8c48cb659c66df57657b39c49baf0c1ee1b9c24934d5b731b834114a2dc24b4"
+      ],
+      "retentionReadBytes": 1048576,
+      "retentionSourceOpens": 1,
+      "retentionCopies": 4,
+      "retentionCopyBytes": 4194304,
+      "retentionHashes": 4,
+      "retentionHashBytes": 4194304,
+      "verifications": 1,
+      "receiptHits": 3,
+      "elapsedMs": 26.11850000000004,
+      "accountUsed": 1051436,
+      "sourcePreparation": "snapshots and preexisting ordinary source files prepared before measured finalization"
+    }
+  ],
+  "workSummary": {
+    "shared16Original": {
+      "sourceDescriptors": 16,
+      "readBytes": 16777216,
+      "copyBytes": 16777216,
+      "hashBytes": 16777216
+    },
+    "shared16Repaired": {
+      "sourceDescriptors": 1,
+      "readBytes": 1048576,
+      "copyBytes": 1048576,
+      "hashBytes": 0
+    },
+    "scope": "Source snapshot preparation/initial hashes are outside measured finalization. File reads and full-source Buffer/Hash calls are measured; descriptor and byte counters independently agree. Canonical partition hashes match both current arms. Elapsed samples are descriptive and do not qualify a latency speedup."
+  },
+  "publicationGate": {
+    "format": {
+      "exitCode": 0,
+      "historicalWorkspacePath": ".tmp/tasks/ci-lite-1104/source-retention-format-publish.log",
+      "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+    },
+    "checks": [
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-config-budget.log",
+        "durationMs": 2448,
+        "startedAt": "2026-11-05T21:36:59.9216639Z",
+        "name": "config-budget"
+      },
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-env-check.log",
+        "durationMs": 1432,
+        "startedAt": "2026-11-05T21:37:02.3974645Z",
+        "name": "env-check"
+      },
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-generated-freshness.log",
+        "durationMs": 13939,
+        "startedAt": "2026-11-05T21:37:03.8324094Z",
+        "name": "generated-freshness"
+      },
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-command-surface.log",
+        "durationMs": 3076,
+        "startedAt": "2026-11-05T21:37:17.7732469Z",
+        "name": "command-surface"
+      },
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-workflow-contract.log",
+        "durationMs": 309,
+        "startedAt": "2026-11-05T21:37:20.8512099Z",
+        "name": "workflow-contract"
+      },
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-gate.log",
+        "durationMs": 41048,
+        "startedAt": "2026-11-05T21:37:21.1622010Z",
+        "name": "gate"
+      },
+      {
+        "exitCode": 0,
+        "log": ".tmp/tasks/ci-lite-1104/source-retention-diff-check.log",
+        "durationMs": 111,
+        "startedAt": "2026-11-05T21:38:02.2134874Z",
+        "name": "diff-check"
+      }
+    ],
+    "gate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw",
+      "summary": {
+        "durationMs": 40226,
+        "failed": 0,
+        "passed": 43,
+        "skipped": 0,
+        "total": 43
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 82,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 76,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 89,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 75,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 72,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 76,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 177,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 72,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 80,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 171,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1870,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 281,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 234,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 303,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 284,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 281,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 291,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 287,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 298,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 552,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 275,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 713,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 864,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 906,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 810,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 725,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 575,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 930,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1259,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 79,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1461,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 990,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1201,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 721,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2574,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1283,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 368,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 869,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1571,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1528,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 256,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 161,
+          "exitCode": 0,
+          "id": "ci/gate-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\ci_gate-policy.attempt-1.log"
+          ],
+          "path": "ci/gate-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 14410,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793914641964-vjxcuw\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  },
+  "ci": {
+    "newCases": [
+      "storage/semantic/source-retention-partition-work/shared-1",
+      "storage/semantic/source-retention-partition-work/shared-4",
+      "storage/semantic/source-retention-partition-work/shared-16",
+      "storage/semantic/source-retention-partition-work/distinct-1",
+      "storage/semantic/source-retention-partition-work/distinct-4",
+      "storage/semantic/source-retention-partition-work/distinct-16"
+    ],
+    "ciLiteCount": 2144,
+    "execution": "existing serial resource-budget cohort; exact broad-lane exclusions retain one execution owner"
+  },
+  "boundaries": [
+    "Weak account keys and bounded 256-entry metadata maps retain no source buffers/capabilities; no cross-account/process-global pathname trust.",
+    "Raw mutable inputs retain their captured copy/hash and original descriptor/lifetime negatives; independent publication integrity is unchanged.",
+    "Production change forwards the existing partition metrics owner only; no semantic/artifact version or public knob changes.",
+    "Windows-focused resource/work qualification; changed-head hosted, platform, optional-backend and release acceptance remain separate.",
+    "Historical .tmp/.testLogs paths are provenance, not clean-checkout promises."
+  ]
+}

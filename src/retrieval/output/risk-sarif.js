@@ -12,7 +12,15 @@ const DEFAULT_RULE_ID = 'pairofcleats/risk-flow';
 
 const toSarifPathUri = (filePath) => {
   if (typeof filePath !== 'string' || !filePath.trim()) return null;
-  return filePath.replace(/\\/g, '/');
+  const normalized = filePath.replace(/\\/g, '/');
+  const encodePath = value => value.split('/').map(encodeURIComponent).join('/');
+  if (/^[A-Za-z]:\//u.test(normalized)) return `file:///${normalized.slice(0, 2)}${encodePath(normalized.slice(2))}`;
+  if (normalized.startsWith('//')) {
+    const [host, ...parts] = normalized.slice(2).split('/');
+    if (!/^[A-Za-z0-9._-]+$/u.test(host)) throw new TypeError('Invalid UNC host in SARIF source path.');
+    return `file://${host}/${parts.map(encodeURIComponent).join('/')}`;
+  }
+  return normalized.startsWith('/') ? `file://${encodePath(normalized)}` : encodePath(normalized);
 };
 
 const buildSarifRegion = (details) => {
@@ -31,7 +39,7 @@ const buildSarifPhysicalLocation = (details, { uriBaseId = DEFAULT_URI_BASE_ID }
   const physicalLocation = {
     artifactLocation: {
       uri,
-      uriBaseId
+      ...(!uri.startsWith('file:') ? { uriBaseId } : {})
     }
   };
   const region = buildSarifRegion(details);
@@ -79,6 +87,7 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
     if (!limited.length) {
       locations.push({
         step: index + 1,
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ordinal: locations.length + 1,
         evidenceIndex: 0,
         callSiteId: null,
@@ -91,6 +100,7 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
     limited.forEach((entry, entryIndex) => {
       locations.push({
         step: index + 1,
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ordinal: locations.length + 1,
         evidenceIndex: entryIndex,
         callSiteId: entry?.callSiteId || ids[entryIndex] || null,
@@ -105,11 +115,12 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
 
 const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } = {}) => {
   const location = {
-    message: { text: flowStep.message },
+    location: { message: { text: flowStep.message } },
     executionOrder: flowStep.ordinal,
     properties: {
       pairOfCleats: {
         callSiteId: flowStep.callSiteId || null,
+        ...(flowStep.repo ? { repo: flowStep.repo } : {}),
         evidenceIndex: flowStep.evidenceIndex,
         step: flowStep.step,
         watchWindow: normalizeRiskWatchWindow(flowStep.watchWindow)
@@ -118,7 +129,7 @@ const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } =
   };
   const physicalLocation = buildSarifPhysicalLocation(flowStep.details, { uriBaseId });
   if (physicalLocation) {
-    location.location = { physicalLocation };
+    location.location.physicalLocation = physicalLocation;
   }
   return location;
 };
@@ -129,6 +140,7 @@ const buildResultLocation = (flowSteps, { uriBaseId = DEFAULT_URI_BASE_ID } = {}
     if (!physicalLocation) continue;
     return [{
       physicalLocation,
+      ...(flowSteps[index].repo ? { properties: { pairOfCleats: { repo: flowSteps[index].repo } } } : {}),
       message: { text: flowSteps[index].message }
     }];
   }
@@ -157,15 +169,16 @@ const buildFlowResult = (flow, index, { uriBaseId = DEFAULT_URI_BASE_ID, maxEvid
     partialFingerprints: {
       pairOfCleatsFlowId: flow?.flowId || `flow-${index + 1}`
     },
-    codeFlows: [{
+    ...(flowSteps.length ? { codeFlows: [{
       threadFlows: [{
         id: flow?.flowId || `flow-${index + 1}`,
         locations: flowSteps.map((step) => buildThreadFlowLocation(step, { uriBaseId }))
       }]
-    }],
+    }] } : {}),
     properties: {
       pairOfCleats: {
         flowId: flow?.flowId || null,
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
         category: flow?.category || null,
         sourceRuleId: flow?.source?.ruleId || null,
@@ -181,10 +194,11 @@ const buildFlowResult = (flow, index, { uriBaseId = DEFAULT_URI_BASE_ID, maxEvid
   return result;
 };
 
-const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvidencePerFlow = 3 } = {}) => {
+const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvidencePerFlow = 3, totalPartialFlows = null } = {}) => {
   const list = Array.isArray(partialFlows) ? partialFlows : [];
   const limited = list.slice(0, maxPartialFlows).map((flow) => ({
     partialFlowId: flow?.partialFlowId || null,
+    ...(flow?.repo ? { repo: flow.repo } : {}),
     confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
     source: flow?.source || null,
     frontier: flow?.frontier || null,
@@ -192,6 +206,7 @@ const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvide
     notes: flow?.notes || null,
     blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
       ? flow.frontier.blockedExpansions.slice(0, maxEvidencePerFlow).map((entry) => ({
+        ...(entry?.repo ? { repo: entry.repo } : {}),
         targetChunkUid: entry?.targetChunkUid || null,
         reason: entry?.reason || null,
         callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
@@ -199,7 +214,7 @@ const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvide
       : []
   }));
   return {
-    partialFlowSelection: buildPartialRiskFlowSelection(partialFlows, { maxPartialFlows, maxEvidencePerFlow }),
+    partialFlowSelection: buildPartialRiskFlowSelection(partialFlows, { maxPartialFlows, maxEvidencePerFlow, totalPartialFlows }),
     partialFlows: limited
   };
 };
@@ -213,7 +228,8 @@ export const renderRiskExplanationSarif = (model, {
   origin = 'risk-explain'
 } = {}) => {
   const flows = Array.isArray(model?.flows) ? model.flows.slice(0, maxFlows) : [];
-  const partialCompanion = buildPartialFlowCompanion(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow });
+  const partialCompanion = buildPartialFlowCompanion(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow,
+    totalPartialFlows: model?.partialFlowPopulation?.total });
   return {
     $schema: SARIF_SCHEMA_URL,
     version: SARIF_VERSION,
@@ -242,10 +258,11 @@ export const renderRiskExplanationSarif = (model, {
           summary: model?.summary || null,
           stats: model?.stats || null,
           provenance: model?.provenance || null,
+          ...(model?.federation ? { federation: model.federation } : {}),
           caps: model?.caps || null,
           truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
           filters: model?.filters || null,
-          flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow }),
+          flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow, totalFlows: model?.flowPopulation?.total }),
           partialFlowSelection: partialCompanion.partialFlowSelection,
           partialFlows: partialCompanion.partialFlows
         }

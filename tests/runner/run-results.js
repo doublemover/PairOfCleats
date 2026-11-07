@@ -16,11 +16,12 @@ export const normalizeResult = (input = {}) => {
   const stdout = input.stdout || '';
   const stderr = input.stderr || '';
   const normalized = {
-    status: timedOut ? 'failed' : status,
+    status: timedOut || input.interruption ? 'failed' : status,
+    interruption: input.interruption || null,
     exitCode: Number.isFinite(input.exitCode) ? input.exitCode : null,
     signal: input.signal || null,
     timedOut,
-    timeoutClass: classifyTimeout({
+    timeoutClass: input.interruption?.kind === 'watchdog' ? 'watchdog_interruption' : classifyTimeout({
       timedOut,
       exitCode: Number.isFinite(input.exitCode) ? input.exitCode : null,
       signal: input.signal || null,
@@ -59,9 +60,9 @@ export const summarizeResults = (results, totalMs) => {
 };
 
 /** Timeout classifications describe cleanup diagnostics, never acceptance. */
-export const resolveAcceptanceExitCode = (results, { perfBudgetViolations = [] } = {}) => (
+export const resolveAcceptanceExitCode = (results, { perfBudgetViolations = [], watchdogState = null } = {}) => (
   results.some((result) => result.timedOut || result.status === 'failed' || result.status === 'redo')
-    || perfBudgetViolations.length > 0 ? 1 : 0
+    || watchdogState?.triggered === true || perfBudgetViolations.length > 0 ? 1 : 0
 );
 
 export const formatFailure = (result) => {

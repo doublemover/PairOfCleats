@@ -1,90 +1,21 @@
-import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
+import { buildSearchRequestProperties, createSearchStringListSchema } from '../../src/shared/search-request-schema.js';
+import { CONTEXT_TASK_POLICY_SCHEMA } from '../../src/contracts/schemas/context-task.js';
+import { CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA } from '../../src/contracts/schemas/context-token-budget.js';
+import { CONTEXT_EVIDENCE_SELECTION_SCHEMA } from '../../src/contracts/schemas/context-evidence-selection.js';
+import { validateFederatedSearchAdmission } from '../../src/retrieval/federation/request.js';
+import { cloneJsonSchema, compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 import {
-  INTEGER_MIN_ZERO_FLAG_FIELDS,
-  REPEATED_LIST_FIELDS,
-  STRING_FLAG_FIELDS,
   SEARCH_REQUEST_REQUIREMENT,
   buildSearchRequestArgs,
   validateLegacySearchContext
 } from '../../src/shared/search-request.js';
 
-const stringListSchema = {
-  anyOf: [
-    { type: 'string' },
-    { type: 'array', items: { type: 'string' } }
-  ]
-};
-
-const metaSchema = {
-  anyOf: [
-    { type: 'string' },
-    {
-      type: 'array',
-      items: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'number' },
-          { type: 'boolean' },
-          { type: 'object' },
-          { type: 'null' }
-        ]
-      }
-    },
-    { type: 'object', additionalProperties: true }
-  ]
-};
-
-const stringFieldProperties = Object.fromEntries(
-  STRING_FLAG_FIELDS.map(([field]) => [field, { type: 'string' }])
-);
-
-const integerMinZeroFieldProperties = Object.fromEntries(
-  INTEGER_MIN_ZERO_FLAG_FIELDS.map(([field]) => [field, { type: 'integer', minimum: 0 }])
-);
-
-const repeatedListFieldProperties = Object.fromEntries(
-  REPEATED_LIST_FIELDS.map(([field]) => [field, stringListSchema])
-);
-
+const stringListSchema = createSearchStringListSchema();
 const searchRequestSchema = {
   type: 'object',
   additionalProperties: false,
   ...SEARCH_REQUEST_REQUIREMENT,
-  properties: {
-    query: { type: 'string' },
-    repoPath: { type: 'string' },
-    repo: { type: 'string' },
-    asOf: { type: 'string' },
-    snapshot: { type: 'string' },
-    snapshotId: { type: 'string' },
-    cursor: { type: 'string', minLength: 1, maxLength: 8192 },
-    output: { type: 'string', enum: ['compact', 'json', 'full'] },
-    mode: { type: 'string', enum: ['code', 'prose', 'records', 'both', 'all', 'extracted-prose'] },
-    backend: { type: 'string', enum: ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb'] },
-    ann: { type: 'boolean' },
-    allowSparseFallback: { type: 'boolean' },
-    allowUnsafeMix: { type: 'boolean' },
-    top: { type: 'integer', minimum: 0 },
-    context: { type: 'integer', const: 0, deprecated: true },
-    ...stringFieldProperties,
-    ...integerMinZeroFieldProperties,
-    visibility: { type: 'string' },
-    extends: { type: 'string' },
-    lint: { type: 'boolean' },
-    async: { type: 'boolean' },
-    generator: { type: 'boolean' },
-    returns: { type: 'boolean' },
-    case: { type: 'boolean' },
-    caseFile: { type: 'boolean' },
-    caseTokens: { type: 'boolean' },
-    path: stringListSchema,
-    paths: stringListSchema,
-    ...repeatedListFieldProperties,
-    meta: metaSchema,
-    metaJson: {
-      type: ['string', 'object', 'array', 'number', 'boolean', 'null']
-    }
-  }
+  properties: buildSearchRequestProperties({ includeRepoAlias: true })
 };
 
 const federatedSelectionSchema = {
@@ -140,12 +71,19 @@ const federatedDebugSchema = {
 const federatedSearchSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'workspacePath'],
+  required: ['workspacePath'],
   properties: {
     workspacePath: { type: 'string', minLength: 1 },
     workspaceId: { type: 'string', minLength: 1 },
-    query: { type: 'string', minLength: 1 },
-    search: { type: 'object' },
+    query: { type: 'string' },
+    cursor: { type: 'string', minLength: 1, maxLength: 16384 },
+    search: { type: 'object', additionalProperties: false, properties: (() => {
+      const properties = buildSearchRequestProperties();
+      delete properties.repoPath;
+      delete properties.query;
+      properties.cursor = { type: 'string', minLength: 1, maxLength: 16384 };
+      return properties;
+    })() },
     select: federatedSelectionSchema,
     merge: federatedMergeSchema,
     limits: federatedLimitsSchema,
@@ -237,6 +175,10 @@ const contextPackSchema = {
     includeRiskPartialFlows: { type: 'boolean' },
     strictRisk: { type: 'boolean' },
     strictEvidence: { type: 'boolean' },
+    pathSemantics: { const: 'graph-witness' },
+    taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
+    renderedTokenBudget: CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA,
+    evidenceSelection: CONTEXT_EVIDENCE_SELECTION_SCHEMA,
     includeImports: { type: 'boolean' },
     includeUsages: { type: 'boolean' },
     includeCallersCallees: { type: 'boolean' },
@@ -267,6 +209,9 @@ const formatValidationErrors = (errors = []) => errors.map((err) => {
   return `${path} ${err.message}`.trim();
 });
 
+/** An owned description for native clients; callers cannot mutate validation. */
+export const getSearchRequestSchema = () => cloneJsonSchema(searchRequestSchema);
+
 export const createSearchValidator = () => {
   const ajv = createAjv({ allErrors: false, strict: false });
   const validateSearchRequest = compileSchema(ajv, searchRequestSchema);
@@ -289,7 +234,7 @@ export const createFederatedSearchValidator = () => {
   const validateFederatedSearch = compileSchema(ajv, federatedSearchSchema);
   return (payload) => {
     const valid = validateFederatedSearch(payload);
-    if (valid) return { ok: true };
+    if (valid) return validateFederatedSearchAdmission(payload);
     return { ok: false, errors: formatValidationErrors(validateFederatedSearch.errors || []) };
   };
 };

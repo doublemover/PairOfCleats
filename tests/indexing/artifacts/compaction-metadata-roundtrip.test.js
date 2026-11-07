@@ -61,8 +61,10 @@ try {
     ]
   });
   runNode(['tools/index/compact-pieces.js', '--repo', repo, '--mode', 'code', '--chunk-meta-size', '2', '--token-postings-size', '2'], 'compact metadata round-trip', root, process.env, { timeoutMs: 20000 });
-  const nextChunks = await read('chunk_meta.meta.json');
-  const nextTokens = await read('token_postings.meta.json');
+  const manifest = await read('pieces/manifest.json');
+  const nextChunks = await read(manifest.pieces.find(piece => piece.name === 'chunk_meta_meta').path);
+  const nextTokens = await read(manifest.pieces.find(piece => piece.name === 'token_postings_meta').path);
+  assert.deepEqual(await read('chunk_meta.meta.json'), chunkMeta, 'old metadata remains usable by retained readers');
   assert.equal(nextChunks.extensions.__poc_generated.kind, 'sharded-meta');
   assert.equal(nextTokens.extensions.__poc_generated.kind, 'token-postings-meta');
   for (const meta of [nextChunks, nextTokens]) {
@@ -77,7 +79,6 @@ try {
   const tokens = await read(nextTokens.parts[0]);
   assert.deepEqual(tokens, { vocab: ['alpha', 'beta'], postings: [[[0, 1]], [[1, 1]]], vocabIds: [101, 205] });
   assert.deepEqual(nextTokens.extensions.tokenId, { algorithm: 'fixture' });
-  const manifest = await read('pieces/manifest.json');
   assert.equal(manifest.extensions.__poc_generated.kind, 'pieces-manifest');
   assert.equal(manifest.extensions.rootCaller, 'retained');
   assert.ok(!manifest.pieces.some((piece) => piece.name === 'chunk_meta_offsets'));

@@ -7,6 +7,7 @@ import { registerDefaultToolingProviders } from '../../../src/index/tooling/prov
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { resolveSourcekitHostLockPath } from '../../../src/index/tooling/sourcekit-provider.js';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -85,6 +86,7 @@ const heldLock = await acquireFileLock({
   metadata: { scope: 'sourcekit-host-lock-unavailable-test' }
 });
 assert.ok(heldLock, 'expected test to acquire sourcekit host lock');
+const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
 try {
   const output = await provider.run(ctx, { documents: [document], targets: [target] });
   assert.deepEqual(output.byChunkUid || {}, {}, 'expected sourcekit provider to skip run when host lock is unavailable');
@@ -102,6 +104,7 @@ try {
     'expected fidelity contract to preserve host lock classification'
   );
 } finally {
+  restoreExecution();
   await heldLock.release();
 }
 

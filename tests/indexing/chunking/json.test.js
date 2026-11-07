@@ -29,6 +29,19 @@ const invalid = chunkJson('{', {});
 expect(invalid === null, 'Expected invalid JSON to return null.');
 const invalidTrailingComma = chunkJson('{"alpha":1,}', {});
 expect(invalidTrailingComma === null, 'Expected trailing-comma JSON to return null.');
+for (const text of ['{"a":{}}', '{"a":[]}', '{"a":[{},[],{"b":[]}]}']) {
+  const actual = chunkJson(text, {});
+  expect(actual?.length === 1 && actual[0].name === 'a', 'Nested empty containers preserve the authored key.');
+  expect(actual[0].start === 1 && actual[0].end === text.length, 'Nested empty source range starts at the authored key.');
+  expect(JSON.stringify(actual) === JSON.stringify(chunkJson(text, {})), 'Fallback remains deterministic.');
+}
+for (const text of ['{}', '[]']) {
+  const actual = chunkJson(text, {});
+  expect(actual?.length === 1 && actual[0].name === 'root' && actual[0].end === text.length, 'Empty root remains valid.');
+}
+for (const text of ['{"a":[{},]}', '{"a":{"b":[],}}', '[[],]']) {
+  expect(chunkJson(text, {}) === null, 'Nested empty support must not admit trailing commas.');
+}
 const escapedKey = chunkJson('{"key\\u0020name":1,"beta":2}', {}) || [];
 expect(escapedKey[0]?.name === 'key name', 'Expected unicode-escaped key names to decode deterministically.');
 

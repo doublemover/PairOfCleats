@@ -84,6 +84,7 @@ await withTempBuildRoot('poc-patch-queue-best-effort-', async (buildRoot) => {
 
 await withTempBuildRoot('poc-patch-queue-mixed-', async (buildRoot) => {
   let applyCount = 0;
+  let originalRequiredFailure;
   const observedErrors = [];
   const queue = createPatchQueue({
     mergeState: (base, patch) => ({ ...(base || {}), ...(patch || {}) }),
@@ -91,6 +92,7 @@ await withTempBuildRoot('poc-patch-queue-mixed-', async (buildRoot) => {
       applyCount += 1;
       if (applyCount === 1) {
         const err = new Error('synthetic lock unavailable');
+        originalRequiredFailure = err;
         err.code = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
         err.retryable = true;
         err.buildState = {
@@ -103,7 +105,7 @@ await withTempBuildRoot('poc-patch-queue-mixed-', async (buildRoot) => {
       return { patch, events, durabilityClass: context?.durabilityClass || null };
     },
     recordStateError: (_buildRoot, error) => {
-      observedErrors.push(error?.code || error?.message || String(error));
+      observedErrors.push(error);
     }
   });
 
@@ -129,10 +131,12 @@ await withTempBuildRoot('poc-patch-queue-mixed-', async (buildRoot) => {
   const [bestEffortOutcome, requiredError] = await Promise.all([bestEffortWait, requiredWait]);
   assert.equal(bestEffortOutcome?.status, PATCH_QUEUE_WAIT_STATUS.TIMED_OUT);
   assert.equal(requiredError?.code, 'ERR_BUILD_STATE_LOCK_UNAVAILABLE');
-  assert.deepEqual(observedErrors, []);
+  assert.equal(requiredError, originalRequiredFailure);
+  assert.deepEqual(observedErrors, [originalRequiredFailure], 'required durability failure remains observable');
   const flushOutcome = await queue.flushBuildState(buildRoot);
   assert.equal(flushOutcome?.status, PATCH_QUEUE_WAIT_STATUS.FLUSHED);
   assert.equal(applyCount, 2);
+  assert.deepEqual(observedErrors, [originalRequiredFailure], 'later explicit recovery cannot erase or duplicate the failure');
 });
 
 await withTempBuildRoot('poc-patch-queue-owner-', async (buildRoot) => {

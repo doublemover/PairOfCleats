@@ -9,6 +9,7 @@ import { readJsonLinesArraySync } from '../../../src/shared/artifact-io/json/rea
 import { readJsonFileCached } from '../../../src/shared/artifact-io/loaders/shared.js';
 import { loadPiecesManifest } from '../../../src/shared/artifact-io/manifest-read.js';
 import { resolveManifestArtifactSources } from '../../../src/shared/artifact-io/manifest-sources.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-artifact-read-profiles-'));
 const tooLarge = (error) => error?.code === 'ERR_JSON_TOO_LARGE';
@@ -71,7 +72,8 @@ try {
   const pieces = path.join(root, 'pieces');
   await fsPromises.mkdir(pieces);
   const manifestPath = path.join(pieces, 'manifest.json');
-  const rawManifest = { fields: { compatibilityKey: 'profile-fixture', pieces: [], padding: 'x'.repeat(65536) } };
+  const rawManifest = { fields: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+    compatibilityKey: 'profile-fixture', pieces: [], padding: 'x'.repeat(65536) } };
   await fsPromises.writeFile(manifestPath, JSON.stringify(rawManifest));
   assert.throws(() => loadPiecesManifest(root, { maxBytes: 16 }), tooLarge,
     'cold manifest honors its existing64KiB minimum-normalized limit');
@@ -87,7 +89,7 @@ try {
   const artifactMeta = { format: 'jsonl', parts: ['file_meta.jsonl'], padding: 'x'.repeat(200) };
   await fsPromises.writeFile(path.join(root, 'file_meta.meta.json'), JSON.stringify(artifactMeta));
   await fsPromises.writeFile(path.join(root, 'file_meta.jsonl'), text);
-  const selection = { pieces: [{ name: 'file_meta', path: 'file_meta.jsonl' },
+  const selection = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [{ name: 'file_meta', path: 'file_meta.jsonl' },
     { name: 'file_meta_meta', path: 'file_meta.meta.json' }] };
   const resolveSources = (maxBytes) => resolveManifestArtifactSources({ dir: root,
     manifest: selection, name: 'file_meta', strict: true, maxBytes });

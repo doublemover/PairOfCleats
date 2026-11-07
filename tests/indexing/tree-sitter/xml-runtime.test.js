@@ -65,9 +65,9 @@ try {
   assert.ok(Array.isArray(chunks) && chunks.length > 0, 'expected xml tree-sitter chunks');
   const names = new Set(chunks.map((chunk) => chunk.name));
   const kinds = new Set(chunks.map((chunk) => chunk.kind));
-  assert.ok(names.has('database'), 'expected database element chunk');
+  assert.ok(names.has('config.database'), 'expected qualified database element chunk');
   assert.ok(
-    Array.from(names).some((name) => name === 'database.host' || name === 'host'),
+    names.has('config.database.host'),
     'expected host attribute chunk'
   );
   assert.ok(kinds.has('ConfigSection'), 'expected config section chunk kind');

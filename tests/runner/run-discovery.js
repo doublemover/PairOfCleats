@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { compileSafeRegex } from '../../src/shared/safe-regex.js';
 import { toPosix } from '../../src/shared/file-paths.js';
+import { readTestCaseInventory } from './case-inventory.js';
 
 export const splitCsv = (values) => values
   .flatMap((value) => String(value).split(','))
@@ -32,6 +33,7 @@ export const discoverTests = async ({ testsDir, excludedDirs, excludedFiles }) =
   const results = [];
   const walk = async (dir, relDir) => {
     const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+    const sidecars = new Set(entries.filter(entry => entry.isFile() && entry.name.endsWith('.cases.json')).map(entry => entry.name));
     for (const entry of entries) {
       const relPath = relDir ? `${relDir}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
@@ -43,17 +45,23 @@ export const discoverTests = async ({ testsDir, excludedDirs, excludedFiles }) =
       if (isExcludedFile(relPath, excludedDirs, excludedFiles)) continue;
       results.push({
         path: path.join(dir, entry.name),
-        relPath
+        relPath,
+        caseInventory: sidecars.has(entry.name + '.cases.json') ? path.join(dir, entry.name + '.cases.json') : null
       });
     }
   };
   await walk(testsDir, '');
   results.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return results.map((entry) => ({
-    ...entry,
-    id: resolveTestId(entry.relPath),
-    relPath: normalizeSegments(entry.relPath)
-  }));
+  const tests = [];
+  for (const { caseInventory, ...entry } of results) {
+    const sourceId = resolveTestId(entry.relPath);
+    const cases = caseInventory ? await readTestCaseInventory(caseInventory) : [null];
+    for (const caseId of cases) tests.push({ ...entry,
+      id: caseId ? sourceId + '/' + caseId : sourceId,
+      ...(caseId ? { sourceId, caseId } : {}),
+      relPath: normalizeSegments(entry.relPath) });
+  }
+  return tests;
 };
 
 export const assignLaneWithReason = (id, laneRules) => {
@@ -178,13 +186,13 @@ export const resolveLanes = (argvLanes, knownLanes) => {
   }
   const resolved = new Set();
   for (const lane of raw) {
+    resolved.add(lane);
     if (lane === 'ci' || lane === 'ci-long') {
       resolved.add('unit');
       resolved.add('integration');
       resolved.add('services');
       continue;
     }
-    resolved.add(lane);
   }
   return resolved;
 };

@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs/promises';
+import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import { parseEmbeddingsPerfLine } from '../../../tools/build/embeddings/perf-progress.js';
 import { setupIncrementalRepo } from '../../helpers/sqlite-incremental.js';
 
 const { root, repoRoot, env, run, runCapture } = await setupIncrementalRepo({
-  name: 'stage3-perf-observability'
+  name: 'stage3-perf-observability',
+  fixtureBuilder: async repo => {
+    await fs.writeFile(path.join(repo, 'alpha.js'), '/** Add values. */\nexport const add = (a, b) => a + b;\n');
+    await fs.writeFile(path.join(repo, 'beta.js'), 'export function greet(name) { return `Hello ${name}`; }\n');
+  },
+  testConfig: { threads: 1, sqlite: { use: false }, tooling: { autoEnableOnDetect: false },
+    indexing: { typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false,
+      embeddings: { hnsw: { enabled: false }, lancedb: { enabled: false } } } }
 });
 
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -38,6 +47,8 @@ const stage3Result = runCapture(
     'none',
     '--stage',
     'stage3',
+    '--progress',
+    'jsonl',
     '--mode',
     'code',
     '--repo',
@@ -46,7 +57,10 @@ const stage3Result = runCapture(
   'stage3 build'
 );
 
-const output = `${stage3Result.stdout || ''}\n${stage3Result.stderr || ''}`;
+const rawOutput = `${stage3Result.stdout || ''}\n${stage3Result.stderr || ''}`;
+const logs = rawOutput.split(/\r?\n/).map(line => parseProgressEventLine(line)).filter(event => event?.event === 'log');
+assert.ok(logs.length, 'canonical JSONL log events retain complete observability data');
+const output = logs.map(event => event.message).join('\n');
 assert.match(
   output,
   /\[embeddings\]\s+code:\s+perf_progress\s+.*files_total=\d+.*chunks_total=\d+.*elapsed_ms=\d+/,

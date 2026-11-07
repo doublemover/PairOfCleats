@@ -52,6 +52,7 @@ indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
 indexing.artifacts.writeConcurrency (integer)
 indexing.concurrency (number)
+indexing.crossFileFidelity (string) enum=bounded|comprehensive
 indexing.diffs (object)
 indexing.diffs.compute (object)
 indexing.diffs.compute.detectRenames (boolean)
@@ -487,6 +488,7 @@ tooling.vfs.tokenMode (string)
 
 ## Defaults
 
+- indexing.crossFileFidelity = "bounded"
 - indexing.lexicon.enabled = true
 - indexing.postings.chargramFields = ["name","doc"]
 - indexing.postings.chargramStopwords = false
@@ -559,6 +561,14 @@ Notes:
 - `--includeSemantic` (boolean, default false): include bounded semantic evidence and pinned follow-up requests in context packs.
 - CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.
 - Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.
+
+### Context-pack exact rendered tokens
+
+- `--renderedTokenBudget` (JSON string, absent by default): pinned local tokenizer profile and independent exact rendered-text allowance.
+- CLI/MCP/HTTP share `renderedTokenBudget`; exact counting includes the versioned text envelope and declared reserved overhead.
+- `--evidenceSelection` (JSON string, absent by default): bounded single-repository experimental top-k, MMR, role-coverage or facility-location selection over verified intact units; requires edit-safe task and exact rendered-token accounting.
+- Unsupported profiles, unavailable bounded counting, token overflow and complete-response byte overflow fail explicitly.
+- See `docs/guides/context-token-budget.md` for profile authority, engine/version, limits and envelope exclusions.
 
 ### TypeScript type representation
 

@@ -36,7 +36,7 @@ for (const scenario of ['drained', 'timed-out', 'pending-child']) {
       throw operationError;
     } });
   deps.acquireIndexLockWithBackoff = async input => {
-    ownerLock = await acquireIndexLock({ repoCacheRoot: input.repoCacheRoot }); return ownerLock;
+    ownerLock = await acquireIndexLock({ repoCacheRoot: input.repoCacheRoot, requireSettlement: true }); return ownerLock;
   };
   const watch = startCodeWatch({ runtime, deps, onStateChange: state => {
     if (state.shutdownSignal === 'cache-writer-teardown') shutdown();

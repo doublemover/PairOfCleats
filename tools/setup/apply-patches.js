@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
+import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
+import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
+import { throwIfAborted } from '../../src/shared/abort.js';
+import { readErrorDataProperty } from '../../src/shared/error-data.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { withCheckoutMutation, requireCheckoutMutationSession } from './checkout-mutation.js';
+import { withPackagePatchStage } from './patch-stage.js';
+import { formatBootstrapTaskProgress } from './task-progress.js';
+import { writeBootstrapStatus, writeBootstrapText } from './task-progress-output.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -84,6 +92,7 @@ const validateHunks = (lines) => {
     previousBody = true;
   }
   if (!hunks || oldLeft || newLeft) throw new Error('Incomplete patch hunks.');
+  return hunks;
 };
 
 const parsePatch = (name, buffer) => {
@@ -109,36 +118,53 @@ const parsePatch = (name, buffer) => {
       || section[2] !== `--- a/${relative}` || section[3] !== `+++ b/${relative}`) {
       throw new Error(`Unsupported or malformed existing-file text patch: ${name}`);
     }
-    validateHunks(section.slice(4));
+    const hunks = validateHunks(section.slice(4));
     section[0] = 'diff --git a/target b/target';
     section[2] = '--- a/target';
     section[3] = '+++ b/target';
-    return { name, packageName, version: match[3], relative, patch: `${section.join('\n')}\n` };
+    return { name, packageName, version: match[3], relative, hunks, patch: `${section.join('\n')}\n` };
   });
 };
 
-const runGit = (stage, patch, args) => {
+const gitOptions = stage => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)));
   Object.assign(env, {
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(stage, 'empty.gitconfig'),
     GIT_ATTR_NOSYSTEM: '1', GIT_CEILING_DIRECTORIES: path.dirname(stage)
   });
-  const result = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--whitespace=nowarn', ...args, '-'], {
-    cwd: stage, input: patch, encoding: 'utf8', env, shell: false,
-    windowsHide: true, maxBuffer: MAX_PATCH_BYTES, timeout: 30000
-  });
-  if (result.error || result.signal || result.status === null) {
-    const error = new Error(`Cannot run required Git patch tool: ${result.error?.message || result.signal || 'no exit status'}`);
-    error.childResult = result;
+  return { cwd: stage, env, shell: false, windowsHide: true };
+};
+const gitArgs = (args, input = '-') => ['-c', 'core.autocrlf=false', 'apply', '--whitespace=nowarn', ...args, input];
+const runGitAsync = async (stage, patch, args, signal) => {
+  try {
+    fs.writeFileSync(path.join(stage, 'patch.diff'), patch, { mode: 0o600 });
+    const result = await spawnResolvedSubprocess('git', gitArgs(args, 'patch.diff'), { ...gitOptions(stage),
+      outputEncoding: 'utf8', maxOutputBytes: MAX_PATCH_BYTES, timeoutMs: 30000,
+      signal, rejectOnNonZeroExit: false, stdio: 'pipe' });
+    if (result.signal || result.exitCode == null) {
+      throw Object.assign(new Error(result.signal || 'no exit status'), { result });
+    }
+    return { ...result, status: result.exitCode };
+  } catch (cause) {
+    // Preserve scheduler cancellation and any original subprocess ownership.
+    // Wrapping AbortError as a Git failure lets an earlier cancelled input
+    // mask the actual incompatible patch that stopped the preparation wave.
+    const description = describeStorageFailure(cause, { phase: 'package-patch-git', defaultCode: 'ERR_PATCH_GIT',
+      defaultMessage: 'Git patch operation failed.' });
+    if (readErrorDataProperty(cause, 'name') === 'AbortError' || readErrorDataProperty(cause, 'code') === 'ABORT_ERR') throw cause;
+    const error = new Error('Cannot run required Git patch tool: ' + description.message, { cause });
+    try {
+      const result = readErrorDataProperty(cause, 'result');
+      if (result) error.childResult = { ...result, status: result.exitCode };
+    } catch (inspection) { throw addStorageFailureContext(error, {}, inspection, { secondaryPresent: true }); }
     throw error;
   }
-  return result;
 };
 
-export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) => {
+const collectPatchInputs = cwd => {
   const root = fs.realpathSync(cwd);
   try { fs.lstatSync(path.join(root, 'patches')); } catch (error) {
-    if (error.code === 'ENOENT') return 0;
+    if (error.code === 'ENOENT') return { root, inputs: [] };
     throw error;
   }
   const patchesDir = checkedPath(root, 'patches', true);
@@ -149,92 +175,179 @@ export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) =
     for (let entry = directory.readSync(); entry; entry = directory.readSync()) {
       if (++count > 128) throw new Error('Too many entries in patches/.');
       if (!entry.name.endsWith('.patch')) continue;
-      if (!entry.isFile()) throw new Error(`Patch must be a regular file: ${entry.name}`);
+      if (!entry.isFile()) throw new Error('Patch must be a regular file: ' + entry.name);
       names.push(entry.name);
       if (names.length > MAX_PATCHES) throw new Error('Too many package patches.');
     }
   } finally { directory.closeSync(); }
-  if (!names.length) return 0;
-  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
-  try {
-    // Git for Windows rejects Node's device path (\\.\nul). A private empty
-    // regular file disables user configuration consistently on every platform.
-    fs.writeFileSync(path.join(stage, 'empty.gitconfig'), '', { flag: 'wx', mode: 0o600 });
-    const prepared = [];
-    const targets = new Set();
-    let totalBytes = 0;
-    for (const name of names.sort()) {
-      const sections = parsePatch(name, readBounded(checkedPath(root, `patches/${name}`), MAX_PATCH_BYTES));
-      for (const patch of sections) {
-        const packageJsonPath = checkedPath(root, `node_modules/${patch.packageName}/package.json`);
-        const installed = JSON.parse(decodeText(readBounded(packageJsonPath, MAX_PATCH_BYTES)));
-        if (installed.name !== patch.packageName || installed.version !== patch.version) {
-          throw new Error(`${name} requires exactly ${patch.packageName}@${patch.version}; found ${installed.name}@${installed.version}`);
-        }
-        const target = checkedPath(root, patch.relative);
-        if (targets.has(target.toLowerCase())) throw new Error(`Multiple patches target the same file: ${patch.relative}`);
-        targets.add(target.toLowerCase());
-        if (targets.size > MAX_TARGETS) throw new Error('Package patches exceed target file limit.');
-        const before = readBounded(target, MAX_FILE_BYTES);
-        totalBytes += before.length;
-        if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Package patches exceed total input size limit.');
-        const source = decodeText(before);
-        const crlf = source.includes('\r\n');
-        if (crlf && /(^|[^\r])\n/.test(source)) throw new Error(`Mixed line endings are unsupported: ${patch.relative}`);
-        fs.writeFileSync(path.join(stage, 'target'), source.replace(/\r\n/g, '\n'));
-        const forward = runGit(stage, patch.patch, ['--check']);
-        if (verifyOnly && forward.status === 0) {
-          throw new Error(`Required patch ${name} has not been applied. Run npm run bootstrap.`);
-        }
-        if (forward.status !== 0) {
-          const reverse = runGit(stage, patch.patch, ['--reverse', '--check']);
-          if (reverse.status !== 0) {
-            throw new Error(`Required patch ${name} cannot apply and is not fully applied:\n${forward.stderr.trim()}`);
-          }
-          prepared.push({ ...patch, target, before, after: null });
-          continue;
-        }
-        const result = runGit(stage, patch.patch, []);
-        if (result.status !== 0) throw new Error(`Failed to apply ${name}: ${result.stderr.trim()}`);
-        const afterText = decodeText(readBounded(path.join(stage, 'target'), MAX_FILE_BYTES));
-        const after = Buffer.from(crlf ? afterText.replace(/\n/g, '\r\n') : afterText);
-        if (before.equals(after) || runGit(stage, patch.patch, ['--reverse', '--check']).status !== 0) {
-          throw new Error(`Required patch was not completely applied: ${name}`);
-        }
-        prepared.push({ ...patch, target, before, after });
+  const inputs = [], targets = new Set();
+  let totalBytes = 0;
+  for (const name of names.sort()) {
+    const sections = parsePatch(name, readBounded(checkedPath(root, 'patches/' + name), MAX_PATCH_BYTES));
+    for (const patch of sections) {
+      const packageJsonPath = checkedPath(root, 'node_modules/' + patch.packageName + '/package.json');
+      const installed = JSON.parse(decodeText(readBounded(packageJsonPath, MAX_PATCH_BYTES)));
+      if (installed.name !== patch.packageName || installed.version !== patch.version) {
+        throw new Error(name + ' requires exactly ' + patch.packageName + '@' + patch.version
+          + '; found ' + installed.name + '@' + installed.version);
       }
+      const target = checkedPath(root, patch.relative);
+      if (targets.has(target.toLowerCase())) throw new Error('Multiple patches target the same file: ' + patch.relative);
+      targets.add(target.toLowerCase());
+      if (targets.size > MAX_TARGETS) throw new Error('Package patches exceed target file limit.');
+      const before = readBounded(target, MAX_FILE_BYTES);
+      totalBytes += before.length;
+      if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Package patches exceed total input size limit.');
+      const source = decodeText(before);
+      const crlf = source.includes('\r\n');
+      if (crlf && /(^|[^\r])\n/.test(source)) throw new Error('Mixed line endings are unsupported: ' + patch.relative);
+      inputs.push({ ...patch, target, before, crlf });
     }
-    // Validate all patches first, then recheck paths and bytes before publishing.
-    for (const item of prepared) {
-      checkedPath(root, item.relative);
-      if (!readBounded(item.target, MAX_FILE_BYTES).equals(item.before)) {
-        throw new Error(`Package file changed during patch validation: ${item.target}`);
-      }
+  }
+  return { root, inputs };
+};
+
+// One state machine serves serial and parallel preparation in the async owner.
+// Every target has its own Git working directory and private configuration.
+function* preparePatch(input, stage, verifyOnly) {
+  const { name, before, crlf } = input;
+  fs.writeFileSync(path.join(stage, 'empty.gitconfig'), '', { flag: 'wx', mode: 0o600 });
+  fs.writeFileSync(path.join(stage, 'target'), decodeText(before).replace(/\r\n/g, '\n'));
+  const forward = yield ['--check'];
+  if (verifyOnly && forward.status === 0) {
+    throw new Error('Required patch ' + name + ' has not been applied. Run npm run bootstrap:ci.');
+  }
+  if (forward.status !== 0) {
+    if ((yield ['--reverse', '--check']).status !== 0) {
+      throw new Error('Required patch ' + name + ' cannot apply and is not fully applied:\n' + forward.stderr.trim());
     }
-    for (const item of prepared) {
+    return { ...input, after: null };
+  }
+  const applied = yield [];
+  if (applied.status !== 0) throw new Error('Failed to apply ' + name + ': ' + applied.stderr.trim());
+  const afterText = decodeText(readBounded(path.join(stage, 'target'), MAX_FILE_BYTES));
+  const after = Buffer.from(crlf ? afterText.replace(/\n/g, '\r\n') : afterText);
+  if (before.equals(after) || (yield ['--reverse', '--check']).status !== 0) {
+    throw new Error('Required patch was not completely applied: ' + name);
+  }
+  return { ...input, after };
+}
+
+const publishPatches = (root, prepared, { verifyOnly, verbose, log, started }) => {
+  // Validate all patches first, then recheck paths and bytes before publishing.
+  for (const item of prepared) {
+    checkedPath(root, item.relative);
+    if (!readBounded(item.target, MAX_FILE_BYTES).equals(item.before)) {
+      throw new Error('Package file changed during patch validation: ' + item.target);
+    }
+  }
+  let published = 0;
+  for (const item of prepared) {
+    try {
       if (item.after) {
         const temporary = fs.mkdtempSync(path.join(path.dirname(item.target), '.poc-patch-'));
         try {
           const staged = path.join(temporary, 'target');
           fs.writeFileSync(staged, item.after, { mode: fs.statSync(item.target).mode & 0o777 });
           fs.renameSync(staged, item.target);
+          published++;
         } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
       }
-      console.log(`[patches] ${item.name}: ${item.after ? 'applied' : 'already applied'}`);
+    } catch (cause) {
+      throw Object.assign(new Error(`Patch publication failed for ${item.name} (${item.relative}); ${published} target files changed before failure. Re-run verified bootstrap to repair partial completion.`, { cause }), {
+        code: 'ERR_PATCH_PARTIAL_PUBLICATION', publishedFiles: published, patch: item.name, target: item.relative
+      });
     }
-    return prepared.length;
-  } finally { fs.rmSync(stage, { recursive: true, force: true }); }
+    if (verbose) log(`[patches] ${item.name}: ${item.relative}: ${item.after ? 'applied' : 'verified already applied'} (${item.hunks} hunks)`);
+  }
+  const packages = new Map();
+  for (const item of prepared) {
+    const counts = packages.get(item.name) || { applied: 0, unchanged: 0, hunks: 0 };
+    counts[item.after ? 'applied' : 'unchanged']++;
+    counts.hunks += item.hunks;
+    packages.set(item.name, counts);
+  }
+  for (const [name, counts] of packages) {
+    log(`[patches] ${name}: ${verifyOnly ? 'verified' : 'complete'}; ${counts.applied} applied files, ${counts.unchanged} already-applied files, ${counts.hunks} hunks`);
+  }
+  const hunks = prepared.reduce((total, item) => total + item.hunks, 0);
+  log(`[patches] ${verifyOnly ? 'verify-only' : 'apply'}: ${packages.size} packages, ${prepared.length} target files, ${hunks} hunks; ${published} files changed; ${Math.max(0, performance.now() - started).toFixed(0)}ms`);
+  return Object.freeze({ targets: prepared.length, publishedFiles: published, packages: packages.size, hunks });
+};
+
+export const applyPatchesAsync = async (cwd = process.cwd(), options = {}) => {
+  const { verifyOnly = false, signal = null, verbose = false, log = null, session = null, budget } = options;
+  if (log !== null && typeof log !== 'function') throw new TypeError('Patch diagnostics require their original observation callback.');
+  const capturedBudget = budget ? Object.freeze({ ...budget }) : undefined;
+  return withCheckoutMutation(cwd, async actual => {
+    const execute = () => applyPatchesOwned(cwd, { verifyOnly, signal, verbose, log, session: actual,
+      ...(capturedBudget ? { budget: capturedBudget } : {}) });
+    // A read-only direct check must not replace the journal qualifying existing
+    // readiness. Nested checks remain tracked by their original parent journal.
+    const { withCheckoutStageJournal, getCheckoutStageJournal } = await import('./checkout-stage-journal.js');
+    if (verifyOnly && !getCheckoutStageJournal(actual)) return execute();
+    return withCheckoutStageJournal(cwd, actual, { schemaVersion: 1, kind: 'direct-package-patch-plan',
+      root: actual.root, stages: [{ id: 'patches' }] }, (journal, owned) => owned ? journal.runStage('patches', execute) : execute());
+  }, { session, signal, kind: 'package-patches' });
+};
+
+const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,
+  verbose = false, log, session,
+  budget = resolveBootstrapBudget({ bytesPerJob: 128 * 1024 * 1024 }) } = {}) => {
+  const started = performance.now();
+  const { root, inputs } = collectPatchInputs(cwd);
+  if (!inputs.length) return 0;
+  const outcome = await runBootstrapTasks(inputs.map((input, index) => ({
+    id: 'patch:' + index, bytes: 128 * 1024 * 1024,
+    run: async ({ signal: taskSignal }) => withPackagePatchStage(root, session, async stage => {
+      const iterator = preparePatch(input, stage, verifyOnly);
+      let step = iterator.next();
+      while (!step.done) step = iterator.next(await runGitAsync(stage, input.patch, step.value, taskSignal));
+      return step.value;
+    })
+  })), { budget, signal, eventContext: { runId: session.runId }, onEvent: event => {
+    const line = formatBootstrapTaskProgress(event, 'patch-preparation');
+    if (line) return writeBootstrapStatus(line, process.stderr, { root, session });
+  } });
+  // Input order owns diagnostics and publication even when preparation overlaps.
+  const failure = outcome.results.find(row => row.status === 'failed');
+  if (failure) throw failure.error;
+  const cancelled = outcome.results.find(row => row.status === 'cancelled' && row.error !== null);
+  if (cancelled) throw cancelled.error;
+  throwIfAborted(signal, 'Package patch preparation cancelled.');
+  if (!outcome.ok) throw new Error('Package patch preparation cancelled.');
+  requireCheckoutMutationSession(root, session);
+  const messages = []; let published, primary, failed = false;
+  try { published = publishPatches(root, outcome.results.map(row => row.result), { verifyOnly, verbose, log: message => messages.push(message), started }); }
+  catch (error) { primary = error; failed = true; }
+  // Publication remains one synchronous validation/mutation boundary. Its
+  // bounded summaries flush afterward through their actual write callbacks.
+  try {
+    for (const message of messages) {
+      if (log) await log(message);
+      else {
+        await writeBootstrapText(message + '\n', process.stdout, { root, session });
+      }
+    }
+  } catch (logging) {
+    throw failed ? addStorageFailureContext(primary, {}, logging, { secondaryPresent: true })
+      : addStorageFailureContext(logging, { patchPublication: published });
+  }
+  if (failed) throw primary;
+  return published.targets;
 };
 
 export const exitPatchFailure = (error) => {
-  console.error(`[patches] ${error.message}`);
-  if (error.childResult) exitLikeChildResult(error.childResult);
+  const message = readErrorDataProperty(error, 'message'), result = readErrorDataProperty(error, 'childResult');
+  console.error('[patches] ' + (typeof message === 'string' ? message : 'Package patch operation failed.'));
+  if (result) exitLikeChildResult(result);
   else process.exit(1);
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
-    if (process.argv.length !== 2) throw new Error('Usage: node tools/setup/apply-patches.js');
-    if (!applyPatches()) console.log('[patches] no patch files found; skipping patch step.');
+    const args = process.argv.slice(2);
+    if (args.some(arg => !['--verify', '--verbose'].includes(arg))) throw new Error('Usage: node tools/setup/apply-patches.js [--verify] [--verbose]');
+    if (!await applyPatchesAsync(process.cwd(), { verifyOnly: args.includes('--verify'), verbose: args.includes('--verbose') })) console.log('[patches] no patch files found; skipping patch step.');
   } catch (error) { exitPatchFailure(error); }
 }

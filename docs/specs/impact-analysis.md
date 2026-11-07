@@ -42,10 +42,19 @@ type ChangeSeed =
 - `upstream`: dependencies of the seed (what seed relies on)
 - `both`: combined upstream and downstream traversal from the same seed set.
 
-The implementation maps `downstream` to outbound graph traversal and `upstream`
-to inbound graph traversal after graph artifacts have been normalized. `both`
+Published calls/usages point from the caller/user to its dependency; imports
+point from importer to imported file, and symbol references from source to target.
+`downstream` therefore follows incoming edges to recorded dependents; `upstream`
+follows outgoing edges to recorded dependencies. Edges/evidence keep their
+original source orientation while witness nodes describe the traversal. `both`
 uses the graph-neighborhood `both` traversal mode and deduplicates impacted
 nodes deterministically.
+`stats.directionPolicy` records requested product direction, effective canonical
+traversal and each selected relation orientation; human output prints both.
+For `consumer → api → helper`, changing `api` finds `consumer` downstream and
+`helper` upstream. The same mapping applies to explicit seeds, changed sets and
+empty/capability branches. Generic neighborhood directions and incoming import
+traversal for test suggestions are unchanged.
 
 ---
 

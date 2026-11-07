@@ -1,4 +1,5 @@
 import { analyzeLiteralText } from '../shared/text-analyzer.js';
+/** @typedef {import('./query-types.js').QueryAst} QueryAst */
 import {
   extractNgrams,
   extractPunctuationTokens,
@@ -22,33 +23,7 @@ export function parseChurnArg(value) {
   return parsed;
 }
 
-/**
- * Parse modified-after/since CLI arguments.
- * @param {string|number|undefined|null} afterArg
- * @param {string|number|undefined|null} sinceArg
- * @returns {{modifiedAfter:number|null,modifiedSinceDays:number|null}}
- */
-export function parseModifiedArgs(afterArg, sinceArg) {
-  let modifiedAfter = null;
-  let modifiedSinceDays = null;
-  if (afterArg !== undefined && afterArg !== null) {
-    const parsed = Date.parse(String(afterArg));
-    if (!Number.isFinite(parsed)) {
-      throw new Error(`Invalid --modified-after value: ${afterArg}`);
-    }
-    modifiedAfter = parsed;
-  }
-  if (sinceArg !== undefined && sinceArg !== null) {
-    const parsed = Number(sinceArg);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      throw new Error(`Invalid --modified-since value: ${sinceArg}`);
-    }
-    modifiedSinceDays = parsed;
-    const sinceMs = Date.now() - (parsed * 24 * 60 * 60 * 1000);
-    modifiedAfter = modifiedAfter == null ? sinceMs : Math.max(modifiedAfter, sinceMs);
-  }
-  return { modifiedAfter, modifiedSinceDays };
-}
+export { parseModifiedArgs } from './query-time.js';
 
 const BOOLEAN_TOKEN = {
   TERM: 'term',
@@ -159,7 +134,7 @@ const tokenizeBooleanQuery = (raw) => {
  * Supports implicit AND adjacency and explicit `AND`/`OR`/`NOT` precedence.
  *
  * @param {string} raw
- * @returns {{ast:object|null,errors:string[]}}
+ * @returns {{ast:QueryAst|null,errors:string[]}}
  */
 const parseBooleanQuery = (raw) => {
   const { tokens, errors } = tokenizeBooleanQuery(raw);
@@ -301,6 +276,7 @@ export function annotateQueryAst(ast, dict, options, postingsConfig) {
     if (node.type === BOOLEAN_TOKEN.PHRASE) {
       const tokens = tokenizePhrase(node.value, dict, options);
       node.tokens = tokens;
+      node.caseSensitive = options?.caseSensitive === true;
       const phraseInfo = buildPhraseNgrams([tokens], postingsConfig);
       node.ngrams = phraseInfo.ngrams;
       node.ngramSet = phraseInfo.ngrams.length ? new Set(phraseInfo.ngrams) : null;
@@ -381,6 +357,9 @@ const expandQueryToken = (raw, dict, options) => {
   const normalized = normalizeToken(raw);
   if (!normalized) return [];
   if (caseSensitive) return [normalized];
+  if (Array.isArray(dict?.queryDictionaries)) {
+    return [...new Set(dict.queryDictionaries.flatMap(variant => expandQueryToken(raw, variant, options)))];
+  }
   if (normalized.length <= 3 || dict.has(normalized)) return [normalized];
   const expanded = splitWordsWithDict(normalized, dict, options);
   return expanded.length ? expanded : [normalized];

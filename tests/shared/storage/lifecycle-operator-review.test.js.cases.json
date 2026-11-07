@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["root-intent-and-unknown-accounting", "same-inventory-overlap-and-no-mutation", "original-owner-diagnosis-and-review-bound"]
+}

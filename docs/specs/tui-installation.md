@@ -1,7 +1,7 @@
 # TUI Installation and Distribution Spec
 
 Status: active  
-Last updated: 2026-02-21T00:00:00Z
+Last updated: 2026-10-23
 
 ## Scope
 
@@ -43,7 +43,9 @@ Manifest guarantees:
 - per-target `sha256` when artifact exists
 - embedded checksum for `tools/tui/targets.json`
 
-Installers and wrappers treat the manifest checksum file as required integrity input.
+Installers require the build-manifest checksum and its target catalog binding.
+Generation-based wrappers validate the immutable install/source receipt, independently
+of later build output. Legacy fixed-path installs retain their build checksum check.
 
 ## Install contract
 
@@ -53,12 +55,17 @@ Installers and wrappers treat the manifest checksum file as required integrity i
 2. Validate target against `tools/tui/targets.json`.
 3. Validate `dist/tui/tui-artifacts-manifest.json` against `dist/tui/tui-artifacts-manifest.json.sha256`.
 4. Validate artifact row and expected sha256 for chosen target.
-5. Install into deterministic layout.
-6. Emit `install-manifest.json` with source + binary metadata.
+5. Acquire the existing per-target install lock, and stage a fresh unique generation.
+6. Verify copied bytes, target machine and executable metadata; bind the exact
+   supervisor digest, Node version/ABI, package identity and source build receipt.
+7. Durably write the generation's schema-2 `install-manifest.json`, revalidate its
+   contents and binary, and atomically replace the current manifest with the same
+   complete selection. No success is reported before publication and lock release.
 
 Default layout:
 
-- `<cacheRoot>/tui/install-v1/<triple>/bin/<artifactName>`
+- `<cacheRoot>/tui/install-v1/<triple>/generations/<generationId>/<artifactName>`
+- `<cacheRoot>/tui/install-v1/<triple>/generations/<generationId>/install-manifest.json`
 - `<cacheRoot>/tui/install-v1/<triple>/install-manifest.json`
 - `<cacheRoot>/tui/install-v1/<triple>/logs/`
 
@@ -70,10 +77,22 @@ Default `cacheRoot` must follow the canonical PairOfCleats cache-root policy:
 
 Deterministic policy:
 
-- keep exactly one binary filename per target in `bin/`
-- keep stable directory names (`install-v1`, `<triple>`, `bin`, `logs`)
-- verify installed checksum immediately after copy
-- enforce executable metadata before writing final install manifest
+- keep the current selector and shared logs at stable paths outside generations
+- serialize same-root/same-target installers through the existing file-lock owner
+- verify all generation bytes and metadata before selecting them
+- retain earlier complete generations, unrelated siblings and interrupted staging;
+  no installer prunes a sibling, overwrites an in-use binary or kills a running TUI
+- the old current manifest remains authoritative until atomic promotion; a crash
+  afterwards leaves the new complete generation selected
+- failed phases report staging/recovery context; Windows sharing refusal requires
+  closing the handle holding the selecting manifest and retrying, without deletion
+- retained generations need explicit retention/cleanup authority; automatic retirement
+  is not part of installation
+
+The fixed `bin/` schema-1 layout remains readable for existing installs. New installs
+write schema 2 in the existing install-v1 namespace. Header validation proves only
+format/architecture admission; native execution and Windows sharing behavior still
+require platform qualification. Synthetic fixture headers are not executable proof.
 
 ## Wrapper launch contract
 

@@ -29,7 +29,6 @@ const sqlitePath = path.join(temp, 'index.db');
 const invalidSqlitePath = path.join(temp, 'invalid.db');
 const liveDisposers = new Set();
 const originalClose = Database.prototype.close;
-let releaseClose = null;
 
 const writeStore = async (storePath, mode, version = LMDB_SCHEMA_VERSION, corrupt = false) => {
   const db = open({ path: storePath, mapSize: 1024 * 1024 });
@@ -82,18 +81,8 @@ try {
   const lmdb = await createLmdbBackend(lmdbOptions);
   liveDisposers.add(lmdb.dispose);
   assert.equal(lmdb.useLmdb, true);
-  const closeCode = lmdb.dbCode.close.bind(lmdb.dbCode);
-  lmdb.dbCode.close = async () => {
-    await new Promise((resolve) => { releaseClose = resolve; });
-    await closeCode();
-  };
-  let settled = false;
-  const closing = lmdb.dispose().then(() => { settled = true; });
-  await tick();
-  assert.equal(settled, false, 'LMDB disposal must await close completion');
-  releaseClose();
-  releaseClose = null;
-  await closing;
+  lmdb.dbCode.close = () => assert.fail('a late replacement cannot replace the captured LMDB close');
+  await lmdb.dispose();
   await lmdb.dispose();
   assert.equal(lmdb.dbCode.status, 'closed');
   assert.equal(lmdb.dbProse.status, 'closed');
@@ -207,7 +196,6 @@ try {
     fsSync.existsSync = originalExists;
   }
 } finally {
-  releaseClose?.();
   Database.prototype.close = originalClose;
   for (const dispose of liveDisposers) {
     try { await dispose(); } catch {}

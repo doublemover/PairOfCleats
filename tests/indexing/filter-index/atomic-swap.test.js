@@ -158,7 +158,7 @@ if (!fs.existsSync(path.join(outDir, fromPosix(piece1.path)))) {
 const payload1 = await readFilterIndexPayload(piece1.path);
 if (!payload1) fail('filter-index atomic swap test failed: failed to read filter_index payload (first run).');
 
-// Run 2: force filter_index build to fail, ensure we keep previous artifact.
+// Run 2: changed inputs cannot advertise the previous filter index after failure.
 await runWrite({
   chunks: [makeChunk({ lang: null, metaV2: {} })],
   indexState: { ...indexState, generatedAt: new Date().toISOString() },
@@ -166,11 +166,8 @@ await runWrite({
 });
 const manifest2 = await readPiecesManifest();
 const piece2 = findFilterIndexPiece(manifest2);
-if (!piece2) fail('filter-index atomic swap test failed: expected filter_index piece in second manifest.');
-if (piece2.path !== piece1.path) {
-  fail(`filter-index atomic swap test failed: expected filter_index path to be reused (${piece1.path}) but got ${piece2.path}`);
-}
-const payload2 = await readFilterIndexPayload(piece2.path);
+if (piece2) fail('filter-index atomic swap test failed: changed inputs advertised a stale filter index.');
+const payload2 = await readFilterIndexPayload(piece1.path);
 if (!payload2) fail('filter-index atomic swap test failed: failed to read filter_index payload (second run).');
 if (payload2 !== payload1) {
   fail('filter-index atomic swap test failed: filter_index payload changed during reuse.');

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-export const TANTIVY_SCHEMA_VERSION = 1;
+export const TANTIVY_SCHEMA_VERSION = 2;
 export const TANTIVY_META_FILE = 'tantivy.meta.json';
 
 const normalizeText = (value) => {

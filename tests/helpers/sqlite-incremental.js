@@ -7,6 +7,7 @@ import { applyTestEnv } from './test-env.js';
 import { runNode } from './run-node.js';
 import { rmDirRecursive } from './temp.js';
 import { resolveTestCacheDir } from './test-cache.js';
+import { mergeConfig } from '../../src/shared/config.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
@@ -76,12 +77,12 @@ export const setupIncrementalRepo = async ({
   }
 
   const nodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
-  const effectiveTestConfig =
-    testConfig ?? {
-      tooling: {
-        autoEnableOnDetect: false
-      }
-    };
+  const effectiveTestConfig = mergeConfig({
+    indexing: { scm: { provider: 'none' } },
+    tooling: {
+      autoEnableOnDetect: false
+    }
+  }, testConfig || {});
   const env = applyTestEnv({
     testing: '1',
     cacheRoot,

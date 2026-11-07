@@ -41,6 +41,8 @@ export async function startParcelWatcher({ root, ignored, onEvent, onError }) {
     close: async () => {
       if (typeof unsubscribe === 'function') {
         await unsubscribe();
+      } else if (typeof unsubscribe?.unsubscribe === 'function') {
+        await unsubscribe.unsubscribe();
       }
     }
   };

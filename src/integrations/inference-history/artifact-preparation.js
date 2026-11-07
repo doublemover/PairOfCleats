@@ -39,25 +39,26 @@ export async function prepareFileEvidenceArtifacts({catalogPaths,outputRoot,auth
         let text=item.text;
         if(item.format==='json'||item.format==='jsonl'){
           let raw;try{raw=JSON.parse(text);}catch{summary.traceDocumentsOmitted++;omission('unparseable_json_document',row,{originalTextChars:item.text.length});continue;}
-          const stack=[raw];let inspected=0;
+          const escapePointer = key => String(key).replace(/~/g,'~0').replace(/\//g,'~1');
+          const stack=[{value:raw,pointer:''}];let inspected=0;
           while(stack.length&&inspected++<1000000){
-            const value=stack.pop();if(!value||typeof value!=='object')continue;
+            const {value,pointer}=stack.pop();if(!value||typeof value!=='object')continue;
             if(Array.isArray(value.activity_messages))for(const [index,item] of value.activity_messages.entries()){
               const message=item?.message??item,role=message?.author?.role??message?.role;
               if(!message||message.channel==='analysis'||message.metadata?.is_visually_hidden_from_conversation||!['assistant','user','tool'].includes(role)){summary.hiddenActivityOmitted++;omission('hidden_activity',row,{activityIndex:index});continue;}
               const stamp=message.create_time??message.timestamp,ms=typeof stamp==='number'?stamp*1000:Date.parse(stamp);
               const date=Number.isFinite(ms)&&Math.abs(ms)<=8640000000000000?new Date(ms).toISOString():null;
               if(role==='tool'){
-                await emit('Tool activity metadata: '+JSON.stringify({role:'tool',channel:['final','commentary'].includes(message.channel)?message.channel:'unspecified',timestamp:date}),row,'tool_activity',date,date?'declared_message_timestamp':'unknown','/activity/'+index);
+                await emit('Tool activity metadata: '+JSON.stringify({role:'tool',channel:['final','commentary'].includes(message.channel)?message.channel:'unspecified',timestamp:date}),row,'tool_activity',date,date?'declared_message_timestamp':'unknown','/json'+pointer+'/activity_messages/'+index);
                 summary.toolMetadata++;continue;
               }
               if(message.recipient&&message.recipient!=='all'||role==='assistant'&&message.channel!=='final'&&message.channel!=='commentary'){summary.hiddenActivityOmitted++;omission('hidden_activity',row,{activityIndex:index});continue;}
               const content=message.content,parts=Array.isArray(content?.parts)?content.parts:[];
               if(!['text',undefined].includes(content?.content_type)){summary.hiddenActivityOmitted++;omission('hidden_activity',row,{activityIndex:index});continue;}
               const body=parts.filter(part=>typeof part==='string').join('\n');
-              if(body){await emit(body,row,'activity',date,date?'declared_message_timestamp':'unknown','/activity/'+index);summary.visibleActivity++;}
+              if(body){await emit(body,row,'activity',date,date?'declared_message_timestamp':'unknown','/json'+pointer+'/activity_messages/'+index);summary.visibleActivity++;}
             }
-            for(const [key,child] of Object.entries(value))if(key!=='activity_messages'&&child&&typeof child==='object')stack.push(child);
+            for(const [key,child] of Object.entries(value))if(key!=='activity_messages'&&child&&typeof child==='object')stack.push({value:child,pointer:pointer+'/'+escapePointer(key)});
           }
           text=JSON.stringify(sanitizeArtifactJson(raw,0,{audit:summary.assetOmissions}),null,2);
         }else if(item.format==='html')text=text.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<!--[\s\S]*?-->/g,' ').replace(/<[^>]+>/g,' ');

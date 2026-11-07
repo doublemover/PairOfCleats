@@ -33,6 +33,8 @@ export const renderGraphImpact = (payload) => {
   lines.push('Graph Impact');
   lines.push(`Seed: ${formatSeed(payload?.seed)}`);
   lines.push(`Direction: ${payload?.direction || 'downstream'}`);
+  const directionPolicy = payload?.stats?.directionPolicy;
+  if (directionPolicy) lines.push(`Recorded traversal: ${directionPolicy.traversal} (${directionPolicy.meaning})`);
   lines.push(`Depth: ${payload?.depth ?? 0}`);
   lines.push('');
   lines.push('Impacted:');

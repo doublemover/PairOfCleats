@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["path-presence", "artifact-variants", "generation-inventory-and-stat", "maintenance-size"]
+}

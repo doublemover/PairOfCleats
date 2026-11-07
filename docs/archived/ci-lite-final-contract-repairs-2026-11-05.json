@@ -1,0 +1,1189 @@
+{
+  "schemaVersion": 1,
+  "encoding": "sha256-shared-json-tables-v1",
+  "data": {
+    "schemaVersion": 1,
+    "date": "2026-11-05",
+    "baseline": "4ca484bb62f98fdb493a51e772574f4548c323f3",
+    "runId": 41986121511,
+    "observed": {
+      "ubuntu": {
+        "jobId": 127109706776,
+        "broadPassed": 1976,
+        "skips": 2,
+        "compilerPassed": 10,
+        "runtimePassed": 32,
+        "annPassed": 3,
+        "cancellationPassed": 1,
+        "apiPassed": 9
+      },
+      "macos": {
+        "jobId": 127109706836,
+        "broadPassed": 1976,
+        "skips": 2,
+        "compilerPassed": 10,
+        "runtimePassed": 32,
+        "annPassed": 3,
+        "cancellationPassed": 1,
+        "apiPassed": 8,
+        "apiFailed": 1
+      },
+      "authority": {
+        "jobId": 127109706857,
+        "passed": 41,
+        "failed": 0,
+        "timeouts": 0,
+        "skips": 0,
+        "settingsCaseMs": 3930
+      },
+      "nativeWindows": {
+        "inspectionJob": 127109706805,
+        "inspectionPassed": 49,
+        "indexJob": 127109706874,
+        "indexPassed": 21
+      },
+      "windowsPipeline": {
+        "jobId": 127109706927,
+        "status": "success",
+        "expectedBroadPassed": 1975,
+        "expectedSkips": 3,
+        "compilerPassed": 10,
+        "runtimePassed": 32,
+        "annPassed": 3,
+        "cancellationPassed": 1,
+        "apiPassed": 9
+      }
+    },
+    "originalMacFailure": {
+      "artifact": {
+        "id": 13397717652,
+        "bytes": 9155219,
+        "sha256": "92101340fa84c2204c8d38aec30f5f4d3fa9102ad0436001fda963408f7d8052"
+      },
+      "receipts": [
+        {
+          "path": ".testLogs/run-1793865387266-3qdlcd/services_api_core.attempt-1.failure.json",
+          "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"services/api/core\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"resolvedExecutable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"arguments\": [\n      \"/Users/runner/work/PairOfCleats/PairOfCleats/tests/services/api/core.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"/Users/runner/work/PairOfCleats/PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"darwin\",\n      \"arch\": \"arm64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 43410,\n    \"childPid\": 43414,\n    \"startedAt\": \"2026-11-05T07:56:27.270Z\",\n    \"endedAt\": \"2026-11-05T07:56:39.155Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"/Users/runner/work/PairOfCleats/PairOfCleats/.testLogs/run-1793865387266-3qdlcd/services_api_core.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 885,\n      \"retainedStringUnits\": 885,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+        },
+        {
+          "path": ".testLogs/run-1793865387266-3qdlcd/services_api_core.attempt-1.log",
+          "text": "id: services/api/core\npath: services/api/core.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: invalid selection and mixed/exact compilation claims remain unexpected\n+ actual - expected\n\n+ 'clangd compilation database=missing; exact=0/3, ambiguous=0, unknown=3.'\n- 'clangd compilation database=missing; exact=0/2, ambiguous=0, unknown=2.'\n\n    at assertDefaultToolingDiagnostics (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/helpers/default-tooling-diagnostics.js:37:14)\n    at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/services/api/core.test.js:42:1 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 'clangd compilation database=missing; exact=0/3, ambiguous=0, unknown=3.',\n  expected: 'clangd compilation database=missing; exact=0/2, ambiguous=0, unknown=2.',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.13.0\n"
+        }
+      ]
+    },
+    "clangd": {
+      "attribution": "Production CLIKE_EXTS includes Objective-C on Darwin; the checked-in sample has sample.c, sample.cpp and sample.m. The test helper incorrectly asserted two documents for every platform.",
+      "expected": {
+        "win32": 2,
+        "linux": 2,
+        "darwin": 3
+      },
+      "preserved": "Exact missing-database, zero exact, zero ambiguous, exact unknown count and weak-plan counts; all other provider, warning, lifecycle and fidelity assertions.",
+      "productionChanged": false,
+      "before": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865633520-msrj1q",
+        "summary": {
+          "durationMs": 99,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 91,
+            "exitCode": 1,
+            "id": "tooling/lsp/default-tooling-diagnostics",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865633520-msrj1q\\tooling_lsp_default-tooling-diagnostics.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865633520-msrj1q\\tooling_lsp_default-tooling-diagnostics.attempt-1.failure.json"
+            ],
+            "path": "tooling/lsp/default-tooling-diagnostics.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "beforeLog": "id: tooling/lsp/default-tooling-diagnostics\npath: tooling/lsp/default-tooling-diagnostics.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: invalid selection and mixed/exact compilation claims remain unexpected\r\n+ actual - expected\r\n\r\n+ 'clangd compilation database=missing; exact=0/3, ambiguous=0, unknown=3.'\r\n- 'clangd compilation database=missing; exact=0/2, ambiguous=0, unknown=2.'\r\n\r\n    at assertDefaultToolingDiagnostics (file:///C:/Users/sneak/Development/PairOfCleats/tests/helpers/default-tooling-diagnostics.js:37:14)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/tooling/lsp/default-tooling-diagnostics.test.js:34:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: 'clangd compilation database=missing; exact=0/3, ambiguous=0, unknown=3.',\r\n  expected: 'clangd compilation database=missing; exact=0/2, ambiguous=0, unknown=2.',\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+      "after": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865708007-7yoq9u",
+        "summary": {
+          "durationMs": 16322,
+          "failed": 0,
+          "passed": 2,
+          "skipped": 0,
+          "total": 2
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 16225,
+            "exitCode": 0,
+            "id": "services/api/core",
+            "lane": "api",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865708007-7yoq9u\\services_api_core.attempt-1.log"
+            ],
+            "path": "services/api/core.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "api",
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 91,
+            "exitCode": 0,
+            "id": "tooling/lsp/default-tooling-diagnostics",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865708007-7yoq9u\\tooling_lsp_default-tooling-diagnostics.attempt-1.log"
+            ],
+            "path": "tooling/lsp/default-tooling-diagnostics.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "afterLogs": [
+        {
+          "id": "services/api/core",
+          "text": "id: services/api/core\npath: services/api/core.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\ncore api test passed\n"
+        },
+        {
+          "id": "tooling/lsp/default-tooling-diagnostics",
+          "text": "id: tooling/lsp/default-tooling-diagnostics\npath: tooling/lsp/default-tooling-diagnostics.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nDefault diagnostic controls retain exact per-platform source inventory and reject false compilation authority.\n"
+        }
+      ]
+    },
+    "retention": {
+      "attribution": "Successful Ubuntu quality artifact contains passing per-test logs and their bench35 receipt pointers, but no bench35 JSON receipts. Failure-only artifacts retain them; success must retain the same actual raw work.",
+      "beforeArtifact": {
+        "id": 13397114406,
+        "bytes": 5633698,
+        "sha256": "27783d22577188c7c7c61242269c7cb91f5b75e9d5fbeef709f7e9fd355aac2c"
+      },
+      "beforeRawReceiptCount": 0,
+      "before": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865385937-bsurfx",
+        "summary": {
+          "durationMs": 151,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 145,
+            "exitCode": 1,
+            "id": "tooling/ci/run-suite-api-plan",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865385937-bsurfx\\tooling_ci_run-suite-api-plan.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865385937-bsurfx\\tooling_ci_run-suite-api-plan.attempt-1.failure.json"
+            ],
+            "path": "tooling/ci/run-suite-api-plan.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "beforeLog": "id: tooling/ci/run-suite-api-plan\npath: tooling/ci/run-suite-api-plan.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: ubuntu: successful runs must retain raw benchmark receipts, not only log pointers\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/tooling/ci/run-suite-api-plan.test.js:16:10\r\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\r\n    at async node:internal/modules/esm/loader:650:26\r\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5) {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+      "repair": "All three always-upload quality owners include .testLogs/bench35-*.json; front-gate contract requires this path.",
+      "performanceInputsOrThresholdsChanged": false
+    },
+    "acceptance": {
+      "publicationGate": {
+        "status": "passed",
+        "checks": [
+          "npm run format",
+          "npm run config:budget",
+          "npm run env:check",
+          "node tools/docs/generated-surfaces.js --check-freshness",
+          "node tools/ci/check-command-surface.js",
+          "node tests/ci/workflow-contract.test.js",
+          "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+          "git diff --check"
+        ],
+        "report": {
+          "junit": null,
+          "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1",
+          "summary": {
+            "durationMs": 36079,
+            "failed": 0,
+            "passed": 43,
+            "skipped": 0,
+            "total": 43
+          },
+          "tests": {
+            "$columns": [
+              "attempts",
+              "durationMs",
+              "exitCode",
+              "id",
+              "lane",
+              "logs",
+              "path",
+              "signal",
+              "skipReason",
+              "status",
+              "tags",
+              "termination",
+              "timedOut",
+              "timeoutClass"
+            ],
+            "$rows": [
+              [
+                1,
+                76,
+                0,
+                "indexing/policy/hotpath-membership-guard",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+                ],
+                "indexing/policy/hotpath-membership-guard.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                72,
+                0,
+                "indexing/policy/module-cache-boundedness-contract",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+                ],
+                "indexing/policy/module-cache-boundedness-contract.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                85,
+                0,
+                "indexing/policy/generated-matrix",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_generated-matrix.attempt-1.log"
+                ],
+                "indexing/policy/generated-matrix.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                69,
+                0,
+                "indexing/contracts/artifact-surface-version",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_artifact-surface-version.attempt-1.log"
+                ],
+                "indexing/contracts/artifact-surface-version.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/n-minus-one-adapter",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+                ],
+                "indexing/contracts/n-minus-one-adapter.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                69,
+                0,
+                "indexing/contracts/public-artifact-surface-doc",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+                ],
+                "indexing/contracts/public-artifact-surface-doc.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                169,
+                0,
+                "indexing/contracts/index-compatibility-key-generation",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-generation.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/semver-policy-enforced",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+                ],
+                "indexing/contracts/semver-policy-enforced.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                79,
+                0,
+                "indexing/contracts/index-state-dense-sidecars-present",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+                ],
+                "indexing/contracts/index-state-dense-sidecars-present.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                160,
+                0,
+                "contracts/manifest-max-bytes-validation",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\contracts_manifest-max-bytes-validation.attempt-1.log"
+                ],
+                "contracts/manifest-max-bytes-validation.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1649,
+                0,
+                "indexing/policy/repo-inventory",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_repo-inventory.attempt-1.log"
+                ],
+                "indexing/policy/repo-inventory.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                248,
+                0,
+                "indexing/policy/shared-module-cycle-guard",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+                ],
+                "indexing/policy/shared-module-cycle-guard.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                224,
+                0,
+                "indexing/contracts/loader-matrix-parity",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+                ],
+                "indexing/contracts/loader-matrix-parity.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                292,
+                0,
+                "indexing/policy/analysis-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_analysis-schema.attempt-1.log"
+                ],
+                "indexing/policy/analysis-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                276,
+                0,
+                "indexing/contracts/snapshots",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_snapshots.attempt-1.log"
+                ],
+                "indexing/contracts/snapshots.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                272,
+                0,
+                "indexing/contracts/builds-current-repo-head-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+                ],
+                "indexing/contracts/builds-current-repo-head-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                288,
+                0,
+                "indexing/contracts/call-sites-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_call-sites-schema.attempt-1.log"
+                ],
+                "indexing/contracts/call-sites-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                276,
+                0,
+                "indexing/contracts/diffs",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_diffs.attempt-1.log"
+                ],
+                "indexing/contracts/diffs.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                286,
+                0,
+                "indexing/contracts/additional-properties-policy",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_additional-properties-policy.attempt-1.log"
+                ],
+                "indexing/contracts/additional-properties-policy.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                529,
+                0,
+                "indexing/contracts/index-compatibility-key-enforced-on-load",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                263,
+                0,
+                "indexing/contracts/schema-registry-single-source",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+                ],
+                "indexing/contracts/schema-registry-single-source.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                701,
+                0,
+                "tooling/api-contracts/caps",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_api-contracts_caps.attempt-1.log"
+                ],
+                "tooling/api-contracts/caps.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                826,
+                0,
+                "tooling/api-contracts/schema-validate",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_api-contracts_schema-validate.attempt-1.log"
+                ],
+                "tooling/api-contracts/schema-validate.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                830,
+                0,
+                "tooling/api-contracts/fail-on-warn",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+                ],
+                "tooling/api-contracts/fail-on-warn.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                790,
+                0,
+                "tooling/api-contracts/optional-params",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_api-contracts_optional-params.attempt-1.log"
+                ],
+                "tooling/api-contracts/optional-params.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                707,
+                0,
+                "tooling/api-contracts/large-call-sites",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_api-contracts_large-call-sites.attempt-1.log"
+                ],
+                "tooling/api-contracts/large-call-sites.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                561,
+                0,
+                "indexing/contracts/embedding-identity-gating-on-load",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+                ],
+                "indexing/contracts/embedding-identity-gating-on-load.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                878,
+                0,
+                "ci/capability-gate.smoke",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\ci_capability-gate_smoke.attempt-1.log"
+                ],
+                "ci/capability-gate.smoke.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1209,
+                0,
+                "indexing/contracts/index-compatibility-key-federation-block",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-federation-block.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                75,
+                0,
+                "indexing/policy/stable-entrypoints",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_stable-entrypoints.attempt-1.log"
+                ],
+                "indexing/policy/stable-entrypoints.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1411,
+                0,
+                "indexing/policy/optional-deps",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_optional-deps.attempt-1.log"
+                ],
+                "indexing/policy/optional-deps.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                957,
+                0,
+                "indexing/policy/analysis-gating",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_policy_analysis-gating.attempt-1.log"
+                ],
+                "indexing/policy/analysis-gating.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1157,
+                0,
+                "ci/tooling-doctor-gate.smoke",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+                ],
+                "ci/tooling-doctor-gate.smoke.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                710,
+                0,
+                "tooling/api-contracts/basic",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_api-contracts_basic.attempt-1.log"
+                ],
+                "tooling/api-contracts/basic.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                2484,
+                0,
+                "contracts/module-export-surface-compat",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\contracts_module-export-surface-compat.attempt-1.log"
+                ],
+                "contracts/module-export-surface-compat.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1284,
+                0,
+                "indexing/contracts/semantic-foundations",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_semantic-foundations.attempt-1.log"
+                ],
+                "indexing/contracts/semantic-foundations.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                362,
+                0,
+                "indexing/contracts/semantic-handoff-contracts",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+                ],
+                "indexing/contracts/semantic-handoff-contracts.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                537,
+                0,
+                "indexing/contracts/runtime-evidence",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_runtime-evidence.attempt-1.log"
+                ],
+                "indexing/contracts/runtime-evidence.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1483,
+                0,
+                "indexing/contracts/index-format-cutover",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\indexing_contracts_index-format-cutover.attempt-1.log"
+                ],
+                "indexing/contracts/index-format-cutover.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1417,
+                0,
+                "ci/windows-authority-cohort",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\ci_windows-authority-cohort.attempt-1.log"
+                ],
+                "ci/windows-authority-cohort.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                242,
+                0,
+                "ci/ordered-lane-discovery",
+                "integration",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\ci_ordered-lane-discovery.attempt-1.log"
+                ],
+                "ci/ordered-lane-discovery.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "integration"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                155,
+                0,
+                "ci/gate-policy",
+                "integration",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\ci_gate-policy.attempt-1.log"
+                ],
+                "ci/gate-policy.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "integration"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                11740,
+                0,
+                "tooling/ci/run-suite-api-plan",
+                "unit",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793865947863-og5jy1\\tooling_ci_run-suite-api-plan.attempt-1.log"
+                ],
+                "tooling/ci/run-suite-api-plan.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "tooling",
+                  "unit"
+                ],
+                null,
+                false,
+                null
+              ]
+            ]
+          }
+        }
+      },
+      "hosted": "Pending new candidate; do not report prior-source success as final-head acceptance."
+    },
+    "historicalWorkspace": "Embedded evidence is durable; .tmp and .testLogs paths remain author-workspace historical.",
+    "sourceBlobs": {
+      ".github/workflows/ci.yml": "e7b0d8a45d0d33b494fe04cd47d68b1204525710",
+      "tests/helpers/default-tooling-diagnostics.js": "ff4fa937c7df64a10d50b144b720ac9086246d79",
+      "tests/tooling/lsp/default-tooling-diagnostics.test.js": "e303ad8785e6dbf8e46ad27a996b7c901c9cde73",
+      "tests/tooling/ci/run-suite-api-plan.test.js": "f0ad4dbfb84abf8e22e9fb232c7ed66e4d595b49",
+      "tests/ci-lite/ci-lite.order.txt": "c94bc8fcf9ebc4e8d900280a2e785ba7c4dd0f7c",
+      "tests/ci-lite/ci-lite.manifest.json": "c11039d914f5767a60f7c3d7f6753858768f95a4",
+      "src/index/tooling/clangd-provider.js": "a192cffb6a1aa238a8318468ceb967dd30669114"
+    }
+  },
+  "sharedValues": {},
+  "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+}

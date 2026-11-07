@@ -1,0 +1,2 @@
+export const BENCH_REMEDIATION_VERSION = 2;
+export const BENCH_QUERY_OUTCOME_VERSION = 1;

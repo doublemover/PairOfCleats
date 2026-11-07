@@ -1,0 +1,20 @@
+# CI scheduler and budget follow-up
+
+Date: 2026-11-05. Baseline: `7fc3ba3f68e53757f664b2a8356884b5075d0582`.
+The [durable receipt](ci-lite-scheduler-and-budget-repairs-2026-11-05.json) retains original hosted failures, exact artifacts, before/after controls and coverage boundaries.
+
+[Run 41974003876](https://github.com/doublemover/PairOfCleats/actions/runs/41974003876) verifies the preceding inventory/API repair: all ten compiler/API cases pass on each OS, without retries or timeouts. Ubuntu completes its entire pipeline. macOS CI-lite passes1976 cases with two unchanged exclusions; its later serial budget cohort fails one memory control and times out two aggregate SQLite cases. Windows CI-lite passes1974 with one leaked-handle failure and three unchanged exclusions. All native inspection jobs, Windows native index workflows, Windows authority, gate and Rust pass at this source. Earlier pending statements in the preceding receipt are historical.
+
+## Scheduler ownership
+
+The Swift fixture reads real native results but never closes its scheduler lookup. Node26 records an unhandled FileHandle finalizer error for that exact result file after the fixture prints success. Production Stage1 already owns this close; the defect is in direct fixture callers. Five callers now close in finally, including assertion/error paths, while crash logging and risk-hook cleanup retain their owners. Swift additionally checks zero retained readers, settled native close operations and rejection of reads after close. Its original real reader deterministically fails the new zero-reader invariant before repair (one retained reader), and all eight affected/reader-format/lease controls pass afterward. No production parser, native dependency or semantic identity changes.
+
+## Preserved performance work
+
+The original SQLite a/b wrappers each contain two complete paired trials and exceed30seconds on macOS. They now use the existing one-pair worker, matching the independently bounded c capsules. Six capsules retain all six paired trials, twelve complete arms,32768 chunks/65536 postings per arm, real input above128MiB, full independent content and query parity, actual native pragmas/transactions and confirmed cleanup. Alternating arm order remains baseline/current then current/baseline in each series. Input preparation repeats per capsule; this changes the process boundary and makes no speedup claim. Existing public CLI coverage still runs two trials and verifies its alternating order.
+
+The memory control keeps the same128MiB allocation and64/32/32MiB RSS/high-water assertions. A completed synchronous frame returns numeric witnesses without retaining the backing store. Every byte is read, both explicit collection turns settle, and new array-buffer witnesses verify actual allocation/release. Raw snapshots print before assertions so a failed control retains its measurements. The original receipt lacks those snapshots; this does not establish an allocator defect or production leak. Explicit collections remain confined to this isolated control. [Node memory counters](https://nodejs.org/api/process.html#processmemoryusage) and the [experimental GC flag](https://nodejs.org/api/cli.html#--expose-gc) describe the measurement interfaces.
+
+Serial runtime qualification now runs before the large parallel lane, so its bounded failures are reported earlier. All32 cases retain one job,30seconds, zero retries and disabled native-status redo. New timing context remains explicit; no cross-campaign latency comparison is claimed.
+
+All nine focused performance/plan/CLI cases pass on Windows, including all six complete paired capsules; the longest is18.3seconds. Eight scheduler/reader controls also pass. All eight publication checks pass, including43/43 gate cases; the final suite-order smoke recheck also passes. Replacement hosted acceptance remains separate. Tantivy native qualification remains deferred; optional/platform exclusions are unchanged. Local execution is Windows only. Author caches and raw .testLogs/.tmp paths are historical and need not exist in clean checkouts.

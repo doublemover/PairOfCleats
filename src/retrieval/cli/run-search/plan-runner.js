@@ -1,6 +1,8 @@
 import { projectIndexFormatError } from '../../../shared/index-format-error.js';
 import path from 'node:path';
 import { getRepoRoot } from '../../../shared/repo-paths.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
+import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import {
   applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
@@ -28,6 +30,9 @@ import { hasIndexMetaAsync, hasLmdbStore } from '../index-loader.js';
 import { applyBranchFilter } from '../branch-filter.js';
 import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
+import { INTERNAL_EXACT_SEARCH_MODE } from '../../cli.js';
+import { INTERNAL_QUERY_CACHE_BYPASS } from '../../query-cache-experiment.js';
+import { INTERNAL_ADMITTED_GENERATION } from '../../../index/as-of.js';
 import { buildQueryPlan } from '../query-plan.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
@@ -60,6 +65,9 @@ import {
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
 import { createBackendDisposer } from '../backend-disposal.js';
+import { createSearchSettlement } from '../search-settlement.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { INTERNAL_SEARCH_POLICY, resolveEffectiveSearchPlanIdentity, resolveEffectiveScorePolicyIdentity, resolveObservedSearchSystemIdentity, consumeEffectiveSearchPlan } from '../effective-plan.js';
 
 import {
   INDEX_PROFILE_DEFAULT,
@@ -102,11 +110,21 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   let queryPlanCache = options.queryPlanCache ?? null;
   const backendDisposers = new Set();
   const disposeBackends = createBackendDisposer(backendDisposers);
+  const settlement = createSearchSettlement({ dispose: disposeBackends, after: [
+    () => telemetry?.emitResourceWarnings?.({ warn: () => {} }),
+    async () => {
+      if (typeof queryPlanCache?.persist !== 'function') return;
+      try { await queryPlanCache.persist(); }
+      catch (error) {
+        // An ordinary cache persistence miss remains optional; it cannot hide
+        // an original unsettled file/namespace/native resource.
+        observeStorageResource(error, { phase: 'search-plan-cache-persistence' }).requireSettled();
+      }
+    }
+  ] });
 
   if (signal?.aborted) {
-    const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
-    err.code = 'ERR_ABORTED';
-    throw err;
+    throw createError(ERROR_CODES.CANCELLED, 'Search cancelled.', { cancelled: true });
   }
   const argv = parseCliArgsOrThrow({
     rawArgs,
@@ -135,8 +153,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   }
   const workspacePath = extractWorkspacePath(argv);
   const enumerationError = argv.cursor && !filterOnly
-    ? '--cursor requires a filter-only search without query text.'
-    : workspacePath && filterOnly ? 'Filter enumeration currently requires --repo, not --workspace.' : null;
+    ? '--cursor requires a filter-only search without query text.' : null;
   if (enumerationError) emitInvalidRequestAndThrow({
     message: enumerationError, jsonOutput, emitOutput, exitOnError, recordSearchMetrics
   });
@@ -156,7 +173,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
   const rootDir = getRepoRoot(rootArg);
-  const userConfig = loadUserConfig(rootDir);
+  const capturedPolicy = consumeEffectiveSearchPlan(options[INTERNAL_SEARCH_POLICY], { rootDir, rawArgs,
+    exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null, scoreModeOverride });
+  const userConfig = capturedPolicy?.userConfig || loadUserConfig(rootDir);
   const cacheConfig = getCacheRuntimeConfig(rootDir, userConfig);
   const verboseCache = false;
   const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
@@ -180,7 +199,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     const metricsDir = getMetricsDir(rootDir, userConfig);
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
-    const policy = await getAutoPolicy(rootDir, userConfig);
+    const policy = capturedPolicy?.policy || await getAutoPolicy(rootDir, userConfig);
     if (!queryPlanCache) {
       const queryPlanCachePath = resolveRetrievalCachePath({
         queryCacheDir,
@@ -196,16 +215,18 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     let normalized;
     try {
-      normalized = normalizeSearchOptions({
+      normalized = capturedPolicy?.normalized || normalizeSearchOptions({
         argv,
         rawArgs,
         rootDir,
         userConfig,
         metricsDir,
         queryCacheDir,
-        policy
+        policy,
+        exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null
       });
     } catch (err) {
+      if (err?.code === ERROR_CODES.INVALID_REQUEST && err.details?.filterDiagnostics) throw err;
       return bail(err.message, 1, ERROR_CODES.INVALID_REQUEST);
     }
     throwIfAborted();
@@ -215,6 +236,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const runConfig = resolveRunConfig({ normalized, scoreModeOverride });
+    if (options[INTERNAL_QUERY_CACHE_BYPASS] === true) runConfig.queryCacheEnabled = false;
 
     const {
       query,
@@ -320,7 +342,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (runCode) asOfRequestedModes.push('code');
     if (runProse) asOfRequestedModes.push('prose');
     if (runRecords) asOfRequestedModes.push('records');
-    if ((searchMode === 'extracted-prose' || searchMode === 'all') && !asOfRequestedModes.includes('extracted-prose')) {
+    if (runExtractedProseRaw && !asOfRequestedModes.includes('extracted-prose')) {
       asOfRequestedModes.push('extracted-prose');
     }
     let asOfContext = null;
@@ -329,21 +351,36 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         repoRoot: rootDir,
         userConfig,
         requestedModes: asOfRequestedModes,
+        optionalModes: !filterOnly && commentsEnabled && runCode && !runExtractedProseRaw ? ['extracted-prose'] : [],
         asOf: argv['as-of'],
         snapshot: argv.snapshot,
+        admittedGeneration: options[INTERNAL_ADMITTED_GENERATION] ?? null,
         preferFrozen: true,
         allowMissingModesForLatest: true
       });
     } catch (err) {
       return bail(err?.message || 'Invalid --as-of value.', 1, err?.code || ERROR_CODES.INVALID_REQUEST);
     }
-    const indexResolveOptions = asOfContext?.strict
-      ? {
-        indexDirByMode: asOfContext.indexDirByMode,
-        indexBaseRootByMode: asOfContext.indexBaseRootByMode,
-        explicitRef: true
+    // Latest already resolved one canonical pointer snapshot, including optional
+    // joins. Discarding it would admit a second generation during promotion.
+    const admittedDirs = { ...(asOfContext?.indexDirByMode || {}) };
+    const admittedRoots = { ...(asOfContext?.indexBaseRootByMode || {}) };
+    if (!asOfContext?.strict && asOfContext?.unresolved) {
+      // Capture every possible join before the first request await. Mutable
+      // current pointers are never consulted again during this request.
+      for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
+        try {
+          const dir = resolveIndexDir(rootDir, mode, userConfig);
+          admittedDirs[mode] = dir;
+          admittedRoots[mode] = path.dirname(dir);
+        } catch (error) {
+          if (asOfRequestedModes.includes(mode)) throw error;
+        }
       }
-      : {};
+    }
+    const indexResolveOptions = {
+      indexDirByMode: admittedDirs, indexBaseRootByMode: admittedRoots, explicitRef: true
+    };
     const resolvedIndexDirByMode = new Map();
     const resolveSearchIndexDir = (mode) => {
       if (resolvedIndexDirByMode.has(mode)) return resolvedIndexDirByMode.get(mode);
@@ -386,9 +423,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     telemetry.setMode(searchMode);
 
-    const modelConfig = getModelConfig(rootDir, userConfig);
+    const modelConfig = capturedPolicy?.modelConfig || getModelConfig(rootDir, userConfig);
     const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
-    const useStubEmbeddings = argv['stub-embeddings'] === true;
+    const { useStubEmbeddings } = capturedPolicy || resolveEmbeddingIntent({
+      argv,
+      embeddingsConfig: userConfig.indexing?.embeddings,
+      envConfig: getEnvConfig(),
+      execution: 'query'
+    });
     const topN = argv.n;
     const showStats = argv.stats === true;
     const showMatched = argv.matched === true;
@@ -430,21 +472,19 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && sqliteRootSelection.mixed);
     const lmdbRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && lmdbRootSelection.mixed);
 
-    const lmdbPaths = resolveLmdbPaths(
-      rootDir,
-      userConfig,
-      lmdbRootSelection.root ? { indexRoot: lmdbRootSelection.root } : {}
-    );
-    const lmdbCodePath = lmdbPaths.codePath;
-    const lmdbProsePath = lmdbPaths.prosePath;
-    const sqlitePaths = resolveSqlitePaths(
-      rootDir,
-      userConfig,
-      sqliteRootSelection.root ? { indexRoot: sqliteRootSelection.root } : {}
-    );
-    const sqliteCodePath = sqlitePaths.codePath;
-    const sqliteProsePath = sqlitePaths.prosePath;
-    const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
+    const backendPathsForMode = (resolvePaths, mode, selection) => {
+      // Latest pointers may pin each mode to a different published generation.
+      // Explicit as-of requests retain their single-root backend contract.
+      const indexRoot = !asOfContext?.strict
+        ? admittedRoots[mode] || admittedRoots[dbModeSelection[0]] || Object.values(admittedRoots)[0]
+        : selection.root;
+      return resolvePaths(rootDir, userConfig, indexRoot ? { indexRoot } : {});
+    };
+    const lmdbCodePath = backendPathsForMode(resolveLmdbPaths, 'code', lmdbRootSelection).codePath;
+    const lmdbProsePath = backendPathsForMode(resolveLmdbPaths, 'prose', lmdbRootSelection).prosePath;
+    const sqliteCodePath = backendPathsForMode(resolveSqlitePaths, 'code', sqliteRootSelection).codePath;
+    const sqliteProsePath = backendPathsForMode(resolveSqlitePaths, 'prose', sqliteRootSelection).prosePath;
+    const sqliteExtractedProsePath = backendPathsForMode(resolveSqlitePaths, 'extracted-prose', sqliteRootSelection).extractedProsePath;
 
     const sqliteStateCode = needsCode
       ? loadIndexState(rootDir, userConfig, 'code', {
@@ -782,25 +822,29 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
     const branchResult = await applyBranchFilter({
+      beforePublish: settlement.beforePublish,
       branchFilter,
       caseSensitive: caseFile,
       root: rootDir,
-      metricsDir,
-      queryCacheDir,
-      runCode,
-      runProse,
+      signal,
       backendLabel,
       backendPolicy: backendPolicyInfo,
       emitOutput,
       jsonOutput,
-      recordSearchMetrics,
-      warn: console.warn
+      recordSearchMetrics
     });
     if (branchResult?.payload) {
       return branchResult.payload;
     }
 
-    const dictConfigBase = getDictConfig(rootDir, userConfig);
+    const dictConfigBase = capturedPolicy?.dictConfig || getDictConfig(rootDir, userConfig);
+    const effectivePlanIdentity = capturedPolicy?.identity || resolveEffectiveSearchPlanIdentity({ rootDir, rawArgs,
+      exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null, scoreModeOverride, normalized, userConfig, policy,
+      modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
+    const effectiveSystemIdentity = resolveObservedSearchSystemIdentity({ scoreModeOverride, normalized, userConfig, policy,
+      modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
+    const scorePolicyIdentity = resolveEffectiveScorePolicyIdentity({ scoreModeOverride, normalized, userConfig, policy,
+      modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
     const dictConfig = applyAdaptiveDictConfig(
       dictConfigBase,
       resolveIndexedFileCount(metricsDir, {
@@ -810,7 +854,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runRecords
       })
     );
-    const baseCodeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+    const baseCodeDictLanguages = normalizeCodeDictLanguages(userConfig.indexing?.codeDictLanguages ?? DEFAULT_CODE_DICT_LANGUAGES);
     let codeDictLanguages = baseCodeDictLanguages;
     if (langFilter && langFilter.length) {
       const filterLangs = normalizeCodeDictLanguages(langFilter);
@@ -824,7 +868,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const includeCodeDicts = runCode && codeDictLanguages.size > 0;
     const dictStart = stageTracker.mark();
-    const { dict } = await loadDictionary(rootDir, dictConfig, {
+    const { dict, policyIdentity: dictionaryPolicyIdentity } = await loadDictionary(rootDir, dictConfig, {
       includeCode: includeCodeDicts,
       codeDictLanguages: Array.from(codeDictLanguages)
     });
@@ -838,12 +882,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         structuredFilters: Object.fromEntries(SEARCH_FILTER_OPTION_NAMES.map((key) => [key, argv[key] ?? null])),
         dictConfig,
         dictSize: dict?.size ?? null,
+        dictionaryPolicyIdentity,
         postingsConfig,
         caseTokens,
         fileFilter,
         caseFile,
         searchRegexConfig,
         filePrefilterEnabled,
+        filePrefilterConfig: normalized.filePrefilterConfig,
         fileChargramN,
         searchType,
         searchAuthor,
@@ -881,9 +927,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         includeExtractedProse: runExtractedProseRaw || joinComments,
         root: rootDir,
         userConfig,
-        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-        explicitRef: asOfContext?.strict === true,
+        indexDirByMode: admittedDirs,
+        indexBaseRootByMode: admittedRoots,
+        explicitRef: true,
         asOfContext,
         generationContext
       })
@@ -916,6 +962,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       caseFile,
       searchRegexConfig,
       filePrefilterEnabled,
+      filePrefilterConfig: normalized.filePrefilterConfig,
       fileChargramN,
       searchType,
       searchAuthor,
@@ -1095,8 +1142,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       useLmdb,
       emitOutput,
       exitOnError,
+      jsonOutput,
       annActive,
       filtersActive: queryPlan.filtersActive,
+      relationFilters: queryPlan.filters,
       chunkAuthorFilterActive: Array.isArray(chunkAuthorFilter) ? chunkAuthorFilter.length > 0 : Boolean(chunkAuthorFilter),
       contextExpansionEnabled,
       graphRankingEnabled,
@@ -1123,9 +1172,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       loadExtractedProse: joinComments,
       allowUnsafeMix,
       requiredArtifacts,
-      indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-      indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      explicitRef: asOfContext?.strict === true,
+      indexDirByMode: admittedDirs,
+      indexBaseRootByMode: admittedRoots,
+      explicitRef: true,
       generationContext
     });
     stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
@@ -1159,10 +1208,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const payload = await executeSearchAndEmit({
+      beforePublish: settlement.beforePublish,
+      branchQualification: branchResult.receipt,
       filterOnly,
       filterCursor: argv.cursor || null,
       plain: argv.plain === true,
       outputMaxBytes: argv['output-bytes'] ?? null,
+      effectivePlanIdentity,
+      scorePolicyIdentity,
+      effectiveSystemIdentity,
       t0,
       emitOutput,
       jsonOutput,
@@ -1273,6 +1327,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     recordSearchMetrics('ok');
     return payload;
   } catch (err) {
+    settlement.captureFailure(err);
     recordSearchMetrics('error');
     if (emitOutput && jsonOutput && !err?.emitted) {
       let message = err?.message || 'Search failed.';
@@ -1284,23 +1339,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       }
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
       const format = projectIndexFormatError(err);
-      console.log(JSON.stringify({ ok: false, code: format?.nativeCode || code, message, ...(format ? { ...format, details: format } : {}) }));
+      console.log(JSON.stringify({ ok: false, code: format?.nativeCode || code, message,
+        ...(err?.details?.filterDiagnostics ? { details: { filterDiagnostics: err.details.filterDiagnostics } } : {}),
+        ...(err?.branchQualification ? { details: { branchQualification: err.branchQualification } } : {}),
+        ...(format ? { ...format, details: format } : {}) }));
       if (err) err.emitted = true;
     }
     throw err;
   } finally {
-    // Release handles before telemetry or cache persistence can fail. Cleanup
-    // failures must not replace an existing search/cancellation failure.
-    try { await disposeBackends(); } catch {}
-    if (telemetry?.emitResourceWarnings) {
-      telemetry.emitResourceWarnings({
-        warn: () => {}
-      });
-    }
-    if (typeof queryPlanCache?.persist === 'function') {
-      try {
-        await queryPlanCache.persist();
-      } catch {}
-    }
+    await settlement.settle();
   }
 }

@@ -1,0 +1,673 @@
+{
+  "limits": {
+    "settledP95Ms": 1000,
+    "synchronousP95Ms": 250
+  },
+  "date": "2026-10-29",
+  "artifacts": {
+    "ubuntu": {
+      "sha256": "ac62ccb29fa09c23d5fb8dcece6292cadc94ff3f0dbc0bb3a9a013dbc27fba85",
+      "id": 12882128566
+    },
+    "macos": {
+      "sha256": "b53e4e9cc3f8e65d2d79a472182639fa5487c4134866cd615cd6836be048b8ab",
+      "id": 12881709911
+    }
+  },
+  "workflowRun": 40836890554,
+  "schemaVersion": 1,
+  "qualifications": [
+    {
+      "measurements": [
+        {
+          "measurement": "serial-crash-log-error-ms",
+          "selected": "long-log",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "linux",
+          "arch": "x64",
+          "warmups": 3,
+          "sampleCount": 20,
+          "logBytesPerSink": 2097152,
+          "appendSinks": 2,
+          "samples": [
+            {
+              "syncMs": 3.393983999999989,
+              "settledMs": 6.317903000000001,
+              "terminalSha256": "7fa03424e8d0a4787a952883337670e9da22945ae6b61fcbf2f6b358f729a092"
+            },
+            {
+              "syncMs": 3.048225000000002,
+              "settledMs": 5.917316999999997,
+              "terminalSha256": "665fd86373b49406f8dd542ccc93dbb11e7366c500a0ed49682370e214b17585"
+            },
+            {
+              "syncMs": 3.251431000000025,
+              "settledMs": 6.407158000000038,
+              "terminalSha256": "6398b56760aad1d7411931696bab623f3e237a938fb27cdf51dd097206b0acd5"
+            },
+            {
+              "syncMs": 3.1857010000000514,
+              "settledMs": 6.081152000000031,
+              "terminalSha256": "1a77f8c9507063b181a0562a8ba17ff345d46444bd35ce0c0c41298a79f6e633"
+            },
+            {
+              "syncMs": 3.0981799999999566,
+              "settledMs": 5.903440999999987,
+              "terminalSha256": "1cb15f59983e220b325949153436af268d0a41e372b3d6f9de45825cc4636bb8"
+            },
+            {
+              "syncMs": 3.198100000000011,
+              "settledMs": 6.518102999999996,
+              "terminalSha256": "43b083bc1dcf5a4cb2b92471b055a1364542b44cecb0c19601ea9205bded86f9"
+            },
+            {
+              "syncMs": 3.58818100000002,
+              "settledMs": 6.3840379999999755,
+              "terminalSha256": "07d34765eab24940007709a9e4ae74d9177024a0d5eeee37f5967ae244f2a789"
+            },
+            {
+              "syncMs": 3.022627,
+              "settledMs": 5.732809000000032,
+              "terminalSha256": "dd76e699a0439f8d4b4eba86f2789a521fde6d46b6fe1f130eed97d7251ae377"
+            },
+            {
+              "syncMs": 2.9575590000000034,
+              "settledMs": 5.779886000000033,
+              "terminalSha256": "06c6bed6f1accc0d0b1487f3625285db7a45e5cc27f59b8a001a1d5290a8cdf1"
+            },
+            {
+              "syncMs": 2.8766579999999635,
+              "settledMs": 5.538543000000004,
+              "terminalSha256": "98eb8c228d919cb9af767024e3cdbec974bdf6756b60e6d2c6ddf5560f62744a"
+            },
+            {
+              "syncMs": 3.075691000000006,
+              "settledMs": 5.774562000000003,
+              "terminalSha256": "d0654932e79b9ac6695531909ed21a83bf343aa72fe087702a171d876f4965c3"
+            },
+            {
+              "syncMs": 2.819817999999998,
+              "settledMs": 5.572044000000005,
+              "terminalSha256": "f357f8455f13f57f4ef30478dc64b971f9a6379b5da96ed6422f36cde94aeede"
+            },
+            {
+              "syncMs": 3.2117169999999646,
+              "settledMs": 6.144412999999986,
+              "terminalSha256": "18cd82ee51d637326b4b57639a987253386175afef5ea465c9ee0108da97f1f8"
+            },
+            {
+              "syncMs": 2.9342940000000226,
+              "settledMs": 5.842428999999981,
+              "terminalSha256": "399dc9ae90f990b363d229a502af777c55ea32635cf9f76c5130337d7b29e28a"
+            },
+            {
+              "syncMs": 2.6510789999999815,
+              "settledMs": 5.638758999999993,
+              "terminalSha256": "74be5d6ee785df8dba7196db2ce06f80750249bf17241edf0de55c7fd527eff8"
+            },
+            {
+              "syncMs": 2.92576200000002,
+              "settledMs": 5.7047979999999825,
+              "terminalSha256": "5b0842dae92d78c1b816470cc76d13c785e7ff03420338ccb5b285ac6dcc4e11"
+            },
+            {
+              "syncMs": 2.6705990000000384,
+              "settledMs": 5.168954000000042,
+              "terminalSha256": "9b7c60122959ccf6e9fd77cdc81382b953e40237d497e8e2d7cdc2092ef0ce28"
+            },
+            {
+              "syncMs": 3.245652000000007,
+              "settledMs": 6.1294509999999605,
+              "terminalSha256": "8b0fd8356f7f4a4e11d7cb884504c2a7114aa41885bf5c5b40bed777fb11a3f6"
+            },
+            {
+              "syncMs": 3.1135929999999803,
+              "settledMs": 5.969975999999974,
+              "terminalSha256": "e08120699cc3503a3afb902a0238a63ebe5b3b542e6af19a22a5deea8c04880d"
+            },
+            {
+              "syncMs": 2.997468999999967,
+              "settledMs": 12.953272999999967,
+              "terminalSha256": "d076fe955e93a095e90c72e38199d7c68e269b6a75a72b1216a96c33230a7608"
+            }
+          ],
+          "syncP95Ms": 3.393983999999989,
+          "settledP95Ms": 6.518102999999996,
+          "syncP95LimitMs": 250,
+          "settledP95LimitMs": 1000,
+          "scope": "warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export"
+        },
+        {
+          "measurement": "serial-crash-log-error-ms",
+          "selected": "small-log",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "linux",
+          "arch": "x64",
+          "warmups": 3,
+          "sampleCount": 20,
+          "logBytesPerSink": 0,
+          "appendSinks": 2,
+          "samples": [
+            {
+              "syncMs": 3.119992999999994,
+              "settledMs": 5.701146999999992,
+              "terminalSha256": "a080a5a1ed904c3eeb5d2ccf23c3b8a1d80edf188d55780fad06bf3df4938966"
+            },
+            {
+              "syncMs": 3.080122999999986,
+              "settledMs": 5.760305999999986,
+              "terminalSha256": "e92c0572fdc1d4c6b04aedd561cd8bb1da0d70112ef932b4308bf37cae242586"
+            },
+            {
+              "syncMs": 3.26443500000002,
+              "settledMs": 5.933407000000017,
+              "terminalSha256": "73a6cc549a86fa6bace197cda3bab4eb8b1a10ca8753236260673b6aeb3ecdf9"
+            },
+            {
+              "syncMs": 2.904654999999991,
+              "settledMs": 5.557703000000004,
+              "terminalSha256": "be39a56a3f5cd1dcd7853db6552335c4845d7c4ad1ff2aa10124fc96d1c4ee9a"
+            },
+            {
+              "syncMs": 2.9933430000000385,
+              "settledMs": 5.732254000000012,
+              "terminalSha256": "b3648eee53f5d23eba5cd88c30cc0412e96eeda6469e0daf7c76b5b723e1eff7"
+            },
+            {
+              "syncMs": 3.115054999999984,
+              "settledMs": 6.478169000000037,
+              "terminalSha256": "3c63649d57d701fc019cb4e742d380478a6b9b6a191fb60665531b3a51f48507"
+            },
+            {
+              "syncMs": 3.0031380000000354,
+              "settledMs": 5.713631000000021,
+              "terminalSha256": "f5d218e4f22e767d17202f140e93d1548a6c7067d91adf9d13d962e23427117b"
+            },
+            {
+              "syncMs": 3.079137000000003,
+              "settledMs": 5.790641999999991,
+              "terminalSha256": "d9197db0ca91d8ae0c46d8bb0bf4f9cd1ae571369ebccb48ef0a6c73c69f38de"
+            },
+            {
+              "syncMs": 3.0107300000000237,
+              "settledMs": 6.028810000000021,
+              "terminalSha256": "ad46bdd66c5ef156ee46f464106d5d294898db9b3c11925e8373a68d0ac7d589"
+            },
+            {
+              "syncMs": 2.865566000000001,
+              "settledMs": 5.4909770000000435,
+              "terminalSha256": "b7b4b58b33bdb23ef4bd81452da55f1b4adfa38b903fd21cd0009bc897852947"
+            },
+            {
+              "syncMs": 3.0164530000000127,
+              "settledMs": 5.678038000000015,
+              "terminalSha256": "c036e525d4e861fd55d8544b901027e8be4f7f86b611fa80c96dce6f7f77cd1d"
+            },
+            {
+              "syncMs": 2.812472000000014,
+              "settledMs": 5.888349000000005,
+              "terminalSha256": "d1435a0d3fa96627116ed07a6d8e22295e925f9f952553a779a9cbb9f87b0054"
+            },
+            {
+              "syncMs": 2.8018899999999576,
+              "settledMs": 5.668211999999983,
+              "terminalSha256": "3e57c7b0773555ffba44d14cfd0ee890f8f4f7f71c7b1055e774857c072b1180"
+            },
+            {
+              "syncMs": 2.8009950000000003,
+              "settledMs": 5.392600000000016,
+              "terminalSha256": "91a8b7a7e2ccdb3aa5a6f5d3492d3c530442a5c50f85c7cca40dd163614612e0"
+            },
+            {
+              "syncMs": 3.126297999999963,
+              "settledMs": 6.269254999999987,
+              "terminalSha256": "2c4a21723a42b2f42262fd2fc976c425bb5873b523652edcd806412dd9e34cb3"
+            },
+            {
+              "syncMs": 2.7088560000000257,
+              "settledMs": 5.254818,
+              "terminalSha256": "00f7141eba9f71988feab2fa7db61af0575fa0ab7a39524a568fcb6ba9a3205e"
+            },
+            {
+              "syncMs": 2.6957269999999767,
+              "settledMs": 5.224828000000002,
+              "terminalSha256": "b7a06c59141c1e9824170278c2321d4e1aa1a4cf72abcff6fad906b235357f4e"
+            },
+            {
+              "syncMs": 2.9559920000000375,
+              "settledMs": 5.520561000000043,
+              "terminalSha256": "cb815a1197e4e63ecad3cd8c5f5e2a346261c0bf955fba2d93e8919eabd7b904"
+            },
+            {
+              "syncMs": 3.0409099999999967,
+              "settledMs": 5.7034759999999665,
+              "terminalSha256": "d760394e2f58276eb77b556f8ba0eb0e0f49137a28d58dc5201b5ba9196eb7a7"
+            },
+            {
+              "syncMs": 3.054198999999983,
+              "settledMs": 5.673956000000032,
+              "terminalSha256": "882547018fefabc212d37ca8d413074541563af0bbc0a74070fee711826dec3c"
+            }
+          ],
+          "syncP95Ms": 3.126297999999963,
+          "settledP95Ms": 6.269254999999987,
+          "syncP95LimitMs": 250,
+          "settledP95LimitMs": 1000,
+          "scope": "warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export"
+        }
+      ],
+      "summary": {
+        "durationMs": 3511,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "id": "indexing/crash-log-boundary-controls/before-open",
+          "status": "passed",
+          "durationMs": 207,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/bounded-existing-logs",
+          "status": "passed",
+          "durationMs": 192,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/latest-pointer-failure",
+          "status": "passed",
+          "durationMs": 196,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/pending-write-close",
+          "status": "passed",
+          "durationMs": 204,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/terminal-disk-failure",
+          "status": "passed",
+          "durationMs": 194,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-independent-sinks",
+          "status": "passed",
+          "durationMs": 236,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-state-write-contention",
+          "status": "passed",
+          "durationMs": 902,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-terminal-ownership",
+          "status": "passed",
+          "durationMs": 410,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "perf/crash-log-error-latency/long-log",
+          "status": "passed",
+          "durationMs": 524,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "perf/crash-log-error-latency/small-log",
+          "status": "passed",
+          "durationMs": 433,
+          "attempts": 1,
+          "timedOut": false
+        }
+      ],
+      "platform": "ubuntu"
+    },
+    {
+      "measurements": [
+        {
+          "measurement": "serial-crash-log-error-ms",
+          "selected": "long-log",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "darwin",
+          "arch": "arm64",
+          "warmups": 3,
+          "sampleCount": 20,
+          "logBytesPerSink": 2097152,
+          "appendSinks": 2,
+          "samples": [
+            {
+              "syncMs": 10.343250000000012,
+              "settledMs": 19.452541999999994,
+              "terminalSha256": "c072b86e5863a1d48fd5ada8cc925442f0be9e50b0f2635e237a87b7105cf2b4"
+            },
+            {
+              "syncMs": 19.58570800000001,
+              "settledMs": 30.11091700000003,
+              "terminalSha256": "d4c218a3e49332d1a9e1753f79f641c1ec58d46eb827c812b6ccee699ef329cf"
+            },
+            {
+              "syncMs": 13.285374999999988,
+              "settledMs": 23.359999999999957,
+              "terminalSha256": "cd970f500ce5f2b428aa46bc8c45fe7d931b90065bc972ac824e5d01c1d6c320"
+            },
+            {
+              "syncMs": 14.257542,
+              "settledMs": 24.567083000000025,
+              "terminalSha256": "152d4fa5dc34c31c183aea9438f1f7ed29ef22ccf88f27c30a90985a898d5fdf"
+            },
+            {
+              "syncMs": 14.351167000000032,
+              "settledMs": 34.374459,
+              "terminalSha256": "b7aa991927b11047d0b830a9cc4cc594572b7cdc4011d1a84f6f25fab53b11ee"
+            },
+            {
+              "syncMs": 15.55179099999998,
+              "settledMs": 40.248040999999944,
+              "terminalSha256": "158f657beb395a9908af0ead86d997ff38d4a430f8b1edfb467c40fe3e2f9af6"
+            },
+            {
+              "syncMs": 12.190832999999998,
+              "settledMs": 22.70229100000006,
+              "terminalSha256": "b90ad2bd5a43cbab99195a50ce8f1cf9db3a23182245ec4971430bb5845cdf06"
+            },
+            {
+              "syncMs": 15.61424999999997,
+              "settledMs": 26.098708999999985,
+              "terminalSha256": "66efc571b296d77de86fbe4985a6e29ee000b469b49b5f3e91fc1326512dce7e"
+            },
+            {
+              "syncMs": 12.475416999999993,
+              "settledMs": 20.32220899999993,
+              "terminalSha256": "4b3679e8bcab561aab38066ce3673c257e36c367b6bc905d941be9710307a350"
+            },
+            {
+              "syncMs": 12.218165999999997,
+              "settledMs": 23.52641600000004,
+              "terminalSha256": "5d8c690085e13fb33b5c680ee46cc131a95bcb1aa8a17117802624452cc70fd3"
+            },
+            {
+              "syncMs": 13.81987499999991,
+              "settledMs": 24.090874999999983,
+              "terminalSha256": "3fc9013bbd3e3d16612166b5f71bb8c03400abb55764dce28d917b3922a31f1d"
+            },
+            {
+              "syncMs": 11.50541700000008,
+              "settledMs": 23.346000000000004,
+              "terminalSha256": "34423510ee4ba8cdf1044791c92a2718f32cdaf0da233efb891d2a57d66e429d"
+            },
+            {
+              "syncMs": 15.95845799999995,
+              "settledMs": 27.783457999999996,
+              "terminalSha256": "58e266e2abdc6c6216b1c61e4b8bab37f40d2b61a677ac4933b457125940117e"
+            },
+            {
+              "syncMs": 10.43483399999991,
+              "settledMs": 18.092916999999943,
+              "terminalSha256": "f72df298c797e5941c882dbf00fbf221794bf73e0f9f69677b27eb1356bbc6f4"
+            },
+            {
+              "syncMs": 10.037209000000075,
+              "settledMs": 19.68979200000001,
+              "terminalSha256": "dea08a7af700e0d84b158e1e51df6d9b9e6a4c7b74cae4b730ccf8170e8db9a5"
+            },
+            {
+              "syncMs": 13.431542000000036,
+              "settledMs": 21.8247080000001,
+              "terminalSha256": "28ae866e39b732af3a9a5235bffecf2d3dddf8ac8cdbf46bca4d8a99e20633fd"
+            },
+            {
+              "syncMs": 9.06337499999995,
+              "settledMs": 18.526916999999912,
+              "terminalSha256": "79ad94642337ac99701cbfaa3fc609accddcaff63966182776a8929d3f8e6e0f"
+            },
+            {
+              "syncMs": 12.338792000000012,
+              "settledMs": 20.776542000000063,
+              "terminalSha256": "cdb8a3c50bac680cefe6230efed1231c720b8e472358ab1678eae240b4b62ba0"
+            },
+            {
+              "syncMs": 11.557583000000022,
+              "settledMs": 20.131167000000005,
+              "terminalSha256": "ed14d685889e983d857ef1435bf10514f226d86225e18d84e3af9cdca0e4ec3c"
+            },
+            {
+              "syncMs": 11.073208999999906,
+              "settledMs": 25.54420899999991,
+              "terminalSha256": "21cee64e9f35c0670ed9ce5c0da734b3da235d021f6a7535a1b82810356194e0"
+            }
+          ],
+          "syncP95Ms": 15.95845799999995,
+          "settledP95Ms": 34.374459,
+          "syncP95LimitMs": 250,
+          "settledP95LimitMs": 1000,
+          "scope": "warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export"
+        },
+        {
+          "measurement": "serial-crash-log-error-ms",
+          "selected": "small-log",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "darwin",
+          "arch": "arm64",
+          "warmups": 3,
+          "sampleCount": 20,
+          "logBytesPerSink": 0,
+          "appendSinks": 2,
+          "samples": [
+            {
+              "syncMs": 13.772832999999991,
+              "settledMs": 21.81962500000003,
+              "terminalSha256": "dafa184c62d9c9ee85bb929ded43aa501857ba47cdd23c3dcf11eda4c720e3db"
+            },
+            {
+              "syncMs": 14.015832999999986,
+              "settledMs": 27.736499999999978,
+              "terminalSha256": "0f1a033d0316c3bce8f16816f84760d5dfb2a62a7b7afc04e6a1a5d17c04a580"
+            },
+            {
+              "syncMs": 12.91654200000005,
+              "settledMs": 22.444334000000026,
+              "terminalSha256": "4d6bc65b8e7695c538619e8e7c36e6c4b619969b7e7e74a7bb98d44a5ab3876b"
+            },
+            {
+              "syncMs": 19.826707999999996,
+              "settledMs": 30.23516600000005,
+              "terminalSha256": "38b92559647ee3036a450976919a0815db72525cd7ac397f227a15b760075561"
+            },
+            {
+              "syncMs": 17.52820799999995,
+              "settledMs": 44.66075000000001,
+              "terminalSha256": "0d1a5eb89e1fbe0199de91813648da0412593a8989538f62da7c2d57ab8d5cc7"
+            },
+            {
+              "syncMs": 17.593624999999975,
+              "settledMs": 26.615541000000007,
+              "terminalSha256": "dba1d348cd276c8563cdc89a1925b43da6a4a247927f7569edf93f4db63880f8"
+            },
+            {
+              "syncMs": 11.73945900000001,
+              "settledMs": 19.88499999999999,
+              "terminalSha256": "5b0d97a3fc6d2406ffb4a2bbf6b093899a85cddf3a119fa76d4126132fce95fa"
+            },
+            {
+              "syncMs": 13.656833000000006,
+              "settledMs": 20.827916000000073,
+              "terminalSha256": "09247ac74529f885893cd2a7d6b09ad04324afa6a9ccf5473ad9c7e274de90dd"
+            },
+            {
+              "syncMs": 12.01520800000003,
+              "settledMs": 19.285041000000092,
+              "terminalSha256": "c92142c8682d6a330a1315cc660e618a20cc50ce6dea2cd983028a2678b80eeb"
+            },
+            {
+              "syncMs": 11.768083000000047,
+              "settledMs": 19.109041000000047,
+              "terminalSha256": "7b2c917ba52116a6789577aa8dd681951f85fa6895fe31ba5e1cd7430a5ad0b8"
+            },
+            {
+              "syncMs": 40.10520799999995,
+              "settledMs": 71.56150000000002,
+              "terminalSha256": "988b34be56413abd3ab81d60831fa47e2d85890dcfbdae7496ad0b9c875277d3"
+            },
+            {
+              "syncMs": 14.074249999999893,
+              "settledMs": 23.947124999999915,
+              "terminalSha256": "535a0ded19724f6420da9a6bf4d741d0c18a75d61667c6e0b033bca70ae96b44"
+            },
+            {
+              "syncMs": 11.787959,
+              "settledMs": 22.165417000000048,
+              "terminalSha256": "065e4ec7f42c172931adca8b908b864e0cb9334e38eefbcfe1d6df8e73b79e14"
+            },
+            {
+              "syncMs": 14.373749999999973,
+              "settledMs": 24.129707999999937,
+              "terminalSha256": "42fbee049a4bb9b42c0c16f86e3fb0a4b1c9212ba71a68bc391be29935e42714"
+            },
+            {
+              "syncMs": 13.729750000000081,
+              "settledMs": 24.470833000000084,
+              "terminalSha256": "0007dd58141c0e1cb8652bf5f889b77422c69310fcc468b49f5563f2f29eca53"
+            },
+            {
+              "syncMs": 12.045540999999957,
+              "settledMs": 19.794165999999905,
+              "terminalSha256": "3dcce0884cdc25e238bd134949fde8e7f101ba64314f97d29e9b02907e6e25fb"
+            },
+            {
+              "syncMs": 10.203874999999925,
+              "settledMs": 20.601292000000058,
+              "terminalSha256": "bf57261d19f235b0d3b78655a82feeb8419cd45c57d6abf28fdfedea89875c99"
+            },
+            {
+              "syncMs": 12.539416000000074,
+              "settledMs": 18.53395800000021,
+              "terminalSha256": "25b7a338405171e6113fd74edfa3a0d914a190cc8e2a9ddb49839f2ab6004a31"
+            },
+            {
+              "syncMs": 9.078000000000202,
+              "settledMs": 15.749042000000145,
+              "terminalSha256": "57b4f5939cb2c853afc39a6b17051556d86717cb7a174292cc5f2c1ee264da0b"
+            },
+            {
+              "syncMs": 9.059792000000016,
+              "settledMs": 14.916958000000022,
+              "terminalSha256": "eb059db4d14ac6fa1170f584621c483587d117c92a850ace846eeebd3d80c289"
+            }
+          ],
+          "syncP95Ms": 19.826707999999996,
+          "settledP95Ms": 44.66075000000001,
+          "syncP95LimitMs": 250,
+          "settledP95LimitMs": 1000,
+          "scope": "warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export"
+        }
+      ],
+      "summary": {
+        "durationMs": 5578,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "id": "indexing/crash-log-boundary-controls/before-open",
+          "status": "passed",
+          "durationMs": 385,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/bounded-existing-logs",
+          "status": "passed",
+          "durationMs": 197,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/latest-pointer-failure",
+          "status": "passed",
+          "durationMs": 238,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/pending-write-close",
+          "status": "passed",
+          "durationMs": 228,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-boundary-controls/terminal-disk-failure",
+          "status": "passed",
+          "durationMs": 189,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-independent-sinks",
+          "status": "passed",
+          "durationMs": 244,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-state-write-contention",
+          "status": "passed",
+          "durationMs": 932,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/crash-log-terminal-ownership",
+          "status": "passed",
+          "durationMs": 691,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "perf/crash-log-error-latency/long-log",
+          "status": "passed",
+          "durationMs": 1244,
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "perf/crash-log-error-latency/small-log",
+          "status": "passed",
+          "durationMs": 1214,
+          "attempts": 1,
+          "timedOut": false
+        }
+      ],
+      "platform": "macos"
+    }
+  ],
+  "sourceComparison": "No differences in the crash logger, logger helpers, append writer or selected tests between PR head and executed merge checkout.",
+  "jobs": {
+    "ubuntu": 123325922752,
+    "macos": 123325922673
+  },
+  "scope": "Serial bounded error-path qualification; no representative workload or whole-suite acceptance claim.",
+  "branchHead": "e9704cc61730ec71b4f5ef13819134d5ec67b273",
+  "executedCheckout": "33b404551b9660855c5659ceccbdb3693d127bee"
+}

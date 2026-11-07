@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["cache", "uncached", "metadata-failure", "admission-race", "launch-homes", "open-failure", "native-failure", "original-cache-close", "configured-cache", "configured-uncached", "configured-metadata-failure", "configured-admission-race", "configured-launch-homes"]
+}

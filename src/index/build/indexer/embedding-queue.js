@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/dict-utils.js';
 import { log } from '../../../shared/progress-runtime.js';
-import { throwIfAborted } from '../../../shared/abort.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import {
@@ -110,6 +110,7 @@ export const enqueueEmbeddingJob = async ({
         })
       }
     );
+    throwIfAborted(abortSignal);
     if (!result.ok) {
       log('[embeddings] Queue full or unavailable; skipped enqueue.');
       return null;
@@ -117,6 +118,8 @@ export const enqueueEmbeddingJob = async ({
     log(`[embeddings] Queued embedding job ${jobId} (${mode}).`);
     return result.job || null;
   } catch (err) {
+    if (isAbortError(err)) throw err;
+    throwIfAborted(abortSignal);
     log(`[embeddings] Queue enqueue failed; skipped (${err?.message || err}).`);
     return null;
   }

@@ -3,12 +3,14 @@ import { mergeCoverageEntries, buildCoverageArtifact } from '../../../tools/test
 
 const merged = mergeCoverageEntries([
   {
+    sourceIdentityVersion: 1, sourcePlatform: process.platform,
     entries: [
       { path: 'src/b.js', coveredRanges: 2, totalRanges: 4 },
       { path: 'src/a.js', coveredRanges: 1, totalRanges: 2 }
     ]
   },
   {
+    sourceIdentityVersion: 1, sourcePlatform: process.platform,
     entries: [
       { path: 'src/a.js', coveredRanges: 3, totalRanges: 6 }
     ]

@@ -9,6 +9,7 @@ import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
 import { resolveWorkerHeapBudgetPolicy, resolveWorkerResourceLimits } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
+import { createWorkerCleanupGroup } from '../workers/pool/cleanup-group.js';
 
 const MIN_RUNTIME_CACHE_MB = 64;
 const MIN_RUNTIME_WRITE_BUFFER_MB = 64;
@@ -494,11 +495,9 @@ export const createRuntimeQueues = ({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
         queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute],
-        // Embeddings are currently awaited from within Stage1 CPU tasks.
-        // Charging nested embedding work against CPU tokens can deadlock when
-        // all CPU slots are held by callers blocked on embedding completion.
-        // Use memory tokens for backpressure to keep progress deterministic.
-        tokens: { mem: 1 },
+        // The caller explicitly suspends its compute permit while this child
+        // owns compute; memory/byte backpressure remains independently charged.
+        tokens: { cpu: 1, mem: 1 },
         maxPending: maxEmbeddingPending,
         maxPendingBytes: maxEmbeddingPendingBytes,
         maxInFlightBytes: maxEmbeddingInFlightBytes,
@@ -510,10 +509,8 @@ export const createRuntimeQueues = ({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.stage1Proc,
         queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.stage1Proc],
-        // Proc queue tasks are awaited from within Stage1 CPU tasks; charging them
-        // against the same CPU token pool can deadlock when cpuTokens is small
-        // (e.g. --threads 1). Use memory tokens to preserve backpressure without
-        // blocking nested scheduling.
+        // Provider callbacks retain memory admission. Callers add compute for
+        // parsing/worker work after suspending the parent's compute permit.
         tokens: { mem: 1 },
         maxPending: procPendingLimit,
         maxPendingBytes: procPendingBytesLimit,
@@ -651,7 +648,7 @@ export const createRuntimeWorkerPools = async ({
     await workerCrashLogger.close?.();
   };
 
-  let workerPools = { tokenizePool: null, quantizePool: null, destroy: closeWorkerCrashLogger };
+  let workerPools = { tokenizePool: null, quantizePool: null, destroy: async () => {}, isSettled: () => true };
   let workerPool = null;
   let quantizePool = null;
   if (workerPoolConfig.enabled !== false) {
@@ -702,28 +699,30 @@ export const createRuntimeWorkerPools = async ({
   const destroyWorkerPools = typeof workerPools?.destroy === 'function'
     ? workerPools.destroy.bind(workerPools)
     : async () => {};
-  let destroyWorkerPoolsPromise = null;
+  const originalPoolsSettled = typeof workerPools?.isSettled === 'function'
+    ? workerPools.isSettled.bind(workerPools) : () => false;
+  let workerEvidenceSettled = true;
+  const destroyWorkersAndDrainEvidence = async () => {
+    workerEvidenceSettled = false;
+    const failures = [];
+    try { await destroyWorkerPools(); } catch (error) { failures.push(error); }
+    // A retained worker can exit on explicit retry after the independent logger
+    // has already closed. Its exit callback still publishes original crash
+    // state, so join that evidence before retiring the worker category/lease.
+    try { await workerCrashLogger.flush(); workerEvidenceSettled = true; }
+    catch (error) { failures.push(error); }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length) throw new AggregateError(failures,
+      'Worker destruction and original crash-evidence drain failed.', { cause: failures[0] });
+  };
+  const cleanup = createWorkerCleanupGroup([
+    { close: destroyWorkersAndDrainEvidence,
+      isSettled: () => originalPoolsSettled() && workerEvidenceSettled },
+    { close: closeWorkerCrashLogger }
+  ]);
   workerPools = {
     ...workerPools,
-    async destroy() {
-      if (!destroyWorkerPoolsPromise) {
-        destroyWorkerPoolsPromise = (async () => {
-          let firstError = null;
-          try {
-            await destroyWorkerPools();
-          } catch (err) {
-            firstError = err;
-          }
-          try {
-            await closeWorkerCrashLogger();
-          } catch (err) {
-            if (!firstError) firstError = err;
-          }
-          if (firstError) throw firstError;
-        })();
-      }
-      await destroyWorkerPoolsPromise;
-    }
+    destroy: cleanup.destroy, isSettled: cleanup.isSettled
   };
 
   return { workerPools, workerPool, quantizePool };

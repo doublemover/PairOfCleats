@@ -1,0 +1,7 @@
+import fs from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+export async function publishReplacement(target, bytes) {
+  const staging = target + '.' + randomUUID() + '.pending';
+  await fs.writeFile(staging, bytes, { flag: 'wx' });
+  await fs.rename(staging, target);
+}

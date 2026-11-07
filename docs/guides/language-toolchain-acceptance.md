@@ -8,6 +8,50 @@ adopted compatibility changes and their acceptance boundary. An installed packag
 or parser fixture does not establish LSP, compiler or whole-project correctness.
 Preserve the [execution authority rules](execution-authority.md) during trials.
 
+## Python/HTML extraction handoffs, October 20
+
+Python registry relations receive the actual AST; imports, exports, calls,
+call details and usages survive the normal adapter path, with import fallback
+when AST parsing is disabled. Positional defaults align against the combined
+positional-only/regular parameter list and share one map across signatures and
+default metadata. Keyword-only, varargs and async metadata retain their owners.
+
+The Python worker reads UTF-8 JSON bytes independently of the host console
+encoding. CPython's UTF-8 byte columns then convert to bounded UTF-16 source
+ranges; split-code-point and out-of-line offsets reject. Real-worker fixtures
+cover accents, CJK, astral text, docstrings, CRLF, multiline and ASCII controls,
+including an explicitly non-UTF-8 Python locale. A real index verifies the
+published ranges, defaults and HTML metadata.
+
+HTML preparation retains one summary for relations and chunk enrichment. Title,
+description, keywords, scripts and styles survive filtered/disabled relations.
+Per-file signature version 9 introduced invalidation of the former Python/HTML
+bundles; current version 10 also covers VFS source routing. This is legacy syntax/chunk output, independent of the newer native
+semantic producer and LSP response-cache versions below; no artifact schema or
+unrelated semantic producer is changed. The October 20 issue receipt records
+original failures and candidate qualification.
+
+## LSP response authority and signature repair, October 20
+
+Response-cache policy `rq2` binds each answer to the provider/workspace, immutable
+build identity, document URI and virtual/container/segment identity, language,
+position encoding, source hash, request kind and position. Old ambiguous `rq1`
+entries are not admitted. All production provider routes supply the existing
+build identity. Direct collector callers without one get reuse within their
+invocation; they cannot establish dependency freshness across invocations.
+Dependency-only changes therefore require the next build identity even when a
+document's bytes stay unchanged. The on-disk schema remains version 1; parsed
+signature cache identity is `v3`, whole-provider cache identity is `lk4`, and the
+shared LSP semantic producer version is 12 (the initial rq2 repair used 11;
+version 12 also invalidates conflated VFS origins).
+
+Focused protocol fixtures cover equal-byte Python documents in different origins,
+positive and negative cache isolation, repeated same-generation hits and a
+dependency-only generation change. Separate real protocol callbacks exercise
+Python comparison/shift defaults, grouped/directional Go channels and Rust
+lifetime/tuple returns. These are simulated-server contracts with explicit fixture
+commands/trust, separate from real Pyright/gopls/rust-analyzer qualification.
+
 ## C# native grammar
 
 The pinned `tree-sitter-c-sharp` version is updated from 0.23.1 to 0.23.5.
@@ -589,7 +633,7 @@ validation storage with scripts disabled. Its 127,415-byte registry tarball
 independently matches the project's SHA-512 integrity; no dependency/default
 version changes are needed. The official parser's public ESM import works, but
 its advertised require export fails because CommonJS .js files inherit the
-package's module type. On the project's supported Node >=24.15.0, an
+package's module type. On that checkpoint's Node >=24.15.0 baseline, an
 application-owned import.meta.resolve of the public import export plus synchronous
 ESM loading works without editing vendor files or guessing private entry paths.
 Missing or async-only/unsupported loading explicitly falls back to heuristics.
@@ -1174,3 +1218,9 @@ coverage. Dated audit results are not current hosted-alert closure; the later br
 development-tool advisory remains parked, without gate suppression.
 Broad release/platform/native-backend/TUI/performance and hosted-security acceptance
 remain deferred. No new GitHub CI check, rerun or security workflow was used here.
+
+## Doctor recovery actions
+
+Provider doctor JSON includes `recovery` actions for failed enabled providers. Each action has a reason and an argv array that preserves repository paths with spaces. Missing commands/runtimes point to installation help, workspace/configuration failures to tooling detection, and every failure to a follow-up doctor check. These diagnostics do not install tools or modify configuration automatically.
+
+`tests/tooling/lsp/pyright-real-imports.test.js` exercises the installed Pyright server against a temporary Python package with a relative import. It requires the inferred `int` return from the imported implementation and no fabricated parameters on a zero-argument function. This is bounded package proof, not coverage for every Python project layout.

@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "decision": {
+    "backend": "tantivy",
+    "status": "experimental;native-qualification-deferred-by-user",
+    "instruction": "Keep Tantivy experimental and defer its native qualification.",
+    "issue": 1627,
+    "issueState": "open",
+    "completedProductionRepair": "00a6441294ac67e18260300f908203865e5be57b",
+    "completedRepairReceipt": "windows-tantivy-build-settlement-2026-11-04.json",
+    "changes": "Scope/status documentation only;existing protocol controls remain mandatory;no package installation or activation",
+    "deferred": [
+      "Maintaining a compatible native Tantivy binding",
+      "Actual Windows native rebuild/readback and schema/ranking parity",
+      "Native reader/searcher/writer disposal qualification"
+    ]
+  },
+  "program": {
+    "total": 791,
+    "closed": 424,
+    "open": 367
+  },
+  "p2p3": {
+    "total": 346,
+    "qualifiedClosures": 336,
+    "externalTargets": [
+      1384,
+      1413,
+      1767
+    ],
+    "deferredTargets": [
+      1627
+    ],
+    "editorExclusions": [
+      762,
+      1290,
+      1291,
+      1292,
+      1378,
+      1543
+    ]
+  },
+  "openDispositions": {
+    "qualificationPending": 128,
+    "partialOrFollowup": 147,
+    "unresolved": 91,
+    "deferred": 1
+  },
+  "priorReconciliation": "windows-sqlite-closure-delta-2026-11-04.json",
+  "hostedWindows": {
+    "source": "00a6441294ac67e18260300f908203865e5be57b",
+    "runId": 41947377988,
+    "jobId": 126984051647,
+    "state": "success",
+    "correctness": {
+      "passed": 1987,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 3
+    },
+    "serialRuntimeBudgets": {
+      "passed": 30,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "annGeneration": {
+      "passed": 3,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "nativeCancellation": {
+      "passed": 1,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0,
+      "seconds": 2.98
+    },
+    "apiContracts": {
+      "passed": 9,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "gate": "success",
+    "windowsAuthority": "success",
+    "selectedLog": "2026-11-05T01:23:36.1568714Z                    Summary : 5 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T01:23:49.1959960Z                    Summary : 8 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T01:24:01.8197919Z                    Summary : 10 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T01:24:25.3371079Z SKIP           smoke/tantivy (optional Tantivy smoke requires PAIROFCLEATS_TEST_TANTIVY=1 and its installed backend)\r\n2026-11-05T01:24:27.1181230Z SKIP           shared/subprocess/tracked-leak-fails-process (POSIX invalid-signal cleanup leak injection; Windows tracked shutdown has a separate owner.)\r\n2026-11-05T01:25:52.3789174Z PASS [ 349ms] tooling/install/go-sdk-explicit-pin\r\n2026-11-05T01:34:09.9522653Z SKIP           cli/general/signal-cleanup (POSIX parent-signal cleanup; Windows TerminateProcess requires native acceptance.)\r\n2026-11-05T01:54:03.4389196Z PASS [ 749ms] retrieval/providers/tantivy-boolean-membership-consumers\r\n2026-11-05T01:54:03.4390550Z PASS [ 667ms] retrieval/providers/tantivy-outcome-cache-consumers\r\n2026-11-05T01:57:32.7161822Z PASS [ 106ms] retrieval/backend/cli-sparse-preflight-tantivy-bypass\r\n2026-11-05T01:57:32.7162792Z PASS [ 891ms] retrieval/backend/tantivy-selected-source-admission\r\n2026-11-05T01:57:33.1905709Z PASS [ 507ms] retrieval/providers/tantivy-boolean-and-failure\r\n2026-11-05T01:57:33.1906543Z PASS [ 108ms] retrieval/providers/tantivy-deep-filter-recall\r\n2026-11-05T01:57:33.1907211Z PASS [ 263ms] retrieval/providers/tantivy-reader-lifetime/async-query\r\n2026-11-05T01:57:33.3143963Z PASS [ 226ms] retrieval/providers/tantivy-reader-lifetime/failed-close\r\n2026-11-05T01:57:33.4199131Z PASS [ 228ms] retrieval/providers/tantivy-reader-lifetime/missing-close\r\n2026-11-05T01:57:33.5351377Z PASS [ 220ms] retrieval/providers/tantivy-reader-lifetime/module-close\r\n2026-11-05T01:57:33.6365296Z PASS [ 216ms] retrieval/providers/tantivy-reader-lifetime/ordinal\r\n2026-11-05T01:57:33.7481506Z PASS [ 213ms] retrieval/providers/tantivy-reader-lifetime/original-close\r\n2026-11-05T01:57:33.8994080Z PASS [ 262ms] retrieval/providers/tantivy-reader-lifetime/pending-close\r\n2026-11-05T01:57:33.9772360Z PASS [ 228ms] retrieval/providers/tantivy-reader-lifetime/pending-query\r\n2026-11-05T01:57:34.1220170Z PASS [ 222ms] retrieval/providers/tantivy-reader-lifetime/search-finalizer\r\n2026-11-05T01:57:34.6888694Z PASS [ 711ms] storage/tantivy/generation-publication/activation-failure\r\n2026-11-05T01:57:34.7761025Z PASS [ 653ms] storage/tantivy/generation-publication/cancelled-build\r\n2026-11-05T01:57:35.4476046Z PASS [ 758ms] storage/tantivy/generation-publication/concurrent-builds\r\n2026-11-05T01:57:35.4477039Z PASS [ 666ms] storage/tantivy/generation-publication/failed-build\r\n2026-11-05T01:57:36.0291869Z PASS [ 586ms] storage/tantivy/generation-publication/legacy-build-contract\r\n2026-11-05T01:57:36.0292780Z PASS [ 482ms] storage/tantivy/generation-publication/legacy-metadata\r\n2026-11-05T01:57:36.4065361Z PASS [ 475ms] storage/tantivy/generation-publication/manifest\r\n2026-11-05T01:57:36.5065625Z PASS [ 477ms] storage/tantivy/generation-publication/mapping\r\n2026-11-05T01:57:37.0052817Z PASS [ 598ms] storage/tantivy/generation-publication/mutated-input\r\n2026-11-05T01:57:37.0053912Z PASS [ 490ms] storage/tantivy/generation-publication/payload\r\n2026-11-05T01:57:37.6262705Z PASS [ 627ms] storage/tantivy/generation-publication/pending-build\r\n2026-11-05T01:57:37.6585561Z PASS [ 653ms] storage/tantivy/generation-publication/promise-pending\r\n2026-11-05T01:57:38.2516476Z PASS [ 625ms] storage/tantivy/generation-publication/promise-rejected\r\n2026-11-05T01:57:38.2517671Z PASS [ 458ms] storage/tantivy/generation-publication/repository\r\n2026-11-05T01:57:38.7445583Z PASS [ 626ms] storage/tantivy/generation-publication/returned-capture\r\n2026-11-05T01:57:38.8905758Z PASS [ 638ms] storage/tantivy/generation-publication/returned-error\r\n2026-11-05T01:57:39.3817651Z PASS [ 636ms] storage/tantivy/generation-publication/returned-pending\r\n2026-11-05T01:57:39.5224121Z PASS [ 631ms] storage/tantivy/generation-publication/returned-revoked\r\n2026-11-05T01:57:39.9945852Z PASS [ 611ms] storage/tantivy/generation-publication/returned-settled\r\n2026-11-05T01:57:40.1567354Z PASS [ 634ms] storage/tantivy/generation-publication/returned-unreadable\r\n2026-11-05T01:57:40.6286453Z PASS [ 634ms] storage/tantivy/generation-publication/source-lease\r\n2026-11-05T01:57:40.9015789Z                    Summary : 1987 Passed | 0 Failed | 0 Timeouts | 3 Skipped\r\n2026-11-05T02:03:16.5088475Z                    Summary : 30 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T02:03:47.2863710Z                    Summary : 3 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T02:03:51.0116016Z PASS [ 2.98s] storage/sqlite/build/cancellation\r\n2026-11-05T02:03:51.0137411Z                    Summary : 1 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T02:05:09.2826209Z                    Summary : 9 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r"
+  },
+  "nativeInspection": {
+    "jobId": 126984051514,
+    "state": "cancelled",
+    "terminalCohort": {
+      "passed": 35,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "remainingCohorts": "PTY/parser/producer cohorts not executed in this cancelled job;prior source-bound acceptance remains separate",
+    "cancellationAttribution": "GitHub reports operation cancelled;actor/cause not attributed",
+    "selectedLog": "2026-11-05T01:31:58.8803484Z PASS [ 5.57s] tui/native-artifact-actions/actions\r\n2026-11-05T01:32:04.5125417Z PASS [ 5.63s] tui/native-artifact-actions/cancel\r\n2026-11-05T01:32:09.8704708Z PASS [ 5.36s] tui/native-artifact-actions/copy\r\n2026-11-05T01:32:16.9656873Z PASS [ 7.09s] tui/native-artifact-actions/export\r\n2026-11-05T01:32:22.4157466Z PASS [ 5.45s] tui/native-artifact-actions/missing\r\n2026-11-05T01:32:27.8691001Z PASS [ 5.45s] tui/native-artifact-actions/stale\r\n2026-11-05T01:32:33.4096924Z PASS [ 5.54s] tui/native-artifact-actions/untrusted\r\n2026-11-05T01:32:45.3781589Z PASS [ 12.0s] tui/native-index-workflows/build-cancel\r\n2026-11-05T01:33:11.1494505Z PASS [ 25.8s] tui/native-index-workflows/build-search\r\n2026-11-05T01:33:18.0426565Z PASS [ 6.89s] tui/native-index-workflows/invalid-provider\r\n2026-11-05T01:33:25.0094882Z PASS [ 6.97s] tui/native-index-workflows/missing-model\r\n2026-11-05T01:33:31.9838695Z PASS [ 6.97s] tui/native-index-workflows/preview-cancel\r\n2026-11-05T01:33:59.6906522Z PASS [ 27.7s] tui/native-index-workflows/report\r\n2026-11-05T01:34:26.2057233Z PASS [ 26.5s] tui/native-index-workflows/search-published\r\n2026-11-05T01:34:34.6883364Z PASS [ 8.48s] tui/native-index-workflows/snapshot\r\n2026-11-05T01:35:04.0084838Z PASS [ 29.3s] tui/native-index-workflows/snapshot-create\r\n2026-11-05T01:35:31.5772566Z PASS [ 27.6s] tui/native-index-workflows/snapshot-freeze\r\n2026-11-05T01:35:59.4118386Z PASS [ 27.8s] tui/native-index-workflows/snapshot-gc\r\n2026-11-05T01:36:26.2931868Z PASS [ 26.9s] tui/native-index-workflows/snapshot-list-populated\r\n2026-11-05T01:36:53.5513673Z PASS [ 27.3s] tui/native-index-workflows/snapshot-prune\r\n2026-11-05T01:37:21.5815323Z PASS [ 28.0s] tui/native-index-workflows/snapshot-remove\r\n2026-11-05T01:37:49.0243132Z PASS [ 27.4s] tui/native-index-workflows/snapshot-show\r\n2026-11-05T01:37:57.3262091Z PASS [ 8.30s] tui/native-index-workflows/stale\r\n2026-11-05T01:38:24.7183591Z PASS [ 27.4s] tui/native-index-workflows/stats\r\n2026-11-05T01:38:35.4498752Z PASS [ 10.7s] tui/native-index-workflows/stats-conflict\r\n2026-11-05T01:39:02.4308852Z PASS [ 27.0s] tui/native-index-workflows/validate-published\r\n2026-11-05T01:39:17.8511436Z PASS [ 15.4s] tui/native-index-workflows/watch-cancel\r\n2026-11-05T01:39:46.6222379Z PASS [ 28.8s] tui/native-index-workflows/workspace\r\n2026-11-05T01:39:51.4437886Z PASS [ 4.82s] tui/native-job-inspection/disabled\r\n2026-11-05T01:39:55.6282371Z PASS [ 4.18s] tui/native-job-inspection/incomplete\r\n2026-11-05T01:39:59.5554412Z PASS [ 3.93s] tui/native-job-inspection/invalid-json\r\n2026-11-05T01:40:04.4212863Z PASS [ 4.86s] tui/native-job-inspection/json\r\n2026-11-05T01:40:08.5563740Z PASS [ 4.13s] tui/native-job-inspection/oversized\r\n2026-11-05T01:40:13.4173126Z PASS [ 4.86s] tui/native-job-inspection/text\r\n2026-11-05T01:40:17.2649499Z PASS [ 3.85s] tui/native-job-inspection/truncated\r\n2026-11-05T01:40:17.2682764Z                    Summary : 35 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T01:40:17.4386387Z ##[error]The operation was canceled.\r"
+  },
+  "jobsSnapshot": [
+    {
+      "id": 126983296368,
+      "name": "gate",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 126984051395,
+      "name": "ubuntu",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 126984051419,
+      "name": "windows-authority",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 126984051453,
+      "name": "macos",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 126984051514,
+      "name": "native-inspection (windows-latest)",
+      "status": "completed",
+      "conclusion": "cancelled"
+    },
+    {
+      "id": 126984051522,
+      "name": "native-inspection (macos-latest)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 126984051529,
+      "name": "rust-tui",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 126984051554,
+      "name": "native-inspection (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 126984051647,
+      "name": "windows",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "publication": {
+    "codeUnchangedSince": "00a6441294ac67e18260300f908203865e5be57b",
+    "scope": "documentation/status decision only;no runtime or test selection changes",
+    "attempts": [
+      {
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "name": "format",
+        "startedAt": "2026-11-05T02:51:20.8276611Z",
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-format.log",
+        "durationMs": 42022.2533,
+        "rawLog": "\r\n> pairofcleats@0.3.0 format\r\n> eslint . --fix\r\n\r\n"
+      },
+      {
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "name": "config-budget",
+        "startedAt": "2026-11-05T02:52:02.8785631Z",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-config-budget.log",
+        "durationMs": 2791.4917,
+        "rawLog": "\r\n> pairofcleats@0.3.0 config:budget\r\n> node tools/config/inventory.js --check\r\n\r\n"
+      },
+      {
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "name": "env-check",
+        "startedAt": "2026-11-05T02:52:05.6738252Z",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-env-check.log",
+        "durationMs": 1430.4293,
+        "rawLog": "\r\n> pairofcleats@0.3.0 env:check\r\n> node tools/ci/check-env-usage.js\r\n\r\n"
+      },
+      {
+        "exitCode": 1,
+        "executable": "node",
+        "name": "generated-freshness",
+        "startedAt": "2026-11-05T02:52:07.1067423Z",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-generated-freshness.log",
+        "durationMs": 14827.8015,
+        "rawLog": "generated surfaces freshness check failed:\r\n- artifact-schema-index: audit failed (node tests/tooling/docs/contract-matrix.test.js) | node:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: keep the active roadmap below 20000 UTF-8 bytes in CRLF checkouts too; archive completed transcripts\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/tooling/docs/contract-matrix.test.js:624:10 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0 | refresh: node tools/docs/export-artifact-schema-index.js\r\n"
+      },
+      {
+        "name": "generated-freshness-repair",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "startedAt": "2026-11-05T02:53:20.3076298Z",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-generated-freshness-repair.log",
+        "durationMs": 13952.228,
+        "executable": "node",
+        "rawLog": "generated surfaces freshness check passed\r\n"
+      },
+      {
+        "name": "command-surface",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "startedAt": "2026-11-05T02:53:34.2836423Z",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-command-surface.log",
+        "durationMs": 3167.1897,
+        "executable": "node",
+        "rawLog": "command surface audit passed (scripts=21, replacements=0, cli=93, capability=45)\r\n"
+      },
+      {
+        "name": "workflow-contract",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "startedAt": "2026-11-05T02:53:37.4547162Z",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-workflow-contract.log",
+        "durationMs": 295.5101,
+        "executable": "node",
+        "rawLog": "workflow contract test passed (ci, ci-long, nightly, release)\r\n"
+      },
+      {
+        "name": "gate",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "startedAt": "2026-11-05T02:53:37.7532135Z",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-gate.log",
+        "durationMs": 26057.6303,
+        "executable": "node",
+        "rawLog": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mgate\u001b[0m | \u001b[32mTests:\u001b[0m \u001b[37m  41\u001b[0m                                              \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [  80ms] indexing/policy/hotpath-membership-guard\r\nPASS [  76ms] indexing/policy/module-cache-boundedness-contract\r\nPASS [  86ms] indexing/policy/generated-matrix\r\nPASS [  72ms] indexing/contracts/artifact-surface-version\r\nPASS [  75ms] indexing/contracts/n-minus-one-adapter\r\nPASS [  73ms] indexing/contracts/public-artifact-surface-doc\r\nPASS [ 173ms] indexing/contracts/index-compatibility-key-generation\r\nPASS [  73ms] indexing/contracts/semver-policy-enforced\r\nPASS [  83ms] indexing/contracts/index-state-dense-sidecars-present\r\nPASS [ 166ms] contracts/manifest-max-bytes-validation\r\nPASS [ 1.85s] indexing/policy/repo-inventory\r\nPASS [ 252ms] indexing/policy/shared-module-cycle-guard\r\nPASS [ 225ms] indexing/contracts/loader-matrix-parity\r\nPASS [ 312ms] indexing/policy/analysis-schema\r\nPASS [ 297ms] indexing/contracts/snapshots\r\nPASS [ 275ms] indexing/contracts/builds-current-repo-head-schema\r\nPASS [ 293ms] indexing/contracts/call-sites-schema\r\nPASS [ 282ms] indexing/contracts/diffs\r\nPASS [ 297ms] indexing/contracts/additional-properties-policy\r\nPASS [ 551ms] indexing/contracts/index-compatibility-key-enforced-on-load\r\nPASS [ 269ms] indexing/contracts/schema-registry-single-source\r\nPASS [ 745ms] tooling/api-contracts/caps\r\nPASS [ 834ms] tooling/api-contracts/schema-validate\r\nPASS [ 843ms] tooling/api-contracts/fail-on-warn\r\nPASS [ 810ms] tooling/api-contracts/optional-params\r\nPASS [ 729ms] tooling/api-contracts/large-call-sites\r\nPASS [ 582ms] indexing/contracts/embedding-identity-gating-on-load\r\nPASS [ 912ms] ci/capability-gate.smoke\r\nPASS [ 1.28s] indexing/contracts/index-compatibility-key-federation-block\r\nPASS [  75ms] indexing/policy/stable-entrypoints\r\nPASS [ 1.48s] indexing/policy/optional-deps\r\nPASS [ 985ms] indexing/policy/analysis-gating\r\nPASS [ 1.20s] ci/tooling-doctor-gate.smoke\r\nPASS [ 720ms] tooling/api-contracts/basic\r\nPASS [ 2.59s] contracts/module-export-surface-compat\r\nPASS [ 1.32s] indexing/contracts/semantic-foundations\r\nPASS [ 383ms] indexing/contracts/semantic-handoff-contracts\r\nPASS [ 564ms] indexing/contracts/runtime-evidence\r\nPASS [ 1.53s] indexing/contracts/index-format-cutover\r\nPASS [ 1.47s] ci/windows-authority-cohort\r\nPASS [ 268ms] ci/ordered-lane-discovery\r\n\r\nLOGS: ./.testLogs/run-1793847218565-6bu2kz\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      GATE Lane Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m41\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 25.2s\r\n                   Slowest : \u001b[97mcontracts/module-export-surface-compat\u001b[0m | \u001b[32mPASS\u001b[0m [ 2.59s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+      },
+      {
+        "name": "diff-check",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "startedAt": "2026-11-05T02:54:03.8132476Z",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-deferral-diff-check.log",
+        "durationMs": 77.9796,
+        "executable": "git",
+        "rawLog": ""
+      }
+    ],
+    "finalChecks": [
+      {
+        "name": "format",
+        "exitCode": 0
+      },
+      {
+        "name": "config-budget",
+        "exitCode": 0
+      },
+      {
+        "name": "env-check",
+        "exitCode": 0
+      },
+      {
+        "name": "generated-freshness-repair",
+        "exitCode": 0
+      },
+      {
+        "name": "command-surface",
+        "exitCode": 0
+      },
+      {
+        "name": "workflow-contract",
+        "exitCode": 0
+      },
+      {
+        "name": "gate",
+        "exitCode": 0
+      },
+      {
+        "name": "diff-check",
+        "exitCode": 0
+      }
+    ],
+    "gate": {
+      "passed": 41,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "roadmapCrlfBytes": 19874,
+    "sizeFailureRepair": "Condensed historical summaries while retaining archive links;20000byte contract unchanged"
+  }
+}

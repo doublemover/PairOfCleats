@@ -15,11 +15,12 @@ export const assertRuntimeDiskReserve = async ({ destination, diskReserveBytes, 
 };
 
 /** Fixed working buffer; exact hash and size dominate all caller-supplied metadata. */
-export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, maxBytes, signal = null }) => {
+export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, maxBytes, signal = null, metrics = null }) => {
   const handle = await fs.open(filename, 'r');
   const hash = createHash('sha256');
   const buffer = Buffer.alloc(64 * 1024);
   let bytes = 0;
+  let operationError, failed = false;
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > maxBytes || stat.size !== expectedBytes) throw runtimeImportError('Runtime raw size exceeds authority or allowance.');
@@ -27,19 +28,21 @@ export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, m
       throwIfAborted(signal);
       const read = await handle.read(buffer, 0, buffer.length, null);
       if (!read.bytesRead) break;
+      if (metrics) metrics.rawVerificationBytes = (metrics.rawVerificationBytes || 0) + read.bytesRead;
       bytes += read.bytesRead;
       if (bytes > maxBytes || bytes > expectedBytes) throw runtimeImportError('Runtime raw input changed while reading.');
       hash.update(buffer.subarray(0, read.bytesRead));
     }
     if (bytes !== expectedBytes || hash.digest('hex') !== expectedHash) throw runtimeImportError('Runtime raw checksum differs from import authority.');
     return bytes;
-  } finally { await handle.close(); }
+  } catch (error) { failed = true; operationError = error; throw error;
+  } finally { await closeRuntimeResources([handle], operationError, { hasOperationError: failed }); }
 };
 
 /** Retain a byte-for-byte immutable CAS copy. Existing blobs are verified, never overwritten. */
 export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBytes, diskAccount,
-  diskReserveBytes, signal = null }) => {
-  await hashRuntimeFile({ filename: inputPath, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
+  diskReserveBytes, signal = null, metrics = null, work = null }) => {
+  await hashRuntimeFile({ filename: inputPath, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal, metrics });
   const rawDirectory = path.join(destination, 'raw');
   await fs.mkdir(rawDirectory, { recursive: true });
   const destinationReal = await fs.realpath(destination);
@@ -48,7 +51,7 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
   const storageRef = 'raw/' + artifact.hash + '.bin';
   const finalPath = path.join(destination, storageRef);
   const verify = () => hashRuntimeFile({ filename: finalPath, expectedHash: artifact.hash,
-    expectedBytes: artifact.byteLength, maxBytes, signal });
+    expectedBytes: artifact.byteLength, maxBytes, signal, metrics });
   try { await fs.access(finalPath); await verify(); return { ...artifact, retained: true, storageRef }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const pending = await fs.mkdtemp(path.join(rawReal, '.pending-'));
@@ -60,7 +63,7 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
     diskAccount.reserve(artifact.byteLength); reserved = true;
     const source = await fs.open(inputPath, 'r');
     let target = null;
-    let copyError = null;
+    let copyError = null, copyErrorPresent = false;
     const buffer = Buffer.alloc(64 * 1024);
     try {
       target = await fs.open(temporary, 'wx');
@@ -72,11 +75,12 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
         size += read.bytesRead;
         if (size > artifact.byteLength) throw runtimeImportError('Runtime input grew during retention.');
         await target.writeFile(buffer.subarray(0, read.bytesRead));
+        work?.add('fileWriteBytes', read.bytesRead);
       }
       await target.sync();
-    } catch (error) { copyError = error; throw error; }
-    finally { await closeRuntimeResources([source, target], copyError); }
-    await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
+    } catch (error) { copyErrorPresent = true; copyError = error; throw error; }
+    finally { await closeRuntimeResources([source, target], copyError, { hasOperationError: copyErrorPresent }); }
+    await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal, metrics });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes });
     throwIfAborted(signal);
     try { await fs.link(temporary, finalPath); retained = true; }

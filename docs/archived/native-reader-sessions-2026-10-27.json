@@ -1,0 +1,1044 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "b22a42ca52982fbee424f88a2a1491fb57f43cf5",
+  "sourceTree": "35aee8487d5f342299848ceaca136b4d73bc924f",
+  "behaviorHead": "eea652a771f5900a3389d997c80600f8b70b30a7",
+  "behaviorTree": "c46c5df1784a89e7870128472584a1db9b43cbf8",
+  "implementationCommits": [
+    "eea652a771f5900a3389d997c80600f8b70b30a7",
+    "7d278bec689f1a7882456af5ea59e504973b775a",
+    "b22a42ca52982fbee424f88a2a1491fb57f43cf5"
+  ],
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "partial": [
+      1574
+    ]
+  },
+  "setup": {
+    "dependenciesChanged": false,
+    "nativeBinariesChanged": false,
+    "patchesChanged": false,
+    "bootstrapRerun": false
+  },
+  "before": {
+    "method": "Child-only synchronous Node load hooks substitute selected actual prior owners; checkout files were never reverted.",
+    "cases": [
+      {
+        "name": "sqlite-resource-session",
+        "baselineHead": "0cf81123688d9124697da2765996f93a1b9a2dac",
+        "substitutedOwners": [
+          "src/retrieval/cli-sqlite.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 343,
+        "receipt": ".tmp/tasks/native-reader-sessions-20261027/before-sqlite-resource-session.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-reader-uncached-27644-1793108590381-1wq976\\cache must retain its original resource/category lifetime\r",
+          "false !== true\r"
+        ]
+      },
+      {
+        "name": "cached-original-close",
+        "baselineHead": "0cf81123688d9124697da2765996f93a1b9a2dac",
+        "substitutedOwners": [
+          "src/retrieval/cli-sqlite.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 380,
+        "receipt": ".tmp/tasks/native-reader-sessions-20261027/before-cached-original-close.json",
+        "failure": [
+          "AggregateError: Failed to close SQLite cache handles.\r",
+          "  [cause]: AggregateError: SQLite cache closure remains unconfirmed.\r",
+          "    [cause]: Error: late replacement close must remain unused\r",
+          "      Error: late replacement close must remain unused\r"
+        ]
+      },
+      {
+        "name": "category-native-admission",
+        "baselineHead": "0cf81123688d9124697da2765996f93a1b9a2dac",
+        "substitutedOwners": [
+          "src/retrieval/cli-sqlite.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 362,
+        "receipt": ".tmp/tasks/native-reader-sessions-20261027/before-category-native-admission.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected rejection.\r"
+        ]
+      },
+      {
+        "name": "lmdb-resource-session",
+        "baselineHead": "0cf81123688d9124697da2765996f93a1b9a2dac",
+        "substitutedOwners": [
+          "src/retrieval/cli-lmdb.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 330,
+        "receipt": ".tmp/tasks/native-reader-sessions-20261027/before-lmdb-resource-session.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r",
+          "false !== true\r"
+        ]
+      },
+      {
+        "name": "opaque-native-recovery",
+        "baselineHead": "7d278bec689f1a7882456af5ea59e504973b775a",
+        "substitutedOwners": [
+          "src/shared/storage/native-reader.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 726,
+        "receipt": ".tmp/tasks/native-reader-sessions-20261027/before-opaque-native-recovery.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r",
+          "true !== false\r"
+        ]
+      },
+      {
+        "name": "opaque-sqlite-owner",
+        "baselineHead": "7d278bec689f1a7882456af5ea59e504973b775a",
+        "substitutedOwners": [
+          "src/retrieval/sqlite-cache-close-owner.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 335,
+        "receipt": ".tmp/tasks/native-reader-sessions-20261027/before-opaque-sqlite-owner.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r",
+          "true !== false\r"
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "cohort": {
+      "sourceHead": "eea652a771f5900a3389d997c80600f8b70b30a7",
+      "total": 37,
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 22209,
+      "tests": [
+        {
+          "id": "indexing/validate/manifest-shared-read-plan",
+          "status": "passed",
+          "durationMs": 811,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/capture-authority",
+          "status": "passed",
+          "durationMs": 1009,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/captured-move",
+          "status": "passed",
+          "durationMs": 1027,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/during-read",
+          "status": "passed",
+          "durationMs": 1008,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/invalid-selection",
+          "status": "passed",
+          "durationMs": 880,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/legacy-move",
+          "status": "passed",
+          "durationMs": 1024,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/mixed-roots",
+          "status": "passed",
+          "durationMs": 1025,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/strict-ledger",
+          "status": "passed",
+          "durationMs": 1046,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/disposal-failure-authority",
+          "status": "passed",
+          "durationMs": 70,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/context-initialization",
+          "status": "passed",
+          "durationMs": 463,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/dispose-siblings",
+          "status": "passed",
+          "durationMs": 469,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/lmdb-initialization",
+          "status": "passed",
+          "durationMs": 463,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/tracking",
+          "status": "passed",
+          "durationMs": 472,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/explicit-false",
+          "status": "passed",
+          "durationMs": 346,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/initialization-failure",
+          "status": "passed",
+          "durationMs": 305,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/native-observation",
+          "status": "passed",
+          "durationMs": 347,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/sticky-failure",
+          "status": "passed",
+          "durationMs": 342,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "retrieval/cli/backend-lifecycle",
+          "status": "passed",
+          "durationMs": 594,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/index-writer-category-session",
+          "status": "passed",
+          "durationMs": 623,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/admission-race",
+          "status": "passed",
+          "durationMs": 397,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/cache",
+          "status": "passed",
+          "durationMs": 600,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/launch-homes",
+          "status": "passed",
+          "durationMs": 767,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/metadata-failure",
+          "status": "passed",
+          "durationMs": 852,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/native-failure",
+          "status": "passed",
+          "durationMs": 631,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/open-failure",
+          "status": "passed",
+          "durationMs": 483,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/original-cache-close",
+          "status": "passed",
+          "durationMs": 387,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/uncached",
+          "status": "passed",
+          "durationMs": 499,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/repo-cleanup-exclusion/metadata-failure",
+          "status": "passed",
+          "durationMs": 450,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/repo-cleanup-exclusion/original-close",
+          "status": "passed",
+          "durationMs": 466,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/repo-cleanup-exclusion/readers-and-race",
+          "status": "passed",
+          "durationMs": 2133,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder",
+          "status": "passed",
+          "durationMs": 296,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval",
+          "status": "passed",
+          "durationMs": 316,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval-storage",
+          "status": "passed",
+          "durationMs": 533,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/validator",
+          "status": "passed",
+          "durationMs": 304,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/cache",
+          "status": "passed",
+          "durationMs": 170,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/cache-failed-close-ownership",
+          "status": "passed",
+          "durationMs": 134,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/cache-generation-tag",
+          "status": "passed",
+          "durationMs": 435,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ],
+      "receipt": ".tmp/tasks/native-reader-sessions-20261027/focused-final.json"
+    },
+    "finalAffected": {
+      "sourceHead": "b22a42ca52982fbee424f88a2a1491fb57f43cf5",
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 5175,
+      "tests": [
+        {
+          "id": "shared/storage/native-reader-lifetime/admission-race",
+          "status": "passed",
+          "durationMs": 419,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/cache",
+          "status": "passed",
+          "durationMs": 605,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/launch-homes",
+          "status": "passed",
+          "durationMs": 769,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/metadata-failure",
+          "status": "passed",
+          "durationMs": 828,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/native-failure",
+          "status": "passed",
+          "durationMs": 615,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/open-failure",
+          "status": "passed",
+          "durationMs": 486,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/original-cache-close",
+          "status": "passed",
+          "durationMs": 385,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-reader-lifetime/uncached",
+          "status": "passed",
+          "durationMs": 502,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval-storage",
+          "status": "passed",
+          "durationMs": 554,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ],
+      "receipt": ".tmp/tasks/native-reader-sessions-20261027/focused-opaque.json"
+    },
+    "format": {
+      "exitCode": 0,
+      "receipt": ".tmp/tasks/native-reader-sessions-20261027/format-opaque.stdout.log"
+    },
+    "frontGate": {
+      "sourceHead": "b22a42ca52982fbee424f88a2a1491fb57f43cf5",
+      "steps": [
+        {
+          "durationMs": 1919,
+          "exitCode": 0,
+          "name": "config-budget",
+          "executable": "npm.cmd",
+          "arguments": [
+            "run",
+            "config:budget"
+          ]
+        },
+        {
+          "durationMs": 1223,
+          "exitCode": 0,
+          "name": "environment",
+          "executable": "npm.cmd",
+          "arguments": [
+            "run",
+            "env:check"
+          ]
+        },
+        {
+          "durationMs": 10372,
+          "exitCode": 0,
+          "name": "generated",
+          "executable": "node",
+          "arguments": [
+            "tools/docs/generated-surfaces.js",
+            "--check-freshness"
+          ]
+        },
+        {
+          "durationMs": 2594,
+          "exitCode": 0,
+          "name": "command-surface",
+          "executable": "node",
+          "arguments": [
+            "tools/ci/check-command-surface.js"
+          ]
+        },
+        {
+          "durationMs": 225,
+          "exitCode": 0,
+          "name": "workflow",
+          "executable": "node",
+          "arguments": [
+            "tests/ci/workflow-contract.test.js"
+          ]
+        },
+        {
+          "durationMs": 22255,
+          "exitCode": 0,
+          "name": "gate-lane",
+          "executable": "node",
+          "arguments": [
+            "tests/run.js",
+            "--lane",
+            "gate",
+            "--jobs",
+            "1",
+            "--timeout-ms",
+            "30000",
+            "--retries",
+            "0",
+            "--native-status-redo=false",
+            "--pairofcleats-threads",
+            "1",
+            "--json"
+          ]
+        },
+        {
+          "durationMs": 67,
+          "exitCode": 0,
+          "name": "diff",
+          "executable": "git",
+          "arguments": [
+            "diff",
+            "--check"
+          ]
+        }
+      ],
+      "summary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 21520
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 73,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 67,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 71,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 160,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 67,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 74,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 143,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 1410,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 225,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 198,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 262,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 257,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 243,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 258,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 250,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 265,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 473,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 235,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 580,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 758,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 746,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 731,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 586,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 501,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 748,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1062,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1180,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 915,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1020,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 579,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2366,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1181,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 329,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 487,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1383,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1334,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ],
+      "receipt": ".tmp/tasks/native-reader-sessions-20261027/front-gate.json"
+    },
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "stagedWhitespace": {
+    "initialCheck": "git diff --cached --check emitted src/shared/storage/repository-session.js:54: new blank line at EOF. Publishing continued because that native command status was not checked in the chained shell invocation.",
+    "initialExitCode": null,
+    "provenance": "Observed original tool output; per-command exit status was not retained, and no value is invented.",
+    "repairCommit": "7d278bec689f1a7882456af5ea59e504973b775a",
+    "repair": "One EOF blank line removed; format, working/staged checks and remote SHA readback passed. No native rerun claimed for this whitespace-only change."
+  },
+  "coverage": {
+    "admission": "Launch-selected canonical repository/category sessions precede SQLite/LMDB access, share the index-writer owner, reject category exclusion before native initialization and retain native/resource/category roots.",
+    "sqlite": "Constructor-time original close ownership transfers to the built-in cache. Late replacement methods and duplicate/capture-failed physical owners cannot replace it. Cached request disposal preserves the handle lifetime; 32 warm reuses retain exactly one lease set.",
+    "namespaces": "Actual one-handle reuse across two selected homes keeps independent durable sessions; each joins the original physical close. Internal namespace admission is bounded at 64 per native resource.",
+    "settlement": "Actual native and original-observer failures retain original owners. Independent metadata release is attempted for both launch namespaces. Explicit metadata-only recovery cannot repeat native close.",
+    "lmdb": "Actual native prefetch runs; only its callback handoff is held. Durable leases remain through the original callback and returned result.",
+    "privacy": "Native and duplicate SQLite recovery capabilities remain available internally but are non-enumerable and absent from JSON serialization."
+  },
+  "remaining": [
+    "#1574 custom/external root registration with producer/publication identity and explicit launch authority.",
+    "Validator/probe/builder/sidecar and unadopted legacy-adapter lifetime adoption.",
+    "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance.",
+    "Full deep, optional sqlite-vec, real-model, measured-performance, release and other-platform qualification."
+  ],
+  "authority": "No actual user cache deletion, external-root adoption, new deletion permission, public knob, GUI, WSL, elevation, security-setting change or physical-link creation.",
+  "rawEvidence": "Author-workspace .tmp/.testLogs receipts are historical, absent from clean checkouts."
+}

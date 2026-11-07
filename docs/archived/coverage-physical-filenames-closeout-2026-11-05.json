@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "issue": 1767,
+  "executionSource": "66176cb9a9dabe7e11b81f1a884e4974b6eb6166",
+  "ciRun": 42076477831,
+  "ciConclusion": "success",
+  "fixtureGitBlob": "c63c70713091d40e32dfff3db3fce6a0a82e68ec",
+  "scope": "Actual hosted POSIX file creation through collector/artifact/merger/policy/JSON/Markdown; local Windows launch is not POSIX qualification",
+  "artifacts": [
+    {
+      "os": "ubuntu",
+      "artifactId": 13440768525,
+      "archiveBytes": 6542077,
+      "archiveSha256": "a112e584cd7d1222d163b104d77241a98d115479464ade95a63a041a93ea0643",
+      "logs": [
+        {
+          "name": ".testLogs/run-1793901235486-vf5ced/runner_harness_coverage-physical-source-identity_identity-adapter.attempt-1.log",
+          "log": "id: runner/harness/coverage-physical-source-identity/identity-adapter\npath: runner/harness/coverage-physical-source-identity.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nCoverage keys preserve physical identity before raw OR aggregation, summary addition and changed-source qualification.\n"
+        },
+        {
+          "name": ".testLogs/run-1793901235486-vf5ced/runner_harness_coverage-physical-source-identity_physical-consumer.attempt-1.log",
+          "log": "id: runner/harness/coverage-physical-source-identity/physical-consumer\npath: runner/harness/coverage-physical-source-identity.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"platform\":\"linux\",\"physicalLiteralBackslash\":true,\"portableAdapter\":\"separate identity-adapter case\",\"sources\":[\"src/retrieval/a/b.js\",\"src/retrieval/a\\\\b.js\"]}\nCoverage keys preserve physical identity before raw OR aggregation, summary addition and changed-source qualification.\n\n--- stderr ---\nhint: Using 'master' as the name for the initial branch. This default branch name\nhint: will change to \"main\" in Git 3.0. To configure the initial branch name\nhint: to use in all of your new repositories, which will suppress this warning,\nhint: call:\nhint:\nhint: \tgit config --global init.defaultBranch <name>\nhint:\nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint:\nhint: \tgit branch -m <name>\nhint:\nhint: Disable this message with \"git config set advice.defaultBranchName false\"\n"
+        }
+      ]
+    },
+    {
+      "os": "macos",
+      "artifactId": 13440574284,
+      "archiveBytes": 6539533,
+      "archiveSha256": "d57eb1b625be5ed5dd7270eaa57c0cb5b854bbbeca05508262435c3b8cced72a",
+      "logs": [
+        {
+          "name": ".testLogs/run-1793901737911-l0kz4w/runner_harness_coverage-physical-source-identity_identity-adapter.attempt-1.log",
+          "log": "id: runner/harness/coverage-physical-source-identity/identity-adapter\npath: runner/harness/coverage-physical-source-identity.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nCoverage keys preserve physical identity before raw OR aggregation, summary addition and changed-source qualification.\n"
+        },
+        {
+          "name": ".testLogs/run-1793901737911-l0kz4w/runner_harness_coverage-physical-source-identity_physical-consumer.attempt-1.log",
+          "log": "id: runner/harness/coverage-physical-source-identity/physical-consumer\npath: runner/harness/coverage-physical-source-identity.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"platform\":\"darwin\",\"physicalLiteralBackslash\":true,\"portableAdapter\":\"separate identity-adapter case\",\"sources\":[\"src/retrieval/a/b.js\",\"src/retrieval/a\\\\b.js\"]}\nCoverage keys preserve physical identity before raw OR aggregation, summary addition and changed-source qualification.\n\n--- stderr ---\nhint: Using 'master' as the name for the initial branch. This default branch name\nhint: will change to \"main\" in Git 3.0. To configure the initial branch name\nhint: to use in all of your new repositories, which will suppress this warning,\nhint: call:\nhint:\nhint: \tgit config --global init.defaultBranch <name>\nhint:\nhint: Names commonly chosen instead of 'master' are 'main', 'trunk' and\nhint: 'development'. The just-created branch can be renamed via this command:\nhint:\nhint: \tgit branch -m <name>\nhint:\nhint: Disable this message with \"git config set advice.defaultBranchName false\"\n"
+        }
+      ]
+    }
+  ],
+  "knownDiagnostic": "Git initial-branch advice occurs in original fixture stderr; later local fixture change selects an explicit private branch",
+  "closureRecorded": true,
+  "temporaryDownloadUrlsOmitted": true
+}

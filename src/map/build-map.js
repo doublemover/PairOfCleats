@@ -1,7 +1,6 @@
 import path from 'node:path';
 import fsPromises from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { performance } from 'node:perf_hooks';
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadChunkMeta } from '../shared/artifact-io/loaders.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
@@ -13,26 +12,22 @@ import {
   MAP_MODEL_VERSION,
   VIEWER_DEFAULTS
 } from './constants.js';
-import { normalizePath, sortBy, unique } from './utils.js';
+import { sortBy, unique } from './utils.js';
 import {
   hydrateChunkMeta,
   readGraphRelationsOptional,
   readJsonArrayOptional,
-  readJsonOptional,
+  readMapFileMeta,
   createMapSectionGuards,
   createSpillSorter,
   resolveJsonBytes,
   writeMapJsonStream
 } from './build-map/io.js';
 import {
-  createStringInterner,
-  normalizeArray,
-  normalizeControlFlow,
-  normalizeDataflow,
-  normalizeModifiers
+  createStringInterner
 } from './build-map/normalize.js';
-import { buildSymbolId, buildMemberIndex, upsertMember } from './build-map/symbols.js';
-import { resolveChunkId } from '../index/chunk-id.js';
+import { buildMemberIndex } from './build-map/symbols.js';
+import { buildMapMembers } from './build-map/members.js';
 import { removePathWithRetry } from '../shared/io/remove-path-with-retry.js';
 import { getCacheTempRoot } from '../shared/cache-roots.js';
 import {
@@ -46,40 +41,9 @@ import {
 } from './build-map/edges.js';
 import { createCollapseTransform, createScopeFilters, normalizeIncludeList, resolveFocus } from './build-map/filters.js';
 import { buildFileNodesIterable } from './build-map/nodes.js';
+import { createMapBuildTimer } from './build-map/timing.js';
 
 const normalizeMemberId = (value) => (value === 0 || value ? String(value) : null);
-
-const createBuildTimer = () => {
-  const stages = [];
-  const peak = { heapUsed: 0, rss: 0, external: 0, arrayBuffers: 0 };
-  const updatePeak = (mem) => {
-    peak.heapUsed = Math.max(peak.heapUsed, mem.heapUsed || 0);
-    peak.rss = Math.max(peak.rss, mem.rss || 0);
-    peak.external = Math.max(peak.external, mem.external || 0);
-    peak.arrayBuffers = Math.max(peak.arrayBuffers, mem.arrayBuffers || 0);
-  };
-  const track = async (stage, fn) => {
-    const startMem = process.memoryUsage();
-    updatePeak(startMem);
-    const start = performance.now();
-    const result = await fn();
-    const end = performance.now();
-    const endMem = process.memoryUsage();
-    updatePeak(endMem);
-    stages.push({
-      stage,
-      elapsedMs: Math.round((end - start) * 100) / 100,
-      memory: {
-        heapUsed: endMem.heapUsed,
-        rss: endMem.rss,
-        external: endMem.external,
-        arrayBuffers: endMem.arrayBuffers
-      }
-    });
-    return result;
-  };
-  return { stages, peak, track };
-};
 
 const createSectionHasher = () => {
   const hash = createHash('sha1');
@@ -224,133 +188,44 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     maxSymbolBytes: options.maxSymbolBytes ?? MAX_JSON_BYTES
   });
 
-  const timer = createBuildTimer();
+  const timer = createMapBuildTimer();
   const intern = createStringInterner();
-  const internPath = (value) => intern(normalizePath(value));
 
   const {
     repoMap,
     fileRelations,
     graphRelations,
-    chunkMeta
+    chunkMeta,
+    fileMeta,
+    fileInventoryStatus
   } = await timer.track('load-artifacts', async () => {
     const repo = readJsonArrayOptional(indexDir, 'repo_map', warnings) || [];
     const relations = readJsonArrayOptional(indexDir, 'file_relations', warnings) || [];
     const graphs = readGraphRelationsOptional(indexDir, warnings, { strict }) || null;
-    const fileMetaRaw = readJsonOptional(path.join(indexDir, 'file_meta.json'), warnings) || null;
+    const inventory = await readMapFileMeta(indexDir, warnings, { strict });
     let meta = [];
     try {
       meta = await loadChunkMeta(indexDir, { strict });
     } catch (err) {
+      if (strict && err.code !== 'ERR_MANIFEST_ENTRY_MISSING') throw err;
       warnings.push(`chunk_meta missing: ${err?.message || err}`);
     }
     return {
       repoMap: repo,
       fileRelations: relations,
       graphRelations: graphs,
-      chunkMeta: hydrateChunkMeta(meta, fileMetaRaw)
+      chunkMeta: hydrateChunkMeta(meta, inventory.rows),
+      fileMeta: inventory.rows,
+      fileInventoryStatus: inventory.status
     };
   });
 
-  const membersByFile = new Map();
-  const memberById = new Map();
-  const aliasById = new Map();
-  const memberByChunkUid = new Map();
-  let hasDataflow = false;
-  let hasControlFlow = false;
-  const sourceRanks = {
-    repoMap: 1,
-    chunkMeta: 2
-  };
-
-  await timer.track('build-members', async () => {
-    for (const entry of repoMap) {
-      if (!entry?.file || !entry?.name) continue;
-      const file = internPath(entry.file);
-      const name = intern(entry.name);
-      const kind = intern(entry.kind || null);
-      const signature = intern(entry.signature || null);
-      const symbolId = buildSymbolId({
-        file,
-        name,
-        kind,
-        startLine: entry.startLine,
-        chunkId: null
-      });
-      upsertMember(membersByFile, memberById, file, symbolId, {
-        name,
-        kind,
-        signature,
-        exported: entry.exported === true,
-        range: {
-          startLine: Number.isFinite(entry.startLine) ? entry.startLine : null,
-          endLine: Number.isFinite(entry.endLine) ? entry.endLine : null
-        },
-        sourceRank: sourceRanks.repoMap
-      });
-    }
-
-    for (const chunk of chunkMeta) {
-      const meta = chunk?.metaV2 || null;
-      const file = internPath(meta?.file || chunk?.file || '');
-      const name = intern(meta?.name || chunk?.name || null);
-      if (!file || !name) continue;
-      const resolvedChunkId = resolveChunkId(chunk);
-      const chunkUid = meta?.chunkUid || chunk?.chunkUid || null;
-      if (!chunkUid) {
-        const message = `chunkUid missing for ${file}::${name}`;
-        if (strict) throw new Error(message);
-        warnings.push(message);
-        continue;
-      }
-      const symbolIdentity = meta?.symbol || null;
-      const kind = intern(meta?.kind || chunk?.kind || null);
-      const symbolId = buildSymbolId({
-        symbolId: symbolIdentity?.symbolId || null,
-        chunkUid,
-        file,
-        name,
-        kind,
-        startLine: meta?.range?.startLine || chunk?.startLine,
-        chunkId: resolvedChunkId || meta?.chunkId || null
-      });
-      if (chunkUid) {
-        memberByChunkUid.set(chunkUid, symbolId);
-        if (chunkUid !== symbolId) aliasById.set(chunkUid, symbolId);
-      }
-      if (resolvedChunkId && resolvedChunkId !== symbolId) {
-        aliasById.set(resolvedChunkId, symbolId);
-      }
-      const legacyKey = `${file}::${name}`;
-      if (legacyKey && legacyKey !== symbolId) aliasById.set(legacyKey, symbolId);
-      const dataflow = normalizeDataflow(meta?.dataflow || chunk?.docmeta?.dataflow, intern);
-      const controlFlow = normalizeControlFlow(meta?.controlFlow || chunk?.docmeta?.controlFlow);
-      if (dataflow) hasDataflow = true;
-      if (controlFlow) hasControlFlow = true;
-      const params = normalizeArray(meta?.params || chunk?.docmeta?.params, intern);
-      const modifiers = normalizeModifiers(meta?.modifiers || chunk?.docmeta?.modifiers);
-      const returns = meta?.returns || chunk?.docmeta?.returns || null;
-      upsertMember(membersByFile, memberById, file, symbolId, {
-        name,
-        kind,
-        signature: intern(meta?.signature || chunk?.docmeta?.signature || null),
-        params,
-        returns,
-        modifiers,
-        dataflow,
-        controlFlow,
-        range: {
-          startLine: Number.isFinite(meta?.range?.startLine)
-            ? meta.range.startLine
-            : (Number.isFinite(chunk?.startLine) ? chunk.startLine : null),
-          endLine: Number.isFinite(meta?.range?.endLine)
-            ? meta.range.endLine
-            : (Number.isFinite(chunk?.endLine) ? chunk.endLine : null)
-        },
-        sourceRank: sourceRanks.chunkMeta
-      });
-    }
-  });
+  const {
+    membersByFile, memberById, aliasById, memberByChunkUid,
+    hasDataflow, hasControlFlow, identitySummary
+  } = await timer.track('build-members', async () => buildMapMembers({
+    repoMap, chunkMeta, fileMeta, fileRelations, intern, strict, warnings
+  }));
 
   if (!hasDataflow) warnings.push('dataflow metadata missing; map is limited');
   if (!hasControlFlow) warnings.push('controlFlow metadata missing; map is limited');
@@ -373,6 +248,12 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   let collapse = 'none';
   let topKByDegree = false;
   let dropped = { files: 0, members: 0, edges: 0 };
+  const omittedEndpoints = { unavailable: 0, displayFiltered: 0 };
+  const inventoryFiles = new Set(membersByFile.keys());
+  const unavailableEndpoint = endpoint => !endpoint
+    || (!endpoint.file && endpoint.member == null)
+    || (endpoint.file && !inventoryFiles.has(endpoint.file))
+    || (endpoint.member != null && !memberById.has(String(endpoint.member)));
   let limitedNodes = [];
   let limitedEdges = [];
   const edgeAggregateMap = new Map();
@@ -434,6 +315,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
         const degree = new Map();
         for (const edge of edgeIteratorFactory()) {
           if (!edgeFilter(edge)) continue;
+          if ([edge.from, edge.to].some(unavailableEndpoint)) continue;
           const next = transformEdge(edge);
           const fromFile = next.from?.file || null;
           const toFile = next.to?.file || null;
@@ -482,6 +364,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     }
 
     const edgeLimitFilter = (edge) => {
+      if (!edge.from || !edge.to) return false;
       const fromMember = normalizeMemberId(edge.from?.member);
       const toMember = normalizeMemberId(edge.to?.member);
       const fromFile = edge.from?.file || null;
@@ -504,8 +387,18 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     await timer.track('build-edges', async () => {
       for (const edge of edgeIteratorFactory()) {
         if (!edgeFilter(edge)) continue;
+        // Classify against the admitted generation before collapsing file IDs
+        // to directory labels. Unknown targets must not become null endpoints
+        // that bypass filters or collide with a legitimate directory node.
+        if ([edge.from, edge.to].some(unavailableEndpoint)) {
+          omittedEndpoints.unavailable += 1;
+          continue;
+        }
         const next = transformEdge(edge);
-        if (!edgeLimitFilter(next)) continue;
+        if (!edgeLimitFilter(next)) {
+          omittedEndpoints.displayFiltered += 1;
+          continue;
+        }
         if (keptEdges >= limits.maxEdges) {
           dropped.edges += 1;
           continue;
@@ -602,6 +495,9 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       edges: sortedEdges.length
     },
     dropped,
+    inventory: { status: fileInventoryStatus, files: inventoryFiles.size },
+    identity: identitySummary,
+    omittedEndpoints,
     truncated: dropped.files > 0 || dropped.members > 0 || dropped.edges > 0,
     limits,
     include: includes,
@@ -628,10 +524,12 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     generatedAt: new Date().toISOString(),
     stages: timer.stages,
     peak: timer.peak,
+    observedBoundaryMax: timer.observedBoundaryMax,
+    memoryObservation: timer.memoryObservation,
     counts: summary.counts
   };
 
-  return {
+  const model = {
     version: MAP_MODEL_VERSION,
     generatedAt: new Date().toISOString(),
     root: { path: repoRoot, id: null },
@@ -655,6 +553,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     buildMetrics,
     warnings: unique(warnings)
   };
+  timer.complete();
+  return model;
 }
 
 export async function buildCodeMapStream({ repoRoot, indexDir, options = {}, outPath }) {
@@ -703,8 +603,9 @@ export function buildNodeList(mapModel) {
   };
 }
 
-export function buildMapCacheKey({ buildId, options }) {
-  const payload = { buildId: buildId || null, options: options || null };
+export function buildMapCacheKey({ buildId, indexIdentity, options }) {
+  const payload = { producerVersion: 6, modelVersion: MAP_MODEL_VERSION,
+    buildId: buildId || null, indexIdentity: indexIdentity || null, options: options || null };
   return buildLocalCacheKey({
     namespace: 'code-map',
     payload

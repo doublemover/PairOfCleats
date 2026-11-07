@@ -1,4 +1,5 @@
-import os from 'node:os';
+import { readEffectiveCpu } from '../effective-cpu.js';
+import { readEffectiveMemory } from '../effective-memory.js';
 
 const QUALITY_LEVELS = ['fast', 'balanced', 'max'];
 
@@ -78,10 +79,12 @@ export const resolveQuality = ({ requested, resources, repo }) => {
   return { value, source: 'auto' };
 };
 
-export const summarizeResources = () => {
-  const cpuCount = os.cpus().length;
-  const memoryGb = Math.round((os.totalmem() / (1024 ** 3)) * 10) / 10;
-  return { cpuCount, memoryGb };
+export const summarizeResources = (input = {}) => {
+  const cpu = readEffectiveCpu(input);
+  const memory = readEffectiveMemory(input);
+  const memoryGb = Math.round(((memory.totalBytes || 0) / (1024 ** 3)) * 10) / 10;
+  return { ...cpu, memoryGb, hostMemoryGb: Math.round(((memory.hostTotalBytes || 0) / (1024 ** 3)) * 10) / 10,
+    memorySource: memory.method };
 };
 
 export const formatBytes = (bytes) => {
@@ -99,14 +102,14 @@ export const formatBytes = (bytes) => {
 };
 
 export const resolveHugeRepoProfile = ({ config = {}, repo = null }) => {
-  const raw = config?.hugeRepoProfile;
+  const raw = config?.indexing?.hugeRepoProfile;
   const profileConfig = raw && typeof raw === 'object' ? raw : {};
   const enabled = typeof profileConfig.enabled === 'boolean'
     ? profileConfig.enabled
     : repo?.huge === true;
   const id = enabled ? CANONICAL_HUGE_REPO_PROFILE_ID : 'default';
   const reason = enabled
-    ? (repo?.huge === true ? 'repo-size-threshold' : 'explicit-config')
+    ? (typeof profileConfig.enabled === 'boolean' ? 'explicit-config' : 'repo-size-threshold')
     : 'disabled';
   const overrides = enabled
     ? clonePlain(CANONICAL_HUGE_REPO_OVERRIDES)

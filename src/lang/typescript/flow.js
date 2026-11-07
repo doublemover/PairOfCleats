@@ -1,4 +1,4 @@
-import { findCLikeBodyBounds } from '../clike.js';
+import { findTypeScriptBodyBounds } from './brace-bounds.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '../flow.js';
 import { TS_USAGE_SKIP } from './constants.js';
 import { stripTypeScriptComments } from './parser.js';
@@ -12,7 +12,7 @@ import { stripTypeScriptComments } from './parser.js';
  */
 export function computeTypeScriptFlow(text, chunk, options = {}) {
   if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
-  const bounds = findCLikeBodyBounds(text, chunk.start);
+  const bounds = findTypeScriptBodyBounds(text, chunk.start);
   const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
   const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
   if (scanEnd <= scanStart) return null;

@@ -46,7 +46,7 @@ class TaskBehaviorTests(unittest.TestCase):
         self.assertIn('Recent:', self.window.panels[self.tasks.TASK_PANEL].appended)
         self.assertIn('Completed successfully.', self.window.panels[self.tasks.TASK_PANEL].appended)
 
-    def test_cancel_active_command_uses_latest_cancellable_task(self):
+    def test_cancel_active_command_uses_selected_cancellable_task(self):
         self.tasks.start_task(
             self.window,
             'PairOfCleats search',
@@ -66,8 +66,10 @@ class TaskBehaviorTests(unittest.TestCase):
             show_panel=False,
         )
         self.runtime.PairOfCleatsCancelActiveTaskCommand(self.window).run()
-        self.assertEqual(self.cancelled, ['map'])
-        self.assertIn('cancelling pairofcleats map', self.sublime.last_status.lower())
+        self.assertEqual(self.cancelled, [])
+        self.window.quick_panel_callback(0)
+        self.assertEqual(self.cancelled, ['search'])
+        self.assertIn('cancellation requested for exact task', self.sublime.last_status.lower())
 
 
 if __name__ == '__main__':

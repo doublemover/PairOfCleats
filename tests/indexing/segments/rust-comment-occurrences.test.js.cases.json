@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["nested", "raw-strings", "lifetimes", "characters", "doc-roles", "line-endings", "doc-crlf", "doc-bare-cr", "unterminated-block", "unterminated-raw", "nesting-budget", "raw-hash-budget", "raw-identifier"]
+}

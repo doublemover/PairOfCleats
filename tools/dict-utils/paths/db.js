@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadUserConfig } from '../config.js';
-import { getRepoCacheRoot, resolveIndexRoot, resolvePath } from './repo.js';
+import { resolveRepoCacheRootPath, resolveIndexRoot, resolvePath } from './repo.js';
 
 const resolveRepoOverride = (repoRoot, value, fallback) => (
   (value ? resolvePath(repoRoot, value) : null) || fallback
@@ -33,7 +33,7 @@ export function resolveLmdbPaths(repoRoot, userConfig = null, options = {}) {
 export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const sqlite = cfg.sqlite || {};
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, cfg);
+  const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, cfg);
   const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
   const defaultDir = path.join(indexRoot, 'index-sqlite');
   const legacyPath = path.join(repoCacheRoot, 'index-sqlite', 'index.db');

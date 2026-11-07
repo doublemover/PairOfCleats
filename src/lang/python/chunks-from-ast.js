@@ -1,4 +1,5 @@
-import { buildLineIndex, lineColToOffset, offsetToLine } from './normalize.js';
+import { buildLineIndex, offsetToLine } from './normalize.js';
+import { createPythonByteColumnResolver } from './byte-columns.js';
 
 /**
  * Build chunk metadata from Python AST metadata.
@@ -10,11 +11,12 @@ import { buildLineIndex, lineColToOffset, offsetToLine } from './normalize.js';
 export function buildPythonChunksFromAst(text, astData) {
   if (!astData || !Array.isArray(astData.defs) || !astData.defs.length) return null;
   const lineIndex = buildLineIndex(text);
+  const resolveByteColumn = createPythonByteColumnResolver(text, lineIndex);
   const defs = astData.defs
     .filter((def) => Number.isFinite(def.startLine))
     .map((def) => ({
       ...def,
-      start: lineColToOffset(lineIndex, def.startLine, def.startCol)
+      start: resolveByteColumn(def.startLine, def.startCol ?? 0)
     }))
     .sort((a, b) => a.start - b.start);
   if (!defs.length) return null;
@@ -25,7 +27,7 @@ export function buildPythonChunksFromAst(text, astData) {
     const next = defs[i + 1];
     let end = null;
     if (Number.isFinite(current.endLine)) {
-      end = lineColToOffset(lineIndex, current.endLine, current.endCol || 0);
+      end = resolveByteColumn(current.endLine, current.endCol ?? 0);
     }
     if (!end || end <= current.start) {
       end = next ? next.start : text.length;
@@ -37,7 +39,12 @@ export function buildPythonChunksFromAst(text, astData) {
       name: current.name,
       kind: current.kind || 'FunctionDeclaration',
       meta: {
+        pythonScopeId: current.scopeId || null,
+        ...(current.callOmissions ? { syntaxCallOmissions: current.callOmissions } : {}),
+        ...(current.sourceCoverageReason ? { sourceCoverage: 'partial', sourceCoverageReason: current.sourceCoverageReason } : {}),
         startLine: current.startLine,
+        definitionStartLine: current.definitionStartLine ?? current.startLine,
+        definitionStartCol: current.definitionStartCol ?? current.startCol,
         endLine,
         decorators: current.decorators || [],
         signature: current.signature || null,

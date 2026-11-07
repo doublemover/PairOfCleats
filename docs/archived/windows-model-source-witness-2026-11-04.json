@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "historicalAuthorWorkspace": true,
+  "source": "2e87f986a5c1a05ecc4f54088b549e14338bced8",
+  "acceptance": false,
+  "scope": "Original source-witness failure and cache-readiness diagnostic controls;no source-status retry is credited as a pass.",
+  "originalFailure": {
+    "schemaVersion": 1,
+    "historicalAuthorWorkspace": true,
+    "state": "failed-capsule;not-resource-settlement-authority",
+    "invocation": {
+      "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+      "args": [
+        "tests/embeddings/e5-generation-qualification.js",
+        "--manifest",
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\dense-real-models-20261030\\qualification-manifests\\runtime-130\\e5-instruct-fp32.json",
+        "--out",
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\e5-v2-generation\\stage3",
+        "--operation",
+        "stage3",
+        "--seed",
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\e5-v2-generation\\stage2\\receipt.json"
+      ],
+      "timeoutMs": 30000,
+      "maxOutputBytes": 1048576
+    },
+    "failures": [
+      {
+        "name": "SubprocessError",
+        "code": "SUBPROCESS_FAILED",
+        "message": "exited with code 1",
+        "thrownType": "object",
+        "result": {
+          "pid": 1712,
+          "exitCode": 1,
+          "signal": null,
+          "durationMs": 17321,
+          "stdout": "",
+          "stderr": "node:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\r\n+ actual - expected\r\n\r\n  {\r\n+   revision: null,\r\n+   state: 'unavailable'\r\n-   revision: '2e87f986a5c1a05ecc4f54088b549e14338bced8',\r\n-   state: 'clean-revision'\r\n  }\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/embeddings/e5-generation-qualification.js:77:10 {\r\n  generatedMessage: true,\r\n  code: 'ERR_ASSERTION',\r\n  actual: { state: 'unavailable', revision: null },\r\n  expected: {\r\n    state: 'clean-revision',\r\n    revision: '2e87f986a5c1a05ecc4f54088b549e14338bced8'\r\n  },\r\n  operator: 'deepStrictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 722,
+              "retainedBytes": 722,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 722,
+              "outputBytes": 722,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      }
+    ],
+    "failureTraversalTruncated": false
+  },
+  "diagnosticFailure": {
+    "schemaVersion": 1,
+    "historicalAuthorWorkspace": true,
+    "state": "failed-capsule;not-resource-settlement-authority",
+    "invocation": {
+      "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import {registerHooks} from 'node:module';import path from 'node:path';import {pathToFileURL} from 'node:url';const root=process.cwd(),target=pathToFileURL(path.join(root,'tools/bench/ab-sweep-source.js')).href;registerHooks({load(url,context,next){const original=next(url,context);return url===target?{...original,source:\"import diagnosticFs from 'node:fs';\\nimport { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';\\nimport { observeStorageResource } from '../../src/shared/storage/failure-observation.js';\\n\\n/** Boundary source witness, not a dependency/native runtime qualification.\\n * Ignored experiment outputs do not make an otherwise clean checkout dirty. */\\nexport const captureSweepSource = root => {\\n  try {\\n    const run = args => {\\n      const result = spawnSubprocessSync('git', ['-C', root, ...args], { cwd: root,\\n        timeoutMs: 5000, maxOutputBytes: 64 * 1024, captureStdout: true, captureStderr: true,\\n        outputMode: 'string', rejectOnNonZeroExit: false });\\n      try { diagnosticFs.appendFileSync(\\\"C:\\\\\\\\Users\\\\\\\\sneak\\\\\\\\Development\\\\\\\\PairOfCleats\\\\\\\\.tmp\\\\\\\\tasks\\\\\\\\q-1104\\\\\\\\source-witness-diagnostic-v3.jsonl\\\", JSON.stringify({args,root,cwd:process.cwd(),result})+String.fromCharCode(10)); } catch {}\\n      const capture = result.outputCapture?.stdout;\\n      if (result.exitCode !== 0 || result.signal || !capture?.enabled || capture.truncated || capture.encodingLoss || capture.droppedBytes) return null;\\n      return result.stdout;\\n    };\\n    const revision = run(['rev-parse', '--verify', 'HEAD^{commit}'])?.trim();\\n    if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(revision || '')) return { state: 'unavailable', revision: null };\\n    const status = run(['status', '--porcelain=v1', '--untracked-files=normal']);\\n    return { state: status === null ? 'unavailable' : status.trim() ? 'dirty' : 'clean-revision', revision };\\n  } catch (error) {\\n    try { diagnosticFs.appendFileSync(\\\"C:\\\\\\\\Users\\\\\\\\sneak\\\\\\\\Development\\\\\\\\PairOfCleats\\\\\\\\.tmp\\\\\\\\tasks\\\\\\\\q-1104\\\\\\\\source-witness-diagnostic-v3.jsonl\\\", JSON.stringify({root,cwd:process.cwd(),error:{name:error?.name,code:error?.code,message:error?.message,result:error?.result,cause:{code:error?.cause?.code,message:error?.cause?.message}},envPath:process.env.Path||process.env.PATH})+String.fromCharCode(10)); } catch {}\\n    observeStorageResource(error, { phase: 'ab-sweep-source-witness' }).requireSettled();\\n    return { state: 'unavailable', revision: null };\\n  }\\n};\\n\"}:original;}});process.argv=[process.execPath,path.join(root,'tests/embeddings/e5-generation-qualification.js'),'--manifest',path.join(root,'.tmp/tasks/dense-real-models-20261030/qualification-manifests/runtime-130/e5-instruct-fp32.json'),'--out',path.join(root,'.tmp/tasks/q-1104/e5-v2-stage3-diagnostic-v3'),'--operation','stage3','--seed',path.join(root,'.tmp/tasks/q-1104/e5-v2-generation/stage2/receipt.json')];try { await import(pathToFileURL(process.argv[1]).href); } catch (error) { const witness=await import(target);witness.captureSweepSource(process.cwd());throw error; }"
+      ],
+      "timeoutMs": 30000,
+      "maxOutputBytes": 1048576
+    },
+    "failures": [
+      {
+        "name": "SubprocessError",
+        "code": "SUBPROCESS_FAILED",
+        "message": "exited with code 1",
+        "thrownType": "object",
+        "result": {
+          "pid": 2276,
+          "exitCode": 1,
+          "signal": null,
+          "durationMs": 16572,
+          "stdout": "",
+          "stderr": "node:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Record actual inference or original verified cache reuse;do not relabel cache-only work as native inference.\r\n    at runE5Stage3 (file:///C:/Users/sneak/Development/PairOfCleats/tests/embeddings/helpers/e5-generation-consumers.js:137:3)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/embeddings/e5-generation-qualification.js:72:9 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 614,
+              "retainedBytes": 614,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 614,
+              "outputBytes": 614,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      }
+    ],
+    "failureTraversalTruncated": false
+  },
+  "gitObservations": [
+    {
+      "args": [
+        "rev-parse",
+        "--verify",
+        "HEAD^{commit}"
+      ],
+      "root": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "cwd": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "result": {
+        "pid": 5188,
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 73,
+        "stdout": "2e87f986a5c1a05ecc4f54088b549e14338bced8\n",
+        "stderr": "",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 41,
+            "retainedBytes": 41,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 41,
+            "outputBytes": 41,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "args": [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "root": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "cwd": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "result": {
+        "pid": 9608,
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 110,
+        "stdout": "",
+        "stderr": "",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "args": [
+        "rev-parse",
+        "--verify",
+        "HEAD^{commit}"
+      ],
+      "root": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "cwd": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "result": {
+        "pid": 21616,
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 69,
+        "stdout": "2e87f986a5c1a05ecc4f54088b549e14338bced8\n",
+        "stderr": "",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 41,
+            "retainedBytes": 41,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 41,
+            "outputBytes": 41,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "args": [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal"
+      ],
+      "root": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "cwd": "C:\\Users\\sneak\\Development\\PairOfCleats",
+      "result": {
+        "pid": 23644,
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 99,
+        "stdout": "",
+        "stderr": "",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 65536,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    }
+  ],
+  "recordedCacheWork": {
+    "indexedInferenceBatches": 0,
+    "cacheHits": 1,
+    "totalChunks": 1,
+    "stateCacheStats": {
+      "attempts": 1,
+      "hits": 1,
+      "misses": 0,
+      "rejected": 0,
+      "fastRejects": 0
+    },
+    "providerObservation": {
+      "state": "ready",
+      "method": "provider-probe",
+      "stub": false
+    }
+  },
+  "controls": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793825521652-mwgotq",
+    "summary": {
+      "durationMs": 494,
+      "failed": 0,
+      "passed": 2,
+      "skipped": 0,
+      "total": 2
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 385,
+        "exitCode": 0,
+        "id": "embeddings/e5-consumer-contract-controls",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793825521652-mwgotq\\embeddings_e5-consumer-contract-controls.attempt-1.log"
+        ],
+        "path": "embeddings/e5-consumer-contract-controls.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "embeddings",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 102,
+        "exitCode": 0,
+        "id": "perf/tooling/bench/ab-sweep-admission",
+        "lane": "perf",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793825521652-mwgotq\\perf_tooling_bench_ab-sweep-admission.attempt-1.log"
+        ],
+        "path": "perf/tooling/bench/ab-sweep-admission.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "perf",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "remaining": "Original Git unavailable outcome lacked its child details;exact cause remains unattributed. New optional diagnostics retain original outcomes without changing witness admission or5s bounds."
+}

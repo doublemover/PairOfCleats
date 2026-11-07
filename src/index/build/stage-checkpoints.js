@@ -1,3 +1,4 @@
+import { getOwn, setOwn } from '../../shared/object-record.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
@@ -91,7 +92,7 @@ export const createStageCheckpointRecorder = ({
     updateHighWater(highWater.memory, memorySnapshot);
     updateHighWater(highWater.extra, entry.extra || {});
 
-    const stageEntry = stages[stageKey] || {
+    const stageEntry = getOwn(stages,stageKey) || {
       stage: stageKey,
       firstAt: entry.at,
       firstElapsedMs: entry.elapsedMs,
@@ -106,14 +107,14 @@ export const createStageCheckpointRecorder = ({
     stageEntry.checkpointCount += 1;
     updateHighWater(stageEntry.memoryHighWater, memorySnapshot);
     updateHighWater(stageEntry.extraHighWater, entry.extra || {});
-    stages[stageKey] = stageEntry;
+    setOwn(stages,stageKey,stageEntry);
     return entry;
   };
 
   const buildSummary = () => {
     const stageSummaries = {};
     for (const [stageKey, entry] of Object.entries(stages)) {
-      stageSummaries[stageKey] = {
+      setOwn(stageSummaries,stageKey,{
         stage: stageKey,
         startedAt: entry.firstAt,
         finishedAt: entry.lastAt,
@@ -121,7 +122,7 @@ export const createStageCheckpointRecorder = ({
         checkpointCount: entry.checkpointCount,
         memoryHighWater: entry.memoryHighWater,
         extraHighWater: entry.extraHighWater
-      };
+      });
     }
     return {
       version: STAGE_CHECKPOINT_VERSION,

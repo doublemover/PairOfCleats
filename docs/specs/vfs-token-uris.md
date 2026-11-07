@@ -1,7 +1,7 @@
 # Spec: VFS token URIs (active contract)
 
 Status: Active implemented optional tooling enhancement.
-Last audited: 2026-05-21
+Last audited: 2026-10-20
 Implementation anchors: `src/integrations/tooling/lsp/uris.js`,
 `src/integrations/tooling/providers/lsp/vfs-batching.js`.
 Contract coverage: `tests/tooling/vfs/routing-and-token-contract-matrix.test.js`.
@@ -53,6 +53,10 @@ Encoding rules:
 - If the token changes, the provider MUST treat the document as new.
 - If token mode uses `docHash`, changing content MUST change the token.
 - Tokens are cached in-process to resolve `token -> virtualPath` for round trips.
+- An explicit URI path takes priority over token lookup. A token registered for
+  different paths is ambiguous: token-only lookup returns null until eviction.
+  Re-registering one path cannot erase known ambiguity. Content-only tokens
+  remain content hashes and must not select a semantic origin by registration order.
 
 ---
 

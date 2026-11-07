@@ -4,12 +4,13 @@ import { buildBenchOwnershipDiff, buildBenchReuseFromSummary } from './ownership
 export const BENCH_RUN_DIFF_SCHEMA_VERSION = 1;
 
 const toNumberOrNull = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim()) || typeof value === 'boolean') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
 const average = (values) => {
-  const list = (Array.isArray(values) ? values : []).filter((value) => Number.isFinite(Number(value)));
+  const list = (Array.isArray(values) ? values : []).map(toNumberOrNull).filter(Number.isFinite);
   if (!list.length) return null;
   return list.reduce((sum, value) => sum + Number(value), 0) / list.length;
 };

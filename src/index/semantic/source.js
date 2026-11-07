@@ -1,3 +1,4 @@
+import { createSemanticSourceCapability, readSemanticSourceCapability } from './source-capability.js';
 import { createHash } from 'node:crypto';
 import { createSourceUnitId } from './identity.js';
 
@@ -12,7 +13,9 @@ export const createSemanticSourceSnapshot = ({
   if (!(bytes instanceof Uint8Array)) throw new TypeError('Original source bytes are required.');
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   const byteHash = createHash('sha256').update(bytes).digest('hex');
-  const textHash = createHash('sha256').update(text, 'utf8').digest('hex');
+  const sourceCapability = createSemanticSourceCapability(text);
+  const textHash = readSemanticSourceCapability(sourceCapability).byteHash;
+  if (textHash !== byteHash) throw new Error('Semantic UTF-8 source changed while snapshotting.');
   const decoding = 'utf8-fatal-preserve-bom-v1';
   const lineStarts = [0];
   for (let offset = 0; offset < text.length; offset += 1) {
@@ -28,7 +31,7 @@ export const createSemanticSourceSnapshot = ({
     repositoryNamespace, path, byteHash, decoding, language, dialect, mapping
   });
   return {
-    text,
+    text, sourceCapability,
     manifest: {
       schemaVersion: 1, sourceUnitId, repositoryNamespace, path, byteHash, textHash,
       encoding: 'utf8', decoding, language, dialect, mapping,

@@ -1,6 +1,7 @@
 import { resolveChunkId } from '../../index/chunk-id.js';
 import { toArray } from '../../shared/iterables.js';
 import { normalizeFilePath } from './utils.js';
+import { sqliteBundleIdentity } from './bundle-identity.js';
 
 const SAFE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const isSafeIdentifier = (value) => SAFE_IDENTIFIER_RE.test(String(value || ''));
@@ -232,7 +233,8 @@ export function buildFileManifestRow({
     size: Number.isFinite(manifestEntry?.size)
       ? manifestEntry.size
       : (Number.isFinite(fallbackSize) ? fallbackSize : null),
-    chunk_count: Number.isFinite(resolvedChunkCount) ? resolvedChunkCount : 0
+    chunk_count: Number.isFinite(resolvedChunkCount) ? resolvedChunkCount : 0,
+    bundle_hash: sqliteBundleIdentity(manifestEntry)
   };
 }
 

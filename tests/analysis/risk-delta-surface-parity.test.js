@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
@@ -11,6 +13,8 @@ import { writeJsonFile } from '../../src/shared/json-file.js';
 import { createAnalysisSurfaceHarness } from '../helpers/analysis-surface-parity.js';
 import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { createRiskWatchStep } from '../helpers/risk-explanation-fixtures.js';
 
 applyTestEnv();
 
@@ -50,7 +54,7 @@ const writePiecesManifest = async (indexDir, files) => {
   }
   await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
-    artifactSurfaceVersion: '0.2.0',
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces
   });
 };
@@ -82,6 +86,7 @@ const buildFlow = ({
   callSiteId,
   semanticKinds
 }) => ({
+  schemaVersion: 1,
   flowId,
   confidence,
   source: {
@@ -92,6 +97,7 @@ const buildFlow = ({
     ruleRole: 'source',
     category: 'input',
     severity: 'medium',
+    confidence: 0.8,
     tags: ['http']
   },
   sink: {
@@ -102,20 +108,21 @@ const buildFlow = ({
     ruleRole: 'sink',
     category: 'execution',
     severity: 'critical',
+    confidence: 0.9,
     tags: ['exec']
   },
   path: {
     chunkUids: pathChunkUids,
     callSiteIdsByStep: [[callSiteId]],
-    watchByStep: [{
+    watchByStep: [createRiskWatchStep({
       semanticKinds,
       confidenceBefore: confidence,
       confidenceAfter: Math.max(0, confidence - 0.1)
-    }]
+    })]
   },
   notes: {
     hopCount: Math.max(0, pathChunkUids.length - 1),
-    strictness: 'conservative'
+    strictness: 'conservative', sanitizerPolicy: 'terminate', sanitizerBarriersHit: 0, capsHit: []
   }
 });
 
@@ -126,6 +133,7 @@ const buildPartialFlow = ({
   frontierChunkUid,
   terminalReason
 }) => ({
+  schemaVersion: 1,
   partialFlowId,
   confidence,
   source: {
@@ -136,6 +144,7 @@ const buildPartialFlow = ({
     ruleRole: 'source',
     category: 'input',
     severity: 'medium',
+    confidence: 0.8,
     tags: ['http']
   },
   frontier: {
@@ -146,15 +155,15 @@ const buildPartialFlow = ({
   path: {
     chunkUids: [chunkUid, frontierChunkUid],
     callSiteIdsByStep: [['call-frontier']],
-    watchByStep: [{
+    watchByStep: [createRiskWatchStep({
       semanticKinds: ['callback'],
       confidenceBefore: confidence,
       confidenceAfter: Math.max(0, confidence - 0.05)
-    }]
+    })]
   },
   notes: {
     terminalReason,
-    hopCount: 1
+    hopCount: 1, strictness: 'conservative', sanitizerPolicy: 'terminate', sanitizerBarriersHit: 0, capsHit: []
   }
 });
 
@@ -176,6 +185,7 @@ const createRiskSummary = ({
     }));
 
   return {
+    schemaVersion: 1,
     chunkUid,
     file: 'src/a.js',
     languageId: 'javascript',
@@ -193,8 +203,10 @@ const createRiskSummary = ({
       evidence: false
     },
     signals: {
-      sources: [{ category: 'input', tags: ['http'] }],
-      sinks,
+      sources: [{ ruleId: 'source.input', ruleName: 'input', ruleType: 'source', category: 'input',
+        severity: 'low', confidence: 0.8, tags: ['http'], evidence: [] }],
+      sinks: sinks.map((sink, index) => ({ ruleId: `sink.${index}`, ruleName: `sink.${index}`, ruleType: 'sink',
+        severity: 'high', confidence: 0.9, evidence: [], ...sink })),
       sanitizers: [],
       localFlows: []
     }
@@ -247,6 +259,8 @@ const seedBuild = async ({
     sinkSignals: flows.map((flow) => ({ category: flow.sink.category, tags: flow.sink.tags }))
   })];
   const riskStats = {
+    schemaVersion: 1, generatedAt: '2026-03-19T00:00:00.000Z', mode: 'code',
+    callSiteSampling: {}, capsHit: [], timingMs: { total: 0 },
     status: 'ok',
     counts: {
       flowsEmitted: flows.length,
@@ -742,4 +756,100 @@ await withTemporaryEnv(env, async () => {
   assert.equal(normalized.toSummarySinks, 3);
 });
 
+await seedBuild({ repoCacheRoot, buildId: 'build-corrupt-risk', chunkUid: 'chunk-alpha-a',
+  flows: [flowStableA], partialFlows: [] });
+const corruptIndex = path.join(repoCacheRoot, 'builds', 'build-corrupt-risk', 'index-code');
+await fs.writeFile(path.join(corruptIndex, 'risk_flows.json'), '{invalid-flow-json');
+await withTemporaryEnv(env, async () => {
+  await assert.rejects(async () => {
+    const unexpected = await buildRiskDeltaPayload({ repoRoot, userConfig,
+      from: 'build:build-a', to: 'build:build-corrupt-risk', seed: 'file:src/a.js', includePartialFlows: true });
+    console.error(JSON.stringify({ corruptRiskAccepted: true, counts: unexpected.summary.flowCounts,
+      warnings: unexpected.to.warnings }));
+    return unexpected;
+  },
+  'corrupt flow evidence cannot be classified as an empty successful target/removal');
+  const failureArgs = { repoPath: repoRoot, from: 'build:build-a', to: 'build:build-corrupt-risk',
+    seed: 'file:src/a.js', includePartialFlows: true };
+  const harness = await createAnalysisSurfaceHarness({ fixtureRoot: repoRoot, env: process.env });
+  try {
+    const cli = harness.runCli(['risk', 'delta', '--json', '--repo', repoRoot,
+      '--from', failureArgs.from, '--to', failureArgs.to, '--seed', failureArgs.seed, '--include-partial-flows']);
+    const api = await harness.runApi('/analysis/risk-delta', failureArgs);
+    const mcp = await harness.runMcp('risk_delta', failureArgs);
+    assert.equal(cli.status, 1);
+    assert.equal(api.status, 500);
+    assert.equal(mcp.ok, false);
+    assert.equal(cli.parsed.code, 'INTERNAL');
+    assert.equal(api.parsed.code, cli.parsed.code);
+    assert.equal(mcp.error.code, cli.parsed.code);
+    assert.equal(mcp.error.reason, 'risk_artifact_load_failed');
+    assert.equal(mcp.error.artifact, 'risk_flows');
+    assert.equal(api.parsed.reason, mcp.error.reason);
+    assert.equal(cli.parsed.reason || cli.parsed.details?.reason, mcp.error.reason);
+    for (const [from, to] of [[failureArgs.from, failureArgs.to], [failureArgs.to, failureArgs.from]]) {
+      await assert.rejects(() => buildRiskDeltaPayload({ repoRoot, userConfig, from, to,
+        seed: failureArgs.seed, includePartialFlows: true }), { reason: 'risk_artifact_load_failed', artifact: 'risk_flows' });
+    }
+  } finally { await harness.close(); }
+
+  for (const family of ['risk_flows', 'risk_summaries', 'risk_interprocedural_stats']) {
+    const buildId = `build-unreadable-${family}`;
+    await seedBuild({ repoCacheRoot, buildId, chunkUid: 'chunk-alpha-a', flows: [flowStableA], partialFlows: [] });
+    const target = path.resolve(repoCacheRoot, 'builds', buildId, 'index-code', `${family}.json`);
+    const original = fsSync.openSync;
+    let readFailures = 0;
+    try {
+      fsSync.openSync = function(file, ...args) {
+        if (typeof file === 'string' && path.resolve(file) === target) {
+          readFailures += 1;
+          throw Object.assign(new Error('controlled risk artifact access failure'), { code: 'EACCES' });
+        }
+        return original.call(this, file, ...args);
+      };
+      syncBuiltinESMExports();
+      for (const [from, to] of [['build:build-a', `build:${buildId}`], [`build:${buildId}`, 'build:build-a']]) {
+        await assert.rejects(() => buildRiskDeltaPayload({ repoRoot, userConfig, from, to,
+          seed: 'file:src/a.js', includePartialFlows: true }), { reason: 'risk_artifact_load_failed', artifact: family, causeCode: 'EACCES' });
+      }
+      assert.ok(readFailures >= 2, 'both delta directions must reach the real selected artifact failure');
+    } finally { fsSync.openSync = original; syncBuiltinESMExports(); }
+  }
+  await seedBuild({ repoCacheRoot, buildId: 'build-missing-piece', chunkUid: 'chunk-alpha-a', flows: [flowStableA], partialFlows: [] });
+  await fs.rm(path.join(repoCacheRoot, 'builds', 'build-missing-piece', 'index-code', 'risk_flows.json'));
+  await assert.rejects(() => buildRiskDeltaPayload({ repoRoot, userConfig, from: 'build:build-a', to: 'build:build-missing-piece',
+    seed: 'file:src/a.js', includePartialFlows: true }), { reason: 'risk_artifact_load_failed', causeCode: 'ERR_ARTIFACT_PARTS_MISSING' });
+
+  for (const family of ['risk_flows', 'risk_partial_flows', 'risk_summaries', 'risk_interprocedural_stats']) {
+    const buildId = `build-invalid-schema-${family}`;
+    await seedBuild({ repoCacheRoot, buildId, chunkUid: 'chunk-alpha-a', flows: [flowStableA], partialFlows: [] });
+    await writeJson(path.join(repoCacheRoot, 'builds', buildId, 'index-code', `${family}.json`),
+      family === 'risk_interprocedural_stats' ? { counts: { flowsEmitted: 0 } } : [{}]);
+    await assert.rejects(() => buildRiskDeltaPayload({ repoRoot, userConfig, from: 'build:build-a', to: `build:${buildId}`,
+      seed: 'file:src/a.js', includePartialFlows: true }), { reason: 'risk_artifact_load_failed', artifact: family, causeCode: 'ERR_ARTIFACT_INVALID' });
+  }
+  await seedBuild({ repoCacheRoot, buildId: 'build-zero-missing-declared-partials', chunkUid: 'chunk-alpha-a', flows: [], partialFlows: [] });
+  await fs.rm(path.join(repoCacheRoot, 'builds', 'build-zero-missing-declared-partials', 'index-code', 'risk_partial_flows.json'));
+  await assert.rejects(() => buildRiskDeltaPayload({ repoRoot, userConfig, from: 'build:build-a', to: 'build:build-zero-missing-declared-partials',
+    seed: 'file:src/a.js', includePartialFlows: true }), { reason: 'risk_artifact_load_failed', artifact: 'risk_partial_flows', causeCode: 'ERR_ARTIFACT_PARTS_MISSING' });
+
+  for (const [buildId, flows, omittedFamilies] of [
+    ['build-zero-without-flow-family', [], ['risk_flows', 'risk_partial_flows']],
+    ['build-no-optional-partials', [flowStableA], ['risk_partial_flows']]
+  ]) {
+    await seedBuild({ repoCacheRoot, buildId, chunkUid: 'chunk-alpha-a', flows, partialFlows: [] });
+    const indexDir = path.join(repoCacheRoot, 'builds', buildId, 'index-code');
+    const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    manifest.pieces = manifest.pieces.filter(piece => !omittedFamilies.includes(piece.name));
+    await writeJson(manifestPath, manifest);
+    for (const name of omittedFamilies) await fs.rm(path.join(indexDir, `${name}.json`));
+    const delta = await buildRiskDeltaPayload({ repoRoot, userConfig, from: 'build:build-a', to: `build:${buildId}`,
+      seed: 'file:src/a.js', includePartialFlows: true });
+    assert.equal(delta.summary.flowCounts.to, flows.length);
+    assert.equal(delta.summary.flowCounts.removed, 2 - flows.length, 'only valid evidence may establish genuine removals');
+    assert.equal(delta.summary.partialFlowCounts.to, 0);
+    assert.equal(delta.to.stats.flowsEmitted, flows.length);
+  }
+});
 console.log('risk delta surface parity test passed');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const args = process.argv.slice(2);
 if (args.includes('--version') || args.includes('--help')) {
-  process.stdout.write('semgrep stub\n');
+  process.stdout.write('semgrep 1.100.0\n');
   process.exit(0);
 }
 const payload = {

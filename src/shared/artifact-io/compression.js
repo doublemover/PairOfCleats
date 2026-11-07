@@ -1,26 +1,34 @@
 import fs from 'node:fs';
+import { readVerifiedContainedFileSync } from '../contained-file.js';
 import { gunzipSync, zstdDecompressSync as zstdDecompressSyncNative } from 'node:zlib';
 import { getBakPath } from './cache.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
+import { normalizeArtifactReadFailure, readArtifactFailureField, requireArtifactReadFailureSettled, retainArtifactReadFailure } from './json/fallback.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const zstdDecompressSync = (buffer, maxBytes, sourcePath) => {
+  let outBuffer;
   try {
     const outputLimit = maxBytes > 0 ? maxBytes + 1024 : 0;
-    const outBuffer = zstdDecompressSyncNative(
+    outBuffer = zstdDecompressSyncNative(
       buffer,
       outputLimit > 0 ? { maxOutputLength: outputLimit } : undefined
     );
-    if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
-      throw toJsonTooLargeError(sourcePath, outBuffer.length);
-    }
-    return outBuffer;
-  } catch (err) {
+  } catch (value) {
+    const err = normalizeArtifactReadFailure(value);
     if (shouldTreatAsTooLarge(err)) {
-      throw toJsonTooLargeError(sourcePath, maxBytes);
+      throw toJsonTooLargeError(sourcePath, maxBytes, { cause: err, causePresent: true });
     }
-    const message = typeof err?.message === 'string' ? err.message : String(err);
-    throw new Error(`zstd decompress failed: ${message}`);
+    const originalMessage = readArtifactFailureField(err, 'message');
+    const message = typeof originalMessage === 'string' ? originalMessage : 'Unknown decompression failure';
+    throw addStorageFailureContext(new Error(`zstd decompress failed: ${message}`), {}, retainArtifactReadFailure(err), { secondaryPresent: true });
   }
+  // Admission failures are ours, after native decoding settled. They must not
+  // enter codec-error translation and lose their typed capacity classification.
+  if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
+    throw toJsonTooLargeError(sourcePath, outBuffer.length);
+  }
+  return outBuffer;
 };
 
 const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
@@ -28,9 +36,10 @@ const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
     const limit = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
     const outputLimit = limit > 0 ? limit + 1024 : 0;
     return gunzipSync(buffer, outputLimit > 0 ? { maxOutputLength: outputLimit } : undefined);
-  } catch (err) {
+  } catch (value) {
+    const err = normalizeArtifactReadFailure(value);
     if (shouldTreatAsTooLarge(err)) {
-      throw toJsonTooLargeError(sourcePath, maxBytes);
+      throw toJsonTooLargeError(sourcePath, maxBytes, { cause: err, causePresent: true });
     }
     throw err;
   }
@@ -148,7 +157,18 @@ export const decompressBuffer = (buffer, compression, maxBytes, sourcePath) => {
   return buffer;
 };
 
-export const readBuffer = (targetPath, maxBytes) => {
+export const readBuffer = (targetPath, maxBytes, { containedRoot = null } = {}) => {
+  if (containedRoot) {
+    try {
+      return readVerifiedContainedFileSync(containedRoot, targetPath, { maxBytes }).buffer;
+    } catch (value) {
+      const error = normalizeArtifactReadFailure(value);
+      if (readArtifactFailureField(error, 'code') === 'ERR_FILE_TOO_LARGE') {
+        throw toJsonTooLargeError(targetPath, maxBytes, { cause: error, causePresent: true });
+      }
+      throw error;
+    }
+  }
   const stat = fs.statSync(targetPath);
   if (stat.size > maxBytes) {
     throw toJsonTooLargeError(targetPath, stat.size);
@@ -163,7 +183,7 @@ const collectCompressedVariantCandidates = (filePath) => {
     let mtimeMs = 0;
     try {
       mtimeMs = fs.statSync(targetPath).mtimeMs;
-    } catch {}
+    } catch (error) { requireArtifactReadFailureSettled(error); }
     candidates.push({ path: targetPath, compression, cleanup, mtimeMs });
   };
   const zstPath = `${filePath}.zst`;

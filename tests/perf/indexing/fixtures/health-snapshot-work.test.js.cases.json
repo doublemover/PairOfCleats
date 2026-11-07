@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "small-snapshot",
+    "small-reference",
+    "code-snapshot",
+    "code-reference",
+    "three-snapshot",
+    "three-reference",
+    "warm-snapshot",
+    "warm-reference"
+  ]
+}

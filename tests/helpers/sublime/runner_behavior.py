@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -87,21 +88,21 @@ class RunnerBehaviorTests(unittest.TestCase):
             self.assertIn('Failed to parse JSON output', result.error)
 
     def test_cancel_terminates_running_process_and_updates_progress(self):
-        proc = _FakeLongRunningProcess(wait_seconds=0.2)
+        proc = _FakeLongRunningProcess(release=threading.Event())
         done = threading.Event()
-        handle = self.runner.run_process(
-            'fake-command',
-            [],
-            window=self.window,
-            title='PairOfCleats search',
-            stream_output=False,
-            spawn_process=lambda *args, **kwargs: proc,
-            on_done=lambda result: done.set(),
-        )
-        handle.cancel()
-        self.assertTrue(done.wait(5), 'cancelled runner did not complete in time')
-        self.assertEqual(proc.terminated, 1)
-        self.assertEqual(proc.killed, 0)
+        # This is the runner-state unit boundary. A PID-less fake cannot certify
+        # native descendant cleanup; the controlled tree owner must be invoked
+        # for this exact process and explicitly confirm its force-stop result.
+        with mock.patch.object(self.runner, '_terminate_process_tree', side_effect=self._stop_fixture_tree) as stop:
+            handle = self.runner.run_process(
+                'fake-command', [], window=self.window, title='PairOfCleats search', stream_output=False,
+                spawn_process=lambda *args, **kwargs: proc, on_done=lambda result: done.set())
+            self.assertTrue(proc.wait_started.wait(5), 'original process wait did not start')
+            handle.cancel()
+            self.assertTrue(done.wait(5), 'cancelled runner did not complete in time')
+            stop.assert_called_once_with(proc, force=True)
+        self.assertEqual(proc.terminated, 0)
+        self.assertEqual(proc.killed, 1)
         panel = self.window.panels[self.tasks.TASK_PANEL]
         self.assertIn('[cancelled] pairofcleats search', panel.appended.lower())
 
@@ -155,25 +156,49 @@ class RunnerBehaviorTests(unittest.TestCase):
         self.assertEqual(show_panel_commands, [])
 
     def test_timeout_terminates_running_process_and_sets_state(self):
-        proc = _FakeLongRunningProcess(wait_seconds=0.2)
+        proc = _FakeLongRunningProcess(release=threading.Event())
         result_holder = {}
         done = threading.Event()
-        self.runner.run_process(
-            'fake-command',
-            [],
-            window=self.window,
-            title='PairOfCleats search',
-            stream_output=False,
-            timeout_ms=20,
-            spawn_process=lambda *args, **kwargs: proc,
-            on_done=lambda result: (result_holder.update({'result': result}), done.set()),
-        )
-        self.assertTrue(done.wait(5), 'timed out runner did not complete in time')
+        with mock.patch.object(self.runner, '_terminate_process_tree', side_effect=self._stop_fixture_tree) as stop:
+            self.runner.run_process(
+                'fake-command', [], window=self.window, title='PairOfCleats search', stream_output=False,
+                timeout_ms=20, spawn_process=lambda *args, **kwargs: proc,
+                on_done=lambda result: (result_holder.update({'result': result}), done.set()))
+            self.assertTrue(done.wait(5), 'timed out runner did not complete in time')
+            stop.assert_called_once_with(proc, force=True)
         result = result_holder['result']
         self.assertEqual(result.state, 'timed_out')
         self.assertTrue(result.timed_out)
-        self.assertEqual(proc.terminated, 1)
+        self.assertEqual(proc.terminated, 0)
+        self.assertEqual(proc.killed, 1)
         self.assertIn('timed out', result.error.lower())
+
+    def test_timeout_keeps_unconfirmed_descendants_separate_from_parent_exit(self):
+        proc = _FakeLongRunningProcess(release=threading.Event())
+        done = threading.Event()
+        result_holder = {}
+        def unconfirmed(process, force=False):
+            self.assertIs(process, proc)
+            self.assertTrue(force)
+            process.kill()
+            return False
+        with mock.patch.object(self.runner, '_terminate_process_tree', side_effect=unconfirmed):
+            handle = self.runner.run_process(
+                'fake-command', [], window=self.window, title='PairOfCleats search', stream_output=False,
+                timeout_ms=20, spawn_process=lambda *args, **kwargs: proc,
+                on_done=lambda result: (result_holder.update(result=result), done.set()))
+            self.assertTrue(done.wait(5))
+        result = result_holder['result']
+        self.assertEqual(result.state, 'cleanup_unconfirmed')
+        self.assertEqual(result.primary_state, 'timed_out')
+        self.assertTrue(result.timed_out)
+        self.assertTrue(any('descendant' in error.lower() for error in result.cleanup_errors))
+        self.assertFalse(handle.wait(5), 'parent exit cannot certify an unknown descendant tree')
+
+    def _stop_fixture_tree(self, process, force=False):
+        self.assertTrue(force)
+        process.kill()
+        return True
 
     def test_output_cap_truncates_stdout_stderr_and_combined_output(self):
         proc = _FakeImmediateProcess(
@@ -216,11 +241,13 @@ class _FakeLongRunningProcess:
         self.killed = 0
         self._wait_seconds = wait_seconds
         self._release = release
+        self.wait_started = threading.Event()
 
     def poll(self):
         return self.returncode
 
     def wait(self):
+        self.wait_started.set()
         if self._release is not None:
             self._release.wait(5)
         else:
@@ -232,10 +259,14 @@ class _FakeLongRunningProcess:
     def terminate(self):
         self.terminated += 1
         self.returncode = -15
+        if self._release is not None:
+            self._release.set()
 
     def kill(self):
         self.killed += 1
         self.returncode = -9
+        if self._release is not None:
+            self._release.set()
 
 
 class _FakeImmediateProcess:

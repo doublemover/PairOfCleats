@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createSourcekitProvider } from '../../../src/index/tooling/sourcekit-provider.js';
 import { cleanupLspTestRuntime } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const tempRoot = resolveTestCachePath(process.cwd(), 'sourcekit-default-request-timeout');
 await fs.rm(tempRoot, { recursive: true, force: true });
@@ -18,6 +19,7 @@ const target = { virtualPath: document.virtualPath, languageId: 'swift',
     start: 0, end: text.length }, virtualRange: { start: 0, end: text.length },
   symbolHint: { name: 'alpha', kind: 'function' } };
 const provider = createSourcekitProvider();
+const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
 const run = async (settings) => {
   const logs = [];
   const output = await provider.run({ repoRoot: tempRoot, buildRoot: tempRoot, strict: true,
@@ -38,7 +40,7 @@ try {
     const { output, logs } = await run(settings);
     assert.ok(logs.some((line) => line.includes('hoverTimeoutMs=3500 signatureHelpTimeoutMs=3500')),
       `${label}: retained log reports resolved per-method defaults`);
-    assert.equal(output.provider.version, '2.1.1', 'cached results from the old policy use a different provider version');
+    assert.equal(output.provider.version, '2.2.0', 'cached results from the old policy use a different provider version');
     const runtime = output.diagnostics.runtime;
     assert.equal(runtime.requests.byMethod['textDocument/hover'].timedOut, 0, `${label}: hover request fits declared default`);
     assert.equal(runtime.hoverMetrics.succeeded, 1, `${label}: real client returns the delayed type`);
@@ -53,6 +55,7 @@ try {
     'an explicit shorter deadline remains effective');
   assert.equal(output.diagnostics.fidelity.state, 'degraded', 'timeouts remain visible');
 } finally {
+  restoreExecution();
   await cleanupLspTestRuntime({ strict: true });
   await fs.rm(tempRoot, { recursive: true, force: true });
 }

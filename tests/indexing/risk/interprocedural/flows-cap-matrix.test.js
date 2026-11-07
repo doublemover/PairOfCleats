@@ -10,7 +10,7 @@ const cases = [
     id: 'conservative',
     run: () => runFlowCapScenario(),
     verify: (result) => {
-      assert.equal(result.status, 'ok');
+      assert.equal(result.status, 'partial');
       assert.equal(result.flowRows.length, 1, 'expected a single flow');
       const flow = result.flowRows[0];
       assert.equal(flow.source.chunkUid, 'uid-source');
@@ -32,7 +32,8 @@ const cases = [
     id: 'max-total-flows-zero',
     run: () => runFlowCapScenario({ caps: { maxTotalFlows: 0 } }),
     verify: (result) => {
-      assert.equal(result.status, 'ok');
+      assert.equal(result.status, 'partial');
+      assert.equal(result.stats.reason, 'maxTotalFlows', 'unsearched source roots cannot advertise complete analysis');
       assert.equal(result.flowRows.length, 0, 'maxTotalFlows=0 should emit zero flows');
       assert.ok(
         Array.isArray(result.stats?.capsHit) && result.stats.capsHit.includes('maxTotalFlows'),

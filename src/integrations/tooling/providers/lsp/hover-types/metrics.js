@@ -25,6 +25,9 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     .map(([virtualPath, stats]) => ({
       virtualPath,
       requested: stats.requested,
+      queueEnqueued: stats.queueEnqueued,
+      queueStarted: stats.queueStarted,
+      queueCancelled: stats.queueCancelled,
       succeeded: stats.succeeded,
       sourceBootstrapUsed: stats.sourceBootstrapUsed,
       hoverTimedOut: stats.hoverTimedOut,
@@ -67,6 +70,9 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
 
   return {
     requested: hoverMetrics.requested,
+    queueEnqueued: hoverMetrics.queueEnqueued,
+    queueStarted: hoverMetrics.queueStarted,
+    queueCancelled: hoverMetrics.queueCancelled,
     succeeded: hoverMetrics.succeeded,
     sourceBootstrapUsed: hoverMetrics.sourceBootstrapUsed,
     hoverTimedOut: hoverMetrics.hoverTimedOut,

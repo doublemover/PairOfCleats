@@ -1,0 +1,3 @@
+export function findAnyNamedSymbol(repositorySymbols, name) {
+  return repositorySymbols.find(symbol => symbol.name === name) || null;
+}

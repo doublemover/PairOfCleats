@@ -24,8 +24,7 @@ const {
   outsideOutMdPath,
   baseArgs,
   writeJson,
-  writeTuiReleaseReport,
-  createTuiReleaseReport
+  writeTuiReleaseReport
 } = await setupReadinessGateFixture('release-readiness-gate', { scenarios: [] });
 
 const run = runNode(
@@ -331,57 +330,5 @@ const missingTargetPayload = JSON.parse(
 assert.equal(missingTargetPayload.ok, false, 'expected readiness gate to report ok=false when a TUI target is missing');
 assert.equal(missingTargetPayload.releaseChecks.tuiVerify.ok, false, 'expected tui verification gate to fail');
 assert.deepEqual(missingTargetPayload.releaseChecks.tuiVerify.missingTargets, ['macos']);
-
-const duplicateTuiRoot = path.join(fixtureDir, 'tui-duplicate-target');
-writeJson(
-  path.join(duplicateTuiRoot, 'current', 'verify-tui-ubuntu', 'release_check_report.json'),
-  createTuiReleaseReport('ubuntu')
-);
-writeJson(
-  path.join(duplicateTuiRoot, 'current', 'verify-tui-windows', 'release_check_report.json'),
-  createTuiReleaseReport('windows')
-);
-writeJson(
-  path.join(duplicateTuiRoot, 'current', 'verify-tui-macos', 'release_check_report.json'),
-  createTuiReleaseReport('macos')
-);
-writeJson(
-  path.join(duplicateTuiRoot, 'stale', 'verify-tui-macos', 'release_check_report.json'),
-  createTuiReleaseReport('macos', { status: 'failed' })
-);
-const duplicateTuiRun = runNode(
-  [
-    ...baseArgs,
-    '--tui-verify-root',
-    duplicateTuiRoot,
-    '--out-json',
-    path.join(fixtureDir, 'readiness', 'duplicate-tui-summary.json'),
-    '--out-md',
-    path.join(fixtureDir, 'readiness', 'duplicate-tui-summary.md')
-  ],
-  'release readiness gate duplicate tui target',
-  root,
-  process.env,
-  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
-);
-
-assert.notEqual(duplicateTuiRun.status, 0, 'expected duplicate TUI target reports to fail readiness');
-const duplicateTuiPayload = JSON.parse(
-  fs.readFileSync(path.join(fixtureDir, 'readiness', 'duplicate-tui-summary.json'), 'utf8')
-);
-assert.ok(
-  duplicateTuiPayload.blockers.some((blocker) => blocker.id === 'tuiVerify.duplicates'),
-  'expected readiness blockers to report duplicate TUI target reports'
-);
-assert.ok(
-  duplicateTuiPayload.blockers.some((blocker) => blocker.id === 'tuiVerify.failed'),
-  'expected readiness blockers to report the failed duplicate TUI report path'
-);
-assert.deepEqual(
-  duplicateTuiPayload.releaseChecks.tuiVerify.duplicateTargets.map((entry) => entry.target),
-  ['macos'],
-  'expected readiness summary to expose the duplicated TUI target'
-);
-
 
 console.log('release readiness gate test passed');

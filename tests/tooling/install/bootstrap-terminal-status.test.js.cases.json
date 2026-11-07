@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["terminal-80x24-no-color", "terminal-120x30-no-color", "pipe-json-stdout"]
+}

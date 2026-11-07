@@ -1,3 +1,4 @@
+import { readExactAt } from '../../../shared/io/read-exact.js';
 import fsPromises from 'node:fs/promises';
 import { createTimeoutError } from '../../../shared/promise-timeout.js';
 
@@ -201,7 +202,8 @@ export const createVfsManifestOffsetReader = ({
       if (!buffer) return null;
       stats.readCalls += 1;
       try {
-        const result = await handle.read(buffer, 0, expectedBytes, offset);
+        const result = await readExactAt(handle, buffer, 0, expectedBytes, offset);
+        if (result.bytesRead !== expectedBytes) throw Object.assign(new Error('VFS row is truncated.'), { code: 'ERR_VFS_ROW_TRUNCATED' });
         return parseRowBuffer(buffer, result?.bytesRead || 0);
       } finally {
         checkinBuffer(buffer);
@@ -261,7 +263,8 @@ export const createVfsManifestOffsetReader = ({
           stats.coalescedBytes += readBytes;
         }
         try {
-          const result = await handle.read(buffer, 0, readBytes, groupStart);
+          const result = await readExactAt(handle, buffer, 0, readBytes, groupStart);
+          if (result.bytesRead !== readBytes) throw Object.assign(new Error('VFS row span is truncated.'), { code: 'ERR_VFS_ROW_TRUNCATED' });
           const bytesRead = result?.bytesRead || 0;
           for (const request of group) {
             const relativeStart = request.offset - groupStart;

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["empty-and-inert", "one-session-and-exclusion", "borrowed-invocation-context", "original-failure-and-retirement", "terminal-results-and-cancellation"]
+}

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["invalid-repository", "invalid-request", "missing-index", "missing-capability", "unsupported-format", "empty-success", "results-success"]
+}

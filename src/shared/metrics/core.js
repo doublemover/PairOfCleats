@@ -1,5 +1,7 @@
-import { Counter, Gauge, Histogram, Registry } from 'prom-client';
+import { Counter, Gauge, Histogram, Registry } from '@prometheus-io/client';
 import { getEnvConfig } from '../env.js';
+import { getAtomicPersistenceFallbackCounts, setAtomicPersistenceMetricObserver } from './atomic-persistence.js';
+export { incAtomicPersistenceFallback } from './atomic-persistence.js';
 
 const registry = new Registry();
 let initialized = false;
@@ -21,7 +23,7 @@ const BACKENDS = new Set(['memory', 'sqlite', 'sqlite-fts', 'lmdb', 'unknown']);
 const STATUSES = new Set(['ok', 'error', 'unknown']);
 const ANN = new Set(['on', 'off', 'unknown']);
 const POOLS = new Set(['tokenize', 'quantize', 'watch', 'unknown']);
-const TASKS = new Set(['tokenize', 'quantize', 'unknown']);
+const TASKS = new Set(['tokenize', 'quantize', 'analyze', 'unknown']);
 const WATCH_EVENTS = new Set(['add', 'change', 'unlink', 'error', 'unknown']);
 const DEBOUNCE = new Set(['scheduled', 'fired', 'canceled', 'unknown']);
 const CACHES = new Set(['query', 'embedding', 'output', 'repo', 'index', 'sqlite', 'query-plan', 'unknown']);
@@ -30,7 +32,6 @@ const CACHE_RESULTS = new Set(['hit', 'miss', 'unknown']);
 const SURFACES = new Set(['cli', 'api', 'mcp', 'search', 'index', 'unknown']);
 const FALLBACKS = new Set(['backend', 'vector-candidates', 'unknown']);
 const TIMEOUTS = new Set(['tool', 'search', 'index', 'unknown']);
-const ATOMIC_PERSISTENCE_REASONS = new Set(['exdev', 'unknown']);
 const ANN_BACKENDS = new Set(['sqlite-vector', 'lancedb', 'hnsw', 'js', 'unknown']);
 const PUSHDOWN_STRATEGIES = new Set(['none', 'inline', 'temp-table', 'fallback', 'unknown']);
 const CANDIDATE_SIZE_BUCKETS = new Set(['none', '1-32', '33-256', '257-1024', '1025+', 'unknown']);
@@ -74,7 +75,6 @@ const normalizeCacheResult = (value) => normalizeLabel(value, CACHE_RESULTS);
 const normalizeSurface = (value) => normalizeLabel(value, SURFACES);
 const normalizeFallback = (value) => normalizeLabel(value, FALLBACKS);
 const normalizeTimeout = (value) => normalizeLabel(value, TIMEOUTS);
-const normalizeAtomicPersistenceReason = (value) => normalizeLabel(value, ATOMIC_PERSISTENCE_REASONS);
 const normalizeAnnBackend = (value) => normalizeLabel(value, ANN_BACKENDS);
 const normalizePushdownStrategy = (value) => normalizeLabel(value, PUSHDOWN_STRATEGIES);
 const normalizeCandidateSizeBucket = (value) => normalizeLabel(value, CANDIDATE_SIZE_BUCKETS);
@@ -159,14 +159,14 @@ const ensureMetrics = () => {
     }),
     workerTaskDuration: new Histogram({
       name: 'pairofcleats_worker_task_duration_seconds',
-      help: 'Worker task duration in seconds.',
+      help: 'Process-lifetime worker task duration in seconds, aggregated by pool/task/status; worker=all.',
       labelNames: ['pool', 'task', 'worker', 'status'],
       buckets: [0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10],
       registers: [registry]
     }),
     workerGcPressure: new Gauge({
       name: 'pairofcleats_worker_gc_pressure_ratio',
-      help: 'Estimated GC pressure ratio by worker thread.',
+      help: 'Latest pool/stage pressure observation across workers; worker=all, not a thread-local heap measurement.',
       labelNames: ['pool', 'worker', 'stage'],
       registers: [registry]
     }),
@@ -281,7 +281,20 @@ const ensureMetrics = () => {
     })
   };
   initialized = true;
+  for (const { reason, count } of getAtomicPersistenceFallbackCounts()) if (count > 0) {
+    metrics.atomicPersistenceFallbacks.inc({ reason }, count);
+    metrics.atomicPersistenceDegraded.set({ reason }, 1);
+  }
 };
+
+setAtomicPersistenceMetricObserver(reason => {
+  const existing = initialized; ensureMetrics();
+  // First initialization backfills this same event and all earlier ones.
+  if (existing) {
+    metrics.atomicPersistenceFallbacks.inc({ reason });
+    metrics.atomicPersistenceDegraded.set({ reason }, 1);
+  }
+});
 
 const normalizeSeconds = (value) => {
   const parsed = Number(value);
@@ -346,28 +359,31 @@ export function setWorkerActiveTasks({ pool, value }) {
 }
 
 /**
- * Observe worker task duration metrics.
+ * Observe lifetime task totals. Raw identities belong to bounded active-worker
+ * diagnostics, not process-lifetime Prometheus labels. Keep the worker label
+ * with the explicit aggregate value for existing metric-name/label shape users.
  * @param {{ pool: string, task: string, worker: string|number, status: string, seconds: number }} input
  */
-export function observeWorkerTaskDuration({ pool, task, worker, status, seconds }) {
+export function observeWorkerTaskDuration({ pool, task, status, seconds }) {
   ensureMetrics();
   metrics.workerTaskDuration.observe({
     pool: normalizePool(pool),
     task: normalizeTask(task),
-    worker: worker ? String(worker) : 'unknown',
+    worker: 'all',
     status: normalizeStatus(status)
   }, normalizeSeconds(seconds));
 }
 
 /**
- * Set worker GC pressure ratio.
+ * Set the latest pool/stage pressure observation, independent of worker churn.
+ * Individual active identities remain in the coordinator's bounded snapshot.
  * @param {{ pool: string, worker: string|number, stage: string, value: number }} input
  */
-export function setWorkerGcPressure({ pool, worker, stage, value }) {
+export function setWorkerGcPressure({ pool, stage, value }) {
   ensureMetrics();
   metrics.workerGcPressure.set({
     pool: normalizePool(pool),
-    worker: worker ? String(worker) : 'unknown',
+    worker: 'all',
     stage: normalizeStage(stage)
   }, normalizeRatio(value));
 }
@@ -492,17 +508,6 @@ export function incTimeout({ surface, operation }) {
     surface: normalizeSurface(surface),
     operation: normalizeTimeout(operation)
   });
-}
-
-/**
- * Increment atomic persistence degraded fallback counter.
- * @param {{ reason: string }} input
- */
-export function incAtomicPersistenceFallback({ reason }) {
-  ensureMetrics();
-  const normalizedReason = normalizeAtomicPersistenceReason(reason);
-  metrics.atomicPersistenceFallbacks.inc({ reason: normalizedReason });
-  metrics.atomicPersistenceDegraded.set({ reason: normalizedReason }, 1);
 }
 
 /**

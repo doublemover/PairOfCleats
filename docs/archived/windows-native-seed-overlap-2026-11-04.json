@@ -1,0 +1,1670 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "baseline": "011d1a62a3ffe9a0511e4b30656487ce6243518d",
+  "originalHostedFailures": {
+    "source": "f0ae858ade5233a04d8e3f582a541b44c4d4010b",
+    "runId": 41958269247,
+    "jobId": 127018945049,
+    "artifact": {
+      "id": 13385211669,
+      "name": "native-inspection-windows-latest",
+      "bytes": 1111957,
+      "sha256": "d71a4983d3b48fece8f2494861ef87391873c55d634f8bde441305b9bf3873cc"
+    },
+    "boundedEvidence": [
+      {
+        "path": ".testLogs/run-1793848066292-hi3kd3/tui_native-index-workflows_search-published.attempt-1.failure.json",
+        "bytes": 2324,
+        "sha256": "4747a3ed86ee9075e70de0e40090bdc05782a58450a0764881113a24d26352af",
+        "value": {
+          "schemaVersion": 1,
+          "testId": "tui/native-index-workflows/search-published",
+          "attempt": 1,
+          "recordedBy": "test-runner-parent",
+          "invocation": {
+            "executable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+            "resolvedExecutable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+            "arguments": [
+              "D:\\a\\PairOfCleats\\PairOfCleats\\tests\\tui\\native-index-workflows.test.js"
+            ],
+            "argumentsRedacted": false,
+            "cwd": "D:\\a\\PairOfCleats\\PairOfCleats",
+            "runtime": {
+              "node": "v26.13.0",
+              "v8": "14.6.202.34-node.40",
+              "modules": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "basis": "same executable as parent"
+            }
+          },
+          "process": {
+            "parentPid": 6124,
+            "childPid": 6868,
+            "startedAt": "2026-11-05T03:09:55.458Z",
+            "endedAt": "2026-11-05T03:10:22.266Z"
+          },
+          "outcome": {
+            "status": "failed",
+            "rawExitStatus": 1,
+            "unsignedDecimal": 1,
+            "signedDecimal": 1,
+            "hex": "0x00000001",
+            "interpretation": null,
+            "signal": null,
+            "spawnError": null,
+            "timedOut": false,
+            "termination": null,
+            "interruption": null,
+            "statusSource": "test-process-close-event",
+            "propagation": "Parent recorded the directly spawned test process status; descendant status propagation is not inferred."
+          },
+          "phase": {
+            "crashPhase": "unknown",
+            "lastObservedMarker": {
+              "stream": "stderr",
+              "line": "[cleanup] runtime.logger.close done (0ms)",
+              "observedAt": "2026-11-05T03:10:22.236Z"
+            },
+            "basis": "Last captured child log marker; not a native stack or proof of crash location."
+          },
+          "output": {
+            "logPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793848066292-hi3kd3\\tui_native-index-workflows_search-published.attempt-1.log",
+            "captured": true,
+            "stdout": {
+              "observedStringUnits": 410,
+              "retainedStringUnits": 410,
+              "truncated": false,
+              "configuredLimit": 5242880,
+              "limitUnit": "javascript-string-units"
+            },
+            "stderr": {
+              "observedStringUnits": 15024,
+              "retainedStringUnits": 15024,
+              "truncated": false,
+              "configuredLimit": 5242880,
+              "limitUnit": "javascript-string-units"
+            },
+            "streamOrdering": "stdout and stderr are captured separately; no total ordering guaranteed"
+          }
+        }
+      },
+      {
+        "path": ".testLogs/run-1793848066292-hi3kd3/tui_native-index-workflows_snapshot-create.attempt-1.failure.json",
+        "bytes": 2438,
+        "sha256": "c17a204465f66cd579c11d5764cba5267793f65d664fcad5762e901c96a2fb91",
+        "value": {
+          "schemaVersion": 1,
+          "testId": "tui/native-index-workflows/snapshot-create",
+          "attempt": 1,
+          "recordedBy": "test-runner-parent",
+          "invocation": {
+            "executable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+            "resolvedExecutable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+            "arguments": [
+              "D:\\a\\PairOfCleats\\PairOfCleats\\tests\\tui\\native-index-workflows.test.js"
+            ],
+            "argumentsRedacted": false,
+            "cwd": "D:\\a\\PairOfCleats\\PairOfCleats",
+            "runtime": {
+              "node": "v26.13.0",
+              "v8": "14.6.202.34-node.40",
+              "modules": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "basis": "same executable as parent"
+            }
+          },
+          "process": {
+            "parentPid": 6124,
+            "childPid": 1980,
+            "startedAt": "2026-11-05T03:10:31.047Z",
+            "endedAt": "2026-11-05T03:11:01.223Z"
+          },
+          "outcome": {
+            "status": "failed",
+            "rawExitStatus": 1,
+            "unsignedDecimal": 1,
+            "signedDecimal": 1,
+            "hex": "0x00000001",
+            "interpretation": null,
+            "signal": null,
+            "spawnError": null,
+            "timedOut": true,
+            "termination": {
+              "terminated": true,
+              "forced": true,
+              "fallbackAttempted": false,
+              "fallbackTerminated": 0
+            },
+            "interruption": null,
+            "statusSource": "test-process-close-event",
+            "propagation": "Parent recorded the directly spawned test process status; descendant status propagation is not inferred."
+          },
+          "phase": {
+            "crashPhase": "unknown",
+            "lastObservedMarker": {
+              "stream": "stderr",
+              "line": "[cleanup] runtime.logger.close done (0ms)",
+              "observedAt": "2026-11-05T03:10:49.981Z"
+            },
+            "basis": "Last captured child log marker; not a native stack or proof of crash location."
+          },
+          "output": {
+            "logPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793848066292-hi3kd3\\tui_native-index-workflows_snapshot-create.attempt-1.log",
+            "captured": true,
+            "stdout": {
+              "observedStringUnits": 1003,
+              "retainedStringUnits": 1003,
+              "truncated": false,
+              "configuredLimit": 5242880,
+              "limitUnit": "javascript-string-units"
+            },
+            "stderr": {
+              "observedStringUnits": 14600,
+              "retainedStringUnits": 14600,
+              "truncated": false,
+              "configuredLimit": 5242880,
+              "limitUnit": "javascript-string-units"
+            },
+            "streamOrdering": "stdout and stderr are captured separately; no total ordering guaranteed"
+          }
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-DYOZBI/fixture-phases.jsonl",
+        "bytes": 391,
+        "sha256": "e01c5fc8995de3b21efb33d81d32447aaa8408148cedc66d37ad5d5d80191aa6",
+        "text": "{\"mode\":\"snapshot-create\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":174}\n{\"mode\":\"snapshot-create\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":18599}\n{\"mode\":\"snapshot-create\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":18599}\n{\"mode\":\"snapshot-create\",\"phase\":\"native-ui:ready\",\"elapsedMs\":19460}\n{\"mode\":\"snapshot-create\",\"phase\":\"terminal-capture:closed\",\"elapsedMs\":28902}\n"
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-DYOZBI/fixture-settlement.json",
+        "bytes": 135,
+        "sha256": "76b5b751e8f7dda68df41dd1903a1f98d920efd777a5ffcc2d9f2136cfdc343d",
+        "value": {
+          "mode": "snapshot-create",
+          "at": "2026-11-05T03:11:00.287Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-DYOZBI/native-source-identity.json",
+        "bytes": 261,
+        "sha256": "3017eb399dc6c7e70cfabd02501ab33ccb23518cb9bc599db8705c227e4f7288",
+        "value": {
+          "binary": "D:\\a\\PairOfCleats\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3446db6899abfb8954b914d1c163a0845855a4fa6b300865d09fdfc0535f6af9",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-DYOZBI/seed-complete-build.json",
+        "bytes": 4545,
+        "sha256": "394478fb80f16a192a30ea8c5d56ee0b4cd8fec219e97915f8d15387d738fb4e",
+        "value": {
+          "owner": "buildIndex",
+          "options": {
+            "modes": [
+              "code"
+            ],
+            "threads": 1,
+            "stubEmbeddings": true,
+            "progress": "off"
+          },
+          "durationMs": 16579,
+          "outcome": {
+            "schemaVersion": 1,
+            "repo": "d:\\a\\pairofcleats\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-dyozbi\\selected repository",
+            "status": "index-published",
+            "capabilities": [
+              {
+                "capability": "semantic-enrichment",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null
+              },
+              {
+                "capability": "embeddings",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null
+              },
+              {
+                "capability": "sqlite",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null
+              }
+            ],
+            "requestedStages": [
+              "stage2",
+              "stage3",
+              "stage4"
+            ],
+            "stages": [
+              {
+                "stage": "stage2",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null,
+                "queueId": null,
+                "validation": {
+                  "status": "passed",
+                  "ok": true,
+                  "issueCount": 0,
+                  "warningCount": 4,
+                  "issues": null
+                },
+                "publication": {
+                  "status": "retained",
+                  "buildId": "20261105T031033Z_e6e54065_noscm_263b974e",
+                  "modes": [
+                    "code"
+                  ]
+                },
+                "diagnosticEvidence": null,
+                "admission": {
+                  "status": "not-reported",
+                  "requestedModeCount": null,
+                  "admittedModeCount": null,
+                  "rejectedModes": [],
+                  "jobs": []
+                },
+                "perMode": null
+              },
+              {
+                "stage": "stage3",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null,
+                "queueId": null,
+                "validation": {
+                  "status": "unknown"
+                },
+                "publication": {
+                  "status": "unknown"
+                },
+                "diagnosticEvidence": null,
+                "admission": {
+                  "status": "not-reported",
+                  "requestedModeCount": null,
+                  "admittedModeCount": null,
+                  "rejectedModes": [],
+                  "jobs": []
+                },
+                "perMode": [
+                  {
+                    "mode": "code",
+                    "embeddings": {
+                      "queued": false,
+                      "inline": true
+                    }
+                  }
+                ]
+              },
+              {
+                "stage": "stage4",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null,
+                "queueId": null,
+                "validation": {
+                  "status": "passed"
+                },
+                "publication": {
+                  "status": "published",
+                  "modeBuildRoots": {
+                    "code": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e"
+                  }
+                },
+                "diagnosticEvidence": null,
+                "admission": {
+                  "status": "not-reported",
+                  "requestedModeCount": null,
+                  "admittedModeCount": null,
+                  "rejectedModes": [],
+                  "jobs": []
+                },
+                "perMode": null
+              }
+            ],
+            "generations": [
+              {
+                "stage": "stage2",
+                "buildId": "20261105T031033Z_e6e54065_noscm_263b974e",
+                "buildRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e",
+                "attemptId": "e9612e82-18c6-42b4-a568-d870738acd68",
+                "modes": [
+                  "code"
+                ],
+                "receiptPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e/build_state.json"
+              },
+              {
+                "stage": "stage4",
+                "buildId": "20261105T031033Z_e6e54065_noscm_263b974e",
+                "buildRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e",
+                "attemptId": "c948f008-d512-45dc-834b-96487be101c3",
+                "modes": [
+                  "code"
+                ],
+                "receiptPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e/build_state.json"
+              }
+            ],
+            "counts": null,
+            "error": null
+          }
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-DYOZBI/terminal-receipt.json",
+        "bytes": 145,
+        "sha256": "a251e83a69b58b1a649ff9367a530f9b9baf7cc3b22d65c50a180265554ccc32",
+        "value": {
+          "beforeOutput": 7,
+          "exitCode": 0,
+          "afterInput": 503,
+          "terminalRestored": true,
+          "mode": "snapshot-create",
+          "stderr": "",
+          "beforeInput": 503,
+          "afterOutput": 7
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-HhQQKg/fixture-phases.jsonl",
+        "bytes": 314,
+        "sha256": "cd673a7ebc8f9fd626db325c3e9a105c3e29dd34ed32f40014ebdcede2f3ed16",
+        "text": "{\"mode\":\"search-published\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":172}\n{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":217}\n{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":18791}\n{\"mode\":\"search-published\",\"phase\":\"native-ui:ready\",\"elapsedMs\":19248}\n"
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-HhQQKg/native-source-identity.json",
+        "bytes": 261,
+        "sha256": "3017eb399dc6c7e70cfabd02501ab33ccb23518cb9bc599db8705c227e4f7288",
+        "value": {
+          "binary": "D:\\a\\PairOfCleats\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3446db6899abfb8954b914d1c163a0845855a4fa6b300865d09fdfc0535f6af9",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-HhQQKg/seed-complete-build.json",
+        "bytes": 4545,
+        "sha256": "185a7c8eda7a5695a2ab6120d9c3b95482140332d4ce9b8ad365bb5c7726a981",
+        "value": {
+          "owner": "buildIndex",
+          "options": {
+            "modes": [
+              "code"
+            ],
+            "threads": 1,
+            "stubEmbeddings": true,
+            "progress": "off"
+          },
+          "durationMs": 16505,
+          "outcome": {
+            "schemaVersion": 1,
+            "repo": "d:\\a\\pairofcleats\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-hhqqkg\\selected repository",
+            "status": "index-published",
+            "capabilities": [
+              {
+                "capability": "semantic-enrichment",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null
+              },
+              {
+                "capability": "embeddings",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null
+              },
+              {
+                "capability": "sqlite",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null
+              }
+            ],
+            "requestedStages": [
+              "stage2",
+              "stage3",
+              "stage4"
+            ],
+            "stages": [
+              {
+                "stage": "stage2",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null,
+                "queueId": null,
+                "validation": {
+                  "status": "passed",
+                  "ok": true,
+                  "issueCount": 0,
+                  "warningCount": 4,
+                  "issues": null
+                },
+                "publication": {
+                  "status": "retained",
+                  "buildId": "20261105T030958Z_ebfeb76d_noscm_263b974e",
+                  "modes": [
+                    "code"
+                  ]
+                },
+                "diagnosticEvidence": null,
+                "admission": {
+                  "status": "not-reported",
+                  "requestedModeCount": null,
+                  "admittedModeCount": null,
+                  "rejectedModes": [],
+                  "jobs": []
+                },
+                "perMode": null
+              },
+              {
+                "stage": "stage3",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null,
+                "queueId": null,
+                "validation": {
+                  "status": "unknown"
+                },
+                "publication": {
+                  "status": "unknown"
+                },
+                "diagnosticEvidence": null,
+                "admission": {
+                  "status": "not-reported",
+                  "requestedModeCount": null,
+                  "admittedModeCount": null,
+                  "rejectedModes": [],
+                  "jobs": []
+                },
+                "perMode": [
+                  {
+                    "mode": "code",
+                    "embeddings": {
+                      "queued": false,
+                      "inline": true
+                    }
+                  }
+                ]
+              },
+              {
+                "stage": "stage4",
+                "status": "completed",
+                "modes": [
+                  "code"
+                ],
+                "reason": null,
+                "queueId": null,
+                "validation": {
+                  "status": "passed"
+                },
+                "publication": {
+                  "status": "published",
+                  "modeBuildRoots": {
+                    "code": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e"
+                  }
+                },
+                "diagnosticEvidence": null,
+                "admission": {
+                  "status": "not-reported",
+                  "requestedModeCount": null,
+                  "admittedModeCount": null,
+                  "rejectedModes": [],
+                  "jobs": []
+                },
+                "perMode": null
+              }
+            ],
+            "generations": [
+              {
+                "stage": "stage2",
+                "buildId": "20261105T030958Z_ebfeb76d_noscm_263b974e",
+                "buildRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e",
+                "attemptId": "d8264eb1-72a3-471b-8fa8-bf4094550f38",
+                "modes": [
+                  "code"
+                ],
+                "receiptPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e/build_state.json"
+              },
+              {
+                "stage": "stage4",
+                "buildId": "20261105T030958Z_ebfeb76d_noscm_263b974e",
+                "buildRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e",
+                "attemptId": "db95b8ae-695b-41c7-b631-fc652cf293d3",
+                "modes": [
+                  "code"
+                ],
+                "receiptPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e/build_state.json"
+              }
+            ],
+            "counts": null,
+            "error": null
+          }
+        }
+      },
+      {
+        "path": ".tmp/dev/tests/cache/ni-HhQQKg/terminal-receipt.json",
+        "bytes": 146,
+        "sha256": "96184f1a562d07a39efbb68671472463e38c770ddb842472fb44e815750e4a2e",
+        "value": {
+          "stderr": "",
+          "terminalRestored": true,
+          "afterOutput": 7,
+          "beforeInput": 503,
+          "afterInput": 503,
+          "exitCode": 0,
+          "mode": "search-published",
+          "beforeOutput": 7
+        }
+      }
+    ],
+    "failureLogs": [
+      {
+        "path": ".testLogs/run-1793848066292-hi3kd3/tui_native-index-workflows_search-published.attempt-1.log",
+        "evidence": {
+          "schemaVersion": 1,
+          "encoding": "sha256-shared-json-tables-v1",
+          "data": "id: tui/native-index-workflows/search-published\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":172}}\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":217}}\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":18791}}\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"native-ui:ready\",\"elapsedMs\":19248}}\n\n--- stderr ---\n\n[init] load config (2ms)\n\n[init] auto policy (provided)\n\n[init] learned auto profile (0ms)\n\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\n\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\n\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n\n[init] startup calibration (1ms)\n\n[init] startup calibration: io=1ms (bytes=8192).\n\n[init] runtime envelope (1ms)\n\n[scm] provider=none; SCM provenance unavailable.\n\n[init] repo provenance (0ms)\n\n[runtime] attempt d8264eb1-72a3-471b-8fa8-bf4094550f38; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e\\build_state.json (durable).\n\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e\n\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\n\n[scm] annotate disabled: provider=none.\n\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n\n[init] tree-sitter config (1ms)\n\nJS file caps default to tree-sitter maxBytes (786432).\n\n[init] embedding runtime (3ms)\n\n[init] ignore rules (3ms)\n\n[init] dictionaries (26ms)\n\n[init] dictionaries (26ms)\n\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\n\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\n\nTwo-stage indexing: stage2 (enrichment) running.\n\nIndex profile: default.\n\nEmbeddings: deferred to stage3 (stage2).\n\nQueue concurrency: io=16, cpu=1.\n\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\n\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\n\nRisk analysis disabled via indexing.riskAnalysis.\n\nWorker pool enabled (auto, maxThreads=4).\n\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\n\nWorker pool auto threshold: maxFileBytes=2097152.\n\n[init] worker pools (14ms)\n\nBuild environment snapshot.\n\n[init] runtime ready (153ms)\nOverall 0/8 (0.0%)\n\n[init] code index dir: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e\\index-code\n\n\n📄  Scanning code ...\nStage 1/6 (16.7%)\n[           Code | Stage 1]\n\n→ Reusing shared discovery results.\n\n→ Found 1 files.\nOverall 1/8 (12.5%)\nStage 2/6 (33.3%)\n\nScanning for imports...\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\n\n→ Imports: modules=0, edges=0, files=0\n\nAuto-selected context window: 3 lines\nOverall 2/8 (25.0%)\nStage 3/6 (50.0%)\n\nProcessing and indexing files...\n\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.proc=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n\n[tree-sitter:schedule] planning global batches...\n\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\n\n→ Imports: resolved=0, external=0, unresolved=0\n\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n\n[imports] resolver pipeline: none\n\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nOverall 3/8 (37.5%)\nStage 4/6 (66.7%)\n\nEmbeddings disabled (stage2); skipping dense vector build.\n\n   → Indexed 1 chunks, total tokens: 11\nOverall 4/8 (50.0%)\nStage 5/6 (83.3%)\nOverall 5/8 (62.5%)\nStage 6/6 (100.0%)\n\n[chunk_meta] writing JSON\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 3 -> 4 (backlog, pending=26, mem=0.77, gc=0.00, rss=0.02, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | file_meta.json\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\n\n📦  code : 1 chunks, 11 tokens, dims=0\n\n→ Wrote .filelists.json (samples only).\n\n→ Wrote pieces manifest (57 entries).\nOverall 6/8 (75.0%)\nEmbeddings 0/1 (0.0%)\n[runtime] attempt c2abbede-69fd-4b35-a1d0-99dab5ea88e4; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e\\build_state.json (durable).\nEmbeddings 0/1 (0.0%)\nEmbeddings 0/1 (0.0%)\n[embeddings] code: stub fast-path active; persistent/global chunk cache disabled.\nFiles 0/1 (0.0%)\nChunks 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\n[embeddings] code: stub fast-path active; global micro-batching/in-flight coalescing disabled.\n[embeddings] code: incremental bundle refresh parallelism enabled (16 workers).\n[embeddings] code: perf_progress files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=21 elapsed_ms=30 files_per_sec=33.333 chunks_per_sec=33.333 embed_resolved_per_sec=33.333 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=1 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\n[embeddings] code: perf_summary files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=21 elapsed_ms=32 files_per_sec=31.250 chunks_per_sec=31.250 embed_resolved_per_sec=31.250 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=0 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nCache 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\nBackends 1/5 (20.0%)\n[embeddings] code/merged: wrote HNSW index (1 vectors).\n[embeddings] code/code: wrote HNSW index (1 vectors).\n[2026-11-05T03:10:09Z WARN  lance::dataset::write::insert] No existing dataset at D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\.ann-jqOBXa\\.lb-I9sgtI\\vectors.lance, it will be created\n[embeddings] code/merged: wrote LanceDB table (1 vectors).\n[2026-11-05T03:10:09Z WARN  lance::dataset::write::insert] No existing dataset at D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\.ann-jqOBXa\\.lb-C0CzcL\\vectors.lance, it will be created\n[embeddings] code/code: wrote LanceDB table (1 vectors).\nBackends 2/5 (40.0%)\nBackends 3/5 (60.0%)\nBackends 4/5 (80.0%)\n[embeddings] code: wrote 1 vectors (dims=384).\n[embeddings] code: in-flight coalescing (joins=0, claims=0, bypassed=0, peak=0).\nBackends 4/5 (80.0%)\nBackends 4/5 (80.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nOverall 7/8 (87.5%)\nEmbeddings 1/1 (100.0%)\n\n[cleanup] runtime.resources.stop-admission start\n\n[cleanup] runtime.resources.stop-admission done (1ms)\n\n[cleanup] runtime.scheduler.shutdown start\n\n[cleanup] runtime.scheduler.shutdown done (0ms)\n\n[cleanup] runtime.worker-pools.destroy start\n\n[cleanup] runtime.worker-pools.destroy done (16ms)\n\n[cleanup] runtime.stage1-subprocesses.terminate start\n\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.embeddings.close start\n\n[cleanup] runtime.embeddings.close done (1ms)\n\n[cleanup] runtime.preflight-subprocesses.terminate start\n\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.resources.release start\n\n[cleanup] runtime.resources.release done (0ms)\n\n[cleanup] runtime.cache-writers.drain start\n\n[cleanup] runtime.cache-writers.drain done (0ms)\n\n[cleanup] runtime.semantic-replay.clear start\n\n[cleanup] runtime.semantic-replay.clear done (0ms)\n\n[cleanup] runtime.logger.close start\n\n[cleanup] runtime.logger.close done (1ms)\n\n[init] load config (1ms)\n\n[init] auto policy (provided)\n\n[init] learned auto profile (0ms)\n\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\n\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\n\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n\n[init] startup calibration (1ms)\n\n[init] startup calibration: io=1ms (bytes=8192).\n\n[init] runtime envelope (1ms)\n\n[scm] provider=none; SCM provenance unavailable.\n\n[init] repo provenance (0ms)\n\n[runtime] attempt db95b8ae-695b-41c7-b631-fc652cf293d3; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e\\build_state.json (durable).\n\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\\builds\\20261105T030958Z_ebfeb76d_noscm_263b974e (override)\n\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-HhQQKg\\cache\\repos\\selected-repository-a1951afc06a0\n\n[scm] annotate disabled: provider=none.\n\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n\n[init] tree-sitter config (0ms)\n\nJS file caps default to tree-sitter maxBytes (786432).\n\n[init] embedding runtime (2ms)\n\n[init] ignore rules (3ms)\n\n[init] dictionaries (20ms)\n\n[init] dictionaries (20ms)\n\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\n\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\n\nIndexing stage4 (sqlite/ann pass) running.\n\nIndex profile: default.\n\nEmbeddings: disabled.\n\nQueue concurrency: io=16, cpu=1.\n\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\n\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\n\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\n\nLint metadata disabled via indexing.lint.\n\nComplexity metadata disabled via indexing.complexity.\n\nRisk analysis disabled via indexing.riskAnalysis.\n\nWorker pool enabled (auto, maxThreads=4).\n\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\n\nWorker pool auto threshold: maxFileBytes=2097152.\n\n[init] worker pools (2ms)\n\nBuild environment snapshot.\n\n[init] runtime ready (88ms)\n[sqlite] Vector extension unavailable for code: missing extension (C:\\Users\\runneradmin\\AppData\\Local\\PairOfCleats\\extensions\\sqlite-vec\\win32-x64\\vec0.dll)\n\n[build] updated current.json\nOverall 8/8 (100.0%)\n\n[cleanup] runtime.resources.stop-admission start\n\n[cleanup] runtime.resources.stop-admission done (0ms)\n\n[cleanup] runtime.scheduler.shutdown start\n\n[cleanup] runtime.scheduler.shutdown done (0ms)\n\n[cleanup] runtime.worker-pools.destroy start\n\n[cleanup] runtime.worker-pools.destroy done (21ms)\n\n[cleanup] runtime.stage1-subprocesses.terminate start\n\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.embeddings.close start\n\n[cleanup] runtime.embeddings.close done (0ms)\n\n[cleanup] runtime.preflight-subprocesses.terminate start\n\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.resources.release start\n\n[cleanup] runtime.resources.release done (0ms)\n\n[cleanup] runtime.cache-writers.drain start\n\n[cleanup] runtime.cache-writers.drain done (0ms)\n\n[cleanup] runtime.semantic-replay.clear start\n\n[cleanup] runtime.semantic-replay.clear done (0ms)\n\n[cleanup] runtime.logger.close start\n\n[cleanup] runtime.logger.close done (0ms)\nOverall 8/8 (100.0%)\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r\n\r\ntrue !== false\r\n\r\n    at file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:390:10 {\r\n  generatedMessage: true,\r\n  code: 'ERR_ASSERTION',\r\n  actual: true,\r\n  expected: false,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+          "sharedValues": {},
+          "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+        }
+      },
+      {
+        "path": ".testLogs/run-1793848066292-hi3kd3/tui_native-index-workflows_snapshot-create.attempt-1.log",
+        "evidence": {
+          "schemaVersion": 1,
+          "encoding": "sha256-shared-json-tables-v1",
+          "data": "id: tui/native-index-workflows/snapshot-create\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: true\ntimeoutClass: timed_out_with_failure\nskipReason: \ntermination: {\"terminated\":true,\"forced\":true,\"fallbackAttempted\":false,\"fallbackTerminated\":0}\n\n--- stdout ---\n{\"nativeWorkflowPhase\":{\"mode\":\"snapshot-create\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":174}}\n{\"nativeWorkflowPhase\":{\"mode\":\"snapshot-create\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":18599}}\n{\"nativeWorkflowPhase\":{\"mode\":\"snapshot-create\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":18599}}\n{\"nativeWorkflowPhase\":{\"mode\":\"snapshot-create\",\"phase\":\"native-ui:ready\",\"elapsedMs\":19460}}\n{\"nativeWorkflowPhase\":{\"mode\":\"snapshot-create\",\"phase\":\"terminal-capture:closed\",\"elapsedMs\":28902}}\n{\"mode\":\"snapshot-create\",\"binarySha256\":\"3446db6899abfb8954b914d1c163a0845855a4fa6b300865d09fdfc0535f6af9\",\"node\":\"v26.13.0\",\"platform\":\"win32\",\"owned\":[6600,1832,8152,6444],\"receipt\":{\"beforeOutput\":7,\"exitCode\":0,\"afterInput\":503,\"terminalRestored\":true,\"mode\":\"snapshot-create\",\"stderr\":\"\",\"beforeInput\":503,\"afterOutput\":7},\"capture\":\"D:\\\\a\\\\PairOfCleats\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-DYOZBI\\\\capture\\\\2026-11-05T03-10-49-982Z-native-index-snapshot-create-all-220x48-1980\"}\n\n--- stderr ---\n\n[init] load config (1ms)\n\n[init] auto policy (provided)\n\n[init] learned auto profile (0ms)\n\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\n\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\n\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n\n[init] startup calibration (1ms)\n\n[init] startup calibration: io=1ms (bytes=8192).\n\n[init] runtime envelope (0ms)\n\n[scm] provider=none; SCM provenance unavailable.\n\n[init] repo provenance (0ms)\n\n[runtime] attempt e9612e82-18c6-42b4-a568-d870738acd68; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e\\build_state.json (durable).\n\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e\n\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\n\n[scm] annotate disabled: provider=none.\n\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n\n[init] tree-sitter config (1ms)\n\nJS file caps default to tree-sitter maxBytes (786432).\n\n[init] embedding runtime (3ms)\n\n[init] ignore rules (3ms)\n\n[init] dictionaries (27ms)\n\n[init] dictionaries (28ms)\n\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\n\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\n\nTwo-stage indexing: stage2 (enrichment) running.\n\nIndex profile: default.\n\nEmbeddings: deferred to stage3 (stage2).\n\nQueue concurrency: io=16, cpu=1.\n\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\n\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\n\nRisk analysis disabled via indexing.riskAnalysis.\n\nWorker pool enabled (auto, maxThreads=4).\n\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\n\nWorker pool auto threshold: maxFileBytes=2097152.\n\n[init] worker pools (9ms)\n\nBuild environment snapshot.\n\n[init] runtime ready (149ms)\nOverall 0/8 (0.0%)\n\n[init] code index dir: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e\\index-code\n\n\n📄  Scanning code ...\nStage 1/6 (16.7%)\n[           Code | Stage 1]\n\n→ Reusing shared discovery results.\n\n→ Found 1 files.\nOverall 1/8 (12.5%)\nStage 2/6 (33.3%)\n\nScanning for imports...\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\n\n→ Imports: modules=0, edges=0, files=0\n\nAuto-selected context window: 3 lines\nOverall 2/8 (25.0%)\nStage 3/6 (50.0%)\n\nProcessing and indexing files...\n\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.proc=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n\n[tree-sitter:schedule] planning global batches...\n\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\n\n→ Imports: resolved=0, external=0, unresolved=0\n\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n\n[imports] resolver pipeline: none\n\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nOverall 3/8 (37.5%)\nStage 4/6 (66.7%)\n\nEmbeddings disabled (stage2); skipping dense vector build.\n\n   → Indexed 1 chunks, total tokens: 11\nOverall 4/8 (50.0%)\nStage 5/6 (83.3%)\nOverall 5/8 (62.5%)\nStage 6/6 (100.0%)\n\n[chunk_meta] writing JSON\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 3 -> 4 (backlog, pending=26, mem=0.45, gc=0.40, rss=0.02, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | file_meta.json\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\n\n📦  code : 1 chunks, 11 tokens, dims=0\n\n→ Wrote .filelists.json (samples only).\n\n→ Wrote pieces manifest (57 entries).\nOverall 6/8 (75.0%)\nEmbeddings 0/1 (0.0%)\n[runtime] attempt 671c392a-63c5-4381-ae42-c9aa5d818a1d; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e\\build_state.json (durable).\nEmbeddings 0/1 (0.0%)\nEmbeddings 0/1 (0.0%)\n[embeddings] code: stub fast-path active; persistent/global chunk cache disabled.\nFiles 0/1 (0.0%)\nChunks 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\n[embeddings] code: stub fast-path active; global micro-batching/in-flight coalescing disabled.\n[embeddings] code: incremental bundle refresh parallelism enabled (16 workers).\n[embeddings] code: perf_progress files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=22 elapsed_ms=30 files_per_sec=33.333 chunks_per_sec=33.333 embed_resolved_per_sec=33.333 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=1 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\n[embeddings] code: perf_summary files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=22 elapsed_ms=32 files_per_sec=31.250 chunks_per_sec=31.250 embed_resolved_per_sec=31.250 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=0 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nCache 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\nBackends 1/5 (20.0%)\n[embeddings] code/merged: wrote HNSW index (1 vectors).\n[embeddings] code/code: wrote HNSW index (1 vectors).\n[2026-11-05T03:10:44Z WARN  lance::dataset::write::insert] No existing dataset at D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\.ann-WDth5u\\.lb-fwe8O1\\vectors.lance, it will be created\n[embeddings] code/merged: wrote LanceDB table (1 vectors).\n[2026-11-05T03:10:44Z WARN  lance::dataset::write::insert] No existing dataset at D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\.ann-WDth5u\\.lb-RzUuNY\\vectors.lance, it will be created\n[embeddings] code/code: wrote LanceDB table (1 vectors).\nBackends 2/5 (40.0%)\nBackends 3/5 (60.0%)\nBackends 4/5 (80.0%)\n[embeddings] code: wrote 1 vectors (dims=384).\n[embeddings] code: in-flight coalescing (joins=0, claims=0, bypassed=0, peak=0).\nBackends 4/5 (80.0%)\nBackends 4/5 (80.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nOverall 7/8 (87.5%)\nEmbeddings 1/1 (100.0%)\n\n[cleanup] runtime.resources.stop-admission start\n\n[cleanup] runtime.resources.stop-admission done (0ms)\n\n[cleanup] runtime.scheduler.shutdown start\n\n[cleanup] runtime.scheduler.shutdown done (0ms)\n\n[cleanup] runtime.worker-pools.destroy start\n\n[cleanup] runtime.worker-pools.destroy done (14ms)\n\n[cleanup] runtime.stage1-subprocesses.terminate start\n\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.embeddings.close start\n\n[cleanup] runtime.embeddings.close done (0ms)\n\n[cleanup] runtime.preflight-subprocesses.terminate start\n\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.resources.release start\n\n[cleanup] runtime.resources.release done (0ms)\n\n[cleanup] runtime.cache-writers.drain start\n\n[cleanup] runtime.cache-writers.drain done (1ms)\n\n[cleanup] runtime.semantic-replay.clear start\n\n[cleanup] runtime.semantic-replay.clear done (0ms)\n\n[cleanup] runtime.logger.close start\n\n[cleanup] runtime.logger.close done (0ms)\n\n[init] load config (1ms)\n\n[init] auto policy (provided)\n\n[init] learned auto profile (0ms)\n\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\n\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\n\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n\n[init] startup calibration (1ms)\n\n[init] startup calibration: io=1ms (bytes=8192).\n\n[init] runtime envelope (1ms)\n\n[scm] provider=none; SCM provenance unavailable.\n\n[init] repo provenance (0ms)\n\n[runtime] attempt c948f008-d512-45dc-834b-96487be101c3; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e\\build_state.json (durable).\n\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\\builds\\20261105T031033Z_e6e54065_noscm_263b974e (override)\n\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-DYOZBI\\cache\\repos\\selected-repository-32f65de4ed35\n\n[scm] annotate disabled: provider=none.\n\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n\n[init] tree-sitter config (0ms)\n\nJS file caps default to tree-sitter maxBytes (786432).\n\n[init] embedding runtime (1ms)\n\n[init] ignore rules (2ms)\n\n[init] dictionaries (20ms)\n\n[init] dictionaries (21ms)\n\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\n\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\n\nIndexing stage4 (sqlite/ann pass) running.\n\nIndex profile: default.\n\nEmbeddings: disabled.\n\nQueue concurrency: io=16, cpu=1.\n\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\n\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\n\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\n\nLint metadata disabled via indexing.lint.\n\nComplexity metadata disabled via indexing.complexity.\n\nRisk analysis disabled via indexing.riskAnalysis.\n\nWorker pool enabled (auto, maxThreads=4).\n\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\n\nWorker pool auto threshold: maxFileBytes=2097152.\n\n[init] worker pools (3ms)\n\nBuild environment snapshot.\n\n[init] runtime ready (92ms)\n[sqlite] Vector extension unavailable for code: missing extension (C:\\Users\\runneradmin\\AppData\\Local\\PairOfCleats\\extensions\\sqlite-vec\\win32-x64\\vec0.dll)\n\n[build] updated current.json\nOverall 8/8 (100.0%)\n\n[cleanup] runtime.resources.stop-admission start\n\n[cleanup] runtime.resources.stop-admission done (0ms)\n\n[cleanup] runtime.scheduler.shutdown start\n\n[cleanup] runtime.scheduler.shutdown done (0ms)\n\n[cleanup] runtime.worker-pools.destroy start\n\n[cleanup] runtime.worker-pools.destroy done (13ms)\n\n[cleanup] runtime.stage1-subprocesses.terminate start\n\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.embeddings.close start\n\n[cleanup] runtime.embeddings.close done (0ms)\n\n[cleanup] runtime.preflight-subprocesses.terminate start\n\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.resources.release start\n\n[cleanup] runtime.resources.release done (0ms)\n\n[cleanup] runtime.cache-writers.drain start\n\n[cleanup] runtime.cache-writers.drain done (0ms)\n\n[cleanup] runtime.semantic-replay.clear start\n\n[cleanup] runtime.semantic-replay.clear done (0ms)\n\n[cleanup] runtime.logger.close start\n\n[cleanup] runtime.logger.close done (0ms)\nOverall 8/8 (100.0%)\n",
+          "sharedValues": {},
+          "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+        }
+      }
+    ]
+  },
+  "timerProof": {
+    "module": "node-pty@1.1.0",
+    "owner": "node_modules/node-pty/lib/windowsConoutConnection.js",
+    "sha256": "1440f70908fb1f55911ac8e936a1230f68a9c00c03096fcef6788eac6aad9d62",
+    "diagnosticOnly": true,
+    "preload": "import fs from 'node:fs/promises';import {createHook} from 'node:async_hooks';if((process.argv[1]||'').endsWith('native-index-workflows.test.js')){const timers=new Map();createHook({init(id,type,_trigger,resource){if(type==='Timeout'&&resource._idleTimeout>50)timers.set(id,{resource,stack:new Error('Timer allocation').stack});},destroy(id){timers.delete(id);}}).enable();const write=fs.writeFile;const record=async suffix=>{const active=[...timers.values()].filter(v=>v.resource.hasRef()&&!v.resource._destroyed).map(v=>({idleTimeout:v.resource._idleTimeout,idleStart:v.resource._idleStart,now:performance.now(),stack:v.stack}));await write(new URL('./native-workflow-timer-'+suffix+'.json',import.meta.url),JSON.stringify(active,null,2)+'\\n');};for(const ms of [25000,29000])setTimeout(()=>void record(String(ms)),ms).unref();fs.writeFile=async(file,...args)=>{if(String(file).endsWith('fixture-settlement.json'))await record('settled');return write(file,...args);};}",
+    "observations": [
+      {
+        "name": "25000",
+        "value": [
+          {
+            "idleTimeout": 26000,
+            "idleStart": 18356,
+            "now": 25023.846,
+            "stack": "Error: Timer allocation\n    at AsyncHook.init (file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/q-1104/native-workflow-timer-preload.mjs:1:291)\n    at emitInitNative (node:internal/async_hooks:208:43)\n    at emitInitScript (node:internal/async_hooks:515:3)\n    at initAsyncResource (node:internal/timers:209:5)\n    at new Timeout (node:internal/timers:259:5)\n    at setTimeout (node:timers:125:19)\n    at captureCommandTerminalRun (file:///C:/Users/sneak/Development/PairOfCleats/tools/testing/search-debug-capture.js:498:15)\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/tui/native-index-workflows.test.js:152:19"
+          }
+        ]
+      },
+      {
+        "name": "29000",
+        "value": [
+          {
+            "idleTimeout": 1000,
+            "idleStart": 28730,
+            "now": 29027.8173,
+            "stack": "Error: Timer allocation\n    at AsyncHook.init (file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/q-1104/native-workflow-timer-preload.mjs:1:291)\n    at emitInitNative (node:internal/async_hooks:208:43)\n    at emitInitScript (node:internal/async_hooks:515:3)\n    at initAsyncResource (node:internal/timers:209:5)\n    at new Timeout (node:internal/timers:259:5)\n    at setTimeout (node:timers:125:19)\n    at ConoutConnection._drainDataAndClose (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsConoutConnection.js:108:30)\n    at ConoutConnection.dispose (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsConoutConnection.js:98:14)\n    at WindowsPtyAgent._cleanUpProcess (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsPtyAgent.js:257:34)\n    at Timeout._onTimeout (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsPtyAgent.js:247:68)"
+          }
+        ]
+      },
+      {
+        "name": "settled",
+        "value": [
+          {
+            "idleTimeout": 1000,
+            "idleStart": 28730,
+            "now": 28750.5631,
+            "stack": "Error: Timer allocation\n    at AsyncHook.init (file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/q-1104/native-workflow-timer-preload.mjs:1:291)\n    at emitInitNative (node:internal/async_hooks:208:43)\n    at emitInitScript (node:internal/async_hooks:515:3)\n    at initAsyncResource (node:internal/timers:209:5)\n    at new Timeout (node:internal/timers:259:5)\n    at setTimeout (node:timers:125:19)\n    at ConoutConnection._drainDataAndClose (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsConoutConnection.js:108:30)\n    at ConoutConnection.dispose (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsConoutConnection.js:98:14)\n    at WindowsPtyAgent._cleanUpProcess (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsPtyAgent.js:257:34)\n    at Timeout._onTimeout (C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\lib\\windowsPtyAgent.js:247:68)"
+          }
+        ]
+      }
+    ],
+    "result": {
+      "passed": 1,
+      "failed": 0,
+      "timeouts": 0,
+      "elapsedMs": 29800,
+      "rawHistoricalLog": ".testLogs/run-1793849496329-w8n9py",
+      "interpretation": "At settlement the sole referenced timer is the installed, bounded1000ms ConoutConnection drain; it expires and the process exits. No timer leak demonstrated."
+    },
+    "nativeBuild": {
+      "command": "cargo +1.99.1 build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml",
+      "exitCode": 0,
+      "log": "   Compiling pairofcleats-tui v0.1.0 (C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui)\r\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.42s\r\n",
+      "initialAttempt": {
+        "command": "cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml",
+        "result": "failed: selected rustc1.93.1 is below declared1.99.1 requirement",
+        "correctiveAction": "explicitly selected installed1.99.1; no global toolchain changes"
+      }
+    },
+    "earlierDiagnostic": {
+      "rawHistoricalLog": ".testLogs/run-1793849048762-qxsyla",
+      "status": "timeout at30.3s; no settlement timer trace; not passing acceptance"
+    }
+  },
+  "repair": {
+    "platform": "Windows only",
+    "seed": "unchanged canonical buildIndex; full default backends; one fresh repository/cache per case; actual snapshot preparation owners unchanged",
+    "scheduling": "Stage4 status schedules independent console/catalog/form work only; full canonical build result and existing backend assertions gate every read/preview/launch",
+    "lifetimes": {
+      "fixtureMs": 30000,
+      "ptyMs": 26000,
+      "nativeWrapperMs": 18000,
+      "seedWaitMs": 20000,
+      "jobs": 1,
+      "indexingThreads": 1,
+      "retries": 0,
+      "nativeStatusRedo": false
+    },
+    "cleanup": "original descendant reaping and terminal restoration retained; preparation failures rethrow and cleanup still executes",
+    "notChanged": [
+      "Node/dependency versions",
+      "native drain intervals",
+      "backend activation",
+      "production CLI/API/format contracts",
+      "non-Windows execution selection"
+    ]
+  },
+  "validation": {
+    "initialFocused": {
+      "passed": 2,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0,
+      "searchPublishedMs": 29500,
+      "snapshotCreateMs": 29800,
+      "historicalLog": ".testLogs/run-1793849857009-jqfsay",
+      "completeLog": {
+        "schemaVersion": 1,
+        "encoding": "sha256-shared-json-tables-v1",
+        "data": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   2\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 29.5s] tui/native-index-workflows/search-published\r\nPASS [ 29.8s] tui/native-index-workflows/snapshot-create\r\n\r\nLOGS: ./.testLogs/run-1793849857009-jqfsay\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m2\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 59.2s\r\n                   Slowest : \u001b[97mtui/native-index-workflows/snapshot-create\u001b[0m | \u001b[32mPASS\u001b[0m [ 29.8s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n",
+        "sharedValues": {},
+        "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+      }
+    },
+    "siblings": {
+      "passed": 9,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0,
+      "historicalLog": ".testLogs/run-1793850024421-1dns2m",
+      "completeLog": {
+        "schemaVersion": 1,
+        "encoding": "sha256-shared-json-tables-v1",
+        "data": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   9\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 25.9s] tui/native-index-workflows/report\r\nPASS [ 25.3s] tui/native-index-workflows/snapshot-freeze\r\nPASS [ 24.8s] tui/native-index-workflows/snapshot-gc\r\nPASS [ 24.6s] tui/native-index-workflows/snapshot-list-populated\r\nPASS [ 24.3s] tui/native-index-workflows/snapshot-prune\r\nPASS [ 24.8s] tui/native-index-workflows/snapshot-remove\r\nPASS [ 23.3s] tui/native-index-workflows/snapshot-show\r\nPASS [ 23.8s] tui/native-index-workflows/stats\r\nPASS [ 25.9s] tui/native-index-workflows/validate-published\r\n\r\nLOGS: ./.testLogs/run-1793850024421-1dns2m\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m9\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 222.7s\r\n                   Slowest : \u001b[97mtui/native-index-workflows/validate-published\u001b[0m | \u001b[32mPASS\u001b[0m [ 25.9s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n",
+        "sharedValues": {},
+        "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+      }
+    },
+    "hostedFinalCandidate": "pending",
+    "nativeWitnesses": [
+      {
+        "testLog": ".testLogs/run-1793849857009-jqfsay/tui_native-index-workflows_search-published.attempt-1.log",
+        "mode": "search-published",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          27948,
+          24480,
+          27616,
+          25340
+        ],
+        "receipt": {
+          "beforeOutput": 7,
+          "afterInput": 503,
+          "stderr": "",
+          "afterOutput": 7,
+          "beforeInput": 503,
+          "exitCode": 0,
+          "terminalRestored": true,
+          "mode": "search-published"
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-Xfe8LI\\capture\\2026-11-05T03-37-52-847Z-native-index-search-published-all-220x48-25400",
+        "phases": [
+          {
+            "mode": "search-published",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 193
+          },
+          {
+            "mode": "search-published",
+            "phase": "seed-native-admission",
+            "elapsedMs": 15367
+          },
+          {
+            "mode": "search-published",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 15368
+          },
+          {
+            "mode": "search-published",
+            "phase": "native-ui:ready",
+            "elapsedMs": 16321
+          },
+          {
+            "mode": "search-published",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 20891
+          },
+          {
+            "mode": "search-published",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 27994
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "search-published",
+          "at": "2026-11-05T03:38:05.476Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793849857009-jqfsay/tui_native-index-workflows_snapshot-create.attempt-1.log",
+        "mode": "snapshot-create",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          27316,
+          19892,
+          2420,
+          25740
+        ],
+        "receipt": {
+          "terminalRestored": true,
+          "mode": "snapshot-create",
+          "afterOutput": 7,
+          "afterInput": 503,
+          "exitCode": 0,
+          "stderr": "",
+          "beforeInput": 503,
+          "beforeOutput": 7
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-4oo8Dm\\capture\\2026-11-05T03-38-24-000Z-native-index-snapshot-create-all-220x48-25684",
+        "phases": [
+          {
+            "mode": "snapshot-create",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 187
+          },
+          {
+            "mode": "snapshot-create",
+            "phase": "seed-native-admission",
+            "elapsedMs": 16979
+          },
+          {
+            "mode": "snapshot-create",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 16979
+          },
+          {
+            "mode": "snapshot-create",
+            "phase": "native-ui:ready",
+            "elapsedMs": 17944
+          },
+          {
+            "mode": "snapshot-create",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 22973
+          },
+          {
+            "mode": "snapshot-create",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 28216
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-create",
+          "at": "2026-11-05T03:38:35.240Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_report.attempt-1.log",
+        "mode": "report",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          22412,
+          25944,
+          6168,
+          20960
+        ],
+        "receipt": {
+          "afterOutput": 7,
+          "mode": "report",
+          "beforeOutput": 7,
+          "exitCode": 0,
+          "stderr": "",
+          "terminalRestored": true,
+          "beforeInput": 503,
+          "afterInput": 503
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-SdxM1F\\capture\\2026-11-05T03-40-38-976Z-native-index-report-all-220x48-26772",
+        "phases": [
+          {
+            "mode": "report",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 171
+          },
+          {
+            "mode": "report",
+            "phase": "seed-native-admission",
+            "elapsedMs": 14112
+          },
+          {
+            "mode": "report",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 14113
+          },
+          {
+            "mode": "report",
+            "phase": "native-ui:ready",
+            "elapsedMs": 15048
+          },
+          {
+            "mode": "report",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 19295
+          },
+          {
+            "mode": "report",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 24431
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "report",
+          "at": "2026-11-05T03:40:49.302Z",
+          "resources": [
+            "CloseReq",
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_snapshot-freeze.attempt-1.log",
+        "mode": "snapshot-freeze",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          7908,
+          27380,
+          16464,
+          27204
+        ],
+        "receipt": {
+          "beforeOutput": 7,
+          "beforeInput": 503,
+          "terminalRestored": true,
+          "afterInput": 503,
+          "stderr": "",
+          "exitCode": 0,
+          "afterOutput": 7,
+          "mode": "snapshot-freeze"
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-Z1c6Lj\\capture\\2026-11-05T03-41-05-337Z-native-index-snapshot-freeze-all-220x48-24300",
+        "phases": [
+          {
+            "mode": "snapshot-freeze",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 191
+          },
+          {
+            "mode": "snapshot-freeze",
+            "phase": "seed-native-admission",
+            "elapsedMs": 14583
+          },
+          {
+            "mode": "snapshot-freeze",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 14584
+          },
+          {
+            "mode": "snapshot-freeze",
+            "phase": "native-ui:ready",
+            "elapsedMs": 15484
+          },
+          {
+            "mode": "snapshot-freeze",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 19770
+          },
+          {
+            "mode": "snapshot-freeze",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 23812
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-freeze",
+          "at": "2026-11-05T03:41:14.568Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_snapshot-gc.attempt-1.log",
+        "mode": "snapshot-gc",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          20100,
+          28176,
+          24768,
+          20220
+        ],
+        "receipt": {
+          "afterOutput": 7,
+          "mode": "snapshot-gc",
+          "afterInput": 503,
+          "beforeInput": 503,
+          "stderr": "",
+          "terminalRestored": true,
+          "beforeOutput": 7,
+          "exitCode": 0
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-674DqE\\capture\\2026-11-05T03-41-30-162Z-native-index-snapshot-gc-all-220x48-25684",
+        "phases": [
+          {
+            "mode": "snapshot-gc",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 173
+          },
+          {
+            "mode": "snapshot-gc",
+            "phase": "seed-native-admission",
+            "elapsedMs": 14112
+          },
+          {
+            "mode": "snapshot-gc",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 14113
+          },
+          {
+            "mode": "snapshot-gc",
+            "phase": "native-ui:ready",
+            "elapsedMs": 15073
+          },
+          {
+            "mode": "snapshot-gc",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 19260
+          },
+          {
+            "mode": "snapshot-gc",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 23297
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-gc",
+          "at": "2026-11-05T03:41:39.348Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_snapshot-list-populated.attempt-1.log",
+        "mode": "snapshot-list-populated",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          19964,
+          27776,
+          7936,
+          9424
+        ],
+        "receipt": {
+          "terminalRestored": true,
+          "beforeInput": 503,
+          "exitCode": 0,
+          "afterOutput": 7,
+          "mode": "snapshot-list-populated",
+          "afterInput": 503,
+          "beforeOutput": 7,
+          "stderr": ""
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-mIERTZ\\capture\\2026-11-05T03-41-55-091Z-native-index-snapshot-list-populated-all-220x48-12420",
+        "phases": [
+          {
+            "mode": "snapshot-list-populated",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 173
+          },
+          {
+            "mode": "snapshot-list-populated",
+            "phase": "seed-native-admission",
+            "elapsedMs": 14302
+          },
+          {
+            "mode": "snapshot-list-populated",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 14303
+          },
+          {
+            "mode": "snapshot-list-populated",
+            "phase": "native-ui:ready",
+            "elapsedMs": 15224
+          },
+          {
+            "mode": "snapshot-list-populated",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 19542
+          },
+          {
+            "mode": "snapshot-list-populated",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 23167
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-list-populated",
+          "at": "2026-11-05T03:42:03.957Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_snapshot-prune.attempt-1.log",
+        "mode": "snapshot-prune",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          3140,
+          22992,
+          28612,
+          12080
+        ],
+        "receipt": {
+          "beforeOutput": 7,
+          "beforeInput": 503,
+          "terminalRestored": true,
+          "mode": "snapshot-prune",
+          "exitCode": 0,
+          "stderr": "",
+          "afterOutput": 7,
+          "afterInput": 503
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-1poLj3\\capture\\2026-11-05T03-42-19-827Z-native-index-snapshot-prune-all-220x48-9680",
+        "phases": [
+          {
+            "mode": "snapshot-prune",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 178
+          },
+          {
+            "mode": "snapshot-prune",
+            "phase": "seed-native-admission",
+            "elapsedMs": 14428
+          },
+          {
+            "mode": "snapshot-prune",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 14428
+          },
+          {
+            "mode": "snapshot-prune",
+            "phase": "native-ui:ready",
+            "elapsedMs": 15364
+          },
+          {
+            "mode": "snapshot-prune",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 19524
+          },
+          {
+            "mode": "snapshot-prune",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 22853
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-prune",
+          "at": "2026-11-05T03:42:28.255Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_snapshot-remove.attempt-1.log",
+        "mode": "snapshot-remove",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          18676,
+          11228,
+          26436,
+          21240
+        ],
+        "receipt": {
+          "beforeInput": 503,
+          "mode": "snapshot-remove",
+          "beforeOutput": 7,
+          "stderr": "",
+          "exitCode": 0,
+          "afterInput": 503,
+          "terminalRestored": true,
+          "afterOutput": 7
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-JKBue4\\capture\\2026-11-05T03-42-44-066Z-native-index-snapshot-remove-all-220x48-5364",
+        "phases": [
+          {
+            "mode": "snapshot-remove",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 177
+          },
+          {
+            "mode": "snapshot-remove",
+            "phase": "seed-native-admission",
+            "elapsedMs": 14344
+          },
+          {
+            "mode": "snapshot-remove",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 14345
+          },
+          {
+            "mode": "snapshot-remove",
+            "phase": "native-ui:ready",
+            "elapsedMs": 15311
+          },
+          {
+            "mode": "snapshot-remove",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 19581
+          },
+          {
+            "mode": "snapshot-remove",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 23379
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-remove",
+          "at": "2026-11-05T03:42:53.102Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_snapshot-show.attempt-1.log",
+        "mode": "snapshot-show",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          19692,
+          20560,
+          28164,
+          8004
+        ],
+        "receipt": {
+          "terminalRestored": true,
+          "stderr": "",
+          "mode": "snapshot-show",
+          "afterInput": 503,
+          "exitCode": 0,
+          "beforeOutput": 7,
+          "afterOutput": 7,
+          "beforeInput": 503
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-zCupuE\\capture\\2026-11-05T03-43-07-892Z-native-index-snapshot-show-all-220x48-22344",
+        "phases": [
+          {
+            "mode": "snapshot-show",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 183
+          },
+          {
+            "mode": "snapshot-show",
+            "phase": "seed-native-admission",
+            "elapsedMs": 13334
+          },
+          {
+            "mode": "snapshot-show",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 13335
+          },
+          {
+            "mode": "snapshot-show",
+            "phase": "native-ui:ready",
+            "elapsedMs": 14251
+          },
+          {
+            "mode": "snapshot-show",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 17797
+          },
+          {
+            "mode": "snapshot-show",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 21884
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "snapshot-show",
+          "at": "2026-11-05T03:43:16.445Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_stats.attempt-1.log",
+        "mode": "stats",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          17272,
+          16676,
+          12420,
+          19760
+        ],
+        "receipt": {
+          "afterOutput": 7,
+          "mode": "stats",
+          "beforeInput": 503,
+          "exitCode": 0,
+          "stderr": "",
+          "terminalRestored": true,
+          "beforeOutput": 7,
+          "afterInput": 503
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-Jr0BLL\\capture\\2026-11-05T03-43-31-564Z-native-index-stats-all-220x48-7872",
+        "phases": [
+          {
+            "mode": "stats",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 185
+          },
+          {
+            "mode": "stats",
+            "phase": "seed-native-admission",
+            "elapsedMs": 13680
+          },
+          {
+            "mode": "stats",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 13680
+          },
+          {
+            "mode": "stats",
+            "phase": "native-ui:ready",
+            "elapsedMs": 14600
+          },
+          {
+            "mode": "stats",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 18291
+          },
+          {
+            "mode": "stats",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 22337
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "stats",
+          "at": "2026-11-05T03:43:40.224Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      },
+      {
+        "testLog": ".testLogs/run-1793850024421-1dns2m/tui_native-index-workflows_validate-published.attempt-1.log",
+        "mode": "validate-published",
+        "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+        "node": "v26.13.0",
+        "platform": "win32",
+        "owned": [
+          22312,
+          24696,
+          26280,
+          8428
+        ],
+        "receipt": {
+          "mode": "validate-published",
+          "afterInput": 503,
+          "beforeInput": 503,
+          "terminalRestored": true,
+          "afterOutput": 7,
+          "stderr": "",
+          "beforeOutput": 7,
+          "exitCode": 0
+        },
+        "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-dZgrfz\\capture\\2026-11-05T03-43-55-275Z-native-index-validate-published-all-220x48-28524",
+        "phases": [
+          {
+            "mode": "validate-published",
+            "phase": "seed-complete-build:start",
+            "elapsedMs": 187
+          },
+          {
+            "mode": "validate-published",
+            "phase": "seed-native-admission",
+            "elapsedMs": 13565
+          },
+          {
+            "mode": "validate-published",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 13566
+          },
+          {
+            "mode": "validate-published",
+            "phase": "native-ui:ready",
+            "elapsedMs": 14483
+          },
+          {
+            "mode": "validate-published",
+            "phase": "seed-complete-build:complete",
+            "elapsedMs": 17961
+          },
+          {
+            "mode": "validate-published",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 24416
+          }
+        ],
+        "sourceIdentity": {
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32"
+        },
+        "settlement": {
+          "mode": "validate-published",
+          "at": "2026-11-05T03:44:06.127Z",
+          "resources": [
+            "PipeWrap",
+            "PipeWrap",
+            "Timeout"
+          ]
+        }
+      }
+    ],
+    "publicationChecks": [
+      {
+        "name": "format",
+        "log": ".tmp/tasks/q-1104/native-seed-final-format.log",
+        "durationMs": 43603,
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "executable": "npm.cmd",
+        "startedAt": "2026-11-05T03:44:40.7556607Z",
+        "exitCode": 0
+      },
+      {
+        "name": "config-budget",
+        "log": ".tmp/tasks/q-1104/native-seed-final-config-budget.log",
+        "durationMs": 2497,
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "executable": "npm.cmd",
+        "startedAt": "2026-11-05T03:45:24.3907324Z",
+        "exitCode": 0
+      },
+      {
+        "name": "env-check",
+        "log": ".tmp/tasks/q-1104/native-seed-final-env-check.log",
+        "durationMs": 1428,
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "executable": "npm.cmd",
+        "startedAt": "2026-11-05T03:45:26.8917501Z",
+        "exitCode": 0
+      },
+      {
+        "name": "generated-freshness",
+        "log": ".tmp/tasks/q-1104/native-seed-final-generated-freshness.log",
+        "durationMs": 16803,
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "executable": "node",
+        "startedAt": "2026-11-05T03:45:28.3223598Z",
+        "exitCode": 0
+      },
+      {
+        "name": "command-surface",
+        "log": ".tmp/tasks/q-1104/native-seed-final-command-surface.log",
+        "durationMs": 3071,
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "executable": "node",
+        "startedAt": "2026-11-05T03:45:45.1280090Z",
+        "exitCode": 0
+      },
+      {
+        "name": "workflow-contract",
+        "log": ".tmp/tasks/q-1104/native-seed-final-workflow-contract.log",
+        "durationMs": 312,
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "executable": "node",
+        "startedAt": "2026-11-05T03:45:48.2014643Z",
+        "exitCode": 0
+      },
+      {
+        "name": "gate",
+        "log": ".tmp/tasks/q-1104/native-seed-final-gate.log",
+        "durationMs": 30279,
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "executable": "node",
+        "startedAt": "2026-11-05T03:45:48.5161069Z",
+        "exitCode": 0
+      },
+      {
+        "name": "diff-check",
+        "log": ".tmp/tasks/q-1104/native-seed-final-diff-check.log",
+        "durationMs": 83,
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "executable": "git",
+        "startedAt": "2026-11-05T03:46:18.7979979Z",
+        "exitCode": 0
+      }
+    ],
+    "gate": {
+      "passed": 41,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0,
+      "historicalLog": ".testLogs/run-1793850349331-r6myl9"
+    }
+  },
+  "historicalWorkspaceEvidence": "Local .tmp/.testLogs receipts are historical and are not promised in a clean checkout",
+  "sourceBlobs": {
+    "tests/tui/native-index-workflows.test.js": "ecef8e6c79e942dcde08224b462af684a099cbaf",
+    "tests/fixtures/tui/native-lifetime-conpty.ps1": "528e51842dd9eb98ae74bd4681d88fb3fca5e8c0"
+  },
+  "priorHostedWindows": {
+    "source": "f0ae858ade5233a04d8e3f582a541b44c4d4010b",
+    "runId": 41958269247,
+    "jobId": 127018945100,
+    "state": "success",
+    "correctness": {
+      "passed": 1987,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 3
+    },
+    "serialRuntimeBudgets": 30,
+    "annGeneration": 3,
+    "nativeSqliteCancellation": 1,
+    "apiContracts": 9,
+    "authority": "success",
+    "gate": "success",
+    "selection": "2026-11-05T03:00:35.4973188Z                    Summary : \u001b[97m5\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:00:48.7702298Z                    Summary : \u001b[97m8\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:01:03.2057183Z                    Summary : \u001b[97m10\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:01:15.5215005Z - summary: warn (errors=0, warnings=12)\n2026-11-05T03:01:27.2883764Z SKIP           smoke/tantivy (optional Tantivy smoke requires PAIROFCLEATS_TEST_TANTIVY=1 and its installed backend)\n2026-11-05T03:01:29.0912417Z SKIP           shared/subprocess/tracked-leak-fails-process (POSIX invalid-signal cleanup leak injection; Windows tracked shutdown has a separate owner.)\n2026-11-05T03:11:05.4485555Z SKIP           cli/general/signal-cleanup (POSIX parent-signal cleanup; Windows TerminateProcess requires native acceptance.)\n2026-11-05T03:34:40.6642973Z                    Summary : \u001b[97m1987\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m3\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:40:15.1185576Z                    Summary : \u001b[97m30\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:40:45.4692121Z                    Summary : \u001b[97m3\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:40:49.1844911Z PASS [ 2.97s] storage/sqlite/build/cancellation\n2026-11-05T03:40:49.1865000Z                    Summary : \u001b[97m1\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n2026-11-05T03:42:06.0785889Z                    Summary : \u001b[97m9\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m",
+    "scope": "Earlier published source; not final-head acceptance"
+  }
+}

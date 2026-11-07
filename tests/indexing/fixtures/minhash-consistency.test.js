@@ -26,7 +26,7 @@ const assertMinhashConsistency = (label, chunkMetaPath, minhashPath) => {
     process.exit(1);
   }
   const tokens = chunks[idx].tokens;
-  const scored = rankMinhash({ minhash: { signatures } }, tokens, 1);
+  const scored = rankMinhash({ minhash: sigPayload }, tokens, 1);
   if (!scored.length || scored[0].idx !== idx || scored[0].sim !== 1) {
     console.error(`Minhash mismatch for ${label}: ${minhashPath}`);
     process.exit(1);

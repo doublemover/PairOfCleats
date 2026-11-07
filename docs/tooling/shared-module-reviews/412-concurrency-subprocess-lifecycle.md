@@ -93,3 +93,15 @@ Highest-priority follow-ups:
 | `src/shared/threads.js` | `keep`, `document`, `test` | Keep as the thread-resolution helper. |
 | `src/shared/workers/node-argv.js` | `keep`, `document`, `test` | Keep Node argv derivation under the worker family instead of duplicating execArgv filtering in launch callsites. |
 | `src/shared/workers/bundle-transform-worker.js` | `keep`, `document`, `test` | Keep as a worker-target module under bundle IO ownership. |
+
+## October 18 ownership inventory reconciliation
+
+The JSON companion now includes 2 later-added active modules. Static consumer evidence supports retaining these owners; it does not replace behavioral or platform qualification. The original review remains dated 2026-03-26. See the [deep audit](../../archived/deep-test-audit-2026-10-18.md) for current failures and acceptance limits.
+
+- `src/shared/concurrency/weighted-batches.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/workers/heap-contract.js`: 2 direct consumers; retain and document the owner.
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (71 files). 8 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

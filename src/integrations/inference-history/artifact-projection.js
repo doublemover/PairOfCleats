@@ -1,6 +1,6 @@
 import { sanitizeEmbeddedAssetText, sanitizeEmbeddedAssetValue, sanitizeNamedAssetPayload } from './embedded-assets.js';
 import { digest, redactHistoryText } from './common.js';
-export const ARTIFACT_PROJECTION_VERSION = 'artifact-projection.v3';
+export const ARTIFACT_PROJECTION_VERSION = 'artifact-projection.v4';
 export function hasHiddenTraceMarker(text) {
   return /<(?:analysis|thinking|reasoning)>|["']channel["']\s*:\s*["']analysis["']|\b(?:chain_of_thought|scratchpad|hidden_reasoning)\b/i.test(text);
 }
@@ -29,13 +29,15 @@ export function projectArtifact({ text, sourceSha256, locator, kind = 'document'
   const transformation = { original_start: 0, original_end: originalTextChars, sanitized_start: 0,
     sanitized_end: sanitized.length, kind: !sourceTransformed && originalTextChars === text.length && text === sanitized ? 'identity' : 'redacted_coarse' };
   const safeLocator = redactHistoryText(String(locator ?? '')).slice(0, 1024);
+  // Identity uses the complete origin; a bounded/redacted display locator is lossy.
+  const originHash = digest(String(locator ?? ''));
   const result = [];
   for (let start = 0; start < sanitized.length;) {
     let end = Math.min(sanitized.length, start + chunkChars);
     if (end < sanitized.length && /[\uD800-\uDBFF]/.test(sanitized[end - 1])) end--;
-    const id = digest(JSON.stringify([sourceSha256, safeLocator, kind, start, end, ARTIFACT_PROJECTION_VERSION]));
+    const id = digest(JSON.stringify([sourceSha256, originHash, kind, start, end, ARTIFACT_PROJECTION_VERSION]));
     result.push({ id, title: safeLocator, body: sanitized.slice(start, end), visibility: 'visible', artifact_kind: kind,
-      created_at: createdAt, provenance: { source_sha256: sourceSha256, locator: safeLocator, chunk_start: start,
+      created_at: createdAt, provenance: { source_sha256: sourceSha256, locator: safeLocator, origin_hash: originHash, chunk_start: start,
         chunk_end: end, offset_basis: 'sanitized_utf16', projection_version: ARTIFACT_PROJECTION_VERSION, transformation, total_chars: sanitized.length, date_basis: dateBasis } });
     start = end;
   }

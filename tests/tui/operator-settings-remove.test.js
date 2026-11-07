@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createTuiSettingsSession } from '../../tools/tui/operator/settings.js';
+import { parseJsoncText } from '../../src/shared/jsonc.js';
+import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
+import { applyTestEnv } from '../helpers/test-env.js';
+import { initGitRepo } from '../helpers/git-fixture.js';
+
+const { dir } = await prepareIsolatedTestCacheDir('tui-settings-remove');
+const repo = path.join(dir, 'repo');
+await fs.mkdir(repo); initGitRepo(repo);
+const target = path.join(repo, '.pairofcleats.json');
+await fs.writeFile(target, '{\n // retain me\n "threads": 2, "search": { "annDefault": false, "hyperlinks": "off" }\n}\n');
+const session = createTuiSettingsSession({ toolRoot: process.cwd(), env: applyTestEnv({
+  cacheRoot: path.join(dir, 'cache'), embeddings: 'off', syncProcess: false }) });
+const scope = await session.selectScope({ kind: 'repo', target: repo });
+const request = async (operation, value) => {
+  const info = await session.inspectConfig({ scopeId: scope.id });
+  return { scopeId: scope.id, revision: info.revision, schemaRevision: info.schemaRevision,
+    operation, path: ['search', 'annDefault'], ...(operation === 'edit' ? { value } : {}) };
+};
+const commit = preview => session.commit({ scopeId: scope.id, previewId: preview.previewId, confirmed: true });
+const removed = await session.preview(await request('remove'));
+assert.equal(removed.ok, true);
+assert.equal(removed.diff[0].before, false);
+assert.equal(removed.diff[0].beforePresent, true);
+assert.equal(removed.diff[0].afterPresent, false);
+await commit(removed);
+let saved = await fs.readFile(target, 'utf8');
+assert.ok(saved.includes('// retain me'));
+assert.deepEqual(parseJsoncText(saved), { threads: 2, search: { hyperlinks: 'off' } });
+const absent = await session.preview(await request('remove'));
+assert.equal(absent.diff[0].beforePresent, false);
+await session.cancel({ scopeId: scope.id, previewId: absent.previewId });
+await assert.rejects(commit(absent), { code: 'ERR_TUI_SETTINGS_PREVIEW' });
+const restored = await session.preview(await request('edit', false));
+await commit(restored);
+assert.equal(parseJsoncText(await fs.readFile(target, 'utf8')).search.annDefault, false);
+const stale = await session.preview(await request('remove'));
+await fs.appendFile(target, '\n// concurrent author\n');
+await assert.rejects(commit(stale), { code: 'ERR_TUI_SETTINGS_STALE' });
+const final = await session.preview(await request('remove'));
+await commit(final);
+assert.equal(Object.hasOwn(parseJsoncText(await fs.readFile(target, 'utf8')).search, 'annDefault'), false);
+const effective = await session.inspectConfig({ scopeId: scope.id });
+assert.equal(effective.fields.find(field => field.path.join('.') === 'search.annDefault').requestedPresent, false);
+assert.equal(effective.effective.userConfig.threads, 2);
+session.dispose();
+console.log('TUI selective override removal preserves JSONC, unrelated overrides, cancellation and revision authority');

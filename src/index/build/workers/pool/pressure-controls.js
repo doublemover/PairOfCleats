@@ -132,6 +132,21 @@ export const evictDeterministicPressureCacheEntries = ({
     : 0;
   if (!normalizedMaxEntries || cache.size <= normalizedMaxEntries) return [];
   const overflow = cache.size - normalizedMaxEntries;
+  if (overflow === 1) {
+    let victim = null;
+    for (const [key, value] of cache) {
+      const rawSize = Number(value?.sizeBytes);
+      const sizeBytes = Number.isFinite(rawSize) && rawSize >= 0 ? rawSize : 0;
+      const firstSeenAt = toFiniteTimestamp(value?.firstSeenAt, 0);
+      if (!victim || sizeBytes > victim.sizeBytes
+        || (sizeBytes === victim.sizeBytes && (firstSeenAt < victim.firstSeenAt
+          || (firstSeenAt === victim.firstSeenAt && String(key).localeCompare(String(victim.key)) < 0)))) {
+        victim = { key, sizeBytes, firstSeenAt };
+      }
+    }
+    if (victim && cache.delete(victim.key)) return [victim];
+    return [];
+  }
   const ranked = Array.from(cache.entries())
     .map(([key, value]) => {
       const sizeBytes = Number(value?.sizeBytes);

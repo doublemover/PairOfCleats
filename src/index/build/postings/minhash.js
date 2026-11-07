@@ -1,4 +1,4 @@
-import { minifyMinhashSignature, resolveMinhashSampledPlan } from '../../minhash.js';
+import { MINHASH_HASH_IDENTITY, assertMinhashHashIdentity, minifyMinhashSignature, resolveMinhashSampledPlan } from '../../minhash.js';
 
 /**
  * Resolve minhash emission mode and guard metadata.
@@ -46,6 +46,11 @@ export const resolveMinhashOutputs = ({
     return 0;
   };
   if (sparseEnabled) {
+    for (const chunk of safeChunks) {
+      if (chunk?.minhashHashIdentity != null || chunk?.minhashSig?.length) {
+        assertMinhashHashIdentity(chunk?.minhashHashIdentity);
+      }
+    }
     const maxDocs = Number.isFinite(Number(minhashMaxDocs))
       ? Math.max(0, Math.floor(Number(minhashMaxDocs)))
       : 0;
@@ -92,6 +97,7 @@ export const resolveMinhashOutputs = ({
   return {
     allowMinhash,
     minhashSigs,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     minhashGuard
   };
 };

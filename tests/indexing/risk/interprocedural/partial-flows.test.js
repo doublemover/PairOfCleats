@@ -8,7 +8,7 @@ applyTestEnv();
 const maxDepthResult = runFlowCapScenario({
   caps: { maxDepth: 1, maxPartialFlows: 4 }
 });
-assert.equal(maxDepthResult.status, 'ok');
+assert.equal(maxDepthResult.status, 'partial');
 assert.equal(maxDepthResult.flowRows.length, 1, 'expected full flow to still be emitted before depth cap');
 assert.equal(maxDepthResult.partialFlowRows.length, 1, 'expected one partial flow from the depth cap');
 assert.equal(maxDepthResult.partialFlowRows[0]?.frontier?.terminalReason, 'maxDepth');
@@ -27,7 +27,7 @@ const blockedExpansionResult = runFlowCapScenario({
   caps: { maxEdgeExpansions: 1, maxPartialFlows: 4 },
   nowStepMs: 0
 });
-assert.equal(blockedExpansionResult.status, 'ok');
+assert.equal(blockedExpansionResult.status, 'partial');
 assert.equal(blockedExpansionResult.flowRows.length, 1, 'expected the direct flow to be emitted');
 assert.equal(blockedExpansionResult.partialFlowRows.length, 1, 'expected one blocked partial flow');
 assert.equal(blockedExpansionResult.partialFlowRows[0]?.frontier?.terminalReason, 'noCallees');

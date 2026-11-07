@@ -60,6 +60,16 @@ for (const fixtureName of fixtures) {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
+    },
     extraEnv: resolvedProfile
       ? { PAIROFCLEATS_PROFILE: resolvedProfile }
       : null
@@ -69,7 +79,7 @@ for (const fixtureName of fixtures) {
   }
 
   runNode(
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+    [path.join(root, 'build_index.js'), '--stage', 'stage1', '--stub-embeddings', '--repo', fixtureRoot],
     `build index (${fixtureName})`,
     fixtureRoot,
     env,
@@ -88,6 +98,8 @@ for (const fixtureName of fixtures) {
       '--no-ann',
       '--queries',
       queryFile,
+      '--repo',
+      fixtureRoot,
       '--search',
       path.join(root, 'search.js'),
       '--top',

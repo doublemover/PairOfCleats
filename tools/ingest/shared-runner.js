@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import { registerChildProcessForCleanup } from '../../src/shared/subprocess/tracking.js';
 import { killChildProcessTree } from '../../src/shared/kill-tree.js';
+import { resolveCommandInvocation } from '../../src/shared/subprocess/command-invocation.js';
 
 const toTimeoutMs = (value, fallback = null) => {
   const parsed = Number(value);
@@ -15,13 +16,20 @@ export const runLineStreamingCommand = async ({
   cwd = undefined,
   timeoutMs = null,
   onStdoutLine = null,
-  onStderrChunk = null
+  onStderrChunk = null,
+  env = process.env,
+  inputStream = null,
+  onSpawn = null,
+  onSettlement = null
 }) => {
   const detached = process.platform !== 'win32';
-  const child = spawn(command, Array.isArray(args) ? args : [], {
+  const invocation = resolveCommandInvocation(command, Array.isArray(args) ? args : [], env);
+  const child = spawn(invocation.command, invocation.args, {
     cwd,
+    env: invocation.env ? { ...env, ...invocation.env } : env,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments,
     detached,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: [inputStream ? 'pipe' : 'ignore', 'pipe', 'pipe']
   });
   let rl;
   let childClosed = false;
@@ -35,11 +43,11 @@ export const runLineStreamingCommand = async ({
     killTree: true,
     detached
   });
-  let termination = null;
+  let termination = null, treeCleanupSettled = false, treeCleanupFailed = false;
   const terminate = () => {
     termination ||= killChildProcessTree(child, {
       killTree: true, detached, graceMs: 0, awaitGrace: false
-    }).catch(() => {});
+    }).then(() => { treeCleanupSettled = true; }, () => { treeCleanupSettled = true; treeCleanupFailed = true; });
     return termination;
   };
   const resolvedTimeoutMs = toTimeoutMs(timeoutMs);
@@ -69,8 +77,13 @@ export const runLineStreamingCommand = async ({
     catch (error) { streamError = error; rl.close(); void terminate(); }
   };
   child.stderr.on('data', onStderrData);
+  const onInputError = error => { streamError = error; rl.close(); void terminate(); };
+  child.stdin?.once('error', onInputError);
+  inputStream?.once('error', onInputError);
 
   try {
+    onSpawn?.(child);
+    inputStream?.pipe(child.stdin);
     for await (const line of rl) {
       if (typeof onStdoutLine === 'function') {
         await onStdoutLine(line);
@@ -101,8 +114,9 @@ export const runLineStreamingCommand = async ({
     return { exitCode };
   } finally {
     if (timeout) clearTimeout(timeout);
-    child.stdout.off('error', onStdoutError);
     child.stderr.off('data', onStderrData);
+    inputStream?.unpipe(child.stdin);
+    inputStream?.off('error', onInputError);
     rl.close();
     await terminate();
     let reapTimer;
@@ -112,5 +126,10 @@ export const runLineStreamingCommand = async ({
     // If bounded reaping is still pending, retain process-exit ownership until
     // the tracking layer observes close rather than abandoning a live child.
     if (childClosed || !child.pid) unregisterChild();
+    const detachErrors = () => { child.stdout.off('error', onStdoutError); child.stdin?.off('error', onInputError); };
+    if (childClosed || !child.pid) detachErrors();
+    else child.once('close', detachErrors);
+    onSettlement?.({ closeObserved: childClosed || !child.pid, treeCleanupSettled, treeCleanupFailed,
+      isSettled: () => (childClosed || !child.pid) && treeCleanupSettled && !treeCleanupFailed });
   }
 };

@@ -1,0 +1,254 @@
+diff --git a/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js b/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js
+index 1024f9958..2e2fa2b65 100644
+--- a/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js
++++ b/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js
+@@ -9,3 +9,3 @@ import { get_file_metadata } from './get_file_metadata.js';
+  */
+-export async function get_tokenizer_files(modelId) {
++export async function get_tokenizer_files(modelId, options = {}) {
+     if (!modelId) {
+@@ -14,3 +14,3 @@ export async function get_tokenizer_files(modelId) {
+ 
+-    const metadata = await get_file_metadata(modelId, 'tokenizer_config.json', {});
++    const metadata = await get_file_metadata(modelId, 'tokenizer_config.json', options);
+     if (metadata.exists) {
+diff --git a/node_modules/@huggingface/transformers/src/tokenization_utils.js b/node_modules/@huggingface/transformers/src/tokenization_utils.js
+index 30fc58ea6..36ae5ddc4 100644
+--- a/node_modules/@huggingface/transformers/src/tokenization_utils.js
++++ b/node_modules/@huggingface/transformers/src/tokenization_utils.js
+@@ -34,3 +34,3 @@ import { get_tokenizer_files } from './utils/model_registry/get_tokenizer_files.
+ export async function loadTokenizer(pretrained_model_name_or_path, options) {
+-    const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++    const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+     return await Promise.all(
+@@ -127,7 +127,35 @@ function padHelper(item, length, value_fn, side) {
+  */
+-function truncateHelper(item, length) {
+-    // Setting .length to a lower value truncates the array in-place:
+-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/length
++function singleSequenceTruncationTemplate(config) {
++    // Only a single explicit TemplateProcessing sequence is qualified here.
++    // Paired encodings and other post-processors retain their existing policy.
++    if (config?.type !== 'TemplateProcessing' || !Array.isArray(config.single)) return null;
++    const prefix = [], suffix = [];
++    let sequence = false;
++    for (const entry of config.single) {
++        if (entry.Sequence) {
++            if (sequence || entry.Sequence.id !== 'A') return null;
++            sequence = true;
++        } else {
++            const ids = config.special_tokens?.[entry.SpecialToken?.id]?.ids;
++            if (!Array.isArray(ids) || !ids.every(Number.isSafeInteger)) return null;
++            (sequence ? suffix : prefix).push(...ids);
++        }
++    }
++    return sequence ? { prefix, suffix } : null;
++}
++function truncateHelper(item, length, processor = null) {
++    const template = singleSequenceTruncationTemplate(processor);
++    if (template) {
++        const { prefix, suffix } = template, ids = item.input_ids;
++        if (length < prefix.length + suffix.length) throw new RangeError('max_length cannot retain the configured special tokens.');
++        if (!prefix.every((id, index) => ids[index] === id)
++            || !suffix.every((id, index) => ids[ids.length - suffix.length + index] === id)) {
++            throw new Error('Encoded special tokens do not match the single-sequence template.');
++        }
++    }
++    const suffixLength = template?.suffix.length || 0;
+     for (const key of Object.keys(item)) {
+-        item[key].length = length;
++        const suffix = suffixLength ? item[key].slice(-suffixLength) : [];
++        item[key].length = length - suffixLength;
++        item[key].push(...suffix);
+     }
+@@ -456,3 +484,3 @@ export class PreTrainedTokenizer
+                     if (truncation) {
+-                        truncateHelper(encodedTokens[i], max_length);
++                        truncateHelper(encodedTokens[i], max_length, add_special_tokens && text_pair === null ? this._tokenizer.post_processor?.config : null);
+                     }
+diff --git a/node_modules/@huggingface/transformers/dist/transformers.node.mjs b/node_modules/@huggingface/transformers/dist/transformers.node.mjs
+index 34fa052a8..9a5b6c1cf 100644
+--- a/node_modules/@huggingface/transformers/dist/transformers.node.mjs
++++ b/node_modules/@huggingface/transformers/dist/transformers.node.mjs
+@@ -15207,3 +15207,3 @@ function quantize_embeddings(tensor, precision) {
+ // src/utils/model_registry/get_tokenizer_files.js
+-async function get_tokenizer_files(modelId) {
++async function get_tokenizer_files(modelId, options = {}) {
+   if (!modelId) {
+@@ -15211,3 +15211,3 @@ async function get_tokenizer_files(modelId) {
+   }
+-  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", {});
++  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", options);
+   if (metadata.exists) {
+@@ -15220,3 +15220,3 @@ async function get_tokenizer_files(modelId) {
+ async function loadTokenizer(pretrained_model_name_or_path, options) {
+-  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+   return await Promise.all(
+@@ -15259,5 +15259,35 @@ function padHelper(item, length, value_fn, side) {
+ }
+-function truncateHelper(item, length) {
++function singleSequenceTruncationTemplate(config) {
++  // Only a single explicit TemplateProcessing sequence is qualified here.
++  // Paired encodings and other post-processors retain their existing policy.
++  if (config?.type !== 'TemplateProcessing' || !Array.isArray(config.single)) return null;
++  const prefix = [], suffix = [];
++  let sequence = false;
++  for (const entry of config.single) {
++    if (entry.Sequence) {
++      if (sequence || entry.Sequence.id !== 'A') return null;
++      sequence = true;
++    } else {
++      const ids = config.special_tokens?.[entry.SpecialToken?.id]?.ids;
++      if (!Array.isArray(ids) || !ids.every(Number.isSafeInteger)) return null;
++      (sequence ? suffix : prefix).push(...ids);
++    }
++  }
++  return sequence ? { prefix, suffix } : null;
++}
++function truncateHelper(item, length, processor = null) {
++  const template = singleSequenceTruncationTemplate(processor);
++  if (template) {
++    const { prefix, suffix } = template, ids = item.input_ids;
++    if (length < prefix.length + suffix.length) throw new RangeError('max_length cannot retain the configured special tokens.');
++    if (!prefix.every((id, index) => ids[index] === id)
++      || !suffix.every((id, index) => ids[ids.length - suffix.length + index] === id)) {
++      throw new Error('Encoded special tokens do not match the single-sequence template.');
++    }
++  }
++  const suffixLength = template?.suffix.length || 0;
+   for (const key of Object.keys(item)) {
+-    item[key].length = length;
++    const suffix = suffixLength ? item[key].slice(-suffixLength) : [];
++    item[key].length = length - suffixLength;
++    item[key].push(...suffix);
+   }
+@@ -15452,3 +15482,3 @@ Callable {
+           if (truncation) {
+-            truncateHelper(encodedTokens[i], max_length);
++            truncateHelper(encodedTokens[i], max_length, add_special_tokens && text_pair === null ? this._tokenizer.post_processor?.config : null);
+           }
+diff --git a/node_modules/@huggingface/transformers/dist/transformers.node.cjs b/node_modules/@huggingface/transformers/dist/transformers.node.cjs
+index 4d58c96fa..1fdffc078 100644
+--- a/node_modules/@huggingface/transformers/dist/transformers.node.cjs
++++ b/node_modules/@huggingface/transformers/dist/transformers.node.cjs
+@@ -16206,3 +16206,3 @@ function quantize_embeddings(tensor, precision) {
+ // src/utils/model_registry/get_tokenizer_files.js
+-async function get_tokenizer_files(modelId) {
++async function get_tokenizer_files(modelId, options = {}) {
+   if (!modelId) {
+@@ -16210,3 +16210,3 @@ async function get_tokenizer_files(modelId) {
+   }
+-  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", {});
++  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", options);
+   if (metadata.exists) {
+@@ -16219,3 +16219,3 @@ async function get_tokenizer_files(modelId) {
+ async function loadTokenizer(pretrained_model_name_or_path, options) {
+-  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+   return await Promise.all(
+@@ -16258,5 +16258,35 @@ function padHelper(item, length, value_fn, side) {
+ }
+-function truncateHelper(item, length) {
++function singleSequenceTruncationTemplate(config) {
++  // Only a single explicit TemplateProcessing sequence is qualified here.
++  // Paired encodings and other post-processors retain their existing policy.
++  if (config?.type !== 'TemplateProcessing' || !Array.isArray(config.single)) return null;
++  const prefix = [], suffix = [];
++  let sequence = false;
++  for (const entry of config.single) {
++    if (entry.Sequence) {
++      if (sequence || entry.Sequence.id !== 'A') return null;
++      sequence = true;
++    } else {
++      const ids = config.special_tokens?.[entry.SpecialToken?.id]?.ids;
++      if (!Array.isArray(ids) || !ids.every(Number.isSafeInteger)) return null;
++      (sequence ? suffix : prefix).push(...ids);
++    }
++  }
++  return sequence ? { prefix, suffix } : null;
++}
++function truncateHelper(item, length, processor = null) {
++  const template = singleSequenceTruncationTemplate(processor);
++  if (template) {
++    const { prefix, suffix } = template, ids = item.input_ids;
++    if (length < prefix.length + suffix.length) throw new RangeError('max_length cannot retain the configured special tokens.');
++    if (!prefix.every((id, index) => ids[index] === id)
++      || !suffix.every((id, index) => ids[ids.length - suffix.length + index] === id)) {
++      throw new Error('Encoded special tokens do not match the single-sequence template.');
++    }
++  }
++  const suffixLength = template?.suffix.length || 0;
+   for (const key of Object.keys(item)) {
+-    item[key].length = length;
++    const suffix = suffixLength ? item[key].slice(-suffixLength) : [];
++    item[key].length = length - suffixLength;
++    item[key].push(...suffix);
+   }
+@@ -16451,3 +16481,3 @@ Callable {
+           if (truncation) {
+-            truncateHelper(encodedTokens[i], max_length);
++            truncateHelper(encodedTokens[i], max_length, add_special_tokens && text_pair === null ? this._tokenizer.post_processor?.config : null);
+           }
+diff --git a/node_modules/@huggingface/transformers/dist/transformers.web.js b/node_modules/@huggingface/transformers/dist/transformers.web.js
+index a86f15e93..212f8954f 100644
+--- a/node_modules/@huggingface/transformers/dist/transformers.web.js
++++ b/node_modules/@huggingface/transformers/dist/transformers.web.js
+@@ -11226,3 +11226,3 @@ function quantize_embeddings(tensor, precision) {
+ // src/utils/model_registry/get_tokenizer_files.js
+-async function get_tokenizer_files(modelId) {
++async function get_tokenizer_files(modelId, options = {}) {
+   if (!modelId) {
+@@ -11230,3 +11230,3 @@ async function get_tokenizer_files(modelId) {
+   }
+-  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", {});
++  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", options);
+   if (metadata.exists) {
+@@ -11239,3 +11239,3 @@ async function get_tokenizer_files(modelId) {
+ async function loadTokenizer(pretrained_model_name_or_path, options) {
+-  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+   return await Promise.all(
+@@ -11278,5 +11278,35 @@ function padHelper(item, length, value_fn, side) {
+ }
+-function truncateHelper(item, length) {
++function singleSequenceTruncationTemplate(config) {
++  // Only a single explicit TemplateProcessing sequence is qualified here.
++  // Paired encodings and other post-processors retain their existing policy.
++  if (config?.type !== 'TemplateProcessing' || !Array.isArray(config.single)) return null;
++  const prefix = [], suffix = [];
++  let sequence = false;
++  for (const entry of config.single) {
++    if (entry.Sequence) {
++      if (sequence || entry.Sequence.id !== 'A') return null;
++      sequence = true;
++    } else {
++      const ids = config.special_tokens?.[entry.SpecialToken?.id]?.ids;
++      if (!Array.isArray(ids) || !ids.every(Number.isSafeInteger)) return null;
++      (sequence ? suffix : prefix).push(...ids);
++    }
++  }
++  return sequence ? { prefix, suffix } : null;
++}
++function truncateHelper(item, length, processor = null) {
++  const template = singleSequenceTruncationTemplate(processor);
++  if (template) {
++    const { prefix, suffix } = template, ids = item.input_ids;
++    if (length < prefix.length + suffix.length) throw new RangeError('max_length cannot retain the configured special tokens.');
++    if (!prefix.every((id, index) => ids[index] === id)
++      || !suffix.every((id, index) => ids[ids.length - suffix.length + index] === id)) {
++      throw new Error('Encoded special tokens do not match the single-sequence template.');
++    }
++  }
++  const suffixLength = template?.suffix.length || 0;
+   for (const key of Object.keys(item)) {
+-    item[key].length = length;
++    const suffix = suffixLength ? item[key].slice(-suffixLength) : [];
++    item[key].length = length - suffixLength;
++    item[key].push(...suffix);
+   }
+@@ -11471,3 +11501,3 @@ Callable {
+           if (truncation) {
+-            truncateHelper(encodedTokens[i], max_length);
++            truncateHelper(encodedTokens[i], max_length, add_special_tokens && text_pair === null ? this._tokenizer.post_processor?.config : null);
+           }

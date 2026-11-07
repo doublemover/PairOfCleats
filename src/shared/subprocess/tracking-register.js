@@ -28,7 +28,9 @@ const createTrackedEntry = (child, options = {}) => ({
   name: typeof options.name === 'string' ? options.name : null,
   startedAtMs: toNumber(options.startedAtMs) || Date.now(),
   terminating: false,
-  onClose: null
+  onClose: null,
+  closeObserved: false,
+  closed: null
 });
 
 export const registerChildProcessForCleanup = (child, options = {}) => {
@@ -50,9 +52,13 @@ export const registerChildProcessForCleanup = (child, options = {}) => {
     scope,
     ownershipId
   });
-  entry.onClose = () => {
-    removeTrackedSubprocess(entryKey, 'close');
-  };
+  entry.closed = new Promise(resolve => {
+    entry.onClose = () => {
+      entry.closeObserved = true;
+      resolve();
+      removeTrackedSubprocess(entryKey, entry.terminating ? 'terminate' : 'close');
+    };
+  });
   trackedSubprocesses.set(entryKey, entry);
   appendTrackedSubprocessEvent({
     kind: 'process_spawned',

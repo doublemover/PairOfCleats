@@ -48,17 +48,19 @@ export function buildCompletionIndex() {
 export function renderBashCompletion(index = buildCompletionIndex()) {
   const lines = [
     '# shellcheck shell=bash',
+    '# Requires Bash 4 or newer (associative arrays).',
     '__pairofcleats_complete() {',
     '  local cur="${COMP_WORDS[COMP_CWORD]}"',
     '  local -a prefix=()',
     '  local token=""',
     '  local key=""',
+    '  COMPREPLY=()',
     '  local candidates=""',
     '  local i=0',
     '  declare -A tree=()'
   ];
   for (const [key, values] of Object.entries(index)) {
-    lines.push(`  tree["${quoteShellWord(key)}"]="${values.map(quoteShellWord).join(' ')}"`);
+    lines.push(`  tree["k:${quoteShellWord(key)}"]="${values.map(quoteShellWord).join(' ')}"`);
   }
   lines.push(
     '  for ((i=1; i<COMP_CWORD; i++)); do',
@@ -66,7 +68,7 @@ export function renderBashCompletion(index = buildCompletionIndex()) {
     '    [[ "$token" == -* ]] && continue',
     '    prefix+=("$token")',
     '  done',
-    '  key="${prefix[*]}"',
+    '  key="k:${prefix[*]}"',
     '  candidates="${tree[$key]}"',
     '  COMPREPLY=($(compgen -W "$candidates" -- "$cur"))',
     '}',

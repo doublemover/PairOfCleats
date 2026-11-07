@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { formatBytes } from '../../../src/shared/disk-space.js';
@@ -47,7 +48,7 @@ export const compareRows = (a, b) => {
 };
 
 export const prepareMergeBenchWorkspace = async (name) => {
-  const benchRoot = path.join(process.cwd(), '.benchCache', name);
+  const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', name);
   await fs.rm(benchRoot, { recursive: true, force: true });
   await fs.mkdir(benchRoot, { recursive: true });
   const runsDir = path.join(benchRoot, 'runs');

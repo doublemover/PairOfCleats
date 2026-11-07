@@ -1,3 +1,4 @@
+import { projectJsTsLiteral, formatJsTsLiteral } from '../js-ts/literal.js';
 export function locMeta(node) {
   return node && node.loc ? {
     startLine: node.loc.start.line,
@@ -67,10 +68,8 @@ export function collectPatternNames(node, out) {
 
 export function formatDefault(node) {
   if (!node) return '...';
-  if (node.type === 'Literal') return JSON.stringify(node.value);
-  if (node.type === 'StringLiteral' || node.type === 'NumericLiteral') return JSON.stringify(node.value);
-  if (node.type === 'BooleanLiteral') return node.value ? 'true' : 'false';
-  if (node.type === 'NullLiteral') return 'null';
+  const literal = projectJsTsLiteral(node);
+  if (literal) return formatJsTsLiteral(literal);
   if (node.type === 'Identifier') return node.name;
   if (node.type === 'TemplateLiteral') return '`...`';
   if (node.type === 'ArrayExpression') return '[...]';

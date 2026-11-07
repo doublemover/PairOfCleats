@@ -5,16 +5,20 @@ import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-p
 
 const entries = [
   { rel: 'src/main.ts' },
+  { rel: 'scripts/codemods/ac3-to-ac4/src/apolloClientInitialization.ts' },
   { rel: 'src/proto/client.proto' },
   { rel: 'schema/api.graphql' },
   { rel: 'api/openapi.yaml' },
+  { rel: 'tools/BUILD' },
+  { rel: 'go/BUILD' },
+  { rel: 'app/BUILD' },
   { rel: 'tools/defs.bzl' },
   { rel: 'go/extensions.bzl' },
   { rel: 'app/local.bzl' }
 ];
 
 const buildContext = createImportBuildContext({ entries });
-assert.equal(buildContext.version, 'build-context-v5');
+assert.equal(buildContext.version, 'build-context-v6');
 assert.equal(typeof buildContext.fingerprint, 'string');
 assert.equal(Array.isArray(buildContext.plugins), true);
 assert.deepEqual(
@@ -96,40 +100,42 @@ const htmlFixtureReference = buildContext.classifyUnresolved({
   spec: '/dist/app.js',
   rawSpec: '/dist/app.js'
 });
-assert.equal(htmlFixtureReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(htmlFixtureReference?.reasonCode, 'IMP_U_CONFIG_ROOT_ANCHORED_PATH');
 assert.equal(htmlFixtureReference?.pluginId, 'path-context');
+
+const fixtureAssetReference = buildContext.classifyUnresolved({
+  importerRel: 'tests/manual/index.html', spec: '/dist/icon.svg', rawSpec: '/dist/icon.svg'
+});
+assert.equal(fixtureAssetReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(fixtureAssetReference?.pluginId, 'path-context');
 
 const testingHarnessReference = buildContext.classifyUnresolved({
   importerRel: 'testing/e2e.sh',
   spec: './testing/e2e/util.sh',
   rawSpec: './testing/e2e/util.sh'
 });
-assert.equal(testingHarnessReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(testingHarnessReference?.pluginId, 'path-context');
+assert.equal(testingHarnessReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const specSupportReference = buildContext.classifyUnresolved({
   importerRel: 'spec/models/agents/mqtt_agent_spec.rb',
   spec: './spec/support/fake_mqtt_server',
   rawSpec: './spec/support/fake_mqtt_server'
 });
-assert.equal(specSupportReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(specSupportReference?.pluginId, 'path-context');
+assert.equal(specSupportReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const fixtureDotReference = buildContext.classifyUnresolved({
   importerRel: 'tests/inputs/Makefile',
   spec: '.o',
   rawSpec: '.o'
 });
-assert.equal(fixtureDotReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(fixtureDotReference?.pluginId, 'path-context');
+assert.equal(fixtureDotReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const vendoredSurfaceReference = buildContext.classifyUnresolved({
   importerRel: 'src/main/webapp/assets/vendors/ace/ext-beautify.js',
   spec: '../token_iterator',
   rawSpec: '../token_iterator'
 });
-assert.equal(vendoredSurfaceReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(vendoredSurfaceReference?.pluginId, 'path-context');
+assert.equal(vendoredSurfaceReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const optionalDependency = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',
@@ -204,9 +210,12 @@ const generatedFromBuildScript = buildContext.classifyUnresolved({
   spec: '../dist/node/axios.cjs',
   rawSpec: '../dist/node/axios.cjs'
 });
-assert.equal(generatedFromBuildScript?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
-assert.equal(generatedFromBuildScript?.pluginId, 'path-context');
-assert.equal(generatedFromBuildScript?.generatedMatch?.matchType, 'build_output_script_reference');
+assert.equal(generatedFromBuildScript, null, 'a build-script filename does not prove a missing source module is generated');
+const generatedBuildAsset = buildContext.classifyUnresolved({ importerRel: 'bin/check-build-version.js',
+  spec: '../dist/runtime.wasm', rawSpec: '../dist/runtime.wasm' });
+assert.equal(generatedBuildAsset?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedBuildAsset?.pluginId, 'path-context');
+assert.equal(generatedBuildAsset?.generatedMatch?.matchType, 'build_output_script_reference');
 
 const generatedFromBuildScriptTsEmit = buildContext.classifyUnresolved({
   importerRel: 'scripts/codemods/ac3-to-ac4/src/index.ts',
@@ -216,6 +225,10 @@ const generatedFromBuildScriptTsEmit = buildContext.classifyUnresolved({
 assert.equal(generatedFromBuildScriptTsEmit?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedFromBuildScriptTsEmit?.pluginId, 'path-context');
 assert.equal(generatedFromBuildScriptTsEmit?.generatedMatch?.matchType, 'build_script_typescript_emit_reference');
+assert.equal(createImportBuildContext({ entries: [] }).classifyUnresolved({
+  importerRel: 'scripts/codemods/ac3-to-ac4/src/index.ts',
+  spec: './apolloClientInitialization.js', rawSpec: './apolloClientInitialization.js'
+}), null, 'a TypeScript emit projection requires its indexed source counterpart');
 
 const buildRuntimeRootReference = buildContext.classifyUnresolved({
   importerRel: 'docker/scripts/setup_env',

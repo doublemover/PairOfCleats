@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { readSegmentContent } from '../../../../shared/embedded-content.js';
 import path from 'node:path';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { toPosix } from '../../../../shared/file-paths.js';
@@ -16,7 +17,7 @@ import {
   resolveNativeTreeSitterTarget
 } from '../../../../lang/tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from '../../../../lang/tree-sitter/options.js';
-import { getLanguageForFile } from '../../../language-registry.js';
+import { getLanguageRouteForFile } from '../../../language-registry/routing.js';
 import { assignSegmentUids, discoverSegments } from '../../../segments.js';
 import {
   resolveSegmentExt,
@@ -153,7 +154,7 @@ export const discoverTreeSitterSchedulerGroups = async ({
       }
 
       const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
-      const langHint = getLanguageForFile(ext, relKey);
+      const langHint = getLanguageRouteForFile(ext, relKey);
       const primaryLanguageId = langHint?.id || null;
       if (shouldSkipTreeSitterPlanningForPath({ relKey, languageId: primaryLanguageId })) {
         recordSkip('policy', () => (
@@ -276,7 +277,8 @@ export const discoverTreeSitterSchedulerGroups = async ({
         if (!isTreeSitterSchedulerLanguage(languageId)) continue;
         if (!isTreeSitterEnabled(treeSitterOptions, languageId)) continue;
 
-        const segmentText = text.slice(segment.start, segment.end);
+        if (segment.contentUnavailable) continue;
+        const segmentText = readSegmentContent(text, segment);
         if (exceedsTreeSitterLimits({ text: segmentText, languageId, treeSitterConfig, recordSkip })) {
           continue;
         }
@@ -297,7 +299,9 @@ export const discoverTreeSitterSchedulerGroups = async ({
         const virtualPath = buildVfsVirtualPath({
           containerPath: relKey,
           segmentUid,
-          effectiveExt: segmentExt
+          effectiveExt: segmentExt,
+          segmentStart: segment.start,
+          segmentEnd: segment.end
         });
         const relationExtractionOnly = entry?.treeSitterRelationOnly === true
           || entry?.relationExtractionOnly === true

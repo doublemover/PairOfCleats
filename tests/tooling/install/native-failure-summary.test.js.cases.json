@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-values-and-packets", "row-authority-and-status", "original-resource-observations"]
+}

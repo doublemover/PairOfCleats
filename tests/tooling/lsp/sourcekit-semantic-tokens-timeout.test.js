@@ -6,16 +6,19 @@ import { registerDefaultToolingProviders } from '../../../src/index/tooling/prov
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `sourcekit-semantic-timeout-${process.pid}-${Date.now()}`);
 const stubServerPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const launcherPath = path.join(tempRoot, 'stub-launcher.js');
 const modePath = path.join(tempRoot, 'mode.txt');
+let restoreExecution = null;
 
 try {
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+  restoreExecution = grantFixtureRepositoryExecution(tempRoot);
   await fs.writeFile(path.join(tempRoot, 'src', 'one.swift'), 'func alpha() -> Int { return 1 }\n', 'utf8');
   await fs.writeFile(
     launcherPath,
@@ -103,6 +106,7 @@ try {
 
   console.log('sourcekit semantic tokens timeout test passed');
 } finally {
+  restoreExecution?.();
   const cleanup = await removePathWithRetry(tempRoot, {
     attempts: 6,
     baseDelayMs: 100,

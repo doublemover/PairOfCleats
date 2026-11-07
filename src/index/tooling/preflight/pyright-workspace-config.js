@@ -1,43 +1,30 @@
 import path from 'node:path';
-import { openContainedFile } from '../../../shared/contained-file.js';
+import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { parseJsoncText } from '../../../shared/jsonc.js';
 
 export const PYRIGHT_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
 
 // Pyright1.1.408 parses this named format with jsonc-parser and trailing commas.
 // https://github.com/microsoft/pyright/blob/1.1.408/packages/pyright-internal/src/analyzer/service.ts#L1283
-export const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
+export const resolvePyrightWorkspaceConfigPreflight = async ({ ctx, abortSignal = null }) => {
+  throwIfAborted(abortSignal);
   const configPath = path.join(String(ctx?.repoRoot || process.cwd()), 'pyrightconfig.json');
   let readError = null;
   let parsed = null;
-  let handle = null;
   let phase = 'stat';
   try {
-    handle = await openContainedFile(ctx?.repoRoot || process.cwd(), configPath);
-    const stat = await handle.stat();
-    if (stat.size > PYRIGHT_CONFIG_MAX_BYTES) {
-      throw Object.assign(new Error(`JSON config exceeds maxBytes (${stat.size} > ${PYRIGHT_CONFIG_MAX_BYTES})`),
-        { code: 'ERR_JSON_FILE_TOO_LARGE' });
-    }
     phase = 'read';
-    const buffer = Buffer.alloc(stat.size);
-    let offset = 0;
-    while (offset < buffer.length) {
-      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
-      if (!bytesRead) break;
-      offset += bytesRead;
-    }
-    const after = await handle.stat();
-    if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
-      throw Object.assign(new Error('Pyright workspace config changed during read.'), { code: 'ERR_FILE_CHANGED' });
-    }
+    const { buffer } = await readVerifiedContainedFile(ctx?.repoRoot || process.cwd(), configPath,
+      { maxBytes: PYRIGHT_CONFIG_MAX_BYTES, signal: abortSignal });
+    throwIfAborted(abortSignal);
     phase = 'parse';
-    parsed = parseJsoncText(buffer.subarray(0, offset).toString('utf8'), configPath);
+    parsed = parseJsoncText(buffer.toString('utf8'), configPath);
   } catch (error) {
+    if (isAbortError(error) || error?.cacheOwnershipPending === true) throw error;
     readError = { error, phase };
-  } finally {
-    if (handle) await handle.close();
   }
+  throwIfAborted(abortSignal);
   const code = String(readError?.error?.code || '').trim().toUpperCase();
   if (!readError) {
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -58,7 +45,7 @@ export const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
   if (code === 'ENOENT') {
     return { state: 'ready', reasonCode: null, message: '', checks: [] };
   }
-  if (code === 'ERR_JSON_FILE_TOO_LARGE') {
+  if (['ERR_JSON_FILE_TOO_LARGE', 'ERR_FILE_TOO_LARGE'].includes(code)) {
     const message = `pyright workspace config exceeds ${PYRIGHT_CONFIG_MAX_BYTES} bytes.`;
     return {
       state: 'degraded',

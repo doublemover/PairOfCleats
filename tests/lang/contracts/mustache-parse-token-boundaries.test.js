@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createMustacheStructureParser, parseMustacheStructure } from '../../../src/shared/mustache-structure.js';
-import { chunkMustache, createMustacheChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { chunkMustache as chunkMustacheSource, createMustacheChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { collectMustacheImports, createMustacheImportCollector } from '../../../src/index/language-registry/import-collectors/mustache.js';
 import { createMustacheManagedAdapter } from '../../../src/index/language-registry/adapters/heuristic.js';
 
+const chunkMustache = (text, ...args) => sourceSections(text, chunkMustacheSource(text, ...args));
 const vendor = createRequire(import.meta.url)('mustache');
 const forbidden = () => { throw new Error('Excluded template rendering/view lookup/partial loading'); };
 vendor.render = forbidden;

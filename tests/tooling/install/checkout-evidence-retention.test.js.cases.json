@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-closed-manifest", "recent-failed-and-readiness-retention", "unregistered-membership-protected",
+    "replaced-file-protected", "protected-quota-before-mutation", "producer-byte-proof-required", "single-journal-per-original-session", "pending-diagnostic-blocks-completed-status"]
+}

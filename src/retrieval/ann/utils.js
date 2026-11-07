@@ -1,7 +1,6 @@
-export const isEmbeddingReady = (embedding) => (
-  (Array.isArray(embedding) || (ArrayBuffer.isView(embedding) && !(embedding instanceof DataView)))
-  && embedding.length > 0
-);
+import { isEmbeddingVectorReady } from '../../shared/embedding-output-admission.js';
+
+export const isEmbeddingReady = isEmbeddingVectorReady;
 
 export const isCandidateSetEmpty = (candidateSet) => (
   Boolean(candidateSet && (() => {

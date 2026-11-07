@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["token-and-utf8-boundaries", "same-stamp-and-owned-counts", "original-descriptor-settlement"]
+}

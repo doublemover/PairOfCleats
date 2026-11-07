@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["registered-closed-dag", "select-join-group-chain", "shared-source-self-join", "unchanged-role-followup", "replay-and-passive-capture", "atomic-downstream-refusal", "incomplete-negative-domain", "independent-invalidation", "prepared-receipt-authority", "independent-flat-oracle", "coefficient-without-expansion", "checkpoint-rebuild-parity"]
+}

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { killChildProcessTree } from '../kill-tree.js';
-import { isAbortSignal } from '../abort.js';
+import { createSignalAbortError, isAbortSignal } from '../abort.js';
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
   SHELL_MODE_DISABLED_ERROR,
@@ -80,14 +80,13 @@ const terminateAndRejectFactory = ({
   try {
     if (typeof child.unref === 'function') child.unref();
   } catch {}
-  let treeCleanupResult = null, treeCleanupError = null;
-  const treeCleanup = killChildProcessTree(child, {
-    killTree,
-    killSignal,
-    graceMs: timeoutAbortKillGraceMs,
-    detached,
-    awaitGrace: true
-  }).then(result => { treeCleanupResult = result; }, error => { treeCleanupError = error; });
+  let treeCleanupResult = null, treeCleanupError, treeCleanupFailed = false, originalTreeWork;
+  try { originalTreeWork = killChildProcessTree(child, {
+    killTree, killSignal, graceMs: timeoutAbortKillGraceMs, detached, awaitGrace: true
+  }); } catch (error) { originalTreeWork = Promise.reject(error); }
+  const treeCleanup = Promise.resolve(originalTreeWork).then(result => { treeCleanupResult = result; }, error => {
+    treeCleanupFailed = true; treeCleanupError = error;
+  });
   cleanup({ keepTrackedRegistration: true });
   // A parent can close while a descendant is still inside its configured
   // termination grace. Keep the caller's capacity lease until the existing
@@ -105,13 +104,40 @@ const terminateAndRejectFactory = ({
   const closeObserved = wasCloseObserved();
   result.termination = { scope: 'spawned-child-close-only', method: 'child-close-event',
     closeObserved, closeTimedOut: !closeObserved, waitMs: timeoutAbortReapWaitMs,
-    treeCleanupSettled: true, treeCleanupFailed: treeCleanupError !== null,
+    treeCleanupSettled: true, treeCleanupFailed,
     treeCleanupForced: treeCleanupResult?.forced ?? null };
   const error = createError(result);
-  if (!closeObserved || treeCleanupError) error.cacheOwnershipPending = true;
+  if (treeCleanupFailed) {
+    // These are fresh subprocess errors owned here. Retain the original tree
+    // failure without importing storage-specific annotation into every launch
+    // or replacing the subprocess class, result or cancellation cause. The
+    // immutable pending observer below independently fences failed tree cleanup.
+    Object.defineProperties(error, {
+      treeCleanupError: { value: treeCleanupError },
+      errors: { value: Object.freeze([treeCleanupError]) }
+    });
+  }
+  if (!closeObserved || treeCleanupFailed) {
+    // This closure belongs to this exact spawned handle. A delayed actual close
+    // may reconcile missing-close evidence; a rejected tree cleanup cannot.
+    Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
+      cacheOwnershipReleased: { value: () => wasCloseObserved() && !treeCleanupFailed, writable: false, configurable: false } });
+  }
   reject(error);
 };
 
+/**
+ * Spawn one owned executable with bounded capture and exact child-close evidence.
+ * Cancellation rejection can retain cleanup ownership: callers must preserve
+ * their leases while cacheOwnershipPending is true. Direct-child close never
+ * establishes arbitrary descendant quiescence. Callback hooks are synchronous.
+ *
+ * @param {string} command Executable, not shell text.
+ * @param {string[]} args
+ * @param {import('./types.js').SpawnSubprocessOptions} [options]
+ * @returns {Promise<import('./types.js').SubprocessResult>}
+ * @see docs/contracts/subprocess.md
+ */
 export function spawnSubprocess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -160,13 +186,16 @@ export function spawnSubprocess(command, args, options = {}) {
         stdout: undefined,
         stderr: undefined
       });
-      reject(new SubprocessAbortError('Operation aborted', result));
+      const abort = createSignalAbortError(abortSignal);
+      reject(new SubprocessAbortError(abort.message, result, abort.cause));
       return;
     }
     const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
     const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
     const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
     const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
+    const onStdoutChunk = typeof options.onStdoutChunk === 'function' ? options.onStdoutChunk : null;
+    const onStderrChunk = typeof options.onStderrChunk === 'function' ? options.onStderrChunk : null;
     // Construct before spawning so an invalid decoder encoding cannot leak a child.
     const stdoutDecoder = onStdout ? new StringDecoder(encoding) : null;
     const stderrDecoder = onStderr ? new StringDecoder(encoding) : null;
@@ -188,10 +217,15 @@ export function spawnSubprocess(command, args, options = {}) {
       stdio,
       shell: false,
       detached,
+      windowsHide: true,
       windowsVerbatimArguments: options.windowsVerbatimArguments === true
     });
-    let closeObserved = false;
-    const closed = new Promise(resolve => child.once('close', () => { closeObserved = true; resolve(); }));
+    let closeObserved = false, stdinErrorHandler = null;
+    const closed = new Promise(resolve => child.once('close', () => {
+      closeObserved = true;
+      if (stdinErrorHandler && child.stdin) child.stdin.off('error', stdinErrorHandler);
+      resolve();
+    }));
     let unregisterTrackedChild = () => {};
     if (cleanupOnParentExit) {
       unregisterTrackedChild = registerChildProcessForCleanup(child, {
@@ -206,17 +240,6 @@ export function spawnSubprocess(command, args, options = {}) {
         name: options.name || null,
         startedAtMs: startedAt
       });
-    }
-    if (options.input != null && child.stdin) {
-      try {
-        child.stdin.write(options.input);
-        child.stdin.end();
-      } catch {}
-    }
-    if (typeof options.onSpawn === 'function') {
-      try {
-        options.onSpawn(child);
-      } catch {}
     }
     if (options.unref === true) {
       child.unref();
@@ -270,6 +293,11 @@ export function spawnSubprocess(command, args, options = {}) {
       wasCloseObserved: () => closeObserved,
       reject
     });
+    const failOwnedOperation = (message, error) => {
+      if (settled) return;
+      settled = true;
+      void terminateAndReject(result => new SubprocessError(message, result, error));
+    };
     const onOutputHandlerError = (streamName, error) => {
       if (settled) return;
       settled = true;
@@ -279,11 +307,14 @@ export function spawnSubprocess(command, args, options = {}) {
         error
       ));
     };
-    const handleOutput = (collector, handler, decoder, streamName) => (chunk) => {
+    const handleOutput = (collector, handler, chunkHandler, decoder, streamName) => (chunk) => {
       if (settled) return;
       collector.push(chunk);
-      if (!handler) return;
       try {
+        // The byte observer gets its own buffer. Mutating or retaining it cannot
+        // corrupt the captured tail or the independent decoded-text observer.
+        if (chunkHandler) chunkHandler(Buffer.from(chunk));
+        if (!handler) return;
         const text = decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
         if (text) handler(text);
       } catch (error) {
@@ -297,11 +328,11 @@ export function spawnSubprocess(command, args, options = {}) {
         if (text) handler(text);
       } catch (error) { onOutputHandlerError(streamName, error); }
     };
-    onStdoutData = captureStdout || onStdout
-      ? handleOutput(stdoutCollector, onStdout, stdoutDecoder, 'stdout')
+    onStdoutData = captureStdout || onStdout || onStdoutChunk
+      ? handleOutput(stdoutCollector, onStdout, onStdoutChunk, stdoutDecoder, 'stdout')
       : null;
-    onStderrData = captureStderr || onStderr
-      ? handleOutput(stderrCollector, onStderr, stderrDecoder, 'stderr')
+    onStderrData = captureStderr || onStderr || onStderrChunk
+      ? handleOutput(stderrCollector, onStderr, onStderrChunk, stderrDecoder, 'stderr')
       : null;
     if (onStdoutData && child.stdout) {
       child.stdout.on('data', onStdoutData);
@@ -320,25 +351,16 @@ export function spawnSubprocess(command, args, options = {}) {
     abortHandler = () => {
       if (settled) return;
       settled = true;
-      void terminateAndReject((result) => new SubprocessAbortError('Operation aborted', result));
+      const abort = createSignalAbortError(abortSignal);
+      void terminateAndReject((result) => new SubprocessAbortError(abort.message, result, abort.cause));
     };
     if (abortSignal) {
       abortSignal.addEventListener('abort', abortHandler, { once: true });
     }
     child.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      const result = buildResult({
-        pid: child.pid,
-        exitCode: null,
-        signal: null,
-        startedAt,
-        stdout: stdoutCollector.toOutput(outputMode),
-        stderr: stderrCollector.toOutput(outputMode),
-        outputCapture: { stdout: stdoutCollector.stats(), stderr: stderrCollector.stats() }
-      });
-      reject(new SubprocessError(err?.message || 'Subprocess failed', result, err));
+      // `error` can occur after a successful spawn. It never substitutes for
+      // the exact child's close or releases its cleanup registration early.
+      failOwnedOperation(err?.message || 'Subprocess failed', err);
     });
     child.on('close', (code, signal) => {
       if (settled) return;
@@ -349,7 +371,17 @@ export function spawnSubprocess(command, args, options = {}) {
       cleanup();
       finalize(code, signal);
     });
-    // onSpawn is user code and can synchronously cancel before listener setup.
+    stdinErrorHandler = error => failOwnedOperation('Subprocess stdin failed', error);
+    if (child.stdin) child.stdin.on('error', stdinErrorHandler);
+    // All owners/listeners exist before caller hooks or input can fail/cancel.
+    if (typeof options.onSpawn === 'function') {
+      try { options.onSpawn(child); }
+      catch (error) { failOwnedOperation('Subprocess onSpawn callback failed', error); }
+    }
     if (abortSignal?.aborted) abortHandler();
+    if (!settled && options.input != null && child.stdin) {
+      try { child.stdin.end(options.input); }
+      catch (error) { failOwnedOperation('Subprocess stdin failed', error); }
+    }
   });
 }

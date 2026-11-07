@@ -1,4 +1,4 @@
-import { canonicalizeTypeText } from '../../../../../shared/type-normalization.js';
+import { canonicalizeTypeText, normalizeTypeWhitespace } from '../../../../../shared/type-normalization.js';
 import {
   buildFallbackReasonCodes,
   buildLspProvenanceEntry,
@@ -15,13 +15,9 @@ import {
 
 export const buildSourceSignatureCandidate = (text, virtualRange) => {
   if (typeof text !== 'string' || !text) return null;
-  const start = Number(virtualRange?.start);
-  const end = Number(virtualRange?.end);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  const clampedStart = Math.max(0, Math.min(text.length, Math.floor(start)));
-  const clampedEnd = Math.max(clampedStart, Math.min(text.length, Math.ceil(end + 1)));
-  if (clampedEnd <= clampedStart) return null;
-  let candidate = text.slice(clampedStart, clampedEnd);
+  const start = virtualRange?.start, end = virtualRange?.end;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end > text.length || end <= start) return null;
+  let candidate = text.slice(start, end);
   if (!candidate.includes('(') || !candidate.includes(')')) return null;
   const terminators = [candidate.indexOf('{'), candidate.indexOf(';')].filter((idx) => idx >= 0);
   if (terminators.length) {
@@ -34,7 +30,7 @@ export const buildSourceSignatureCandidate = (text, virtualRange) => {
   const cut = lineBreakIdx >= 0
     ? lastParen + 1 + lineBreakIdx
     : candidate.length;
-  return String(candidate.slice(0, cut)).replace(/\s+/g, ' ').trim();
+  return normalizeTypeWhitespace(candidate.slice(0, cut));
 };
 
 export const buildLineSignatureCandidate = (text, lineNumber) => {
@@ -49,7 +45,7 @@ export const buildLineSignatureCandidate = (text, lineNumber) => {
   if (terminators.length) {
     candidate = candidate.slice(0, Math.min(...terminators));
   }
-  return String(candidate).replace(/\s+/g, ' ').trim();
+  return normalizeTypeWhitespace(candidate);
 };
 
 export const resolveEvidenceTier = (record) => {

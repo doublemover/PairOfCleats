@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["function-failure", "returned-pending-result", "independent-inspection", "revoked-during-reservation-read"]
+}

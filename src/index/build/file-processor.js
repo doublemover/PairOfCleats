@@ -1,3 +1,4 @@
+import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 import { createSemanticCacheDependencySignatures } from './incremental/semantic-cache-dependencies.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -9,17 +10,19 @@ import { estimateJsonBytes } from '../../shared/cache/size.js';
 import { fromPosix, toPosix } from '../../shared/file-paths.js';
 import { log, logLine } from '../../shared/progress-runtime.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
-import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
-import { processFileCpu } from './file-processor/cpu.js';
+import { processFileCpuWithWorker } from './file-processor/coarse-worker.js';
+import { fileAnalysisAdmissionBytes, isFileAnalysisCandidate } from './workers/file-analysis-contract.js';
+import { createFileSerialCompute } from './file-processor/serial-compute.js';
 import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
 import { resolvePreReadSkip } from './file-processor/skip.js';
 import { createCrashStageUpdater } from './file-processor/crash-stage.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
+import { classifyGeneratedArtifactContentPrefix, readGeneratedArtifactPrefix } from '../../shared/generated-artifact.js';
 import {
   createPreCpuArtifactState,
   applyCachedResultToArtifacts,
@@ -27,7 +30,7 @@ import {
   writeArtifactsToFileTextCache
 } from './file-processor/pre-cpu-state.js';
 import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
-import { getLanguageForFile } from '../language-registry.js';
+import { getLanguageRouteForFile } from '../language-registry/routing.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
   buildDocumentExtractionFidelity,
@@ -35,8 +38,7 @@ import {
   sha256Hex,
   normalizeDocumentExtractionPolicy
 } from '../extractors/common.js';
-import { loadPdfExtractorRuntime } from '../extractors/pdf.js';
-import { loadDocxExtractorRuntime } from '../extractors/docx.js';
+import { buildDocumentExtractionAdmission, resolveDocumentExtractorIdentity } from '../extractors/admission.js';
 import {
   isDocumentExt,
   normalizeFallbackLanguageFromExt
@@ -84,6 +86,7 @@ export function createFileProcessor(options) {
     seenFiles,
     gitBlameEnabled,
     lintEnabled: lintEnabledRaw,
+    lintPolicy = null,
     complexityEnabled: complexityEnabledRaw,
     structuralMatches,
     cacheConfig,
@@ -100,6 +103,7 @@ export function createFileProcessor(options) {
     skippedFiles = null,
     embeddingEnabled = true,
     embeddingNormalize = true,
+    embeddingQuantization,
     toolInfo = null,
     tokenizationStats = null,
     tokenizeEnabled = true,
@@ -149,16 +153,9 @@ export function createFileProcessor(options) {
   const resolvedDocumentExtraction = documentExtractionConfig && typeof documentExtractionConfig === 'object'
     ? documentExtractionConfig
     : {};
-  const documentExtractorTestConfig = getDocumentExtractorTestConfig();
   const documentExtractionEnabled = mode === 'extracted-prose'
     && resolvedDocumentExtraction.enabled === true;
   const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
-  const documentExtractionPolicyCacheKey = [
-    documentExtractionPolicy.maxBytesPerFile,
-    documentExtractionPolicy.maxPages,
-    documentExtractionPolicy.extractTimeoutMs,
-    EXTRACTION_NORMALIZATION_POLICY
-  ].join('|');
   const supportsDocumentExtractionCache = Boolean(
     documentExtractionCache
     && typeof documentExtractionCache.get === 'function'
@@ -191,48 +188,24 @@ export function createFileProcessor(options) {
             ...(Number.isFinite(Number(unit.pageNumber)) ? { pageNumber: Math.floor(Number(unit.pageNumber)) } : {}),
             ...(Number.isFinite(Number(unit.index)) ? { index: Math.floor(Number(unit.index)) } : {}),
             ...(typeof unit.style === 'string' ? { style: unit.style } : {}),
+            ...(Object.hasOwn(unit, 'headingLevel') ? { headingLevel: unit.headingLevel } : {}),
             start: Math.max(0, Math.floor(Number(unit.start) || 0)),
             end: Math.max(0, Math.floor(Number(unit.end) || 0))
           }))
         : [],
       normalizationPolicy: record.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+      pageCoverage: record.pageCoverage ? structuredClone(record.pageCoverage) : null,
       warnings: Array.isArray(record.warnings)
-        ? record.warnings.slice(0, 32).map((item) => String(item))
+        ? record.warnings.map((item) => String(item))
         : []
     };
   };
-  const resolveDocumentExtractorIdentity = async (sourceType) => {
-    if (sourceType === 'pdf') {
-      if (documentExtractorTestConfig.stubPdfExtract) {
-        return { name: 'pdf-test-stub', version: 'test', target: 'stub' };
-      }
-      const runtimeInfo = await loadPdfExtractorRuntime();
-      return {
-        name: runtimeInfo?.name || 'pdfjs-dist',
-        version: runtimeInfo?.version || null,
-        target: runtimeInfo?.target || null
-      };
-    }
-    if (documentExtractorTestConfig.stubDocxExtract) {
-      return { name: 'docx-test-stub', version: 'test', target: 'stub' };
-    }
-    const runtimeInfo = await loadDocxExtractorRuntime();
-    return {
-      name: runtimeInfo?.name || 'mammoth',
-      version: runtimeInfo?.version || null,
-      target: runtimeInfo?.target || null
-    };
-  };
-  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor }) => {
+  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor, sourceType }) => {
     const bytesHash = typeof sourceBytesHash === 'string' ? sourceBytesHash.trim() : '';
     if (!bytesHash) return null;
-    return sha256Hex([
-      bytesHash,
-      extractor?.name || 'unknown',
-      extractor?.version || 'unknown',
-      extractor?.target || '',
-      documentExtractionPolicyCacheKey
-    ].join('|'));
+    return sha256Hex(JSON.stringify([bytesHash, buildDocumentExtractionAdmission({
+      sourceType, policy: documentExtractionPolicy, extractor
+    })]));
   };
   const loadCachedDocumentExtraction = (cacheKey) => {
     if (!supportsDocumentExtractionCache || !cacheKey) return null;
@@ -368,7 +341,6 @@ export function createFileProcessor(options) {
     reporter: cacheReporter
   });
 
-  let treeSitterSerial = Promise.resolve();
   /**
    * Serialize Tree-sitter executions to avoid parser/runtime contention.
    *
@@ -378,11 +350,7 @@ export function createFileProcessor(options) {
    * @param {Function} fn
    * @returns {Promise<any>}
    */
-  const runTreeSitterSerial = async (fn) => {
-    const run = treeSitterSerial.then(fn, fn);
-    treeSitterSerial = run.catch(() => {});
-    return run;
-  };
+  const runTreeSitterSerial = createFileSerialCompute();
   /**
    * Process a file: read, chunk, analyze, and produce chunk payloads.
    * @param {string} abs
@@ -409,15 +377,21 @@ export function createFileProcessor(options) {
       err.code = 'FILE_PROCESS_ABORTED';
       throw err;
     };
-    const runIo = ioQueue ? (fn) => ioQueue.add(fn, { signal }) : (fn) => fn();
-    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal }) : (fn) => fn();
-    // Keep embedding queue backpressure/concurrency controls active even when
-    // called from CPU work. Deadlock prevention is handled at scheduler-token
-    // configuration (embeddings queue avoids consuming CPU tokens).
-    const runEmbedding = embeddingQueue
-      ? (fn) => embeddingQueue.add(fn, { signal })
-      : (fn) => fn();
-    const runProc = procQueue ? (fn) => procQueue.add(fn, { signal }) : (fn) => fn();
+    // Only explicitly I/O-only callbacks may run without compute admission.
+    // Bundle/provider callbacks can parse, normalize or serialize after waiting.
+    const runIo = (fn, { waitOnly = false } = {}) => ioQueue
+      ? withSchedulerCpuSuspended(() => ioQueue.add(fn, { signal, cpu: waitOnly ? 0 : 1 }))
+      : waitOnly ? withSchedulerCpuSuspended(fn) : fn();
+    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal,
+      bytes: isFileAnalysisCandidate({ mode, ext, workerPool })
+        ? fileAnalysisAdmissionBytes(fileStat?.size || 0)
+        : Math.max(64 * 1024, Number(fileStat?.size || 0) * 4) }) : (fn) => fn();
+    // Known waits release only parent compute. Child compute obtains its own
+    // permit; source/AST/window and all retained-byte ownership stay admitted.
+    const runEmbedding = (fn, { signal: operationSignal = signal } = {}) => embeddingQueue
+      ? withSchedulerCpuSuspended(() => embeddingQueue.add(fn, { signal: operationSignal })) : fn();
+    const runProc = (fn, { cpu = 1, bytes = 0 } = {}) => procQueue
+      ? withSchedulerCpuSuspended(() => procQueue.add(fn, { signal, cpu, bytes })) : fn();
     throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
@@ -466,7 +440,7 @@ export function createFileProcessor(options) {
     const documentSourceType = documentExtractionEnabled && isDocumentExt(ext)
       ? (ext === '.pdf' ? 'pdf' : 'docx')
       : null;
-    const languageHint = getLanguageForFile(ext, relKey);
+    const languageHint = getLanguageRouteForFile(ext, relKey);
     let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;
     let fileStat;
@@ -474,7 +448,7 @@ export function createFileProcessor(options) {
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
         ? fileEntry.stat
-        : await runIo(() => fs.lstat(abs));
+        : await runIo(() => fs.lstat(abs), { waitOnly: true });
       updateCrashStage('pre-cpu:lstat:done', {
         size: Number.isFinite(Number(fileStat?.size)) ? Number(fileStat.size) : null
       });
@@ -520,6 +494,21 @@ export function createFileProcessor(options) {
       relKey,
       fileStat
     });
+    const previousSource = incrementalState.enabled ? incrementalState.manifest?.files?.[relKey] : null;
+    const sourceAdmission = incrementalState.manifest?.dependencySignatures?.sourceAdmission;
+    if (mode !== 'records' && previousSource && sourceAdmission
+      && sourceAdmission !== previousSource.dependencySignatures?.sourceAdmission) {
+      // Requalify before semantic relocation or a cached chunk return. A warm
+      // text-cache buffer has no fresh read witness; borrow the bounded owner.
+      const prefix = await runIo(() => readGeneratedArtifactPrefix(root, abs, undefined, { signal }));
+      throwIfAborted();
+      const artifact = classifyGeneratedArtifactContentPrefix({ prefix });
+      if (artifact?.action === 'omit') {
+        recordSkip(abs, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,
+          artifactFlags: artifact.flags, action: artifact.action, recognition: 'incremental-policy-requalification' });
+        return null;
+      }
+    }
     updateCrashStage('pre-cpu:load-cached-bundle:start');
     const semanticContext = semantic ? {
       repoRoot: root,
@@ -531,6 +520,7 @@ export function createFileProcessor(options) {
     } : null;
     const cachedResult = await loadCachedBundleForFile({
       repoRoot: root,
+      signal,
       semanticContext,
       runIo,
       incrementalState,
@@ -545,6 +535,11 @@ export function createFileProcessor(options) {
     });
     throwIfAborted();
     applyCachedResultToArtifacts({ artifacts, cachedResult });
+
+    const documentExtractionIdentity = documentSourceType ? await resolveDocumentExtractorIdentity(documentSourceType) : null;
+    const documentExtractionAdmission = documentSourceType ? buildDocumentExtractionAdmission({
+      sourceType: documentSourceType, policy: documentExtractionPolicy, extractor: documentExtractionIdentity
+    }) : null;
 
     const cachedOutcome = reuseCachedBundle({
       abs,
@@ -564,7 +559,9 @@ export function createFileProcessor(options) {
       fileStart,
       knownLines,
       fileLanguageId,
-      mode
+      mode,
+      documentExtractionAdmission,
+      root, lintEnabled, lintPolicy
     });
     if (cachedOutcome?.skip) {
       const { reason, ...extra } = cachedOutcome.skip;
@@ -593,15 +590,17 @@ export function createFileProcessor(options) {
           vfsManifestRows: cachedOutcome.result.vfsManifestRows
         });
       }
-      if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+      if (artifacts.cachedBundle?.stageRefresh?.embeddings || artifacts.cachedBundle?.stageRefresh?.sourceAdmission) {
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,lintOutcome:artifacts.cachedBundle.lintOutcome || null,documentExtraction:cachedOutcome.result.fileInfo.extraction || null,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
+    // A refused document receipt also invalidates its optional parser checkpoints;
+    // they describe text produced under the old extraction admission.
+    if (documentSourceType) artifacts.cachedBundle = null;
     let usedDocumentExtractionCacheHit = false;
     let documentExtractionCacheKey = null;
-    let documentExtractionIdentity = null;
     if (documentSourceType && supportsDocumentExtractionCache) {
       if (!artifacts.fileBuffer) {
         throwIfAborted();
@@ -619,16 +618,16 @@ export function createFileProcessor(options) {
       }
       if (Buffer.isBuffer(artifacts.fileBuffer)) {
         const sourceBytesHash = sha256Hex(artifacts.fileBuffer);
-        documentExtractionIdentity = await resolveDocumentExtractorIdentity(documentSourceType);
         documentExtractionCacheKey = buildDocumentExtractionCacheKey({
           sourceBytesHash,
-          extractor: documentExtractionIdentity
+          extractor: documentExtractionIdentity,
+          sourceType: documentSourceType
         });
         const cachedExtraction = loadCachedDocumentExtraction(documentExtractionCacheKey);
         if (cachedExtraction?.text) {
           usedDocumentExtractionCacheHit = true;
           const warnings = Array.isArray(cachedExtraction.warnings)
-            ? cachedExtraction.warnings.slice(0, 32)
+            ? cachedExtraction.warnings.slice()
             : [];
           if (!warnings.includes('document-extraction-cache-hit')) {
             warnings.push('document-extraction-cache-hit');
@@ -652,13 +651,15 @@ export function createFileProcessor(options) {
             counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
             units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
             normalizationPolicy: cachedExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+            admission: documentExtractionAdmission,
             warnings,
             policy: buildDocumentExtractionPolicySummary(documentExtractionPolicy),
             fidelity: buildDocumentExtractionFidelity({
               sourceType: documentSourceType,
               status: 'ok',
               warnings,
-              policy: documentExtractionPolicy
+              policy: documentExtractionPolicy,
+              pageCoverage: cachedExtraction.pageCoverage
             })
           };
           updateCrashStage('pre-cpu:extract:cache-hit', {
@@ -684,6 +685,7 @@ export function createFileProcessor(options) {
         formatCrashErrorMeta,
         warnEncodingFallback,
         documentSourceType,
+        signal,
         wasmBinary: Boolean(semantic && mode === 'code' && ext === '.wasm'),
         documentExtractionPolicy,
         artifacts
@@ -704,7 +706,6 @@ export function createFileProcessor(options) {
       const cacheWarnings = Array.isArray(artifacts.documentExtraction.warnings)
         ? artifacts.documentExtraction.warnings
           .filter((item) => item && item !== 'document-extraction-cache-hit')
-          .slice(0, 32)
         : [];
       storeCachedDocumentExtraction(documentExtractionCacheKey, {
         sourceType: documentSourceType,
@@ -713,7 +714,8 @@ export function createFileProcessor(options) {
         counts: artifacts.documentExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
         units: Array.isArray(artifacts.documentExtraction.units) ? artifacts.documentExtraction.units : [],
         normalizationPolicy: artifacts.documentExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
-        warnings: cacheWarnings
+        warnings: cacheWarnings,
+        pageCoverage: artifacts.documentExtraction.fidelity?.pageCoverage || null
       });
     }
 
@@ -734,7 +736,7 @@ export function createFileProcessor(options) {
 
     updateCrashStage('pre-cpu:handoff-to-cpu:start');
     if (semantic && !artifacts.fileBuffer) artifacts.fileBuffer = await runIo(() => readContainedFile(root, abs, { expectedStat: fileStat }));
-    const cpuResult = await runCpu(() => processFileCpu({
+    const cpuResult = await runCpu(() => processFileCpuWithWorker({
       semantic,
       sourceBytes: artifacts.fileBuffer,
       abs,
@@ -746,7 +748,13 @@ export function createFileProcessor(options) {
       rel,
       relKey,
       text: artifacts.text,
-      cachedStageBundle: semantic ? null : artifacts.cachedBundle,
+      cachedStageBundle: semantic ? null : artifacts.cachedBundle || (
+        cachedResult.parseCheckpointFallback?.sourceHash === artifacts.fileHash
+          ? { parseCheckpoint: cachedResult.parseCheckpointFallback.checkpoint,
+            stageRefresh: { parse: false, lexical: true } } : null),
+      cachedLexicalCheckpoint: artifacts.cachedBundle?.stageRefresh?.lexical === false ? artifacts.cachedBundle.lexicalCheckpoint : null,
+      lexicalCheckpointDependencies: incrementalState.enabled ? incrementalState.manifest.dependencySignatures : null,
+      fileLineDictionaryReceipt: incrementalState.manifest?.dependencySignatures?.lexical || null,
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,
@@ -771,6 +779,7 @@ export function createFileProcessor(options) {
       contextWin,
       relationsEnabled,
       lintEnabled,
+      lintPolicy,
       complexityEnabled,
       analysisPolicy: resolvedAnalysisPolicy,
       typeInferenceEnabled: resolvedTypeInferenceEnabled,
@@ -784,6 +793,7 @@ export function createFileProcessor(options) {
       tokenizeEnabled,
       embeddingEnabled,
       embeddingNormalize,
+      embeddingQuantization,
       embeddingBatchSize,
       getChunkEmbedding,
       getChunkEmbeddings,
@@ -859,7 +869,10 @@ export function createFileProcessor(options) {
       fileStat,
       fileHash: artifacts.fileHash,
       fileChunks,
+      lintOutcome: cpuResult?.lintOutcome || null,
+      documentExtraction: artifacts.documentExtraction || null,
       parseCheckpoint: cpuResult?.parseCheckpoint || null,
+      lexicalCheckpoint: cpuResult?.lexicalCheckpoint || null,
       fileRelations,
       lexiconFilterStats,
       vfsManifestRows,

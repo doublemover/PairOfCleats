@@ -107,6 +107,7 @@ await writeIndexArtifacts({
   fileCounts: { candidates: 0 },
   perfProfile: null,
   indexState: {
+    buildId: 'artifact-fixture',
     generatedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     counts: { files: 0, chunks: 0 },

@@ -77,8 +77,8 @@ if (checks.some((check) => check?.name === 'clangd_command_unavailable')) {
   process.exit(1);
 }
 
-if (!logs.some((entry) => entry.includes('compile_commands'))) {
-  console.error('clangd provider missing expected compile_commands log message.');
+if (!logs.some((entry) => entry.includes('requires usable exact compilation context') && entry.includes('skipping tooling-based types'))) {
+  console.error('clangd provider missing its exact-compilation-context refusal log.');
   process.exit(1);
 }
 

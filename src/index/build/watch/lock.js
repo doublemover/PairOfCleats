@@ -8,6 +8,7 @@ const LOCK_BACKOFF_MAX_WAIT_MS = 15000;
 
 export const acquireIndexLockWithBackoff = async ({
   repoCacheRoot,
+  storageContext = null,
   shouldExit,
   log: logFn,
   backoff = null
@@ -21,7 +22,7 @@ export const acquireIndexLockWithBackoff = async ({
     ? backoff.maxWaitMs
     : LOCK_BACKOFF_MAX_WAIT_MS;
   return await retryWithBackoff({
-    task: async () => acquireIndexLock({ repoCacheRoot, log: logFn }),
+    task: async () => acquireIndexLock({ repoCacheRoot, storageContext, log: logFn, requireSettlement: true }),
     shouldStop: shouldExit,
     baseMs,
     maxMs,

@@ -1,4 +1,6 @@
+import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
+import { createContainedFileResource } from '../contained-file-resource.js';
 
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
@@ -44,6 +46,17 @@ export const encodeVarint64 = (value) => {
   const output = [];
   encodeUnsignedVarint64(value, output);
   return Buffer.from(output);
+};
+
+/** Write the same unsigned varint into caller-owned bounded storage. */
+export const encodeVarint64Into = (value,buffer,offset=0) => {
+  let next=toNonNegativeBigInt(value),cursor=offset;
+  do {
+    if(cursor>=buffer.length)throw new RangeError('Varint output storage is full.');
+    const byte=Number(next&0x7fn);next>>=7n;
+    buffer[cursor++]=next>0n?byte|0x80:byte;
+  }while(next>0n);
+  return cursor-offset;
 };
 
 export const encodeVarintDeltas = (values) => {
@@ -103,16 +116,14 @@ export const readVarintDeltasAt = async (filePath, start, end) => {
   const length = finish - begin;
   if (length === 0) return [];
   const handle = await fs.open(filePath, 'r');
-  try {
+  return createContainedFileResource({ handle, sync: false }).run(async descriptor => {
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await handle.read(buffer, 0, length, begin);
+    const { bytesRead } = await readExactAt(descriptor, buffer, 0, length, begin);
     if (bytesRead !== length) {
       throw new Error(`Truncated varint read: expected ${length} bytes, got ${bytesRead}.`);
     }
     return decodeVarintDeltas(buffer.slice(0, bytesRead));
-  } finally {
-    await handle.close();
-  }
+  });
 };
 
 export const encodeVarint64List = (values) => {

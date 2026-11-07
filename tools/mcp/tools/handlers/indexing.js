@@ -1,13 +1,11 @@
 import path from 'node:path';
-import {
-  buildIndex as coreBuildIndex,
-  buildSqliteIndex as coreBuildSqliteIndex
-} from '../../../../src/integrations/core/index.js';
+import { throwIfAborted } from '../../../../src/shared/abort.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { createProgressReporter } from '../../../../src/shared/progress-events.js';
 import { clearRepoCaches } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
 import { maybeRestoreArtifacts, resolveMcpRepoContext, toolRoot } from '../helpers.js';
+import { getIndexDir } from '../../../../src/shared/dict-utils.js';
 
 /**
  * Handle the MCP build_index tool call.
@@ -15,7 +13,9 @@ import { maybeRestoreArtifacts, resolveMcpRepoContext, toolRoot } from '../helpe
  * @returns {object}
  */
 export async function buildIndex(args = {}, context = {}) {
-  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
+  throwIfAborted(context.signal);
+  const { buildIndex: coreBuildIndex, buildSqliteIndex: coreBuildSqliteIndex } = await import('../../../../src/integrations/core/build-index.js');
+  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath, { preserveExplicitTarget: true });
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const shouldUseSqlite = typeof args.sqlite === 'boolean' ? args.sqlite : sqliteConfigured;
   const mode = args.mode || 'all';
@@ -35,6 +35,7 @@ export async function buildIndex(args = {}, context = {}) {
   });
   const heartbeatIntervalMs = 15000;
   const withHeartbeat = async (label, fn) => {
+    throwIfAborted(context.signal);
     let timer = null;
     if (reporter) {
       reporter.start(label, { observability });
@@ -44,41 +45,54 @@ export async function buildIndex(args = {}, context = {}) {
       timer.unref?.();
     }
     try {
-      return await fn();
+      const result = await fn();
+      throwIfAborted(context.signal);
+      return result;
     } finally {
       if (timer) clearInterval(timer);
     }
   };
 
   let restoredArtifacts = false;
+  let coreResult = null;
   if (useArtifacts) {
-    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir, context, runtimeEnv);
+    restoredArtifacts = await maybeRestoreArtifacts(repoPath, args.artifactsDir, context, runtimeEnv);
   }
 
   if (!restoredArtifacts) {
-    await withHeartbeat(
+    coreResult = await withHeartbeat(
       `Building ${mode} index${incremental ? ' (incremental)' : ''}.`,
       () => coreBuildIndex(repoPath, {
         mode,
         incremental,
         'stub-embeddings': stubEmbeddings,
         sqlite: buildSqlite,
+        abortSignal: context.signal,
         emitOutput: false,
         observability
       })
     );
   }
 
-  if (buildSqlite) {
-    await withHeartbeat(
+  if (buildSqlite && restoredArtifacts) {
+    coreResult = await withHeartbeat(
       `Building SQLite index${incremental ? ' (incremental)' : ''}.`,
       () => coreBuildSqliteIndex(repoPath, {
+        mode,
+        codeDir: ['all', 'code'].includes(mode) ? getIndexDir(repoPath, 'code', userConfig) : undefined,
+        proseDir: ['all', 'prose'].includes(mode) ? getIndexDir(repoPath, 'prose', userConfig) : undefined,
+        extractedProseDir: ['all', 'extracted-prose'].includes(mode) ? getIndexDir(repoPath, 'extracted-prose', userConfig) : undefined,
+        recordsDir: ['all', 'records'].includes(mode) ? getIndexDir(repoPath, 'records', userConfig) : undefined,
         incremental,
+        abortSignal: context.signal,
         emitOutput: false
       })
     );
   }
-  reporter?.done('Index build complete.', { observability });
+  throwIfAborted(context.signal);
+  const outcome = coreResult?.outcome || null;
+  const pending = outcome?.status === 'pending' || coreResult?.stage2?.queued === true || coreResult?.stage2?.background === true;
+  reporter?.done(pending ? 'Index work queued or running in the background.' : 'Index build complete.', { observability });
   clearRepoCaches(repoPath);
 
   return attachObservability({
@@ -86,7 +100,8 @@ export async function buildIndex(args = {}, context = {}) {
     mode,
     sqlite: buildSqlite,
     incremental,
-    restoredArtifacts
+    restoredArtifacts,
+    outcome
   }, observability);
 }
 
@@ -96,7 +111,10 @@ export async function buildIndex(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function buildSqliteIndex(args = {}, context = {}) {
+  throwIfAborted(context.signal);
+  const { buildSqliteIndex: coreBuildSqliteIndex } = await import('../../../../src/integrations/core/build-index.js');
   const { repoPath } = resolveMcpRepoContext(args.repoPath, {
+    preserveExplicitTarget: true,
     includeRuntimeEnv: false,
     includeUserConfig: false
   });
@@ -111,9 +129,11 @@ export async function buildSqliteIndex(args = {}, context = {}) {
     codeDir: args.codeDir,
     proseDir: args.proseDir,
     out: args.out,
+    abortSignal: context.signal,
     emitOutput: false,
     exitOnError: false
   });
+  throwIfAborted(context.signal);
   clearRepoCaches(repoPath);
   reporter?.done('SQLite index build complete.');
   return payload;

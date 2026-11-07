@@ -43,6 +43,7 @@ const env = applyTestEnv({
 const buildResult = runNode([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--stage', 'stage2', '--mode', 'code',
   '--repo',
   repoRoot
 ], 'filter index artifact build index', repoRoot, env, { stdio: 'pipe', encoding: 'utf8', allowFailure: true });

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -44,14 +45,14 @@ for await (const entry of optional.denseVec.rows) {
 }
 assert.deepEqual(rows, [[1, 2, 3], [4, 5, 6]], 'dense rows mismatch');
 
-const outsideBinPath = path.join(root, '.testCache', 'sqlite-utils-dense-binary-outside.bin');
+const outsideBinPath = resolveDevelopmentArtifactPath(root, 'test-cache', 'sqlite-utils-dense-binary-outside.bin');
 await fs.writeFile(outsideBinPath, vectors);
 await fs.writeFile(metaPath, JSON.stringify({
   fields: {
     schemaVersion: '1.0.0',
     artifact: baseName,
     format: 'uint8-row-major',
-    path: path.posix.join('..', '..', '.testCache', 'sqlite-utils-dense-binary-outside.bin'),
+    path: path.posix.join('..', 'sqlite-utils-dense-binary-outside.bin'),
     dims: 3,
     count: 2,
     model: 'demo-model'

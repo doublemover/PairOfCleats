@@ -2,7 +2,7 @@ import { canonicalBundleSourceKey } from '../../../shared/bundle-source-key.js';
 
 export const normalizeIncrementalRelPath = (value) => {
   const normalized = canonicalBundleSourceKey(value);
-  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  return normalized;
 };
 
 export const resolvePrefetchedVfsRows = (store, normalizedFile, rawFile) => {

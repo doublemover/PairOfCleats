@@ -36,6 +36,7 @@ const staleSession = {
 };
 const harness = createVsCodeRuntimeHarness({
   repoRoot: repoA,
+  globalConfigValues: { cliPath: path.join(repoA, 'bin', 'pairofcleats.js') },
   workspaceFolders: [
     { name: 'repo-a', path: repoA },
     { name: 'repo-b', path: repoB }
@@ -79,7 +80,7 @@ try {
   assert.equal(storedSessions[0].commandId, 'pairofcleats.configDump');
   assert.deepEqual(
     storedSessions[0].invocation.args,
-    [path.join(repoA, 'tools', 'config', 'dump.js'), '--json', '--repo', repoA]
+    [path.join(repoA, 'bin', 'pairofcleats.js'), 'config', 'dump', '--json', '--repo', repoA]
   );
   assert.match(statusBar.text, /PairOfCleats: .*succeeded/i);
 

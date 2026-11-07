@@ -2,11 +2,13 @@ import { stringifyJsonValue } from './encode.js';
 import { createJsonlBatchWriter } from './jsonl-batch.js';
 import { createOffsetsWriter } from './offsets.js';
 import { throwIfAborted } from './runtime.js';
+import { readPreparedJsonlRow } from './prepared-row.js';
+import { consumeJsonRows } from './consume-rows.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const resolveJsonlLine = (item) => {
-  if (item && typeof item === 'object' && typeof item.__jsonl === 'string') {
-    return item.__jsonl;
-  }
+  const prepared = readPreparedJsonlRow(item);
+  if (prepared) return prepared.line;
   return stringifyJsonValue(item);
 };
 
@@ -28,7 +30,7 @@ const createOffsetsTarget = (offsets, atomic, highWaterMark) => (
 
 const writeJsonlItems = async (writer, offsetsWriter, items, signal, resolvedMaxBytes) => {
   let bytesWritten = 0;
-  for await (const item of items) {
+  await consumeJsonRows(items, async item => {
     throwIfAborted(signal);
     const line = resolveJsonlLine(item);
     const lineBuffer = Buffer.from(line, 'utf8');
@@ -43,7 +45,7 @@ const writeJsonlItems = async (writer, offsetsWriter, items, signal, resolvedMax
     }
     await writer.writeLine(lineBuffer, lineBytes);
     bytesWritten += lineBytes;
-  }
+  }, { signal, awaitSyncValues: true });
 };
 
 const createWriter = (filePath, options) => createJsonlBatchWriter(filePath, options);
@@ -66,26 +68,35 @@ const runJsonlWrite = async (filePath, items, options = {}) => {
     preallocateBytes = null
   } = options;
   const resolvedMaxBytes = resolveMaxBytes(maxBytes);
-  validateOffsetsConfig(offsets, compression);
+  const resolvedCompression = compression === 'none' ? null : compression;
+  validateOffsetsConfig(offsets, resolvedCompression);
   const writer = createWriter(filePath, {
-    compression,
+    compression: resolvedCompression,
     atomic,
     gzipOptions,
     highWaterMark,
     signal,
-    preallocateBytes
+    preallocateBytes,
+    pool: options.pool, workerCount: options.workerCount, workerMaxInFlight: options.workerMaxInFlight,
+    blockSize: options.blockSize, level: options.level, zstdLevel: options.zstdLevel
   });
-  const offsetsWriter = createOffsetsTarget(offsets, atomic, highWaterMark);
+  let offsetsWriter = null;
   try {
+    offsetsWriter = createOffsetsTarget(offsets, atomic, highWaterMark);
     await writeJsonlItems(writer, offsetsWriter, items, signal, resolvedMaxBytes);
     await writer.close();
     if (offsetsWriter) await offsetsWriter.close();
   } catch (err) {
-    try { await writer.destroy(err); } catch {}
-    if (offsetsWriter) {
-      await offsetsWriter.destroy(err);
+    let primary = err;
+    try { await writer.destroy(err); } catch (error) {
+      if (error !== err) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
     }
-    throw err;
+    if (offsetsWriter) {
+      try { await offsetsWriter.destroy(err); } catch (error) {
+        if (error !== err) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+      }
+    }
+    throw primary;
   }
 };
 

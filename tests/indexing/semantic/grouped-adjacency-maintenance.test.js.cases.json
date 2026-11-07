@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["affected-extrema-and-coefficients", "dense-fallback-and-sparse-resume", "coverage-and-atomic-groups", "bounded-cancelled-and-replayed"]
+}

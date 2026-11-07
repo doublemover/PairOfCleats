@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import {
   createLspProviderTempRepo,
+  resolveLspStubServerPath,
   runDedicatedProviderFixture
 } from '../../helpers/lsp-provider-fixture.js';
-import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = await createLspProviderTempRepo({
@@ -69,11 +69,13 @@ const inputs = {
   ]
 };
 
-await withLspTestPath({ repoRoot: root }, async () => {
+{
   const result = await runDedicatedProviderFixture({
     tempRoot,
+    authorizeFixtureExecution: true,
     providerId: 'csharp-ls',
     providerConfigKey: 'csharp',
+    providerConfig: { cmd: process.execPath, args: [resolveLspStubServerPath(), '--mode', 'csharp'] },
     inputs
   });
 
@@ -92,4 +94,4 @@ await withLspTestPath({ repoRoot: root }, async () => {
   );
 
   console.log('csharp provider workspace partition test passed');
-});
+}

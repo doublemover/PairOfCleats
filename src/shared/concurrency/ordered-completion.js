@@ -194,6 +194,11 @@ export const createOrderedCompletionTracker = () => {
       }
       try {
         await awaitWithKeepalive(Promise.race([drainPromise, gate]));
+      } catch (error) {
+        // A timed-out or aborted caller has abandoned the pending work. Do not
+        // let its track-time guard keep the process alive indefinitely.
+        pendingKeepalive.stop();
+        throw error;
       } finally {
         cleanup();
       }

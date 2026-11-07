@@ -1,3 +1,14 @@
+import path from 'node:path';
+import crypto from 'node:crypto';
+
+/** Resolve the existing isolated model cache identity or preserve a configured root. */
+export function resolveCompareModelCacheRoot({ modelId, cacheRootBase, configCacheRoot = null }) {
+  if (configCacheRoot) return configCacheRoot;
+  const safe = modelId.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+  const hash = crypto.createHash('sha1').update(modelId).digest('hex').slice(0, 8);
+  return path.join(cacheRootBase, 'model-compare', `${safe || 'model'}-${hash}`);
+}
+
 /**
  * Parse a comma-delimited model list into an array.
  * @param {string|string[]|null} value

@@ -40,7 +40,7 @@ try {
   leases.push(adapter);
   const vectors = await adapter.embed(['first', 'second']);
   assert.equal(adapter.provider, 'xenova', 'persisted provider identity must remain compatible');
-  assert.equal(env.cacheDir, modelsDir, 'existing model cache must be retained');
+  assert.equal(env.cacheDir, undefined, 'the selected cache is passed per acquisition without mutating Transformers global state');
   assert.deepEqual(pipelineCalls, [
     ['feature-extraction', modelId, { dtype: 'q8', cache_dir: modelsDir }]
   ], 'Node must load the existing model_quantized.onnx weights, not its fp32 default');
@@ -51,8 +51,8 @@ try {
   const second = getEmbeddingAdapter(options);
   leases.push(second);
   assert.notEqual(second, adapter, 'each caller owns an independent lease over the cached adapter');
-  await adapter.dispose();
   await second.embedOne('third');
+  await adapter.dispose();
   assert.equal(pipelineCalls.length, 1, 'the cached pipeline must be reused');
   assert.equal(disposals, 0, 'disposing a lease retains the pipeline owned by another caller');
   await second.dispose();

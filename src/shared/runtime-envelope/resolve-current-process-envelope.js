@@ -1,4 +1,4 @@
-import os from 'node:os';
+import { readEffectiveCpu } from '../effective-cpu.js';
 import { resolveRuntimeEnvelope } from './resolve.js';
 import { observeRuntimeProcess, getNodeStartupInputs } from './observe.js';
 import { resolveNodeHeapSource } from '../workers/node-argv.js';
@@ -25,7 +25,7 @@ export function resolveCurrentProcessRuntimeEnvelope(input = {}) {
     env = process.env,
     execArgv = process.execArgv,
     toolVersion = null,
-    cpuCount = os.cpus().length
+    cpuCount = readEffectiveCpu().cpuCount
   } = input;
 
   const envelope = resolveRuntimeEnvelope({

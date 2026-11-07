@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["reader-close-sync", "reader-close-async", "reader-error-sync", "reader-error-async", "observer-sync", "observer-async"]
+}

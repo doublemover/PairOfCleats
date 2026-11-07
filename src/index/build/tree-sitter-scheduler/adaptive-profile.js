@@ -1,3 +1,4 @@
+import { normalizeWarmLaneObservation, mergeWarmLaneObservation } from './warm-lane-profile.js';
 import { withGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -40,8 +41,8 @@ const normalizeSampleCount = (value) => {
  */
 const normalizeLaneState = (value) => {
   if (!value || typeof value !== 'object') return null;
-  const bucketCount = Math.max(1, Math.floor(Number(value.bucketCount) || 0));
-  if (!bucketCount) return null;
+  const bucketCount = value.bucketCount;
+  if (!Number.isSafeInteger(bucketCount) || bucketCount <= 0) return null;
   const cooldownSteps = Math.max(0, Math.floor(Number(value.cooldownSteps) || 0));
   const lastAction = value.lastAction === 'split' || value.lastAction === 'merge'
     ? value.lastAction
@@ -201,6 +202,7 @@ const toSerializableEntries = (entriesByGrammarKey) => {
       tailDurationMs: normalizePositiveNumber(entry?.tailDurationMs),
       imbalanceEma: normalizePositiveNumber(entry?.imbalanceEma),
       laneState,
+      warmLane: normalizeWarmLaneObservation(entry?.warmLane),
       samples: normalizeSampleCount(entry?.samples),
       updatedAt: typeof entry?.updatedAt === 'string' ? entry.updatedAt : null
     };
@@ -229,6 +231,7 @@ const fromSerializableEntries = (entries) => {
       tailDurationMs: normalizePositiveNumber(rawEntry?.tailDurationMs),
       imbalanceEma: normalizePositiveNumber(rawEntry?.imbalanceEma),
       laneState: normalizeLaneState(rawEntry?.laneState),
+      warmLane: normalizeWarmLaneObservation(rawEntry?.warmLane),
       samples: normalizeSampleCount(rawEntry?.samples),
       updatedAt: typeof rawEntry?.updatedAt === 'string' ? rawEntry.updatedAt : null
     });
@@ -321,6 +324,7 @@ export const mergeTreeSitterSchedulerAdaptiveProfile = (existing, samples = []) 
       tailDurationMs: mergedTailDurationMs,
       imbalanceEma: mergedImbalanceEma,
       laneState,
+      warmLane: mergeWarmLaneObservation(prior?.warmLane, sample.warmLane),
       samples: normalizeSampleCount(prior?.samples) + 1,
       updatedAt: observedAt
     });

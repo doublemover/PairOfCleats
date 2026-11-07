@@ -169,7 +169,7 @@ const mainText = [
 ].join('\n');
 
 try {
-  assert.equal(ts.version, '5.9.3', 'the compiler oracle and counter evidence are version-specific');
+  assert.equal(ts.version, '6.0.3', 'the compiler oracle and counter evidence are version-specific');
   await put('package.json', { type: 'module' });
   await put('types.ts', libraryText);
   await put('barrel.ts', 'export type { Atom } from "./types.js";');

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["measurement", "envelope-boundaries", "full-metadata", "partial-metadata", "accumulated", "actual-exact-fit", "positive-source"]
+}

@@ -50,7 +50,7 @@ try {
   assert.ok(checked.readiness.items.find((item) => item.id === 'provider:rust-analyzer').reason.includes('rust_workspace_trust_required'));
   assert.equal(commands.length, 1);
   assert.equal(commands[0].scriptRoot, process.cwd());
-  assert.ok(commands[0].args[0].endsWith('tools/tooling/install.js'));
+  assert.ok(commands[0].args[0].endsWith(path.join('tools', 'tooling', 'install.js')));
   assert.equal(checked.installationReceipt.payload.readiness.items.length, checked.tools.length);
   const missingCompiler = await checkBenchmarkPrerequisites({ ...common, dependencies: { ...dependencies, loadTypescript: () => null } });
   assert.ok(missingCompiler.tools.includes('tsserver'), 'a missing compiler API selects its managed package recipe');

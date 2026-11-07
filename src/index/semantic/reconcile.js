@@ -1,13 +1,55 @@
 import { createHash } from 'node:crypto';
 import { semanticHash, canonicalSemanticJson } from './identity.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../contracts/schemas/semantic-envelopes.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 
-/** Streaming reconciliation: counts/ranges and every qualified endpoint before publication. */
-export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null }) => {
+/** Read-only seed admission for the narrow summary-demand planner. The actual
+ * store's closed generation/partition readers own source authority, not a span
+ * or current worktree path supplied by the request.
+ */
+export const reconcileCompilerSummaryDemandSeed = async ({ store, request, signal = null }) => {
+  throwIfAborted(signal);
+  request = JSON.parse(canonicalSemanticJson(request, { maxBytes: 16384, check: () => throwIfAborted(signal) }));
+  if (store?.backend !== 'artifact' || typeof store.cursorScope !== 'string'
+    || typeof store.getRecords !== 'function' || typeof store.getSourceReference !== 'function') {
+    return { compatible: false, reason: 'artifact_summary_demand_store_required' };
+  }
+  const generation = canonicalSemanticJson(store.generation), inventoryHash = store.cursorScope;
+  const getRecords = store.getRecords.bind(store), getSourceReference = store.getSourceReference.bind(store);
+  if (generation !== canonicalSemanticJson(request.generation) || inventoryHash !== request.inventoryHash) {
+    return { compatible: false, reason: 'summary_demand_generation_or_inventory_changed' };
+  }
+  const [record] = await getRecords([request.seed], ['span'], { signal });
+  throwIfAborted(signal);
+  if (!record || !['declaration', 'expression'].includes(record.kind) || !record.span) {
+    return { compatible: false, reason: 'summary_demand_seed_kind_unsupported' };
+  }
+  const source = await getSourceReference(record, { signal });
+  throwIfAborted(signal);
+  if (!source || source.sourceUnitId !== request.sourceUnitId || source.sourceHash !== request.sourceHash) {
+    return { compatible: false, reason: 'summary_demand_source_changed_or_mapped' };
+  }
+  return { compatible: true, recordKind: record.kind, source: { sourceUnitId: source.sourceUnitId,
+    sourceHash: source.sourceHash, path: source.path } };
+};
+
+/** Streaming reconciliation: counts/ranges and every qualified endpoint before
+ * publication. An optional host-owned observer runs during this same traversal;
+ * its conclusions remain provisional until all hashes/source checks succeed.
+ * It cannot supply a receipt or bypass validation. All admitted observer work
+ * joins the existing bounded partition/reader lifetime, including rejection.
+ */
+export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null, onValidatedRow = null, partitionConcurrency = 4 }) => {
+  if (onValidatedRow !== null && typeof onValidatedRow !== 'function') throw new TypeError('Host semantic row observer must be callable.');
+  if (!Number.isSafeInteger(partitionConcurrency) || partitionConcurrency < 1 || partitionConcurrency > 4) throw new RangeError('Semantic partition readers must remain bounded by four.');
   const sizes = new Map(referencePartitions.map((p) => [p.partitionId,
     p.members.semantic_records.reduce((sum, piece) => sum + piece.count, 0)]));
-  const verifiedSources = new Set();
-  for (const partition of partitions) {
+  // Partition hashes/references are independent once the closed inventory is
+  // captured. Bound outstanding readers and drain every admitted partition on
+  // failure; never return while another partition still owns original I/O.
+  const sourceChecks = new Map();
+  await runWithSettledConcurrency(partitions, partitionConcurrency, async partition => {
     const hashes = {};
     const checkRef = (ref) => {
       if (!ref || !Object.hasOwn(ref, 'partitionId')) return;
@@ -35,20 +77,25 @@ export const validateSemanticPartitions = async ({ store, partitions, referenceP
           checkRef(row.scope);
           for (const key of ['parent', 'owner', 'initializer', 'typeSyntax', 'expression', 'occurrence', 'site', 'storage', 'invocation']) checkRef(row.data[key]);
         } else for (const key of ['parent', 'child', 'from', 'to', 'callSite', 'condition', 'evidence', 'recordRef', 'scope']) checkRef(row[key]);
+        if (onValidatedRow) {
+          const observed = onValidatedRow({ partition, member, row, rowOrdinal: count - 1 });
+          if (observed !== undefined) await observed;
+        }
       }
       if (count !== partition.members[member].reduce((sum, piece) => sum + piece.count, 0)) throw new Error('Semantic count mismatch.');
       hashes[member] = hash.digest('hex');
     }
     if (!source) throw new Error('Missing semantic source manifest.');
     const sourceKey = canonicalSemanticJson(source);
-    if (!verifiedSources.has(sourceKey)) {
-      await store.verifySource(source, { signal });
-      verifiedSources.add(sourceKey);
-    }
+    // Coalesce only this invocation's actual verification, including rejection.
+    // A second partition cannot treat an in-flight or failed read as success.
+    if (!sourceChecks.has(sourceKey)) sourceChecks.set(sourceKey,
+      Promise.resolve().then(() => store.verifySource(source, { signal })));
+    await sourceChecks.get(sourceKey);
     const actual = semanticHash('pairofcleats.semantic.partition-content.v1', {
       partitionId: partition.partitionId, sourceUnitId: partition.sourceUnitId, producerHash: partition.producerHash,
       contextHash: partition.contextHash, policyHash: partition.policyHash, memberHashes: hashes
     });
     if (actual !== partition.canonicalHash) throw new Error('Semantic canonical content hash mismatch.');
-  }
+  }, { signal });
 };

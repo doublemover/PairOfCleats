@@ -5,11 +5,13 @@ import path from 'node:path';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `tooling-doctor-provider-requires-args-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 
 const calls = [];
 const resolveCommandProfile = ({ cmd, args = [] }) => {

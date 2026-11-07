@@ -31,7 +31,8 @@ export async function assembleIndexPieces({
   userConfig,
   stage = null,
   log = defaultLog,
-  strict = true
+  strict = true,
+  prepareOutput = null
 }) {
   if (!Array.isArray(inputs) || inputs.length === 0) {
     throw new Error('assembleIndexPieces requires input index directories.');
@@ -104,8 +105,14 @@ export async function assembleIndexPieces({
   const compatibilityKey = uniqueCompatibilityKeys.size === 1
     ? Array.from(uniqueCompatibilityKeys)[0]
     : null;
+  const cohortKeys = new Map();
   for (const dir of sortedInputs) {
-    const input = await loadIndexArtifacts(dir, { strict });
+    const input = await loadIndexArtifacts(dir, { strict, expectedMode: mode });
+    const cohortKey = input.indexState?.fields?.cohortKey ?? input.indexState?.cohortKey ?? null;
+    cohortKeys.set(dir, cohortKey);
+    if (new Set(cohortKeys.values()).size > 1) {
+      throw new Error(`assemble-pieces cohortKey mismatch: ${Array.from(cohortKeys, ([inputDir, key]) => `${inputDir}: ${key ?? 'missing'}`).join('; ')}`);
+    }
     const { chunkCount } = mergeIndexInput({ input, dir, state, mergeState });
     stageInputs.push({ indexState: input.indexState, chunkCount });
   }
@@ -251,6 +258,8 @@ export async function assembleIndexPieces({
     tokenPostingsList,
     avgDocLen,
     minhashSigs: mergedMinhash,
+    minhashHashIdentity: mergeState.minhashHashIdentity,
+    minhashGuard: mergeState.minhashSampling ? { ...mergeState.minhashSampling, sampled: true } : null,
     dims: mergeState.embeddingsSeen ? mergeState.denseDims : 0,
     quantizedVectors: mergeState.embeddingsSeen ? mergedDense : [],
     quantizedDocVectors: mergeState.embeddingsSeen ? (mergedDenseDoc.length ? mergedDenseDoc : mergedDense) : [],
@@ -314,6 +323,9 @@ export async function assembleIndexPieces({
   assembledIndexState.filterIndex = { ready: state.chunks.length > 0 };
 
   const postingsConfig = normalizePostingsConfig(userConfig?.indexing?.postings || {});
+  // Destructive CLI output preparation belongs after every input has loaded,
+  // passed mode/identity checks and merged successfully.
+  if (prepareOutput) await prepareOutput();
   await writeIndexArtifacts({
     outDir,
     mode,

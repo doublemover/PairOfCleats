@@ -4,7 +4,7 @@ import datetime
 def record_last_build(window, mode):
     if window is None:
         return None
-    timestamp = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    timestamp = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
     data = window.project_data() or {}
     state = data.get('pairofcleats_state')
     if not isinstance(state, dict):

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["projection", "reference-guards", "source-diff", "consolidation-controls"]
+}

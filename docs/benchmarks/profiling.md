@@ -29,13 +29,13 @@ needs a separately chosen budget; do not silently raise limits after a failure.
 
 ## Capture CPU samples in the process doing the work
 
-Create `temp/profiles` before running these examples, and execute from the repo
+Create `.tmp/profiles` before running these examples, and execute from the repo
 root inside your chosen process-tree resource guard. Use a fresh output filename
 for every run. These commands are examples, not recorded benchmark results.
 
 ```sh
-node --max-old-space-size=512 --cpu-prof --cpu-prof-dir=temp/profiles --cpu-prof-name=index-small.cpuprofile build_index.js --repo ./tests/fixtures/sample --mode code --threads 1 --stage stage1 --scm-provider none --no-sqlite
-node --max-old-space-size=512 --cpu-prof --cpu-prof-dir=temp/profiles --cpu-prof-name=search-small.cpuprofile search.js alpha --repo ./tests/fixtures/sample --mode code --backend memory --no-ann --json
+node --max-old-space-size=512 --cpu-prof --cpu-prof-dir=.tmp/profiles --cpu-prof-name=index-small.cpuprofile build_index.js --repo ./tests/fixtures/sample --mode code --threads 1 --stage stage1 --scm-provider none --no-sqlite
+node --max-old-space-size=512 --cpu-prof --cpu-prof-dir=.tmp/profiles --cpu-prof-name=search-small.cpuprofile search.js alpha --repo ./tests/fixtures/sample --mode code --backend memory --no-ann --json
 ```
 
 The search example requires an existing compatible fixture index. The build
@@ -64,7 +64,7 @@ Correlate CPU utilization with filesystem latency and runtime timing counters.
 For a bounded timeline trace of the same search fixture:
 
 ```sh
-node --max-old-space-size=512 --trace-event-categories=v8,node --trace-event-file-pattern=temp/profiles/search-trace.json search.js alpha --repo ./tests/fixtures/sample --mode code --backend memory --no-ann --json
+node --max-old-space-size=512 --trace-event-categories=v8,node --trace-event-file-pattern=.tmp/profiles/search-trace.json search.js alpha --repo ./tests/fixtures/sample --mode code --backend memory --no-ann --json
 ```
 
 Review the output in a compatible trace viewer. Trace files can grow quickly;
@@ -92,5 +92,5 @@ More concurrency can increase contention and memory, so vary one limit at a time
    broader acceptance remains governed by the [roadmap](../roadmap.md).
 
 Profiles/traces can reveal source paths, function names and workload details.
-Keep them under the ignored `temp/` output area and review their contents before
+Keep them under the ignored `.tmp/` output area and review their contents before
 sharing; the authored guide belongs in Git, generated measurement output does not.

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "as-of",
+    "bm25-b",
+    "breaks",
+    "churn",
+    "cursor",
+    "ext",
+    "fts-profile",
+    "graph-ranking-seed-k",
+    "lang",
+    "meta",
+    "modified-after",
+    "output-bytes",
+    "reads",
+    "risk",
+    "risk-source",
+    "signature",
+    "struct-tag",
+    "top-per-repo",
+    "workspace"
+  ]
+}

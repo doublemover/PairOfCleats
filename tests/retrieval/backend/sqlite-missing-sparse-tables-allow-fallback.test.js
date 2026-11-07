@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
-import { SimpleMinHash } from '../../../src/index/minhash.js';
+import { SimpleMinHash, MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 
 const makeAnnState = () => ({
   code: { available: false },
@@ -93,6 +93,7 @@ const idx = {
     { id: 1, file: 'src/b.js', tokens: ['alpha', 'extra'], weight: 1 }
   ],
   minhash: {
+    hashIdentity: MINHASH_HASH_IDENTITY,
     signatures: [
       signatureForTokens(['alpha', 'core']),
       signatureForTokens(['alpha', 'extra'])

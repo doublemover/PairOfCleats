@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import assert from 'node:assert/strict';
 import { minifyMinhashSignature } from '../../../src/index/minhash.js';
 import { resolveMinhashOutputs } from '../../../src/index/build/postings/minhash.js';
@@ -11,7 +12,7 @@ for (const count of [0, 1, 2, 3, 7]) {
   for (const maxDocs of [0, 2]) {
     for (const sparseEnabled of [false, true]) {
       const chunks = Array.from({ length: count }, (_, row) => ({
-        minhashSig: Array.from({ length: 64 }, (_, col) => row * 1000 + col)
+        minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: Array.from({ length: 64 }, (_, col) => row * 1000 + col)
       }));
       const common = { sparseEnabled, minhashMaxDocs: maxDocs, chunks };
       const eager = resolveMinhashOutputs({ ...common, minhashStream: false });
@@ -54,7 +55,7 @@ assert.deepEqual(
 
 const reads = [];
 const chunks = Array.from({ length: 128 }, (_, row) => ({
-  get minhashSig() {
+  minhashHashIdentity: MINHASH_HASH_IDENTITY, get minhashSig() {
     reads.push(row);
     return Array.from({ length: 64 }, (_, col) => row + col);
   }

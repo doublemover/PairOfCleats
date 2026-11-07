@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "opposite-orders",
+    "one-common",
+    "different-source",
+    "renumbered",
+    "missing-source"
+  ]
+}

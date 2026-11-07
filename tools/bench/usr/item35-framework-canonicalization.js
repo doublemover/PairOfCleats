@@ -4,6 +4,8 @@ await guardBootstrapEntry(import.meta.url);
 const {
   ensureArray,
   hashInputs,
+  USR_SOURCE_DIGEST_VERSION,
+  USR_SOURCE_DIGEST_FORMAT,
   parseBenchArgs,
   readJsonFileWithRaw,
   readJsonFromRoot,
@@ -83,11 +85,13 @@ const main = async () => {
       frameworksWithCompleteFixtureEdgeCaseCoverage: fixtureFullyCovered
     },
     fixtureCoverageByFramework: fixtureCoverage,
+    sourceDigestVersion: USR_SOURCE_DIGEST_VERSION,
+    sourceDigestFormat: USR_SOURCE_DIGEST_FORMAT,
     sourceDigest: hashInputs([
-      configRaw,
-      frameworkProfiles.raw,
-      frameworkEdgeCases.raw,
-      frameworkFixture.raw
+      {role:'config',path:'docs/config/usr-guardrails/item-35-framework-canonicalization.json',value:configRaw},
+      {role:'frameworkProfiles',path:config.inputs.frameworkProfiles,value:frameworkProfiles.raw},
+      {role:'frameworkEdgeCases',path:config.inputs.frameworkEdgeCases,value:frameworkEdgeCases.raw},
+      {role:'frameworkFixtureBundle',path:config.inputs.frameworkFixtureBundle || '(absent-framework-fixture)',value:frameworkFixture.raw}
     ])
   };
 

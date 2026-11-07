@@ -8,7 +8,7 @@ const testsRoot = path.join(root, 'tests');
 
 const allowedResiduals = new Map([
   ['tests/helpers/run-node.js', { count: 1, reason: 'the helper owns the direct Node spawn primitive' }],
-  ['tests/perf/bench/run.test.js', { count: 2, reason: 'benchmark runner orchestration owns benchmark subprocess policy' }],
+  ['tests/perf/bench/run.test.js', { count: 1, reason: 'benchmark runner orchestration owns benchmark subprocess policy' }],
   ['tests/perf/bench/scenarios/matrix.test.js', { count: 1, reason: 'scenario driver intentionally exercises the benchmark runner process' }],
   ['tests/runner/all.js', { count: 1, reason: 'runner meta-orchestrator owns suite process execution' }],
   ['tests/runner/harness/contract-matrix.test.js', { count: 6, reason: 'runner harness contract tests assert child-runner process semantics' }],

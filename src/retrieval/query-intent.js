@@ -335,3 +335,8 @@ export const resolveIntentFieldWeights = (fieldWeightsInput, intent) => {
   }
   return resolved;
 };
+
+/** Canonical effective weights across every classifier-owned intent. */
+export const resolveFieldWeightsPolicy = input => Object.fromEntries(
+  Object.keys(DEFAULT_FIELD_WEIGHTS).map(type => [type, resolveIntentFieldWeights(input, { type })])
+);

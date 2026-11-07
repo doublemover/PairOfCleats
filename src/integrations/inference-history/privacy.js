@@ -1,4 +1,6 @@
 import { historyError, projectHistoryText, redactHistoryText } from './common.js';
+import { normalizeHistoryRecord } from './records.js';
+import { projectHistoryPublicIdentity } from './public-metadata.js';
 const invalid=()=>historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid owner privacy request.');
 export function historyPrivacy(db,recordRef) {
   const row=db.prepare('SELECT policy FROM history_privacy WHERE record_id=?').get(recordRef);
@@ -22,7 +24,7 @@ export function validateHistoryPrivacy(request) {
   return {excluded:request.excluded,redactions:[...new Set(request.redactions)].sort(),
     annotation:redactHistoryText(request.annotation)};
 }
-export function updateHistoryPrivacy(db,request,visibleNode) {
+export function updateHistoryPrivacy(db,request,createVisibleReader) {
   const policy=validateHistoryPrivacy(request), record=db.prepare('SELECT deleted FROM records WHERE id=?').get(request.recordRef);
   if (!record || record.deleted) throw invalid();
   const previous=historyPrivacy(db,request.recordRef);
@@ -40,16 +42,30 @@ export function updateHistoryPrivacy(db,request,visibleNode) {
     if(!snapshotId)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Missing unit provenance.');
     if(!snapshots.has(snapshotId)){
       const row=db.prepare('SELECT source_kind,raw_json FROM snapshots WHERE id=?').get(snapshotId);
+      if(!row)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Missing unit source snapshot.');
       rawBytes+=Buffer.byteLength(row.raw_json);
       if(rawBytes>64*1024*1024)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Privacy update evidence budget exceeded.');
-      snapshots.set(snapshotId,{...row,raw:JSON.parse(row.raw_json)});
+      const raw=JSON.parse(row.raw_json);
+      // Retained imports may have explicitly larger limits than today's reader.
+      // Revalidate within this operation's existing unit/evidence bounds, then
+      // preserve each unit's originally admitted projection character budget.
+      let normalized;
+      try {
+        normalized=normalizeHistoryRecord(raw,row.source_kind,{maxNodes:100000,maxTextChars:64*1024*1024});
+      } catch(cause) {
+        throw Object.assign(historyError('ERR_INFERENCE_HISTORY_STORAGE','Invalid retained unit source.'),{cause});
+      }
+      snapshots.set(snapshotId,{kind:row.source_kind,nodes:new Map(normalized.nodes.map(node=>[node.nodeId,node])),
+        readVisible:createVisibleReader(raw,row.source_kind)});
     }
     const snapshot=snapshots.get(snapshotId);
-    const node=visibleNode(snapshot.raw,snapshot.source_kind,unit.node_id);
-    const projection=projectHistoryText(privacyText(node?.text??'',policy),metadata.projection.characterBudget);
+    const node=snapshot.nodes.get(unit.node_id);
+    if(!node || metadata.evidenceKind!==snapshot.kind)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Invalid unit source provenance.');
+    const visible=snapshot.readVisible(unit.node_id);
+    const projection=projectHistoryText(privacyText(visible?.text??'',policy),metadata.projection.characterBudget);
     // Metadata and provenance remain opaque; original text is retained only in raw storage.
-    const publicMetadata={...metadata,projection:projection.metadata,ownerRedacted:policy.redactions.length>0};
-    if(policy.redactions.length){publicMetadata.sourceDetails={};publicMetadata.messageId=null;}
+    const publicMetadata={...metadata,...projectHistoryPublicIdentity(node,snapshot.kind,policy),
+      projection:projection.metadata,ownerRedacted:policy.redactions.length>0};
     db.prepare('UPDATE units SET text=?,metadata=? WHERE id=?').run(projection.text,JSON.stringify(publicMetadata),unit.id);
   }
   db.prepare("INSERT INTO units_fts(units_fts) VALUES ('optimize')").run();

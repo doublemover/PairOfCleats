@@ -22,7 +22,7 @@ if (run.status !== 0) {
   process.exit(run.status ?? 1);
 }
 
-const archivePath = path.join(outDir, 'pairofcleats.sublime-package');
+const archivePath = path.join(outDir, 'PairOfCleats.sublime-package');
 const manifestPath = `${archivePath}.manifest.json`;
 if (!fs.existsSync(archivePath)) {
   console.error('package-structure test failed: archive missing');
@@ -39,8 +39,9 @@ if (!paths.length) {
   console.error('package-structure test failed: archive entries missing');
   process.exit(1);
 }
-if (!paths.every((entry) => entry.startsWith('PairOfCleats/'))) {
-  console.error('package-structure test failed: entry prefix mismatch');
+if (!['plugin.py', '__init__.py', 'editor-config-contract.json', 'lib/config.py', 'commands/search.py']
+  .every((entry) => paths.includes(entry)) || paths.some((entry) => entry.startsWith('PairOfCleats/'))) {
+  console.error('package-structure test failed: canonical package root is missing or nested');
   process.exit(1);
 }
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { initGitRepo } from '../../helpers/git-fixture.js';
 
 export const DEFAULT_FEDERATION_BUILD_ID = 'test-build';
 
@@ -40,6 +41,9 @@ export const writeFederationRepoFixture = async ({
   buildId = DEFAULT_FEDERATION_BUILD_ID
 }) => {
   await fs.mkdir(repoRoot, { recursive: true });
+  // Workspace admission resolves Git roots before config roots. Keep members
+  // independent even when this fixture lives inside the author's checkout.
+  initGitRepo(repoRoot);
   await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
     cache: { root: cacheRoot }
   }, null, 2), 'utf8');

@@ -3,6 +3,7 @@ import {
   loadChunkMeta,
   loadJsonArrayArtifact,
   loadJsonObjectArtifact,
+  loadMinhashSignatures,
   loadTokenPostings
 } from '../../../shared/artifact-io/loaders.js';
 import {
@@ -13,7 +14,7 @@ import {
   loadDenseVectorBinaryFromMetaAsync,
   resolveDenseVectorBinaryArtifact
 } from '../../../shared/dense-vector-artifacts.js';
-import { readJsonOptional } from './helpers.js';
+import { isOptionalArtifactMissingError } from '../../../shared/artifact-io/optional-fallback.js';
 
 /**
  * Load manifest-backed artifacts from an existing index directory and normalize
@@ -23,20 +24,39 @@ import { readJsonOptional } from './helpers.js';
  * @param {{strict?:boolean}} [options]
  * @returns {Promise<object>}
  */
-export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
+export const loadIndexArtifacts = async (dir, { strict = true, expectedMode = null } = {}) => {
   if (!fsSync.existsSync(dir)) {
     throw new Error(`Missing input index directory: ${dir}`);
   }
   const manifest = loadPiecesManifest(dir, { strict });
+  const isDeclared = name => manifest?.pieces?.some(piece => piece.name === name || piece.name === `${name}_meta`) === true;
+  const loadOptional = async (name, loader) => {
+    const declared = isDeclared(name);
+    if (strict && !declared) return null;
+    try { return await loader(dir, name, { manifest, strict }); }
+    catch (error) {
+      if (!declared && isOptionalArtifactMissingError(error)) return null;
+      throw error;
+    }
+  };
+  const optionalArray = name => loadOptional(name, loadJsonArrayArtifact);
+  const optionalObject = name => loadOptional(name, loadJsonObjectArtifact);
+  const indexState = await optionalObject('index_state');
+  const persistedMode = indexState?.fields?.mode ?? indexState?.mode ?? manifest?.mode ?? null;
+  if (expectedMode && persistedMode !== expectedMode) {
+    throw new Error(`Piece input mode mismatch in ${dir}: expected ${expectedMode}, found ${persistedMode || 'missing'}.`);
+  }
   const chunkMeta = await loadChunkMeta(dir, { manifest, strict });
-  const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', { manifest, strict }).catch(() => null);
+  const fileMeta = await optionalArray('file_meta');
   const fileMetaById = new Map();
+  const fileMetaByPath = new Map();
   const fileInfoByPath = new Map();
   const fileList = [];
   if (Array.isArray(fileMeta)) {
     for (const entry of fileMeta) {
       if (entry && entry.id != null) fileMetaById.set(entry.id, entry);
       if (entry?.file) {
+        fileMetaByPath.set(entry.file, entry);
         fileList.push(entry.file);
         const size = Number.isFinite(entry.size) ? entry.size : null;
         const hash = entry.hash || null;
@@ -53,6 +73,7 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
           ? entry.encodingConfidence
           : null;
         fileInfoByPath.set(entry.file, {
+          ...entry,
           size,
           hash,
           hashAlgo,
@@ -66,25 +87,20 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     }
   }
   for (const chunk of chunkMeta) {
-    if (!chunk || (chunk.file && chunk.ext)) continue;
+    if (!chunk) continue;
     if (!chunk.file && chunk.metaV2?.file) chunk.file = chunk.metaV2.file;
     if (!chunk.ext && chunk.metaV2?.ext) chunk.ext = chunk.metaV2.ext;
-    if (chunk.file && chunk.ext) continue;
-    const meta = fileMetaById.get(chunk.fileId);
+    const meta = fileMetaById.get(chunk.fileId) || fileMetaByPath.get(chunk.file);
     if (!meta) continue;
     if (!chunk.file) chunk.file = meta.file;
     if (!chunk.ext) chunk.ext = meta.ext;
-    if (!chunk.fileSize && Number.isFinite(meta.size)) chunk.fileSize = meta.size;
-    if (!chunk.fileHash && meta.hash) chunk.fileHash = meta.hash;
+    if (chunk.fileSize == null && Number.isFinite(meta.size)) chunk.fileSize = meta.size;
+    if (chunk.fileHash == null && meta.hash != null) chunk.fileHash = meta.hash;
     const metaHashAlgo = meta.hashAlgo || meta.hash_algo;
-    if (!chunk.fileHashAlgo && metaHashAlgo) chunk.fileHashAlgo = metaHashAlgo;
-    if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
-    if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
-    if (!chunk.last_author) chunk.last_author = meta.last_author;
-    if (!chunk.churn) chunk.churn = meta.churn;
-    if (!chunk.churn_added) chunk.churn_added = meta.churn_added;
-    if (!chunk.churn_deleted) chunk.churn_deleted = meta.churn_deleted;
-    if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
+    if (chunk.fileHashAlgo == null && metaHashAlgo != null) chunk.fileHashAlgo = metaHashAlgo;
+    for (const field of ['externalDocs', 'last_modified', 'last_author', 'churn', 'churn_added', 'churn_deleted', 'churn_commits']) {
+      if (chunk[field] == null && meta[field] != null) chunk[field] = meta[field];
+    }
   }
   const missingFileCount = chunkMeta.reduce((count, chunk) => (
     chunk && !chunk.file ? count + 1 : count
@@ -102,17 +118,16 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   const loadDenseVectorArtifact = async (artifactName) => {
     const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
     if (!descriptor) return null;
-    let meta = null;
-    try {
-      meta = await loadJsonObjectArtifact(dir, descriptor.metaName, { manifest, strict });
-    } catch {
-      if (strict) return null;
-      meta = readJsonOptional(dir, `${descriptor.baseName}.bin.meta.json`);
-    }
+    if (strict && !isDeclared(artifactName) && !isDeclared(descriptor.metaName)) return null;
+    const meta = await optionalObject(descriptor.metaName);
+    if (!meta && isDeclared(artifactName)) throw new Error(`Declared dense vectors lack readable metadata: ${artifactName}`);
+    if (!meta) return null;
     return await loadDenseVectorBinaryFromMetaAsync({
       dir,
       baseName: descriptor.baseName,
-      meta
+      meta,
+      manifest,
+      strict
     });
   };
   const [denseVec, denseVecDoc, denseVecCode] = await Promise.all([
@@ -124,21 +139,21 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     dir,
     chunkMeta,
     tokenPostings,
-    fieldPostings: readJsonOptional(dir, 'field_postings.json'),
-    fieldTokens: readJsonOptional(dir, 'field_tokens.json'),
-    minhash: readJsonOptional(dir, 'minhash_signatures.json'),
-    phraseNgrams: readJsonOptional(dir, 'phrase_ngrams.json'),
-    chargrams: readJsonOptional(dir, 'chargram_postings.json'),
+    fieldPostings: await optionalObject('field_postings'),
+    fieldTokens: await optionalArray('field_tokens'),
+    minhash: await loadOptional('minhash_signatures', (root, _name, options) => loadMinhashSignatures(root, options)),
+    phraseNgrams: await optionalObject('phrase_ngrams'),
+    chargrams: await optionalObject('chargram_postings'),
     denseVec,
     denseVecDoc,
     denseVecCode,
-    fileRelations: await loadJsonArrayArtifact(dir, 'file_relations', { manifest, strict }).catch(() => null),
-    callSites: await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict }).catch(() => null),
-    riskSummaries: await loadJsonArrayArtifact(dir, 'risk_summaries', { manifest, strict }).catch(() => null),
-    riskFlows: await loadJsonArrayArtifact(dir, 'risk_flows', { manifest, strict }).catch(() => null),
-    riskPartialFlows: await loadJsonArrayArtifact(dir, 'risk_partial_flows', { manifest, strict }).catch(() => null),
-    riskInterproceduralStats: readJsonOptional(dir, 'risk_interprocedural_stats.json'),
-    indexState: readJsonOptional(dir, 'index_state.json'),
+    fileRelations: await optionalArray('file_relations'),
+    callSites: await optionalArray('call_sites'),
+    riskSummaries: await optionalArray('risk_summaries'),
+    riskFlows: await optionalArray('risk_flows'),
+    riskPartialFlows: await optionalArray('risk_partial_flows'),
+    riskInterproceduralStats: await optionalObject('risk_interprocedural_stats'),
+    indexState,
     fileInfoByPath,
     fileList
   };

@@ -1,0 +1,455 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "historicalAuthorWorkspace": true,
+  "sourceBefore": "1d53c5262a478708b5b9e9ac33bf905d5a07a45e",
+  "publishedQualification": "7272f78dcc486c4ff592002251a173c1798f25ac",
+  "hostedWindows": {
+    "runId": 41937718685,
+    "jobId": 126951777346,
+    "url": "https://github.com/doublemover/PairOfCleats/actions/runs/41937718685/job/126951777346",
+    "correctness": {
+      "passed": 1952,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 3
+    },
+    "skips": [
+      "2026-11-05T00:17:47.1828197Z SKIP           smoke/tantivy (optional Tantivy smoke requires PAIROFCLEATS_TEST_TANTIVY=1 and its installed backend)\r",
+      "2026-11-05T00:17:48.6842827Z SKIP           shared/subprocess/tracked-leak-fails-process (POSIX invalid-signal cleanup leak injection; Windows tracked shutdown has a separate owner.)\r",
+      "2026-11-05T00:25:40.1997069Z SKIP           cli/general/signal-cleanup (POSIX parent-signal cleanup; Windows TerminateProcess requires native acceptance.)\r"
+    ],
+    "serialBeforeCancellation": [
+      {
+        "passed": 30,
+        "failed": 0,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      {
+        "passed": 3,
+        "failed": 0,
+        "timeouts": 0,
+        "skipped": 0
+      }
+    ],
+    "nativeFailure": {
+      "id": "storage/sqlite/build/cancellation",
+      "durationMs": 1670,
+      "reason": "worker must actually start;build returned successfully through direct parser",
+      "kind": "assertion;not native access violation"
+    },
+    "logSegment": "2026-11-05T00:49:04.3762073Z ==> Serial native lifecycle\r\n2026-11-05T00:49:04.9507674Z \r\n2026-11-05T00:49:04.9510482Z          ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n2026-11-05T00:49:04.9511738Z                \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   1\u001b[0m      \r\n2026-11-05T00:49:04.9512969Z                       \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n2026-11-05T00:49:04.9514207Z                       \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n2026-11-05T00:49:04.9515279Z                       \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n2026-11-05T00:49:04.9515975Z          ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n2026-11-05T00:49:04.9516225Z \r\n2026-11-05T00:49:06.6305941Z FAIL [ 1.67s] storage/sqlite/build/cancellation exit 1\r\n2026-11-05T00:49:06.6306649Z LOG:          ./.testLogs/run-1793839744945-3mi5w9/storage_sqlite_build_cancellation.attempt-1.failure.json\r\n2026-11-05T00:49:06.6311056Z   node:internal/modules/run_main:111\r\n2026-11-05T00:49:06.6311687Z       triggerUncaughtException(\r\n2026-11-05T00:49:06.6312067Z       ^\r\n2026-11-05T00:49:06.6312691Z   AssertionError [ERR_ASSERTION]: worker must actually start: undefined\r\n2026-11-05T00:49:06.6313373Z   + actual - expected\r\n2026-11-05T00:49:06.6313712Z   + {\r\n2026-11-05T00:49:06.6314046Z   +   value: {\r\n2026-11-05T00:49:06.6314408Z   ... trimmed 62 lines\r\n2026-11-05T00:49:06.6314637Z \r\n2026-11-05T00:49:06.6321610Z \r\n2026-11-05T00:49:06.6322058Z LOGS: ./.testLogs/run-1793839744945-3mi5w9\r\n2026-11-05T00:49:06.6322371Z \r\n2026-11-05T00:49:06.6322526Z   Failure:\r\n2026-11-05T00:49:06.6322960Z      - [ 1.67s] storage/sqlite/build/cancellation (exit 1)\r\n2026-11-05T00:49:06.6323858Z          node:internal/modules/run_main:111\r\n2026-11-05T00:49:06.6324610Z          LOG: ./.testLogs/run-1793839744945-3mi5w9/storage_sqlite_build_cancellation.attempt-1.failure.json\r\n2026-11-05T00:49:06.6325163Z \r\n2026-11-05T00:49:06.6325176Z \r\n2026-11-05T00:49:06.6325920Z          ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n2026-11-05T00:49:06.6326633Z                                       Test Complete!\r\n2026-11-05T00:49:06.6326839Z \r\n2026-11-05T00:49:06.6327256Z          ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n2026-11-05T00:49:06.6328419Z                    Summary : \u001b[97m0\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m1\u001b[0m \u001b[31mFailure\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n2026-11-05T00:49:06.6329219Z                    Duration: 1.68s\r\n2026-11-05T00:49:06.6330021Z                    Slowest : \u001b[97mstorage/sqlite/build/cancellation\u001b[0m | \u001b[31mFAIL\u001b[0m [ 1.67s]\r\n2026-11-05T00:49:06.6331000Z          ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n2026-11-05T00:49:06.6459775Z step failed (Serial native lifecycle): exit 1\r\n2026-11-05T00:49:06.7445057Z ##[error]Process completed with exit code 1.\r\n2026-11-05T00:49:06.7780374Z ##[group]Run actions/upload-artifact@v7\r\n2026-11-05T00:49:06.7780814Z with:\r\n2026-11-05T00:49:06.7781053Z   name: ci-quality-artifacts-windows\r\n2026-11-05T00:49:06.7783209Z   path: .diagnostics/dotnet-sdk.json\n.diagnostics/csharp-ls-provisioning.json\n.diagnostics/csharp-ls-startup.json\n.diagnostics/phpactor-platform.json\n.diagnostics/serial-native-lifecycle.json\n.diagnostics/go-sdk.json\n.diagnostics/gopls-provisioning.json\n.diagnostics/jj-provisioning.json",
+    "skipOwners": [
+      {
+        "id": "smoke/tantivy",
+        "owner": "Optional native Tantivy installation/readback remains #1627;not enabled in required Windows acceptance"
+      },
+      {
+        "id": "shared/subprocess/tracked-leak-fails-process",
+        "owner": "POSIX invalid-signal leak injection;Windows shared/kill-tree.windows,orphan-descendant fallback and sync-timeout-kills-child-tree pass"
+      },
+      {
+        "id": "cli/general/signal-cleanup",
+        "owner": "POSIX parent-signal transport;separate real Windows native TUI/ConPTY cancellation,restoration and descendant-reaping acceptance"
+      }
+    ]
+  },
+  "fixtureRepair": {
+    "productionChanged": false,
+    "originalBudget": "bundleThreads2 with legacy fileConcurrency1 supplies one CPU;actual worker pool correctly disabled",
+    "repair": "Canonical runtime envelope admits2 CPUs while retaining fileConcurrency1;no budget or production fallback relaxation",
+    "retainedAssertions": [
+      "actual native row writes",
+      "event-loop and precommit cancellation",
+      "one rollback,no commit",
+      "each original native handle closes once",
+      "prior authoritative database bytes preserved",
+      "actual worker-start marker",
+      "ABORT_ERR without parser fallback",
+      "no staged output",
+      "no late worker work",
+      "promotion rollback"
+    ],
+    "localBefore": {
+      "path": ".tmp/tasks/q-1104/sqlite-cancellation-before.log",
+      "rawText": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   1\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nFAIL [ 3.09s] storage/sqlite/build/cancellation exit 1\r\nLOG:          ./.testLogs/run-1793839830632-azbklg/storage_sqlite_build_cancellation.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: worker must actually start: undefined\r\n  + actual - expected\r\n  + {\r\n  +   value: {\r\n  ... trimmed 62 lines\r\n\r\n\r\nLOGS: ./.testLogs/run-1793839830632-azbklg\r\n\r\n  Failure:\r\n     - [ 3.09s] storage/sqlite/build/cancellation (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793839830632-azbklg/storage_sqlite_build_cancellation.attempt-1.failure.json\r\n\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m0\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m1\u001b[0m \u001b[31mFailure\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 3.10s\r\n                   Slowest : \u001b[97mstorage/sqlite/build/cancellation\u001b[0m | \u001b[31mFAIL\u001b[0m [ 3.09s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+    },
+    "originalFailure": {
+      "path": ".testLogs/run-1793839830632-azbklg/storage_sqlite_build_cancellation.attempt-1.failure.json",
+      "bytes": 2306,
+      "sha256": "832fa9dcb70103910f7adee24fc2a1ceff2be0f99fdd0c9fec51a20e347e75ea",
+      "document": {
+        "schemaVersion": 1,
+        "testId": "storage/sqlite/build/cancellation",
+        "attempt": 1,
+        "recordedBy": "test-runner-parent",
+        "invocation": {
+          "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+          "resolvedExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+          "arguments": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\tests\\storage\\sqlite\\build\\cancellation.test.js"
+          ],
+          "argumentsRedacted": false,
+          "cwd": "C:\\Users\\sneak\\Development\\PairOfCleats",
+          "runtime": {
+            "node": "v26.13.0",
+            "v8": "14.6.202.34-node.40",
+            "modules": "147",
+            "platform": "win32",
+            "arch": "x64",
+            "basis": "same executable as parent"
+          }
+        },
+        "process": {
+          "parentPid": 25720,
+          "childPid": 15348,
+          "startedAt": "2026-11-05T00:50:30.638Z",
+          "endedAt": "2026-11-05T00:50:33.725Z"
+        },
+        "outcome": {
+          "status": "failed",
+          "rawExitStatus": 1,
+          "unsignedDecimal": 1,
+          "signedDecimal": 1,
+          "hex": "0x00000001",
+          "interpretation": null,
+          "signal": null,
+          "spawnError": null,
+          "timedOut": false,
+          "termination": null,
+          "interruption": null,
+          "statusSource": "test-process-close-event",
+          "propagation": "Parent recorded the directly spawned test process status; descendant status propagation is not inferred."
+        },
+        "phase": {
+          "crashPhase": "unknown",
+          "lastObservedMarker": null,
+          "basis": "Last captured child log marker; not a native stack or proof of crash location."
+        },
+        "output": {
+          "logPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793839830632-azbklg\\storage_sqlite_build_cancellation.attempt-1.log",
+          "captured": true,
+          "stdout": {
+            "observedStringUnits": 0,
+            "retainedStringUnits": 0,
+            "truncated": false,
+            "configuredLimit": 5242880,
+            "limitUnit": "javascript-string-units"
+          },
+          "stderr": {
+            "observedStringUnits": 2195,
+            "retainedStringUnits": 2195,
+            "truncated": false,
+            "configuredLimit": 5242880,
+            "limitUnit": "javascript-string-units"
+          },
+          "streamOrdering": "stdout and stderr are captured separately; no total ordering guaranteed"
+        }
+      },
+      "serialization": {
+        "spaces": 2,
+        "newline": true
+      }
+    },
+    "originalRawChildLog": "id: storage/sqlite/build/cancellation\npath: storage/sqlite/build/cancellation.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nSQLite worker failure phases: [{\"phase\":\"build-enter\",\"elapsedMs\":0},{\"phase\":\"[sqlite] Using incremental bundles for code (1 files).\",\"elapsedMs\":1},{\"phase\":\"database-open-enter\",\"elapsedMs\":3},{\"phase\":\"database-open-return\",\"elapsedMs\":4},{\"phase\":\"[sqlite] Bundle decode admission: cpu-envelope; execution=ordered-inline.\",\"elapsedMs\":127},{\"phase\":\"[sqlite] bundles 1/1 (100.0%)\",\"elapsedMs\":135},{\"phase\":\"build-resolved\",\"elapsedMs\":139}]\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: worker must actually start: undefined\r\n+ actual - expected\r\n\r\n+ {\r\n+   value: {\r\n+     count: 1,\r\n+     denseCount: 0,\r\n+     embedStats: {\r\n+       denseChunks: 0,\r\n+       denseFloatChunks: 0,\r\n+       denseU8Chunks: 0,\r\n+       filesMissingEmbeddings: 1,\r\n+       filesPartiallyMissingEmbeddings: 0,\r\n+       filesTotal: 1,\r\n+       filesWithChunks: 1,\r\n+       filesWithEmbeddings: 0,\r\n+       missingChunks: 1,\r\n+       sampleMissingFiles: [\r\n+         'sample.js'\r\n+       ],\r\n+       totalChunks: 1\r\n+     },\r\n+     vectorAnn: {\r\n+       column: 'embedding',\r\n+       enabled: false,\r\n+       loaded: false,\r\n+       ready: false,\r\n+       reason: null,\r\n+       table: 'dense_vectors_ann'\r\n+     }\r\n+   }\r\n+ }\r\n- undefined\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/sqlite/build/cancellation.test.js:160:14 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: {\r\n    value: {\r\n      count: 1,\r\n      denseCount: 0,\r\n      embedStats: {\r\n        totalChunks: 1,\r\n        denseChunks: 0,\r\n        denseFloatChunks: 0,\r\n        denseU8Chunks: 0,\r\n        filesTotal: 1,\r\n        filesWithChunks: 1,\r\n        filesWithEmbeddings: 0,\r\n        filesMissingEmbeddings: 1,\r\n        filesPartiallyMissingEmbeddings: 0,\r\n        missingChunks: 1,\r\n        sampleMissingFiles: [ 'sample.js' ]\r\n      },\r\n      vectorAnn: {\r\n        enabled: false,\r\n        loaded: false,\r\n        ready: false,\r\n        reason: null,\r\n        table: 'dense_vectors_ann',\r\n        column: 'embedding'\r\n      }\r\n    }\r\n  },\r\n  expected: undefined,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+    "localAfter": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   1\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 3.66s] storage/sqlite/build/cancellation\r\n\r\nLOGS: ./.testLogs/run-1793839873116-hedvd2\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m1\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 3.67s\r\n                   Slowest : \u001b[97mstorage/sqlite/build/cancellation\u001b[0m | \u001b[32mPASS\u001b[0m [ 3.66s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n",
+    "rawChildAfter": "id: storage/sqlite/build/cancellation\npath: storage/sqlite/build/cancellation.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nSQLite worker lifecycle phases: [{\"phase\":\"build-enter\",\"elapsedMs\":0},{\"phase\":\"[sqlite] Using incremental bundles for code (1 files).\",\"elapsedMs\":1},{\"phase\":\"database-open-enter\",\"elapsedMs\":3},{\"phase\":\"database-open-return\",\"elapsedMs\":3},{\"phase\":\"[sqlite] Bundle parser workers: 2 (requested 2).\",\"elapsedMs\":128},{\"phase\":\"worker-start-witness\",\"elapsedMs\":420},{\"phase\":\"abort-requested\",\"elapsedMs\":421},{\"phase\":\"build-rejected\",\"elapsedMs\":424},{\"phase\":\"no-late-work-witness\",\"elapsedMs\":777}]\nSQLite cancellation rejects before commit, rolls back real writes, closes native handles, cleans staging, and preserves publication authority.\n"
+  },
+  "installerIsolation": {
+    "nativeScope": "actual Windows shared-coordinator fail-before/pass-after;inert SDK fixture unchanged",
+    "counterfactualProgram": "import fs from 'node:fs/promises';import path from 'node:path';import {acquireFileLock,releaseFileLockOrThrow} from './src/shared/locks/file-lock.js';import {spawnSubprocess} from './src/shared/subprocess/runner.js';import {prepareIsolatedTestCacheDir} from './tests/helpers/test-cache.js';import {ensureTestingEnv} from './tests/helpers/test-env.js';ensureTestingEnv(process.env);delete process.env.PAIROFCLEATS_TRUSTED_CONFIG;const {dir}=await prepareIsolatedTestCacheDir('go-pin-parent-contention');const home=path.join(dir,'home'),lockPath=path.join(home,'state','storage-access','write-admission.lock');await fs.mkdir(path.dirname(lockPath),{recursive:true});const held=await acquireFileLock({lockPath,waitMs:0});if(!held)throw new Error('Expected owned parent lock');let result;try{result=await spawnSubprocess(process.execPath,['--input-type=module','-e',\"import {requireBootstrap} from './src/shared/bootstrap-readiness.js';await requireBootstrap();await import('./tests/tooling/install/go-sdk-explicit-pin.test.js');\"],{cwd:process.cwd(),env:{...process.env,PAIROFCLEATS_HOME:home},windowsHide:true,rejectOnNonZeroExit:false,timeoutMs:30000,maxOutputBytes:1024*1024});}finally{await releaseFileLockOrThrow(held);}console.log(JSON.stringify({historicalAuthorWorkspace:true,home,lockPath,ownsParentLock:true,result}));",
+    "before": {
+      "historicalAuthorWorkspace": true,
+      "home": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\go-pin-parent-contention-3008-1793839779237-w6fqbr\\home",
+      "lockPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\go-pin-parent-contention-3008-1793839779237-w6fqbr\\home\\state\\storage-access\\write-admission.lock",
+      "ownsParentLock": true,
+      "result": {
+        "pid": 17168,
+        "exitCode": 1,
+        "signal": null,
+        "durationMs": 797,
+        "stdout": "",
+        "stderr": "file:///C:/Users/sneak/Development/PairOfCleats/src/shared/storage/admission.js:26\r\nconst fail = (reason, details = {}) => Object.assign(new Error(`Storage write admission deferred: ${reason}`), {\r\n                                                     ^\r\n\r\nError: Storage write admission deferred: admission-owner-busy\r\n    at fail (file:///C:/Users/sneak/Development/PairOfCleats/src/shared/storage/admission.js:26:54)\r\n    at acquireStorageWriteReservation (file:///C:/Users/sneak/Development/PairOfCleats/src/shared/storage/admission.js:105:20)\r\n    at async runWithStorageSession.settlement.async.resourceId.resourceId (file:///C:/Users/sneak/Development/PairOfCleats/tools/tooling/install-storage.js:47:63)\r\n    at async runWithStorageSession (file:///C:/Users/sneak/Development/PairOfCleats/src/shared/storage/session.js:165:17)\r\n    at async runInstallWithStorageAdmission (file:///C:/Users/sneak/Development/PairOfCleats/tools/tooling/install-storage.js:45:12)\r\n    at async ensureManagedGoSdk (file:///C:/Users/sneak/Development/PairOfCleats/tools/tooling/install-go-sdk.js:284:23)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/tooling/install/go-sdk-explicit-pin.test.js:20:13 {\r\n  code: 'ERR_STORAGE_ADMISSION',\r\n  admission: 'defer-or-deny-before-write',\r\n  reason: 'admission-owner-busy'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 1048576,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 1048576,
+            "observedBytes": 1346,
+            "retainedBytes": 1346,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 1346,
+            "outputBytes": 1346,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    },
+    "after": {
+      "historicalAuthorWorkspace": true,
+      "home": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\go-pin-parent-contention-4036-1793839798124-oxdnwi\\home",
+      "lockPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\go-pin-parent-contention-4036-1793839798124-oxdnwi\\home\\state\\storage-access\\write-admission.lock",
+      "ownsParentLock": true,
+      "result": {
+        "pid": 25552,
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 753,
+        "stdout": "Inert SDK contract retains explicit launch pins and distinguishes explicit selection from automatic discovery\n",
+        "stderr": "",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 1048576,
+            "observedBytes": 110,
+            "retainedBytes": 110,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 110,
+            "outputBytes": 110,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 1048576,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    },
+    "runnerControl": {
+      "historicalAuthorWorkspace": true,
+      "home": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\go-pin-parent-contention-8896-1793839724270-bzv62r\\home",
+      "lockPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\go-pin-parent-contention-8896-1793839724270-bzv62r\\home\\state\\storage-access\\write-admission.lock",
+      "ownsParentLock": true,
+      "result": {
+        "pid": 17968,
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 1520,
+        "stdout": "\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   1\u001b[0m      \n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\n\nPASS [ 448ms] tooling/install/go-sdk-explicit-pin\n\nLOGS: ./.testLogs/run-1793839725329-0xniwo\n\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\n                                      Test Complete!\n\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\n                   Summary : \u001b[97m1\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\n                   Duration: 454ms\n                   Slowest : \u001b[97mtooling/install/go-sdk-explicit-pin\u001b[0m | \u001b[32mPASS\u001b[0m [ 448ms]\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\n",
+        "stderr": "",
+        "outputCapture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 1048576,
+            "observedBytes": 1576,
+            "retainedBytes": 1576,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 1576,
+            "outputBytes": 1576,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 1048576,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        }
+      }
+    },
+    "runnerControlMeaning": "Runner scrubs inherited home;this control passed originally and was not accepted as reproduction",
+    "construction": {
+      "status": 1,
+      "stdout": "",
+      "stderr": "file:///C:/Users/sneak/Development/PairOfCleats/src/shared/subprocess/runner-async.js:266\r\n      reject(new SubprocessError(`${name}exited with code ${exitCode ?? 'unknown'}`, result));\r\n             ^\r\n\r\nSubprocessError: exited with code 2\r\n    at finalize (file:///C:/Users/sneak/Development/PairOfCleats/src/shared/subprocess/runner-async.js:266:14)\r\n    at ChildProcess.<anonymous> (file:///C:/Users/sneak/Development/PairOfCleats/src/shared/subprocess/runner-async.js:356:7)\r\n    at ChildProcess.emit (node:events:526:24)\r\n    at maybeClose (node:internal/child_process:1156:16)\r\n    at ChildProcess._handle.onexit (node:internal/child_process:334:5) {\r\n  code: 'SUBPROCESS_FAILED',\r\n  result: {\r\n    pid: 22144,\r\n    exitCode: 2,\r\n    signal: null,\r\n    durationMs: 825,\r\n    stdout: '',\r\n    stderr: 'No tests matched the selected filters.\\n',\r\n    outputCapture: {\r\n      stdout: {\r\n        enabled: true,\r\n        maxBytes: 1048576,\r\n        observedBytes: 0,\r\n        retainedBytes: 0,\r\n        droppedBytes: 0,\r\n        retainedBufferBytes: 0,\r\n        outputBytes: 0,\r\n        encodingLoss: false,\r\n        truncated: false\r\n      },\r\n      stderr: {\r\n        enabled: true,\r\n        maxBytes: 1048576,\r\n        observedBytes: 39,\r\n        retainedBytes: 39,\r\n        droppedBytes: 0,\r\n        retainedBufferBytes: 39,\r\n        outputBytes: 39,\r\n        encodingLoss: false,\r\n        truncated: false\r\n      }\r\n    }\r\n  }\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+      "reason": "match argument lacked regex delimiters;no fixture executed"
+    },
+    "repair": "withTemporaryEnv selects a unique fixture-owned PAIROFCLEATS_HOME for its real admission/coordinator as well as isolated tooling payload",
+    "productionAdmissionUnchanged": true,
+    "normalFocusedLog": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   2\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 358ms] shared/storage/write-admission-settlement-contention\r\nPASS [ 341ms] tooling/install/go-sdk-explicit-pin\r\n\r\nLOGS: ./.testLogs/run-1793839811972-xl5749\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m2\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 706ms\r\n                   Slowest : \u001b[97mshared/storage/write-admission-settlement-contention\u001b[0m | \u001b[32mPASS\u001b[0m [ 358ms]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+  },
+  "limits": [
+    "No local Linux/macOS execution",
+    "Other hosted platform failures remain separately reported",
+    "No full-suite rerun requested or performed locally",
+    "324 SQLite and70 hosted native qualifications retain1d53c5262 implementation identity;only two fixture owners change afterward"
+  ],
+  "finalValidation": {
+    "scope": "formatted final two-fixture repair and generated config inventory",
+    "checks": [
+      {
+        "startedAt": "2026-11-05T00:52:46.3587673Z",
+        "exitCode": 0,
+        "durationMs": 53253.2848,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-format.log",
+        "name": "format",
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "executable": "npm.cmd",
+        "rawLog": "\r\n> pairofcleats@0.3.0 format\r\n> eslint . --fix\r\n\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:53:39.6512078Z",
+        "exitCode": 0,
+        "durationMs": 7743.5728,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-focused.log",
+        "name": "focused",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "all",
+          "--match",
+          "/^(storage\\/sqlite\\/(build\\/cancellation|bundle-producer-budget-consumer)|tooling\\/install\\/go-sdk-explicit-pin|shared\\/storage\\/write-admission-settlement-contention)$/",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "executable": "node",
+        "rawLog": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   4\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 448ms] shared/storage/write-admission-settlement-contention\r\nPASS [ 3.68s] storage/sqlite/build/cancellation\r\nPASS [ 2.31s] storage/sqlite/bundle-producer-budget-consumer\r\nPASS [ 362ms] tooling/install/go-sdk-explicit-pin\r\n\r\nLOGS: ./.testLogs/run-1793840020576-29je8s\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m4\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 6.80s\r\n                   Slowest : \u001b[97mstorage/sqlite/build/cancellation\u001b[0m | \u001b[32mPASS\u001b[0m [ 3.68s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:53:47.3984941Z",
+        "exitCode": 0,
+        "durationMs": 2954.2113,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-config-budget.log",
+        "name": "config-budget",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "executable": "npm.cmd",
+        "rawLog": "\r\n> pairofcleats@0.3.0 config:budget\r\n> node tools/config/inventory.js --check\r\n\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:53:50.3558822Z",
+        "exitCode": 0,
+        "durationMs": 1511.4313,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-env-check.log",
+        "name": "env-check",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "executable": "npm.cmd",
+        "rawLog": "\r\n> pairofcleats@0.3.0 env:check\r\n> node tools/ci/check-env-usage.js\r\n\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:53:51.8704977Z",
+        "exitCode": 0,
+        "durationMs": 16392.5391,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-generated-freshness.log",
+        "name": "generated-freshness",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "executable": "node",
+        "rawLog": "generated surfaces freshness check passed\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:54:08.2663839Z",
+        "exitCode": 0,
+        "durationMs": 3983.5485,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-command-surface.log",
+        "name": "command-surface",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "executable": "node",
+        "rawLog": "command surface audit passed (scripts=21, replacements=0, cli=93, capability=45)\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:54:12.2522433Z",
+        "exitCode": 0,
+        "durationMs": 357.4372,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-workflow-contract.log",
+        "name": "workflow-contract",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "executable": "node",
+        "rawLog": "workflow contract test passed (ci, ci-long, nightly, release)\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:54:12.6123551Z",
+        "exitCode": 0,
+        "durationMs": 30345.6288,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-gate.log",
+        "name": "gate",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "executable": "node",
+        "rawLog": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mgate\u001b[0m | \u001b[32mTests:\u001b[0m \u001b[37m  41\u001b[0m                                              \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [  88ms] indexing/policy/hotpath-membership-guard\r\nPASS [  82ms] indexing/policy/module-cache-boundedness-contract\r\nPASS [  94ms] indexing/policy/generated-matrix\r\nPASS [  89ms] indexing/contracts/artifact-surface-version\r\nPASS [  97ms] indexing/contracts/n-minus-one-adapter\r\nPASS [  90ms] indexing/contracts/public-artifact-surface-doc\r\nPASS [ 219ms] indexing/contracts/index-compatibility-key-generation\r\nPASS [  85ms] indexing/contracts/semver-policy-enforced\r\nPASS [ 103ms] indexing/contracts/index-state-dense-sidecars-present\r\nPASS [ 226ms] contracts/manifest-max-bytes-validation\r\nPASS [ 2.15s] indexing/policy/repo-inventory\r\nPASS [ 301ms] indexing/policy/shared-module-cycle-guard\r\nPASS [ 279ms] indexing/contracts/loader-matrix-parity\r\nPASS [ 343ms] indexing/policy/analysis-schema\r\nPASS [ 327ms] indexing/contracts/snapshots\r\nPASS [ 327ms] indexing/contracts/builds-current-repo-head-schema\r\nPASS [ 362ms] indexing/contracts/call-sites-schema\r\nPASS [ 316ms] indexing/contracts/diffs\r\nPASS [ 327ms] indexing/contracts/additional-properties-policy\r\nPASS [ 607ms] indexing/contracts/index-compatibility-key-enforced-on-load\r\nPASS [ 294ms] indexing/contracts/schema-registry-single-source\r\nPASS [ 858ms] tooling/api-contracts/caps\r\nPASS [ 995ms] tooling/api-contracts/schema-validate\r\nPASS [ 969ms] tooling/api-contracts/fail-on-warn\r\nPASS [ 1.06s] tooling/api-contracts/optional-params\r\nPASS [ 841ms] tooling/api-contracts/large-call-sites\r\nPASS [ 708ms] indexing/contracts/embedding-identity-gating-on-load\r\nPASS [ 1.16s] ci/capability-gate.smoke\r\nPASS [ 1.45s] indexing/contracts/index-compatibility-key-federation-block\r\nPASS [  78ms] indexing/policy/stable-entrypoints\r\nPASS [ 1.61s] indexing/policy/optional-deps\r\nPASS [ 1.22s] indexing/policy/analysis-gating\r\nPASS [ 1.52s] ci/tooling-doctor-gate.smoke\r\nPASS [ 789ms] tooling/api-contracts/basic\r\nPASS [ 2.80s] contracts/module-export-surface-compat\r\nPASS [ 1.48s] indexing/contracts/semantic-foundations\r\nPASS [ 413ms] indexing/contracts/semantic-handoff-contracts\r\nPASS [ 725ms] indexing/contracts/runtime-evidence\r\nPASS [ 1.78s] indexing/contracts/index-format-cutover\r\nPASS [ 1.68s] ci/windows-authority-cohort\r\nPASS [ 267ms] ci/ordered-lane-discovery\r\n\r\nLOGS: ./.testLogs/run-1793840053686-rm9h0h\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      GATE Lane Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m41\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 29.3s\r\n                   Slowest : \u001b[97mcontracts/module-export-surface-compat\u001b[0m | \u001b[32mPASS\u001b[0m [ 2.80s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+      },
+      {
+        "startedAt": "2026-11-05T00:54:42.9612073Z",
+        "exitCode": 0,
+        "durationMs": 101.5893,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\ci-fixture-followup-diff-check.log",
+        "name": "diff-check",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "executable": "git",
+        "rawLog": ""
+      }
+    ],
+    "focused": {
+      "passed": 4,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "gate": {
+      "passed": 41,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "files": [
+      {
+        "path": "tests/storage/sqlite/build/cancellation.test.js",
+        "bytes": 11278,
+        "sha256": "5bcec1807af8a0c03141281e53356c6df7bb97ae85856b2ba043a276f754f7ff"
+      },
+      {
+        "path": "tests/tooling/install/go-sdk-explicit-pin.test.js",
+        "bytes": 3753,
+        "sha256": "36be50f96a536b7e69e4f2e94ec6d9409ff47433772cf6cf54ff8569a3525aa0"
+      }
+    ]
+  }
+}

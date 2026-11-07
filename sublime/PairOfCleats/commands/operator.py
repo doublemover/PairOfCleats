@@ -9,6 +9,7 @@ from ..lib import paths
 from ..lib import runner
 from ..lib import tasks
 from ..lib import ui
+from ..lib import operations, service_repository
 
 CONFIG_PANEL = 'pairofcleats-config-dump'
 DOCTOR_PANEL = 'pairofcleats-tooling-doctor'
@@ -36,14 +37,17 @@ def _validate_repo_settings(window, settings, repo_root):
 
 
 def _with_repo_context(window, action_label, on_done, path_hint=None, allow_fallback=True, validate_repo_settings=True):
-    settings = config.get_settings(window)
+    scope = operations.capture(window, key='operator-' + action_label)
 
     def handle_repo_root(repo_root, reason):
+        if not operations.is_current(scope):
+            return
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
         if reason:
             ui.show_status('PairOfCleats: {0}'.format(reason))
+        settings = config.get_settings(window)
         if validate_repo_settings and not _validate_repo_settings(window, settings, repo_root):
             return
         on_done({
@@ -51,6 +55,7 @@ def _with_repo_context(window, action_label, on_done, path_hint=None, allow_fall
             'repo_root': repo_root,
             'cli': paths.resolve_cli(settings, repo_root),
             'env': config.build_env(settings),
+            'scope': scope,
         })
 
     paths.resolve_repo_root_interactive(
@@ -74,13 +79,25 @@ def _start_api_task(window, title, repo_root=None, details=None):
     )
 
 
-def _run_api(window, title, panel_name, request_fn, render_fn, success_message, repo_root=None):
+def _run_api(window, title, panel_name, request_fn, render_fn, success_message, repo_root=None, operation_scope=None):
+    scope = operation_scope or operations.capture(window, key='operator-' + panel_name)
+    if not operations.is_current(scope):
+        return
     task = _start_api_task(window, title, repo_root=repo_root, details='Request started.')
 
     def on_done(result):
+        if not operations.is_current(scope):
+            return
         if result.error:
             tasks.complete_task(window, task, status='failed', details=result.error)
             ui.show_error(result.error)
+            return
+        if not isinstance(result.payload, dict) or result.payload.get('ok') is False:
+            message = 'PairOfCleats: service returned an invalid diagnostics response. Previous report is retained.'
+            if isinstance(result.payload, dict) and result.payload.get('message'):
+                message = str(result.payload['message'])
+            tasks.complete_task(window, task, status='failed', details=message)
+            ui.show_error(message)
             return
         text = render_fn(result.payload)
         ui.write_output_panel(window, panel_name, text)
@@ -91,6 +108,9 @@ def _run_api(window, title, panel_name, request_fn, render_fn, success_message, 
         request_fn,
         on_done,
         on_progress=lambda message: tasks.note_progress(window, task, details=message),
+        window=window,
+        scope=scope,
+        task=task,
     )
 
 
@@ -99,6 +119,8 @@ def _run_cli_json(window, context, title, panel_name, args, render_fn, success_m
     full_args = list(context['cli'].get('args_prefix') or []) + list(args or [])
 
     def on_done(result):
+        if context.get('scope') and not operations.is_current(context['scope']):
+            return
         if result.error:
             ui.show_error(result.error)
             return
@@ -107,7 +129,10 @@ def _run_cli_json(window, context, title, panel_name, args, render_fn, success_m
             ui.show_error(message)
             return
         payload = result.payload
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or payload.get('ok') is False:
+            if isinstance(payload, dict) and payload.get('message'):
+                ui.show_error(str(payload['message']))
+                return
             ui.show_error('PairOfCleats: invalid JSON returned from {0}.'.format(title))
             return
         ui.write_output_panel(window, panel_name, render_fn(payload))
@@ -123,7 +148,27 @@ def _run_cli_json(window, context, title, panel_name, args, render_fn, success_m
         capture_json=True,
         on_done=on_done,
         stream_output=False,
+        operation_scope=context.get('scope'),
     )
+
+
+def _run_repo_status(window, workflow, title, panel_name, render_fn, success_message):
+    def on_context(context):
+        settings, root, scope = context['settings'], context['repo_root'], context['scope']
+        execution = config.resolve_execution_mode(settings, workflow, requested_mode='api')
+        if execution.get('error'):
+            ui.show_error(execution['error'])
+            return
+        def mapped(service_root):
+            if not operations.is_current(scope):
+                return
+            _run_api(window, title, panel_name,
+                lambda: api_client.status_json(execution['base_url'], service_root, settings),
+                lambda payload: 'Editor repository: {0}\nService repository: {1}\n\n{2}'.format(
+                    root, service_root, render_fn(payload)), success_message,
+                repo_root=root, operation_scope=scope)
+        service_repository.resolve(window, settings, root, mapped, operation_scope=scope)
+    _with_repo_context(window, workflow, on_context, validate_repo_settings=False)
 
 
 def _render_json_report(title, payload, follow_up=None):
@@ -345,43 +390,11 @@ class PairOfCleatsServerHealthCommand(_ApiCommand):
 
 class PairOfCleatsServerStatusCommand(_RepoApiCommand):
     def run(self):
-        settings = config.get_settings(self.window)
-        execution = config.resolve_execution_mode(settings, 'server-status', requested_mode='api')
-        if execution.get('error'):
-            ui.show_error(execution['error'])
-            return
-
-        def on_context(context):
-            _run_api(
-                self.window,
-                'PairOfCleats server status',
-                STATUS_PANEL,
-                lambda: api_client.status_json(execution.get('base_url'), context['repo_root'], settings),
-                _render_server_status,
-                'showing server status.',
-                repo_root=context['repo_root'],
-            )
-
-        _with_repo_context(self.window, 'server status', on_context, validate_repo_settings=False)
+        _run_repo_status(self.window, 'server-status', 'PairOfCleats server status', STATUS_PANEL,
+                         _render_server_status, 'showing server status.')
 
 
 class PairOfCleatsIndexHealthCommand(_RepoApiCommand):
     def run(self):
-        settings = config.get_settings(self.window)
-        execution = config.resolve_execution_mode(settings, 'index-health', requested_mode='api')
-        if execution.get('error'):
-            ui.show_error(execution['error'])
-            return
-
-        def on_context(context):
-            _run_api(
-                self.window,
-                'PairOfCleats index health',
-                INDEX_HEALTH_PANEL,
-                lambda: api_client.status_json(execution.get('base_url'), context['repo_root'], settings),
-                _render_index_health,
-                'showing index health.',
-                repo_root=context['repo_root'],
-            )
-
-        _with_repo_context(self.window, 'index health', on_context, validate_repo_settings=False)
+        _run_repo_status(self.window, 'index-health', 'PairOfCleats index health', INDEX_HEALTH_PANEL,
+                         _render_index_health, 'showing index health.')

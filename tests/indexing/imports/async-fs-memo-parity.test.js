@@ -23,7 +23,7 @@ const importsByFile = {
 };
 const normalizeGraph = (graph) => {
   if (!graph || typeof graph !== 'object') return graph;
-  return { ...graph, generatedAt: null };
+  return { ...graph, generatedAt: null, stats: normalizeStats(graph.stats) };
 };
 const makeRelations = () => new Map([
   ['src/entry.js', { imports: ['./dep.js', 'external-lib'] }]
@@ -84,7 +84,16 @@ const asyncMemo = resolveImportLinks({
   fsMeta
 });
 
-assert.deepEqual(asyncMemo.stats, baseline.stats, 'async fs metadata path should match sync stats');
+const normalizeStats = stats => {
+  const copy = structuredClone(stats);
+  for (const stage of Object.values(copy.resolverPipelineStages || {})) {
+    assert.ok(Number.isFinite(stage.elapsedMs) && stage.elapsedMs >= 0, 'both paths retain valid timing evidence');
+    stage.elapsedMs = 0;
+  }
+  return copy;
+};
+assert.deepEqual(normalizeStats(asyncMemo.stats), normalizeStats(baseline.stats),
+  'async fs metadata path should match sync counters; elapsed time is observational');
 assert.deepEqual(
   normalizeGraph(asyncMemo.graph),
   normalizeGraph(baseline.graph),

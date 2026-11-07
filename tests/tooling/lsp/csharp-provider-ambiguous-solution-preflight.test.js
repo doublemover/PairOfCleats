@@ -29,6 +29,7 @@ const inputs = buildSingleSymbolInputs({
 await runDedicatedProviderDegradedPreflightCase({
   root,
   repo: tempRoot,
+  authorizeFixtureExecution: true,
   providerId: 'csharp-ls',
   providerConfigKey: 'csharp',
   fixtureCommand: 'csharp-ls',

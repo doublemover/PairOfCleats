@@ -1,7 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import crypto from 'node:crypto';
-import { getMetricsDir, loadUserConfig } from '../../../shared/dict-utils.js';
+import { BENCH_MEASUREMENT_DERIVATION_VERSION } from './recorded-evidence.js';
 
 export const STAGE_TIMING_SCHEMA_VERSION = 1;
 export const STAGE_TIMING_STAGE_KEYS = Object.freeze([
@@ -51,10 +49,7 @@ const toSafeCount = (value) => {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
 };
 
-const toNullableNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-};
+const toNullableNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
 const computeRatePerSec = (amount, durationMs) => {
   const value = toNullableNumber(amount);
@@ -91,6 +86,7 @@ const resolveModeCountsForLedger = ({
   const tokens = toNullableNumber(throughputEntry?.tokens)
     ?? toNullableNumber(modeMetrics?.tokens?.total);
   const bytes = toNullableNumber(throughputEntry?.bytes)
+    ?? toNullableNumber(modeMetrics?.bytes?.source)
     ?? toNullableNumber(modeMetrics?.bytes?.total)
     ?? toNullableNumber(indexingEntry?.bytes);
   return { files, chunks, tokens, bytes };
@@ -374,42 +370,24 @@ const extractTimingBreakdown = (timings = {}) => {
   return out;
 };
 
-const readJsonFileSync = (filePath) => {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
-    return null;
+export const buildStageTimingProfileForTask = ({ summary, metricsByMode = {}, measurementReceipt = null } = {}) => {
+  const profile = createEmptyStageTimingProfile(), observedStages = new Set();
+  for (const metrics of Object.values(metricsByMode || {})) {
+    const durations = resolveStageDurationsFromModeMetrics(metrics);
+    if (!Object.values(durations).some(Number.isFinite)) continue;
+    mergeStageTimingProfile(profile, extractTimingBreakdown(metrics?.timings));
+    for (const key of STAGE_TIMING_STAGE_KEYS) if (Number.isFinite(durations[key])) observedStages.add(key);
   }
-};
-
-const loadRepoIndexMetrics = (repoPath) => {
-  try {
-    const userConfig = loadUserConfig(repoPath);
-    const metricsDir = getMetricsDir(repoPath, userConfig);
-    const metricsByMode = {};
-    for (const mode of INDEX_METRICS_MODES) {
-      const metricsPath = path.join(metricsDir, `index-${mode}.json`);
-      const payload = readJsonFileSync(metricsPath);
-      if (payload) metricsByMode[mode] = payload;
-    }
-    return metricsByMode;
-  } catch {
-    return {};
+  for (const [key, field] of [['sqliteBuild', 'sqlite'], ['embedding', 'embedding']]) {
+    const duration = toNullableNumber(summary?.buildMs?.[field]);
+    if (!observedStages.has(key) && duration !== null) { profile.stages[key] = duration; observedStages.add(key); }
   }
-};
-
-export const buildStageTimingProfileForTask = ({ repoPath, summary }) => {
-  const profile = createEmptyStageTimingProfile();
-  if (repoPath) {
-    const metricsByMode = loadRepoIndexMetrics(repoPath);
-    for (const metrics of Object.values(metricsByMode)) {
-      mergeStageTimingProfile(profile, extractTimingBreakdown(metrics?.timings));
-    }
-  }
-  profile.stages.sqliteBuild += toSafeDurationMs(summary?.buildMs?.sqlite);
-  profile.stages.embedding += toSafeDurationMs(summary?.buildMs?.embedding);
-  return finalizeStageTimingProfile(profile);
+  if (!observedStages.size) return null;
+  const finalized = finalizeStageTimingProfile(profile);
+  finalized.derivation = { derivationVersion: BENCH_MEASUREMENT_DERIVATION_VERSION,
+    scope: 'recorded-report-observations', measurementReceipt,
+    observedStages: [...observedStages].sort(), unavailableStages: STAGE_TIMING_STAGE_KEYS.filter(key => !observedStages.has(key)) };
+  return finalized;
 };
 
 export const isValidThroughputLedger = (ledger) => {
@@ -425,31 +403,40 @@ export const buildThroughputLedgerForTask = ({
   summary = null,
   throughput = null,
   indexingSummary = null,
-  metricsByMode = null
+  metricsByMode = null,
+  measurementReceipt = null
 } = {}) => {
   const resolvedMetricsByMode = metricsByMode && typeof metricsByMode === 'object'
     ? metricsByMode
-    : (repoPath ? loadRepoIndexMetrics(repoPath) : {});
+    : {};
   const modalities = {};
+  const sourcesByMode = {};
   const stageCoverage = Object.fromEntries(THROUGHPUT_LEDGER_STAGE_KEYS_INTERNAL.map((stage) => [stage, 0]));
 
   for (const modeKey of INDEX_METRICS_MODES) {
     const throughputKey = THROUGHPUT_MODE_KEY_BY_METRICS_MODE[modeKey];
     const modeMetrics = resolvedMetricsByMode?.[modeKey] || null;
     const throughputEntry = throughput?.[throughputKey] || null;
-    const indexingEntry = indexingSummary?.modes?.[modeKey] || null;
-    const counts = resolveModeCountsForLedger({
-      modeMetrics,
-      throughputEntry,
-      indexingEntry
-    });
-    const stageDurations = resolveStageDurationsFromModeMetrics(modeMetrics);
+    const indexingEntry = indexingSummary?.derivation?.state === 'legacy-materialized-source-unqualified'
+      ? null : indexingSummary?.modes?.[modeKey] || null;
+    const modeCounts = resolveModeCountsForLedger({ modeMetrics });
+    const modeDurations = resolveStageDurationsFromModeMetrics(modeMetrics);
+    const hasModeMeasurements = [...Object.values(modeCounts), ...Object.values(modeDurations)].some(Number.isFinite);
+    // Select a complete observation family. Never put saved throughput counters
+    // over a different family's duration, even when both happen to be present.
+    const selectedThroughput = !hasModeMeasurements ? throughputEntry : null;
+    const selectedIndexing = !hasModeMeasurements && !selectedThroughput ? indexingEntry : null;
+    const counts = hasModeMeasurements ? modeCounts : resolveModeCountsForLedger({
+      throughputEntry: selectedThroughput, indexingEntry: selectedIndexing });
+    const stageDurations = hasModeMeasurements ? modeDurations : {};
+    const source = hasModeMeasurements ? measurementReceipt?.modeSources?.[modeKey] || 'caller-supplied-mode-measurements'
+      : selectedThroughput ? 'recorded-throughput' : 'recorded-indexing';
     const stages = {};
     let hasAnyStageValues = false;
 
     for (const stageKey of THROUGHPUT_LEDGER_STAGE_KEYS_INTERNAL) {
       const fallbackDuration = stageKey === 'total'
-        ? (toNullableNumber(throughputEntry?.totalMs) ?? toNullableNumber(indexingEntry?.durationMs))
+        ? (toNullableNumber(selectedThroughput?.totalMs) ?? toNullableNumber(selectedIndexing?.durationMs))
         : null;
       // Only `total` currently has trustworthy aggregate counters. Avoid
       // emitting misleading per-stage throughput derived from global counts.
@@ -466,6 +453,7 @@ export const buildThroughputLedgerForTask = ({
     }
 
     if (!hasAnyStageValues) continue;
+    sourcesByMode[modeKey] = source;
     modalities[modeKey] = {
       mode: modeKey,
       throughputKey,
@@ -476,7 +464,9 @@ export const buildThroughputLedgerForTask = ({
   if (!Object.keys(modalities).length) return null;
   return {
     schemaVersion: THROUGHPUT_LEDGER_SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
+    generatedAt: measurementReceipt?.recordedAt || null,
+    derivation: { derivationVersion: BENCH_MEASUREMENT_DERIVATION_VERSION,
+      scope: 'recorded-report-observations', measurementReceipt, sourcesByMode },
     runSignature: buildThroughputLedgerSignature({ repoPath, summary, modalities }),
     modalities,
     stageCoverage

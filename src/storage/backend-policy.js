@@ -48,7 +48,7 @@ export function resolveBackendPolicy({
       useLmdb: false,
       backendLabel: 'memory',
       sqliteFtsRequested: false,
-      backendForcedSqlite: false,
+      backendForcedSqlite,
       backendForcedLmdb,
       backendForcedMemory,
       backendForcedTantivy,

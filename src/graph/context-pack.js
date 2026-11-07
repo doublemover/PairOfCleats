@@ -1,5 +1,8 @@
 import { resolveProvenance } from '../shared/provenance.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
+import { attachGraphPathCapability } from './path-capability.js';
+import { normalizeDepth } from '../shared/limits.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 const resolveCapsUsed = (caps) => {
   if (caps && typeof caps === 'object') return { graph: { ...caps } };
@@ -17,6 +20,8 @@ export const buildGraphContextPack = ({
   edgeFilters = null,
   caps = {},
   includePaths = false,
+  pathSemantics = undefined,
+  signal = null,
   provenance = null,
   indexSignature = null,
   indexCompatKey = null,
@@ -24,6 +29,7 @@ export const buildGraphContextPack = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  throwIfAborted(signal);
   const capsUsed = resolveCapsUsed(caps);
   const resolvedProvenance = resolveProvenance({
     provenance,
@@ -47,7 +53,7 @@ export const buildGraphContextPack = ({
     caps,
     includePaths
   });
-  return {
+  return attachGraphPathCapability({
     version: '1.0.0',
     seed,
     provenance: resolvedProvenance,
@@ -57,6 +63,7 @@ export const buildGraphContextPack = ({
     truncation: neighborhood.truncation || null,
     warnings: neighborhood.warnings || null,
     stats: neighborhood.stats || null
-  };
+  }, { pathSemantics, operation: 'graph_context', graphIndex, graphRelations, edgeFilters, caps,
+    direction, depth: normalizeDepth(depth, 1), includePaths, signal });
 };
 

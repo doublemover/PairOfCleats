@@ -1,0 +1,15 @@
+# Compiler admission and crash-log follow-up — 2026-11-05
+
+[CI2172](https://github.com/doublemover/PairOfCleats/actions/runs/42130146703) at8e0186bc6 exposes two distinct failures. Original artifact hashes, failing IDs, unchanged assertions and raw timing samples belong to the [machine receipt](ci-compiler-admission-followup-2026-11-05.json).
+
+All eight macOS source-reference cases fail their explicit positive check for actual compiler bindings. Every log first records `scheduler_global_bytes_exceeded`: the tiny source-coordinate fixtures inherit the rich witness helper's1GiB compiler reservation, which the current scheduler cannot admit. The producer correctly defers the work. These fixtures now explicitly use the canonical512MiB compiler policy, with ES5/no ambient Node types for the two small numeric functions. The foreign-generation input already uses that minimal compiler closure. Actual binding positives, two real generation publications, original coordinate/content/authority negatives and all CLI assertions remain. The rich helper defaults and scheduler capacity checks are unchanged.
+
+Ubuntu's long-log latency case fails the unchanged250ms synchronous p95 at250.20817199999988ms; another raw sample takes582.48057ms while most take about3ms. Totals do not establish which operation stalled. The same bounded performance fixture now records original synchronous filesystem operations, nested timing depth and CPU alongside every raw sample. It still executes the real durable terminal publisher, retains all samples, asserts successful original evidence/redaction/append ordering, and keeps250ms synchronous/1000ms settled bounds. The added timing overhead remains inside the bound. There is no crash-log production change or claim that this original latency failure is fixed.
+
+Both Windows latency cases pass with40 raw measured samples: long/small synchronous p95 is13.0566/12.4089ms, settled p95 is20.3368/20.2924ms. These local observations do not replace the failed Ubuntu acceptance. Changed-head hosted results remain required. No WSL or replacement local Linux execution is used.
+
+Issue #1255 is separately published at7d7bbdcbc and verified closed. Its76 focused cases and43 gate cases qualify completed-layer witness retention. The queue and PR are reconciled to357 open issues, with Tantivy/editor exclusions unchanged.
+
+All21 distinct focused Windows cases pass after affected rechecks. The first campaign preserves a30-second timeout in the two-cold-repository aggregate. Its second publication now uses a genuine incremental generation of the same repository, with explicit binding positives in both publications and unchanged source texts. The namespace-equality assertion makes generation identity the discriminating negative. The final case passes in26.7s; no deadline or scheduler limit is raised.
+
+All eight publication checks exit0, including43/43 gate fixtures. Existing ordered cohorts remain2,261 ci-lite/239 ci/43 gate/23 ci-long/11 USR with112 serial runtime and33 serial compiler/build cases. No fixture is skipped or given a larger deadline.

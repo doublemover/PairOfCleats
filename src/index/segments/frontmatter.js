@@ -29,6 +29,8 @@ export const detectFrontmatter = (text) => {
   const startOffset = Math.max(0, firstLine.start);
   const endOffset = Math.max(0, (endLine?.start ?? 0) + (endLine?.raw?.length ?? 0));
   const languageId = fence === '---' ? 'yaml' : (fence === '+++' ? 'toml' : 'json');
+  const contentStart = firstLine.end + (text[firstLine.end] === '\n' ? 1 : 0);
+  const contentEnd = endLine.start;
   const rawLines = [];
   for (let i = 1; i < endIndex; i += 1) {
     const line = getLine(i);
@@ -41,6 +43,8 @@ export const detectFrontmatter = (text) => {
     end: endOffset,
     startOffset,
     endOffset,
+    contentStart,
+    contentEnd,
     raw: rawLines.join('\n')
   };
 };

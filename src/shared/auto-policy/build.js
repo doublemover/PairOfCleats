@@ -1,4 +1,4 @@
-import { getCapabilities } from '../capabilities.js';
+import { getCapabilities, getExternalBackendCapabilities } from '../capabilities.js';
 import {
   clampQuality,
   formatBytes,
@@ -64,7 +64,7 @@ export async function buildAutoPolicy({
   const requestedQuality = clampQuality(config.quality || 'auto') || 'auto';
   const quality = resolveQuality({ requested: requestedQuality, resources, repo });
   const hugeRepoProfile = resolveHugeRepoProfile({ config, repo });
-  const capabilities = getCapabilities();
+  let capabilities = null;
   const concurrency = resolveConcurrency(quality.value, resources, repo);
   const workerPool = resolveWorkerPool(quality.value, resources, repo);
   if (typeof logger === 'function') {
@@ -84,7 +84,9 @@ export async function buildAutoPolicy({
     quality,
     resources,
     repo,
-    capabilities,
+    // Complete capability reporting is explicit. Policy selection below only
+    // consumes ANN backend availability; retain the full serialized shape.
+    get capabilities() { return capabilities ||= getCapabilities(); },
     indexing: {
       concurrency,
       embeddings: { enabled: quality.value !== 'fast' },
@@ -92,7 +94,7 @@ export async function buildAutoPolicy({
     },
     retrieval: {
       backend: 'sqlite',
-      ann: { enabled: quality.value !== 'fast' && capabilities.externalBackends.lancedb }
+      ann: { enabled: quality.value !== 'fast' && getExternalBackendCapabilities().lancedb }
     },
     runtime: { workerPool }
   };

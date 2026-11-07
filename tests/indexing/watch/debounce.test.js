@@ -54,3 +54,21 @@ await wait(50);
 assert.equal(calls, 3, 'cancel must still suppress the scheduled run');
 
 console.log('watch debounce test passed');
+
+let boundedCalls = 0;
+const bounded = createDebouncedScheduler({
+  debounceMs: 60,
+  maxWaitMs: 100,
+  onRun: () => { boundedCalls += 1; }
+});
+const burst = setInterval(() => bounded.schedule(), 10);
+try {
+  await wait(250);
+  assert.ok(boundedCalls >= 1, 'continuous events must not starve scheduled work');
+} finally {
+  clearInterval(burst);
+  bounded.cancel();
+}
+const callsAfterCancel = boundedCalls;
+await wait(120);
+assert.equal(boundedCalls, callsAfterCancel, 'cancel also clears the bounded deadline');

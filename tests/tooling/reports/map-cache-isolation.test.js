@@ -59,7 +59,7 @@ try {
   const legacyCache = path.join(repo, '.pairofcleats', 'maps', 'cache');
   await fs.mkdir(legacyCache, { recursive: true });
   if (process.platform !== 'win32') {
-    await fs.writeFile(path.join(legacyCache, `code-map:lk1:${'a'.repeat(40)}.json`), JSON.stringify(firstMap, null, 2));
+    await fs.writeFile(path.join(legacyCache, `code-map:lk1:${'a'.repeat(40)}.json`), JSON.stringify({ ...firstMap, version: '1.0.0' }, null, 2));
   }
   await build();
   assert.equal(stats().modes.code.chunkMeta.rows, before.modes.code.chunkMeta.rows,

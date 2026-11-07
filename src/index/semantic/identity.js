@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
+import { encodeBoundedSemanticJson } from './canonical-json-bounds.js';
 
 /** Canonical JSON for semantic identities; never silently drops unsupported values. */
-export const canonicalSemanticJson = (value) => {
+export const canonicalSemanticJson = (value, { onObjectEncoded = null, onValue = null, maxBytes = null, check = null } = {}) => {
+  if (maxBytes !== null) return encodeBoundedSemanticJson(value, { maxBytes, onObjectEncoded, onValue, check });
   const active = new Set();
   const encode = (item) => {
+    onValue?.(item);
     if (item === null) return 'null';
     if (typeof item === 'string' || typeof item === 'boolean') return JSON.stringify(item);
     if (typeof item === 'number') {
@@ -28,13 +31,17 @@ export const canonicalSemanticJson = (value) => {
           if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new TypeError('Identity getters are not JSON.');
           parts.push(encode(descriptor.value));
         }
-        return '[' + parts.join(',') + ']';
+        const encoded = '[' + parts.join(',') + ']';
+        onObjectEncoded?.(item, encoded);
+        return encoded;
       }
-      return '{' + Object.keys(item).sort().map((key) => {
+      const encoded = '{' + Object.keys(item).sort().map((key) => {
         const descriptor = Object.getOwnPropertyDescriptor(item, key);
         if (!Object.hasOwn(descriptor, 'value')) throw new TypeError('Identity getters are not JSON.');
         return JSON.stringify(key) + ':' + encode(descriptor.value);
       }).join(',') + '}';
+      onObjectEncoded?.(item, encoded);
+      return encoded;
     } finally {
       active.delete(item);
     }
@@ -42,12 +49,12 @@ export const canonicalSemanticJson = (value) => {
   return encode(value);
 };
 
-export const semanticHash = (domain, inputs) => {
+export const semanticHash = (domain, inputs, { maxBytes = null, check = null } = {}) => {
   if (typeof domain !== 'string' || !domain || domain.includes('\0')) {
     throw new TypeError('A nonempty semantic hash domain is required.');
   }
   return createHash('sha256').update(domain + '\0', 'utf8')
-    .update(canonicalSemanticJson(inputs), 'utf8').digest('hex');
+    .update(canonicalSemanticJson(inputs, { maxBytes, check }), 'utf8').digest('hex');
 };
 
 const identity = (prefix, domain, fields, inputs) => {

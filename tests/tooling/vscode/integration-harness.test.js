@@ -19,9 +19,11 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'root', path: workspace.root }],
   activeFile: nestedSourceFile,
+  globalConfigValues: {
+    cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
+    cliArgs: ['--trace']
+  },
   configValues: {
-    cliPath: './bin/pairofcleats.js',
-    cliArgs: ['--trace'],
     searchMode: 'code',
     searchBackend: 'sqlite'
   }
@@ -53,10 +55,10 @@ await harness.runCommand('pairofcleats.search');
 
 assert.equal(harness.errorMessages.length, 0, `unexpected search errors: ${harness.errorMessages.join('; ')}`);
 assert.equal(harness.spawnCalls.length, 1);
-assert.equal(harness.spawnCalls[0].command, process.execPath);
+assert.equal(harness.spawnCalls[0].command, fs.realpathSync(process.execPath));
 const searchArgs = harness.spawnCalls[0].args;
 assert.deepEqual(searchArgs, [
-  workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),
+  workspace.resolvePath('bin', 'pairofcleats.js'),
   '--trace',
   'search',
   '--json',
@@ -93,7 +95,7 @@ assert.equal(harness.spawnCalls.length, 2);
 assert.deepEqual(
   harness.spawnCalls[1].args,
   [
-    workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),
+    workspace.resolvePath('bin', 'pairofcleats.js'),
     '--trace',
     'report',
     'map',

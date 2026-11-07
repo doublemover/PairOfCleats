@@ -3,7 +3,7 @@ import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
-import { mergeSymbolicTypeGraphs, measureSymbolicTypeGraph, validateTypeExpressionReferences,
+import { mergeSymbolicTypeGraphs, getSymbolicTypeGraphMeasurement, validateTypeExpressionReferences,
   validateSymbolicTypeManifest, symbolicTypeError } from '../../../../shared/symbolic-types.js';
 
 /** The normal writer queue/piece registry and whole-build promoter own this family. */
@@ -29,7 +29,7 @@ export const enqueueSymbolicTypeArtifacts = ({ state, outDir, indexState, enqueu
     const descriptors = [];
     for (const entry of graphs) {
       throwIfAborted(signal);
-      const { hash, bytes } = measureSymbolicTypeGraph(entry.graph);
+      const { hash, bytes } = getSymbolicTypeGraphMeasurement(entry);
       const relativePath = 'symbolic-types/' + hash + '.json';
       const filePath = path.join(outDir, relativePath);
       const { nodes, ...fields } = entry.graph;

@@ -5,6 +5,13 @@
   "run_id": "fixture-navigation",
   "variants": [
     {
+      "id": "desktop-color",
+      "width": 120,
+      "height": 40,
+      "color": true,
+      "unicode": true
+    },
+    {
       "id": "medium-color",
       "width": 100,
       "height": 24,
@@ -103,7 +110,7 @@
       "event": {
         "event": "log",
         "runId": "fixture-navigation",
-        "message": "log line 4"
+        "message": "log line 4\nVIEW00\nVIEW01\nVIEW02\nVIEW03\nVIEW04\nVIEW05\nVIEW06\nVIEW07\nVIEW08\nVIEW09\nVIEW10\nVIEW11\nVIEW12\nVIEW13\nVIEW14\nVIEW15\nVIEW16\nVIEW17\nVIEW18\nVIEW19"
       }
     },
     {
@@ -120,6 +127,21 @@
     },
     {
       "capture_id": "after-scroll"
+    },
+    {
+      "input": "focus_logs"
+    },
+    {
+      "input": "logs_down"
+    },
+    {
+      "capture_id": "log-tail"
+    },
+    {
+      "input": "logs_up"
+    },
+    {
+      "capture_id": "log-row-up"
     }
   ]
 }

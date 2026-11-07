@@ -1,18 +1,26 @@
 import { focusStack } from './stack-navigation.js';
 import { state } from './state.js';
 import { clearGroup, disposeObject } from './scene-utils.js';
-import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights } from './materials.js';
+import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights, updateFileOpacity, updateMemberOpacity } from './materials.js';
 import { computeLayout } from './layout.js';
 import { buildMeshes } from './meshes.js';
 import { buildEdges } from './edges.js';
-import { applyHighlights, renderSelectionDetails, setSelection } from './selection.js';
+import { applyHighlights, renderSelectionDetails, setSelection, setSemanticSelection } from './selection.js';
+import { applyViewerAppearance } from './appearance.js';
+import { retirePicking } from './rendering/picking-owner.js';
 
 const resetScene = () => {
+  retirePicking();
+  state.geometryRevision=(state.geometryRevision||0)+1;
+  state.invalidateHover?.();
   clearGroup(state.fileGroup);
   clearGroup(state.memberGroup);
   clearGroup(state.labelGroup);
   clearGroup(state.edgeGroup);
   clearGroup(state.wireGroup);
+  for(const owner of state.stackPipeOwners||[])owner.dispose();
+  state.stackPipeOwners=[];state.stackPipeLayers=[];state.pipeBufferMetrics=null;
+  state.stackPacketOwner?.dispose();state.stackPacketOwner=null;
   state.fileMeshes = [];
   state.fileInstancedMeshes = [];
   state.fileInstancedInnerMeshes = [];
@@ -85,6 +93,7 @@ export const scheduleRebuild = (delay = 180) => {
 };
 
 export const rebuildScene = () => {
+  state.cancelResidentPreparation?.();
   if (typeof state.syncStateFromPanel === 'function') {
     state.syncStateFromPanel();
   }
@@ -164,7 +173,7 @@ export const rebuildScene = () => {
         linewidth: visuals.gridLineThickness,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false
+        depthTest: true
       });
       gridLineMaterial.resolution.set(lineResolution.width, lineResolution.height);
     } else {
@@ -174,7 +183,7 @@ export const rebuildScene = () => {
         opacity: visuals.gridGlowBase,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false
+        depthTest: true
       });
     }
     gridLineMaterial.userData = {
@@ -236,7 +245,9 @@ export const rebuildScene = () => {
   lockIsometric();
 
   buildMeshes();
+  updateFileOpacity();updateMemberOpacity();
   buildEdges();
+  if(state.appearance)applyViewerAppearance(state,state.appearance);
   updateFlowLights();
   if (typeof state.renderEdgeMenu === 'function') {
     if (state.perfStats?.overBudget) {
@@ -247,7 +258,9 @@ export const rebuildScene = () => {
   }
   applyHighlights();
   if(state.layoutStyle==='stacks'){
-    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(String(previousSelection.id)):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});}
+    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(previousSelection.id):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});else setSemanticSelection(previousSelection);}
     else if(firstLayout) focusStack();
-  }
+  } else if(previousSelection) setSemanticSelection(previousSelection);
+  state.invalidateRender?.();
+  state.afterSceneRebuild?.();
 };

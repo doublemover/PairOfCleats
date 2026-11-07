@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["full-original-document-report", "refresh-replaces-prior-reports", "bounded-admission-and-unsupported-reports", "replacement-and-original-pending-work", "guard-narrows-retry-admission", "framed-native-profile-and-owned-disposal"]
+}

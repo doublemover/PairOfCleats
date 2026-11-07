@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
+import { initGitRepo } from '../helpers/git-fixture.js';
+import { applyTestEnv } from '../helpers/test-env.js';
+import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 
 import { loadWorkspaceConfig, WORKSPACE_ERROR_CODES } from '../../src/workspace/config.js';
 import { getRepoCacheRoot } from '../../tools/shared/dict-utils.js';
 import { normalizeIdentityPath } from '../../src/workspace/identity.js';
 
-const makeTempRoot = (suffix) => fs.mkdtemp(path.join(os.tmpdir(), `pairofcleats-workspace-${suffix}-`));
+const { dir: fixtureRoot } = await prepareIsolatedTestCacheDir('workspace-config-contract');
+applyTestEnv({ cacheRoot: path.join(fixtureRoot, 'cache'), extraEnv: {
+  PAIROFCLEATS_HOME: path.join(fixtureRoot, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null
+} });
+const makeTempRoot = (suffix) => fs.mkdtemp(path.join(fixtureRoot, `${suffix}-`));
 
 const runConfigParsingCase = async () => {
   const tempRoot = await makeTempRoot('config');
@@ -21,7 +27,9 @@ const runConfigParsingCase = async () => {
   await fs.mkdir(repoB, { recursive: true });
   await fs.mkdir(workspaceDir, { recursive: true });
   await fs.writeFile(path.join(repoA, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoA);
   await fs.writeFile(path.join(repoB, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoB);
 
   await fs.writeFile(workspaceFile, `{
     "schemaVersion": 1,
@@ -73,7 +81,9 @@ const runAliasAndTagNormalizationCase = async () => {
   await fs.mkdir(repoA, { recursive: true });
   await fs.mkdir(repoB, { recursive: true });
   await fs.writeFile(path.join(repoA, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoA);
   await fs.writeFile(path.join(repoB, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoB);
 
   await fs.writeFile(duplicateAliasFile, `{
     "schemaVersion": 1,
@@ -110,6 +120,7 @@ const runRepoCanonicalizationCases = async () => {
 
   await fs.mkdir(nested, { recursive: true });
   await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoRoot);
   await fs.writeFile(workspaceFile, `{
     "schemaVersion": 1,
     "repos": [
@@ -156,7 +167,9 @@ const runRepoSetDeterminismCase = async () => {
   await fs.mkdir(repoA, { recursive: true });
   await fs.mkdir(repoB, { recursive: true });
   await fs.writeFile(path.join(repoA, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoA);
   await fs.writeFile(path.join(repoB, '.pairofcleats.json'), '{}', 'utf8');
+  initGitRepo(repoB);
 
   await fs.writeFile(workspaceA, `{
     "schemaVersion": 1,
@@ -182,6 +195,9 @@ const runRepoSetDeterminismCase = async () => {
 };
 
 const runWindowsCanonicalizationCase = async () => {
+  // Portable Windows string normalization is covered above. Physical NTFS
+  // aliases belong to an actual Windows launch; no manufactured links.
+  if (process.platform !== 'win32') return;
   const tempRoot = await makeTempRoot('win-canon');
   const cacheRoot = path.join(tempRoot, 'cache');
   const repoRoot = path.join(tempRoot, 'RepoCase');
@@ -190,12 +206,9 @@ const runWindowsCanonicalizationCase = async () => {
     cache: { root: cacheRoot }
   }, null, 2), 'utf8');
 
+  initGitRepo(repoRoot);
   const repoVariant = repoRoot.replace('RepoCase', 'REPOCASE');
-  try {
-    await fs.access(repoVariant);
-  } catch {
-    await fs.symlink(repoRoot, repoVariant, 'dir');
-  }
+  await fs.access(repoVariant);
   const workspaceA = path.join(tempRoot, 'workspace-a.jsonc');
   const workspaceB = path.join(tempRoot, 'workspace-b.jsonc');
   await fs.writeFile(workspaceA, JSON.stringify({

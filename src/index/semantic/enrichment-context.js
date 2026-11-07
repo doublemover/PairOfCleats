@@ -3,6 +3,12 @@ const grants = new WeakMap();
 export const createSemanticEnrichmentGrant = handlers => {
   const grant = Object.freeze({}); grants.set(grant, handlers); return grant;
 };
+export const validateSemanticEnrichmentAdmission = async (grant, candidate) => {
+  if (grant == null) return;
+  const handlers = grants.get(grant);
+  if (!handlers) throw Object.assign(new TypeError('Unrecognized manual enrichment authorization.'), { code: 'ERR_SEMANTIC_ENRICHMENT_AUTHORITY' });
+  await handlers.admit?.(candidate);
+};
 export const attachSemanticEnrichmentRuntime = async (runtime, grant) => {
   if (grant === undefined || grant === null) return;
   const handlers = grants.get(grant);

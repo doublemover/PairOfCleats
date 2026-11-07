@@ -329,7 +329,10 @@ const cases = [
       const fileHash = sha1(source);
       const bundleDir = path.join(tempRoot, 'bundles');
       await fs.mkdir(bundleDir, { recursive: true });
-      const matchingFingerprint = 'matching-scan-fingerprint';
+      const scanned = await scanImports({ files: [{ abs: filePath, rel: relKey, stat }],
+        root: repoRoot, mode: 'code', languageOptions: {}, importConcurrency: 1 });
+      assert.deepEqual(scanned.importsByFile[relKey], ['./client.codegen.ts']);
+      const matchingFingerprint = scanned.importScanFingerprint;
       const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         bundleFormat: 'json', files: {} };
       manifest.files[relKey] = await writeIncrementalBundle({
@@ -337,8 +340,18 @@ const cases = [
         fileHash, fileChunks: [], bundleFormat: 'json',
         fileRelations: { imports: ['./client.codegen.ts'], importScanFingerprint: matchingFingerprint }
       });
+      assert.equal(await readCachedImports({ repoRoot, enabled: true, absPath: filePath, relKey,
+        fileStat: stat, manifest, bundleDir, bundleFormat: 'json', expectedImportScanFingerprint: matchingFingerprint }), null,
+      'a matching fingerprint without the producer extraction receipt cannot authorize cached import reuse');
+      manifest.files[relKey] = await writeIncrementalBundle({
+        enabled: true, bundleDir, manifest, relKey, fileStat: stat,
+        fileHash, fileChunks: [], bundleFormat: 'json',
+        fileRelations: { imports: scanned.importsByFile[relKey], importScanFingerprint: matchingFingerprint,
+          importScanExtraction: scanned.importExtractionByFile[relKey] }
+      });
 
       const matched = await readCachedImports({
+        repoRoot,
         enabled: true,
         absPath: filePath,
         relKey,
@@ -351,6 +364,7 @@ const cases = [
       assert.deepEqual(matched, ['./client.codegen.ts']);
 
       const mismatched = await readCachedImports({
+        repoRoot,
         enabled: true,
         absPath: filePath,
         relKey,

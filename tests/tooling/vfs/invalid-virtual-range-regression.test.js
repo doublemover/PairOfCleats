@@ -59,6 +59,15 @@ const { documents, targets } = await buildToolingVirtualDocuments({
 
 assert.ok(documents.length > 0, 'expected at least one virtual document');
 assert.ok(targets.length > 0, 'expected at least one tooling target');
+assert.equal(targets.length, chunks.length, 'every produced JSX chunk retains an admitted tooling target');
+const sourceByUid = new Map(chunks.map(chunk => [chunk.chunkUid, chunk]));
+const documentsByPath = new Map(documents.map(doc => [doc.virtualPath, doc]));
+for (const target of targets) {
+  const chunk = sourceByUid.get(target.chunkRef.chunkUid);
+  const doc = documentsByPath.get(target.virtualPath);
+  assert.ok(chunk && doc, 'each target retains its original chunk and admitted document');
+  assert.equal(doc.text.slice(target.virtualRange.start, target.virtualRange.end), fileText.slice(chunk.start, chunk.end));
+}
 assert.equal(
   logs.some((line) => line.includes('Invalid virtualRange')),
   false,

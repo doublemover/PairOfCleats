@@ -55,7 +55,12 @@ assert.equal(misses.lookups, 1, 'stable misses may be reused inside one document
 assert.equal(misses.output.diagnosticsCount, 0);
 
 for (const encoding of ['utf-8', 'utf-16', 'utf-32']) {
-  const diagnostics = Array.from({ length: 20 }, (_, i) => ({ range: range(i % 5, 7 + i % 5), message: String(i) }));
+  const text = 'alpha 😀 omega\r\nnext';
+  const character = offset => encoding === 'utf-8' ? Buffer.byteLength(text.slice(0, offset))
+    : encoding === 'utf-32' ? [...text.slice(0, offset)].length : offset;
+  const diagnostics = Array.from({ length: 20 }, (_, i) => ({
+    range: range(character(i % 5), character(8 + i % 5)), message: String(i)
+  }));
   const result = shape(diagnostics, { encoding });
   assert.deepEqual(result.output, shape(diagnostics, { encoding, custom: true }).output);
   assert.equal(result.lookups, 5);
@@ -69,10 +74,11 @@ const bounded = shape([...many, ...many.map((diag) => ({ ...diag, message: `agai
 assert.equal(bounded.lookups, 210, 'only the first 200 coordinate keys may be retained');
 assert.equal(bounded.output.diagnosticsCount, 410);
 
-// Malformed/non-integer coordinates are not memoized; retain the conversion
-// helper's coercion behavior rather than creating ambiguous cache keys.
+// Malformed/non-integer coordinates are rejected by the strict converter before
+// any target-index access; they cannot become coerced cache keys or evidence.
 const malformed = [{ range: range('1', 3), message: 'a' }, { range: range('1', 3), message: 'b' }];
-assert.equal(shape(malformed).lookups, 2);
+assert.equal(shape(malformed).lookups, 0);
+assert.equal(shape(malformed).output.diagnosticsCount, 0);
 
 // Same coordinates in a new call and a new document use their own target state.
 const changedTargets = [{ virtualRange: { start: 0, end: 30 }, chunkRef: { chunkUid: 'changed' } }];

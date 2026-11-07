@@ -5,12 +5,20 @@
  * @param {number} ordinal
  * @returns {object|null}
  */
+export const sourceRangesIntersect = (range,offsets) => {
+  if(!range || !offsets || ![range.start,range.end,offsets.start,offsets.end].every(Number.isFinite)
+    || range.start<0 || offsets.start<0 || range.end<=range.start || offsets.end<offsets.start)return false;
+  // Insertion points belong to the nonempty chunk on their right. An exclusive
+  // document end has no containing chunk; it must not attach to its neighbor.
+  return offsets.start === offsets.end ? offsets.start>=range.start && offsets.start<range.end
+    : offsets.start<range.end && offsets.end>range.start;
+};
 const normalizeTargetEntry = (target, ordinal) => {
   const range = target?.virtualRange || null;
   if (!range) return null;
   const start = Number(range.start);
   const end = Number(range.end);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start<0 || end<=start) return null;
   return {
     target,
     ordinal,
@@ -76,7 +84,7 @@ export const findTargetForOffsetsLinear = (targets, offsets, nameHint = null) =>
       ordinal += 1;
       continue;
     }
-    const overlaps = offsets.end >= range.start && offsets.start <= range.end;
+    const overlaps = sourceRangesIntersect(range,offsets);
     if (!overlaps) {
       ordinal += 1;
       continue;
@@ -84,7 +92,7 @@ export const findTargetForOffsetsLinear = (targets, offsets, nameHint = null) =>
     const contains = offsets.start >= range.start && offsets.end <= range.end;
     const nameMatch = nameHint && target?.symbolHint?.name === nameHint;
     const span = range.end - range.start;
-    const rank = (contains ? 2 : 1) + (nameMatch ? 2 : 0);
+    const rank = (contains ? 4 : 0) + (nameMatch ? 2 : 0);
     if (
       rank > bestRank
       || (rank === bestRank && span < bestSpan)
@@ -100,12 +108,12 @@ export const findTargetForOffsetsLinear = (targets, offsets, nameHint = null) =>
   return best;
 };
 
-const findLastEntryStartingBefore = (entries, value) => {
+const findLastEntryStartingBefore = (entries, value, inclusive=false) => {
   let low = 0;
   let high = entries.length;
   while (low < high) {
     const mid = low + Math.floor((high - low) / 2);
-    if (entries[mid].start <= value) {
+    if (inclusive ? entries[mid].start <= value : entries[mid].start < value) {
       low = mid + 1;
     } else {
       high = mid;
@@ -139,13 +147,13 @@ export const findTargetForOffsets = (targetIndex, offsets, nameHint = null) => {
   let bestRank = -1;
   let bestSpan = Infinity;
   let bestOrdinal = Infinity;
-  for (let idx = findLastEntryStartingBefore(entries, offsets.end); idx >= 0; idx -= 1) {
+  for (let idx = findLastEntryStartingBefore(entries, offsets.end,offsets.start===offsets.end); idx >= 0; idx -= 1) {
     const entry = entries[idx];
-    if (entry.prefixMaxEnd < offsets.start) break;
-    if (entry.end < offsets.start || entry.start > offsets.end) continue;
+    if (entry.prefixMaxEnd <= offsets.start) break;
+    if (!sourceRangesIntersect(entry,offsets)) continue;
     const contains = offsets.start >= entry.start && offsets.end <= entry.end;
     const nameMatch = nameHint && entry.name === nameHint;
-    const rank = (contains ? 2 : 1) + (nameMatch ? 2 : 0);
+    const rank = (contains ? 4 : 0) + (nameMatch ? 2 : 0);
     if (
       rank > bestRank
       || (rank === bestRank && entry.span < bestSpan)

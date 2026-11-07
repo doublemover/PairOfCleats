@@ -1,31 +1,11 @@
-export function readSignatureLines(lines, startLine, { stopOnSemicolon = true } = {}) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-
-  for (let i = startLine; i < lines.length; i += 1) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (stopOnSemicolon && line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-
-  const signature = parts.join(' ');
-  if (!stopOnSemicolon) {
-    return { signature, endLine, hasBody: hasBrace };
-  }
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
+import { findDeclarationBoundary } from './declaration-boundary.js';
+/** Zero-based start/end line indexes; a bounded preview plus real body offset. */
+export function readSignatureLines(lines, startLine, options = {}) {
+  const text = lines.slice(startLine, startLine + 256).join('\n');
+  const boundary = findDeclarationBoundary(text, 0, options);
+  const endOffset = boundary.bodyStart >= 0 ? boundary.bodyStart + 1 : boundary.signatureEnd;
+  const consumed = text.slice(0, endOffset);
+  return { signature: consumed.replace(/\s+/g, ' ').trim(),
+    endLine: startLine + (consumed.match(/\n/g) || []).length,
+    hasBody: boundary.bodyStart >= 0, bodyOffset: boundary.bodyStart, capped: boundary.capped };
 }

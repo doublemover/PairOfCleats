@@ -9,6 +9,7 @@ export const normalizeOwnershipPayload = (payload) => {
   const suites = Array.isArray(payload?.suites) ? payload.suites : [];
   return {
     schemaVersion: Number(payload?.schemaVersion) || 0,
+    consumerWitnesses: payload?.consumerWitnesses ?? [],
     suites: suites.map((entry) => ({
       id: normalizeId(entry?.id),
       suiteCategory: String(entry?.suiteCategory || '').trim(),
@@ -62,17 +63,41 @@ export const validateOwnershipPayload = (payload) => {
     }
   }
 
+  const witnesses = payload.consumerWitnesses ?? [];
+  const witnessKeys = new Set();
+  const label = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9/_.:-]{0,199}$/.test(value);
+  const sourcePath = value => label(value) && !value.includes(':')
+    && value.split('/').every(part => part !== '.' && part !== '..');
+  const boundedList = (value, check, limit) => Array.isArray(value) && value.length > 0 && value.length <= limit
+    && new Set(value).size === value.length && value.every(check);
+  if (!Array.isArray(witnesses) || witnesses.length > 4096) errors.push('invalid bounded consumerWitnesses inventory');
+  else for (const witness of witnesses) {
+    const fields = ['contractId', 'consumerId', 'caseId', 'sourcePaths', 'requiredScope', 'expectedOracleKind', 'negativeCaseIds'];
+    if (!witness || typeof witness !== 'object' || Array.isArray(witness)
+      || Object.keys(witness).length !== fields.length || fields.some(field => !Object.hasOwn(witness, field))
+      || !label(witness.contractId) || !label(witness.consumerId) || !label(witness.caseId)
+      || !boundedList(witness.sourcePaths, sourcePath, 16)
+      || !boundedList(witness.negativeCaseIds, label, 32)
+      || !boundedList(witness.requiredScope, value => typeof value === 'string' && value.length > 0 && value.length <= 256, 16)
+      || !['physical-identity', 'independent-values', 'original-resource-settlement', 'independent-content'].includes(witness.expectedOracleKind)) {
+      errors.push('invalid consumer witness declaration'); continue;
+    }
+    const key = JSON.stringify([witness.contractId, witness.consumerId, witness.caseId]);
+    if (witnessKeys.has(key)) errors.push(`duplicate consumer witness: ${key}`);
+    witnessKeys.add(key);
+  }
+
   return {
     valid: errors.length === 0,
     errors
   };
 };
 
-export const loadConsolidationOwnership = async ({ root = process.cwd(), ownershipPath } = {}) => {
+export const loadConsolidationOwnership = async ({ root = process.cwd(), ownershipPath, readText = null } = {}) => {
   const resolvedPath = ownershipPath
     ? path.resolve(root, ownershipPath)
     : path.join(root, DEFAULT_OWNERSHIP_PATH);
-  const raw = await fsPromises.readFile(resolvedPath, 'utf8');
+  const raw = await (readText ? readText(resolvedPath) : fsPromises.readFile(resolvedPath, 'utf8'));
   const parsed = JSON.parse(raw);
   const payload = normalizeOwnershipPayload(parsed);
   const validation = validateOwnershipPayload(payload);

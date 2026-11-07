@@ -1,20 +1,32 @@
 import path from 'node:path';
 import { readVerifiedContainedFile } from '../../../../shared/contained-file.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { createRuntimeObservation, markRuntimeCoverage, unknownFields, runtimeEventLimit } from './shared.js';
 
-/** Inspector Profile version 1. JSON residence is explicitly bounded before parsing. */
+/** Inspector Profile version 1. Bounded verified bytes precede decoding.
+ * @yields {object} Saved observations or settled malformed/unsupported coverage.
+ * @throws Original fatal read/integrity/cancellation/unsettled resource failures.
+ */
 export async function* adaptCpuProfile({ filename, artifact, capture, sourceCandidates, scriptHashes, coverage, signal }) {
   const allowance = Math.min(64 * 1024 * 1024, Math.floor(capture.limits.processTreeMemoryBytes / 12), capture.limits.maxBytes);
   if (artifact.byteLength > allowance) { markRuntimeCoverage(coverage, 'profile_resident_allowance_exceeded', 0, 'unsupported'); return; }
   throwIfAborted(signal);
+  const { buffer } = await readVerifiedContainedFile(path.dirname(filename), filename, { maxBytes: allowance,
+    expectedBytes: artifact.byteLength, expectedHash: artifact.hash, signal });
+  throwIfAborted(signal);
   let profile;
-  try {
-    const { buffer } = await readVerifiedContainedFile(path.dirname(filename), filename, { maxBytes: allowance,
-      expectedBytes: artifact.byteLength, expectedHash: artifact.hash, signal });
-    profile = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer));
+  try { profile = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer)); }
+  catch (error) {
+    const observation = observeStorageResource(error, { phase: 'cpu-profile-content' });
+    observation.requireSettled();
+    let malformed;
+    try { malformed = error instanceof SyntaxError || error instanceof TypeError && error.code === 'ERR_ENCODING_INVALID_ENCODED_DATA'; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (!malformed) throw error;
+    markRuntimeCoverage(coverage, 'malformed_or_truncated_profile', 0, 'malformed'); return;
   }
-  catch { markRuntimeCoverage(coverage, 'malformed_or_truncated_profile', 0, 'malformed'); return; }
   if (!profile || !Array.isArray(profile.nodes) || !Number.isFinite(profile.startTime)
     || !Number.isFinite(profile.endTime) || profile.startTime < 0 || profile.endTime < profile.startTime
     || (profile.samples !== undefined && !Array.isArray(profile.samples))

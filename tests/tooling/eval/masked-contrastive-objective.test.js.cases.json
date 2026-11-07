@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["named-objectives-and-independent-gradients", "stable-temperature-and-masked-queues", "missing-negative-skips-term"]
+}

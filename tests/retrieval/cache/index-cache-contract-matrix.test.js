@@ -7,6 +7,7 @@ import path from 'node:path';
 import { INDEX_SIGNATURE_TTL_MS, buildIndexSignature, createIndexCache, loadIndexWithCache } from '../../../src/retrieval/index-cache.js';
 import { getIndexSignature } from '../../../src/retrieval/cli-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../src/contracts/versioning.js';
 
 applyTestEnv();
 
@@ -488,7 +489,7 @@ const cases = [
           `${JSON.stringify({ id: 0, file: 'src/a.js', start: 0, end: 1 })}\n`
         );
         await fs.writeFile(path.join(codeDir, 'chunk_meta.meta.json'), JSON.stringify({
-          schemaVersion: '0.0.1',
+          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
           artifact: 'chunk_meta',
           format: 'jsonl-sharded',
           generatedAt: new Date().toISOString(),
@@ -509,6 +510,7 @@ const cases = [
           runRecords: false,
           runExtractedProse: false,
           includeExtractedProse: false,
+          indexDirByMode: { code: codeDir },
           root: rootDir,
           userConfig: {}
         });

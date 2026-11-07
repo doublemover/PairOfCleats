@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["constructor-presence", "spawn-callback", "stdout-callback", "stderr-callback", "stdin-error", "pre-abort-reasons", "owned-abort-reasons", "tree-cleanup-rejections", "stdout-byte-callback", "stderr-byte-callback"]
+}

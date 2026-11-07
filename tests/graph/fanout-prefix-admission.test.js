@@ -7,9 +7,9 @@ import { createFanoutPrefixFixture, projectFanoutResult } from './helpers/fanout
 const golden = JSON.parse(await fs.readFile(new URL('../fixtures/graph/fanout-prefix.json', import.meta.url), 'utf8'));
 const capped = createFanoutPrefixFixture();
 const output = buildGraphNeighborhood(capped.request);
-assert.deepEqual(projectFanoutResult(output), golden, 'unchanged baseline output includes discarded-symbol notices and full fanout counts');
+assert.deepEqual(projectFanoutResult(output), golden, 'baseline includes discarded-symbol notices and counts individual candidate-target witnesses');
 assert.equal(capped.getEvidenceLookups(), 3, 'only retained call candidates construct their evidence');
-assert.equal(output.truncation.find((entry) => entry.cap === 'maxFanoutPerNode').observed, 78);
+assert.equal(output.truncation.find((entry) => entry.cap === 'maxFanoutPerNode').observed, 64 + 8 + 4 + 2 * 2);
 assert.equal(output.truncation.find((entry) => entry.cap === 'maxCandidates').observed, 4);
 assert.equal(output.stats.capsTriggered.maxCandidates, 2, 'notices from discarded symbol candidates remain visible');
 
@@ -30,7 +30,7 @@ const filtered = createFanoutPrefixFixture();
 filtered.request.edgeFilters = { graphs: ['usageGraph', 'symbolEdges'] };
 const filteredResult = buildGraphNeighborhood(filtered.request);
 assert.ok(filteredResult.edges.every((edge) => edge.graph === 'usageGraph'));
-assert.equal(filteredResult.truncation.find((entry) => entry.cap === 'maxFanoutPerNode').observed, 10);
+assert.equal(filteredResult.truncation.find((entry) => entry.cap === 'maxFanoutPerNode').observed, 8 + 2 * 2);
 assert.equal(filteredResult.stats.capsTriggered.maxCandidates, 2);
 assert.equal(filtered.getEvidenceLookups(), 0);
 console.log('Graph fanout prefix admission passed: baseline output/counts,64 to3 evidence lookups, CSR/legacy directions, zero/uncapped and discarded-symbol notices');

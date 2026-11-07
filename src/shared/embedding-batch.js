@@ -1,5 +1,5 @@
+import { coercePositiveIntMinOne } from './number-coerce.js';
 import { readEffectiveMemory } from './effective-memory.js';
-import os from 'node:os';
 
 export const resolveAutoEmbeddingBatchSize = (totalMemBytes = readEffectiveMemory().totalBytes, options = {}) => {
   const totalGb = totalMemBytes / (1024 ** 3);
@@ -19,3 +19,23 @@ export const resolveAutoEmbeddingBatchSize = (totalMemBytes = readEffectiveMemor
 
   return memBatch;
 };
+
+export const resolveEmbeddingsBatchTokenBudget = ({
+  indexingConfig,
+  embeddingBatchSize
+} = {}) => {
+  const explicit = indexingConfig?.embeddings?.maxBatchTokens;
+  if (explicit !== null && explicit !== undefined && String(explicit).trim() !== '') {
+    const parsed = Math.floor(Number(explicit));
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    return 0;
+  }
+  const batchSize = coercePositiveIntMinOne(embeddingBatchSize);
+  if (!batchSize) return 0;
+  const configuredMultiplier = Math.floor(Number(indexingConfig?.embeddings?.batchTokenMultiplier));
+  const multiplier = Number.isFinite(configuredMultiplier) && configuredMultiplier > 0
+    ? configuredMultiplier
+    : 256;
+  return Math.max(1, batchSize * multiplier);
+};
+

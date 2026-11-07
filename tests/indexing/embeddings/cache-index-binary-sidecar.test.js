@@ -80,8 +80,8 @@ await fs.writeFile(jsonPath, JSON.stringify(jsonPreferredPayload, null, 2), 'utf
 const readWithBinary = await readCacheIndex(cacheDir, identityKey);
 assert.equal(
   readWithBinary.entries?.[cacheKey]?.hits,
-  1,
-  'expected binary sidecar to be preferred when present'
+  99,
+  'canonical JSON is authority when a compatibility sidecar is stale'
 );
 
 await fs.writeFile(binaryPath, Buffer.from([0, 1, 2, 3]));
@@ -91,5 +91,13 @@ assert.equal(
   99,
   'expected JSON fallback when binary sidecar is unreadable'
 );
+
+await fs.writeFile(binaryPath, JSON.stringify(baseIndex));
+await fs.unlink(jsonPath);
+assert.equal((await readCacheIndex(cacheDir, identityKey)).entries[cacheKey].hits, 1,
+  'legacy sidecar read remains available when canonical JSON is absent');
+await fs.writeFile(jsonPath, '{corrupt canonical');
+assert.equal(Object.keys((await readCacheIndex(cacheDir, identityKey)).entries).length, 0,
+  'a corrupt canonical checkpoint cannot fall back to a potentially stale compatibility copy');
 
 console.log('embeddings cache index binary sidecar test passed');

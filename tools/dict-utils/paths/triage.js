@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { DEFAULT_TRIAGE_PROMOTE_FIELDS } from '../constants.js';
 import { loadUserConfig } from '../config.js';
-import { getRepoCacheRoot, resolvePath } from './repo.js';
+import { resolveRepoCacheRootPath, resolvePath } from './repo.js';
 
 /**
  * Resolve triage configuration for a repo.
@@ -12,7 +12,7 @@ import { getRepoCacheRoot, resolvePath } from './repo.js';
 export function getTriageConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const triage = cfg.triage || {};
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, cfg);
+  const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, cfg);
   const defaultRecordsDir = path.join(repoCacheRoot, 'triage', 'records');
   const recordsDir = (typeof triage.recordsDir === 'string' && triage.recordsDir.trim())
     ? resolvePath(repoRoot, triage.recordsDir)

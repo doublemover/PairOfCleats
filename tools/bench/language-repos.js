@@ -707,6 +707,7 @@ const results = await runBenchExecutionLoop({
   benchTimeoutMs
 });
 
+await logger.flushLogs({ fatal: true });
 const output = await buildReportOutput({
   configPath,
   cacheRoot,
@@ -714,6 +715,7 @@ const output = await buildReportOutput({
   results,
   config,
   environmentMetadata: benchEnvironmentMetadata,
+  streamProducerEvidence: processRunner.getDiagnosticProducerCoverage(),
   runLabel: runSuffix,
   runSuffix,
   waiverFile,

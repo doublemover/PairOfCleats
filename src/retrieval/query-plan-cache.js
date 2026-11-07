@@ -224,7 +224,7 @@ export function createQueryPlanDiskCache({
     const prepared = prepareDiskEntries(data.entries, { maxEntries, ttlMs });
     let droppedEntries = prepared.length !== data.entries.length;
     let loaded = 0;
-    for (const entry of prepared) {
+    for (const entry of prepared.slice().reverse()) {
       const hydrated = hydrateQueryPlanEntry(entry.entry);
       if (!hydrated) {
         droppedEntries = true;
@@ -321,6 +321,7 @@ export function buildQueryPlanConfigSignature({
   caseFile = false,
   searchRegexConfig = null,
   filePrefilterEnabled = null,
+  filePrefilterConfig = null,
   fileChargramN = null,
   searchType = null,
   searchAuthor = null,
@@ -341,19 +342,22 @@ export function buildQueryPlanConfigSignature({
   fieldWeightsConfig = null,
   denseVectorMode = null,
   branchFilter = null,
-  dictSize = null
+  dictSize = null,
+  dictionaryPolicyIdentity = null
 } = {}) {
   return hashSignature({
     queryMatch,
     structuredFilters,
     dictConfig,
     dictSize,
+    dictionaryPolicyIdentity,
     postingsConfig,
     caseTokens,
     fileFilter,
     caseFile,
     searchRegexConfig,
     filePrefilterEnabled,
+    filePrefilterConfig,
     fileChargramN,
     searchType,
     searchAuthor,

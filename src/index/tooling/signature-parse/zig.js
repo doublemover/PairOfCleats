@@ -1,8 +1,10 @@
-import { splitTopLevel } from './shared.js';
+import { findMatchingParen, splitTopLevel } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const ZIG_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(value);
 
 const splitParams = (value) => splitTopLevel(value, ',');
 
@@ -35,19 +37,7 @@ export const parseZigSignature = (detail) => {
   if (fnIndex === -1) return null;
   const open = signature.indexOf('(', fnIndex);
   if (open === -1) return null;
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < signature.length; i += 1) {
-    const char = signature[i];
-    if (char === '(') depth += 1;
-    else if (char === ')') {
-      depth -= 1;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
+  const close = findMatchingParen(signature,open);
   if (close === -1) return null;
   const paramsText = signature.slice(open + 1, close);
   const returnType = normalizeType(signature.slice(close + 1)) || null;
@@ -57,7 +47,7 @@ export const parseZigSignature = (detail) => {
     const parsed = parseZigParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return { signature, returnType, paramTypes, paramNames };

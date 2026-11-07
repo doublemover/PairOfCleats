@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -43,6 +45,7 @@ await fs.writeFile(
   'utf8'
 );
 
+applyTestEnv({ cacheRoot, testConfig: { cache: { root: cacheRoot } } });
 const userConfig = loadUserConfig(repoRoot);
 const injectedOptions = {
   loadUserConfig: () => userConfig,
@@ -93,6 +96,7 @@ await fs.writeFile(path.join(buildRoot, 'index-code', 'chunk_meta.jsonl.gz'), ''
 await fs.writeFile(
   path.join(buildsRoot, 'current.json'),
   JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     buildRoot,
     buildRoots: {
@@ -151,4 +155,5 @@ assert.equal(
   'shared getIndexDir should match tooling wrapper'
 );
 
+await fs.rm(tempRoot, { recursive: true, force: true });
 console.log('shared repo-path parity test passed');

@@ -9,6 +9,7 @@ if (process.platform !== 'win32') {
 
 const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], {
   stdio: 'ignore',
+  windowsHide: true,
   detached: true
 });
 child.unref();

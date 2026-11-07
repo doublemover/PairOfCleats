@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "alias",
+    "author",
+    "bm25-k1",
+    "calls",
+    "cohort",
+    "deadline-ms",
+    "extends",
+    "fts-weights",
+    "graph-ranking-seeds",
+    "loops",
+    "meta-json",
+    "modified-since",
+    "param",
+    "repo",
+    "risk-category",
+    "risk-tag",
+    "snapshot",
+    "tag",
+    "type",
+    "writes"
+  ]
+}

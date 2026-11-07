@@ -151,6 +151,7 @@ const consumeJsonFrameValue = (text, start, frame, stack) => {
     stack.push({
       type: ch === '{' ? 'object' : 'array',
       state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
+      allowEnd: true,
       collectKeys: false
     });
     return start + 1;

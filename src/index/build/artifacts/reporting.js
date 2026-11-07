@@ -61,6 +61,13 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: true
   },
   {
+    path: 'extensions.runtimeAttemptId',
+    category: 'run_identity',
+    reason: 'Runtime receipt attempt IDs identify an invocation, not indexed content.',
+    source: 'src/index/build/indexer/steps/write.js',
+    excludeFromStableHash: true
+  },
+  {
     path: 'stage',
     category: 'run_identity',
     reason: 'stage reflects current lifecycle and may vary by run mode.',
@@ -344,11 +351,17 @@ export const buildExtractionReport = ({
   const configDigest = sha256Hex(stableStringifyForSignature(documentExtractionConfig || {}));
   const policy = buildDocumentExtractionPolicySummary(documentExtractionConfig);
   const entries = new Map();
+  const unavailable = [];
   const fileInfoByPath = state?.fileInfoByPath;
   if (fileInfoByPath && typeof fileInfoByPath.entries === 'function') {
     for (const [file, info] of fileInfoByPath.entries()) {
       const extraction = info?.extraction;
-      if (!extraction || extraction.status !== 'ok') continue;
+      if (!extraction || extraction.status !== 'ok') {
+        const sourceType = resolveDocumentSourceType(file);
+        if (mode === 'extracted-prose' && sourceType) unavailable.push({ file, sourceType,
+          reason: 'extract_failed', warnings: ['Document extraction receipt is unavailable; re-extract this source.'] });
+        continue;
+      }
       const normalizedFile = normalizeExtractionFilePath(file, root);
       const sourceType = resolveDocumentSourceType(normalizedFile, extraction.sourceType || null);
       if (!sourceType) continue;
@@ -378,16 +391,17 @@ export const buildExtractionReport = ({
         },
         warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : [],
         policy: extraction?.policy || policy,
-        fidelity: extraction?.fidelity || buildDocumentExtractionFidelity({
+        fidelity: sourceType !== 'pdf' && extraction?.fidelity || buildDocumentExtractionFidelity({
           sourceType,
           status: 'ok',
           warnings: extraction?.warnings || [],
-          policy
+          policy,
+          pageCoverage: extraction?.fidelity?.pageCoverage || null
         })
       });
     }
   }
-  for (const skipped of state?.skippedFiles || []) {
+  for (const skipped of [...unavailable, ...(state?.skippedFiles || [])]) {
     const filePath = normalizeExtractionFilePath(skipped?.file, root);
     const sourceType = resolveDocumentSourceType(filePath, skipped?.sourceType || null);
     if (!filePath || !sourceType) continue;
@@ -414,7 +428,8 @@ export const buildExtractionReport = ({
         status: 'skipped',
         reason,
         warnings: skipped?.warnings || [],
-        policy
+        policy,
+        pageCoverage: skipped?.fidelity?.pageCoverage || null
       })
     });
   }
@@ -462,6 +477,8 @@ export const buildExtractionReport = ({
       });
     }
   }
+  const coverageLossCount = files.filter(file => file.fidelity?.state !== 'complete').length;
+  const qualitySensitiveFailures = policy.qualitySensitive ? coverageLossCount : 0;
   return {
     schemaVersion: 2,
     mode,
@@ -472,13 +489,13 @@ export const buildExtractionReport = ({
     coverage: {
       state: files.length === 0
         ? 'missing'
-        : skippedCount === 0
+        : coverageLossCount === 0
           ? 'complete'
           : okCount > 0
             ? 'partial'
             : 'missing',
-      coverageLossCount: skippedCount,
-      qualitySensitiveFailures: policy.qualitySensitive ? skippedCount : 0,
+      coverageLossCount,
+      qualitySensitiveFailures,
       bySourceType
     },
     quality: {

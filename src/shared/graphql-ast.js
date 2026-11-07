@@ -37,9 +37,9 @@ export const createGraphqlStructureParser = ({ loadParser = () => require('graph
       const references = new Set();
       const importEntries = [];
       const referenceEntries = [];
-      const recordEntry = (list, value, start, end) => {
+      const recordEntry = (list, value, start, end, kind = null) => {
         if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > source.length) throw new Error('Invalid source range');
-        list.push(Object.freeze({ value, start, end, line: Math.max(0, offsetToLine(lineIndex, start) - 1) }));
+        list.push(Object.freeze({ value, start, end, line: Math.max(0, offsetToLine(lineIndex, start) - 1), ...(kind ? { kind } : {}) }));
       };
       const definitions = [];
       for (const node of document.definitions) {
@@ -79,7 +79,8 @@ export const createGraphqlStructureParser = ({ loadParser = () => require('graph
         if (++nodes > MAX_NODES) return fallback('node-limit');
         if ((node.kind === 'NamedType' || node.kind === 'FragmentSpread') && node.name?.value) {
           references.add(node.name.value);
-          recordEntry(referenceEntries, node.name.value, node.loc?.start, node.loc?.end);
+          recordEntry(referenceEntries, node.name.value, node.loc?.start, node.loc?.end,
+            node.kind === 'FragmentSpread' ? 'fragment-reference' : 'type-reference');
         }
         if (node.kind === 'Directive' && node.name?.value === 'link') {
           const url = node.arguments?.find((argument) => argument.name?.value === 'url')?.value;

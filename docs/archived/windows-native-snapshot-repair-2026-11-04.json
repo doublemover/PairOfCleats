@@ -1,0 +1,1931 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "historicalAuthorWorkspace": true,
+  "hosted": {
+    "source": "ec78f3cb23c9b08452ece9f3a5f786084e2f2d75",
+    "run": 41917690625,
+    "job": 126883582198,
+    "excerpt": "2026-11-04T21:45:03.9742438Z \n2026-11-04T21:45:06.6540791Z FAIL [ 2.67s] shared/kill-tree-windows-snapshot exit 1\n2026-11-04T21:45:06.6542607Z LOG:          ./.testLogs/run-1793828703967-5rlybs/shared_kill-tree-windows-snapshot.attempt-1.failure.json\n2026-11-04T21:45:06.6549555Z   node:internal/modules/run_main:111\n2026-11-04T21:45:06.6550464Z       triggerUncaughtException(\n2026-11-04T21:45:06.6550951Z       ^\n2026-11-04T21:45:06.6552866Z   AssertionError [ERR_ASSERTION]: production helper deadline: {\"executable\":\"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\",\"status\":null,\"errorCode\":\"ETIMEDOUT\",\"stderr\":\"lineage:engine-ready\\r\\n\"}\n2026-11-04T21:45:06.6554454Z   + actual - expected\n2026-11-04T21:45:06.6556173Z   + Error: spawnSync C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe ETIMEDOUT\n2026-11-04T21:45:06.6557778Z   +     at Object.spawnSync (node:internal/child_process:1175:20)\n2026-11-04T21:45:06.6558462Z   ... trimmed 49 lines\n2026-11-04T21:45:06.6558723Z \n2026-11-04T21:45:07.0520556Z PASS [ 396ms] shared/kill-tree.windows\n2026-11-04T21:45:08.8132347Z PASS [ 1.76s] shared/kill-tree.windows-orphan-descendant-fallback\n2026-11-04T21:45:10.1374828Z PASS [ 1.32s] shared/locks/windows-delete-pending\n2026-11-04T21:45:18.3841033Z PASS [ 8.24s] shared/subprocess/sync-timeout-kills-child-tree\n2026-11-04T21:45:18.3851335Z \n2026-11-04T21:45:18.3851740Z LOGS: ./.testLogs/run-1793828703967-5rlybs\n2026-11-04T21:45:18.3852070Z \n2026-11-04T21:45:18.3852237Z   Failure:\n2026-11-04T21:45:18.3853746Z      - [ 2.67s] shared/kill-tree-windows-snapshot (exit 1)\n2026-11-04T21:45:18.3854316Z          node:internal/modules/run_main:111"
+  },
+  "attribution": "Original hosted evidence stops after engine-ready;stdin-read versus payload-parse delay was not recorded. Replaced that interpreter path;no claim that a last marker identifies its underlying cause.",
+  "implementation": "Existing required node-pty Windows process metadata binding now owns Toolhelp enumeration and CloseHandle. Fresh current-Node leaf retains2000ms and strips case variants of NODE_OPTIONS. No WMI,powershell,console attach,extra dependency,privilege or public configuration is used.",
+  "nativeUnpatchedVerification": "[verify:native] required package is not loadable (node-pty): [eval]:6\r\n        const snapshot = native.getProcessSnapshot(false);\r\n                                ^\r\n\r\nTypeError: native.getProcessSnapshot is not a function\r\n    at [eval]:6:33\r\n    at runScriptInThisContext (node:internal/vm:219:10)\r\n    at node:internal/process/execution:485:12\r\n    at [eval]-wrapper:6:24\r\n    at runScriptInContext (node:internal/process/execution:483:60)\r\n    at evalFunction (node:internal/process/execution:317:30)\r\n    at evalTypeScript (node:internal/process/execution:329:3)\r\n    at node:internal/main/eval_string:71:3\r\n\r\nNode.js v26.13.0\r\n[verify:native] failed with 1 required package failure(s).\r\n",
+  "sourceBuild": {
+    "status": 0,
+    "node": "26.13.0",
+    "python": "3.15.2",
+    "officialHeaders": true,
+    "warnings": [
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(94,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(93,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Agent.cc(162,42): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Agent.cc(162,29): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Agent.cc(445,80): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Agent.cc(448,79): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Agent.cc(564,31): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Agent.cc(564,25): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\libwinpty\\winpty.cc(305,58): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\libwinpty\\winpty.cc(333,57): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\src\\win\\conpty_console_list.cc(73): warning C6387: 'snapshot' could be '0':  this does not adhere to the specification for the function 'CloseHandle'. : Lines: 46, 47, 50, 51, 52, 53, 54, 55, 56, 57, 59, 60, 61, 62, 69, 73 [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\conpty_console_list.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(94,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(93,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\UnicodeEncoding.h(30,18): warning C4244: '=': conversion from 'uint32_t' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\UnicodeEncoding.h(67,18): warning C4244: '=': conversion from 'uint32_t' to 'wchar_t', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\UnicodeEncoding.h(71,25): warning C4244: '=': conversion from 'uint32_t' to 'wchar_t', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(121,24): warning C4244: 'return': conversion from '__int64' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(137,24): warning C4244: 'return': conversion from '__int64' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(150,50): warning C4244: '=': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(152,50): warning C4244: '=': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(155,24): warning C4244: 'return': conversion from '__int64' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(167,50): warning C4244: '=': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(169,50): warning C4244: '=': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(172,24): warning C4244: 'return': conversion from '__int64' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(340,74): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(355,66): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(511,32): warning C4244: '=': conversion from '_Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(511,32): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(511,32): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(511,32): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(511,32): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(516,31): warning C4244: '=': conversion from '_Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(516,31): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(516,31): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(516,31): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(516,31): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(621,64): warning C4244: 'argument': conversion from 'const uint32_t' to 'WCHAR', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInput.cc(838,26): warning C4244: '=': conversion from 'UINT' to 'WORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=char [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(94,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(93,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleInputReencoding.cc(88,29): warning C4244: 'argument': conversion from 'int' to 'wchar_t', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\DebugClient.cc(79,47): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleLine.cc(127,58): warning C4267: 'argument': conversion from 'size_t' to 'const _Ty', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleLine.cc(127,58): warning C4267:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleLine.cc(127,58): warning C4267:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleLine.cc(127,58): warning C4267:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\ConsoleLine.cc(127,58): warning C4267:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\GenRandom.cc(71,42): warning C4267: 'argument': conversion from 'size_t' to 'ULONG', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\GenRandom.cc(78,41): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=char [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\DefaultInputMap.cc(262,28): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\DefaultInputMap.cc(294,38): warning C4244: 'argument': conversion from '__int64' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\DefaultInputMap.cc(302,12): warning C4244: 'return': conversion from 'int' to 'uint16_t', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\DefaultInputMap.cc(358,24): warning C4244: '=': conversion from 'int' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\DefaultInputMap.cc(370,28): warning C4244: '=': conversion from 'int' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\DefaultInputMap.cc(377,28): warning C4244: '=': conversion from 'int' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringUtil.cc(42,33): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringUtil.cc(51,29): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringUtil.cc(50,33): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\EventLoop.cc(75,67): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\WindowsSecurity.cc(181,30): warning C4267: 'argument': conversion from 'size_t' to 'ULONG', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\InputMap.cc(227,44): warning C4244: 'argument': conversion from 'int' to 'unsigned char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\InputMap.cc(233,48): warning C4244: 'argument': conversion from 'int' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=char [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(94,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(93,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\LargeConsoleRead.cc(61,25): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\LargeConsoleRead.cc(61,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\LargeConsoleRead.cc(61,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\LargeConsoleRead.cc(61,25): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\LargeConsoleRead.cc(61,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\LargeConsoleRead.cc(59,17): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\NamedPipe.cc(191,49): warning C4267: 'initializing': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\NamedPipe.cc(191,31): warning C4267: 'initializing': conversion from 'size_t' to 'const DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(94,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(93,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(230,17): warning C4244: 'argument': conversion from 'const int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(225,13): warning C4244: 'argument': conversion from 'const int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(247,47): warning C4244: 'argument': conversion from 'const int' to 'const _Ty', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(247,47): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(247,47): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(247,47): warning C4244:             _Ty=SHORT [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(247,47): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(248,47): warning C4244: 'argument': conversion from 'const int' to 'const _Ty', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(248,47): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(248,47): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(248,47): warning C4244:             _Ty=SHORT [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(248,47): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(263,13): warning C4244: 'argument': conversion from 'const int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(262,13): warning C4244: 'argument': conversion from 'const int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(260,26): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(260,26): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(260,26): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(260,26): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(260,26): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(284,26): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(284,26): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(284,26): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(284,26): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(284,26): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(302,37): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(560,59): warning C4244: 'argument': conversion from 'int64_t' to 'const _Ty', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(560,59): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(560,59): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(560,59): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(560,59): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(570,45): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(567,35): warning C4244: 'argument': conversion from 'const int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(623,40): warning C4244: 'argument': conversion from 'int64_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(668,39): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Scraper.cc(697,29): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\UnicodeEncoding.h(30,18): warning C4244: '=': conversion from 'uint32_t' to 'char', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\UnicodeEncoding.h(67,18): warning C4244: '=': conversion from 'uint32_t' to 'wchar_t', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\UnicodeEncoding.h(71,25): warning C4244: '=': conversion from 'uint32_t' to 'wchar_t', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Terminal.cc(365,26): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Terminal.cc(369,16): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Win32Console.cc(73,59): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(96,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244: 'argument': conversion from 'const _Ty' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:             _Ty=int [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(95,34): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(94,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\SmallRect.h(93,26): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Win32ConsoleBuffer.cc(71,53): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\agent\\Win32ConsoleBuffer.cc(76,67): warning C4244: 'argument': conversion from 'int' to 'SHORT', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=char [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\DebugClient.cc(79,47): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\GenRandom.cc(71,42): warning C4267: 'argument': conversion from 'size_t' to 'ULONG', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\GenRandom.cc(78,41): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringUtil.cc(42,33): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringUtil.cc(51,29): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringUtil.cc(50,33): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\WindowsSecurity.cc(181,30): warning C4267: 'argument': conversion from 'size_t' to 'ULONG', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=char [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244: '=': conversion from 'int' to 'C', possible loss of data [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         with [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         [ [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:             C=wchar_t [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\deps\\winpty\\src\\shared\\StringBuilder.h(101,25): warning C4244:         ] [C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\node-pty\\build\\deps\\winpty\\src\\winpty-agent.vcxproj]"
+    ],
+    "scope": "Warnings belong to unchanged legacy WinPTY dependency sources;new snapshot function emits none. No compiler warning flags were disabled."
+  },
+  "nativeVerification": "[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.\r\n[patches] @ganezdragon+tree-sitter-perl+1.1.1.patch: verified; 0 applied files, 1 already-applied files, 21 hunks\r\n[patches] @huggingface+transformers+4.3.2.patch: verified; 0 applied files, 5 already-applied files, 20 hunks\r\n[patches] mammoth+1.13.0.patch: verified; 0 applied files, 1 already-applied files, 1 hunks\r\n[patches] node-gyp+13.1.0.patch: verified; 0 applied files, 2 already-applied files, 3 hunks\r\n[patches] node-pty+1.1.0.patch: verified; 0 applied files, 6 already-applied files, 13 hunks\r\n[patches] tree-sitter+0.25.1.patch: verified; 0 applied files, 9 already-applied files, 11 hunks\r\n[patches] tree-sitter-swift+0.7.1.patch: verified; 0 applied files, 2 already-applied files, 4 hunks\r\n[patches] verify-only: 7 packages, 26 target files, 73 hunks; 0 files changed; 929ms\r\n[bootstrap] Verified readiness receipt saved.\r\n",
+  "focused": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7",
+    "summary": {
+      "durationMs": 15560,
+      "failed": 0,
+      "passed": 11,
+      "skipped": 0,
+      "total": 11
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 87,
+        "exitCode": 0,
+        "id": "perf/tooling/bench/sqlite-phase-diagnostic-admission",
+        "lane": "perf",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\perf_tooling_bench_sqlite-phase-diagnostic-admission.attempt-1.log"
+        ],
+        "path": "perf/tooling/bench/sqlite-phase-diagnostic-admission.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "perf",
+          "sqlite",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1278,
+        "exitCode": 0,
+        "id": "perf/tooling/bench/sqlite-phase-observer",
+        "lane": "perf",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\perf_tooling_bench_sqlite-phase-observer.attempt-1.log"
+        ],
+        "path": "perf/tooling/bench/sqlite-phase-observer.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "perf",
+          "sqlite",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 744,
+        "exitCode": 0,
+        "id": "perf/tooling/bench/sqlite-qualification-cohorts",
+        "lane": "perf",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\perf_tooling_bench_sqlite-qualification-cohorts.attempt-1.log"
+        ],
+        "path": "perf/tooling/bench/sqlite-qualification-cohorts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "perf",
+          "sqlite",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 90,
+        "exitCode": 0,
+        "id": "shared/kill-tree-windows-lineage",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\shared_kill-tree-windows-lineage.attempt-1.log"
+        ],
+        "path": "shared/kill-tree-windows-lineage.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 896,
+        "exitCode": 0,
+        "id": "shared/kill-tree-windows-snapshot",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\shared_kill-tree-windows-snapshot.attempt-1.log"
+        ],
+        "path": "shared/kill-tree-windows-snapshot.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 487,
+        "exitCode": 0,
+        "id": "shared/kill-tree.windows",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\shared_kill-tree_windows.attempt-1.log"
+        ],
+        "path": "shared/kill-tree.windows.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1388,
+        "exitCode": 0,
+        "id": "shared/kill-tree.windows-orphan-descendant-fallback",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\shared_kill-tree_windows-orphan-descendant-fallback.attempt-1.log"
+        ],
+        "path": "shared/kill-tree.windows-orphan-descendant-fallback.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1191,
+        "exitCode": 0,
+        "id": "shared/locks/windows-delete-pending",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\shared_locks_windows-delete-pending.attempt-1.log"
+        ],
+        "path": "shared/locks/windows-delete-pending.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 7714,
+        "exitCode": 0,
+        "id": "shared/subprocess/sync-timeout-kills-child-tree",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\shared_subprocess_sync-timeout-kills-child-tree.attempt-1.log"
+        ],
+        "path": "shared/subprocess/sync-timeout-kills-child-tree.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1580,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-patch-roundtrip",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\tooling_install_node-pty-patch-roundtrip.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-patch-roundtrip.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 90,
+        "exitCode": 0,
+        "id": "tooling/install/rebuild-native-build-from-source-contract",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793830458723-p8bgg7\\tooling_install_rebuild-native-build-from-source-contract.attempt-1.log"
+        ],
+        "path": "tooling/install/rebuild-native-build-from-source-contract.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "snapshotObservations": {
+    "helper": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+    "arch": "x64",
+    "status": 0,
+    "nativeFailureStatus": 1,
+    "observations": [
+      {
+        "iteration": 1,
+        "durationMs": 69.3135,
+        "status": 0,
+        "rows": 299
+      },
+      {
+        "iteration": 2,
+        "durationMs": 60.69130000000001,
+        "status": 0,
+        "rows": 301
+      },
+      {
+        "iteration": 3,
+        "durationMs": 60.92230000000001,
+        "status": 0,
+        "rows": 301
+      },
+      {
+        "iteration": 4,
+        "durationMs": 70.148,
+        "status": 0,
+        "rows": 301
+      },
+      {
+        "iteration": 5,
+        "durationMs": 62.02210000000002,
+        "status": 0,
+        "rows": 301
+      },
+      {
+        "iteration": 6,
+        "durationMs": 63.43470000000002,
+        "status": 0,
+        "rows": 301
+      },
+      {
+        "iteration": 7,
+        "durationMs": 66.06530000000004,
+        "status": 0,
+        "rows": 302
+      },
+      {
+        "iteration": 8,
+        "durationMs": 61.127899999999954,
+        "status": 0,
+        "rows": 302
+      },
+      {
+        "iteration": 9,
+        "durationMs": 62.303300000000036,
+        "status": 0,
+        "rows": 304
+      },
+      {
+        "iteration": 10,
+        "durationMs": 63.934799999999996,
+        "status": 0,
+        "rows": 304
+      }
+    ]
+  },
+  "retirement": {
+    "owner": "src/shared/kill-tree/windows.js",
+    "removed": "Absolute Windows PowerShell path resolver and dynamic-interop payload",
+    "consumers": "Repository-wide JS search found only the replaced request owner and its existing fixture.",
+    "replacementCoverage": "Same actual Toolhelp APIs and complete-end check;real parent/helper lineage;ten fresh processes;invalid enumeration after accumulated rows;native close proof;syntax/execution negatives;empty PATH and hostile preload variants;actual orphan/timeout descendants and delete-pending controls."
+  },
+  "limits": [
+    "Hosted qualification of repaired source pending.",
+    "This does not attribute every earlier native access violation or qualify all TUI/platform/performance lifetimes."
+  ],
+  "nativeBinaries": [
+    {
+      "path": "node_modules/node-pty/build/Release/conpty.node",
+      "bytes": 1513472,
+      "sha256": "0ae5ef26f15f0d7508889f5ed4fd84aa34ff5f38b2133ddc216ed0f01de64ca1"
+    },
+    {
+      "path": "node_modules/node-pty/build/Release/conpty_console_list.node",
+      "bytes": 769536,
+      "sha256": "8fa2d836a120672969b255215c846daba4c2d13dd508afbebfad6e0b8ae8d116"
+    },
+    {
+      "path": "node_modules/node-pty/build/Release/pty.node",
+      "bytes": 1489920,
+      "sha256": "a52bb00847eca19f9dcbc8af0776097845a6f87b790cbc14dbd3a40b92fa79da"
+    },
+    {
+      "path": "node_modules/node-pty/build/Release/winpty-agent.exe",
+      "bytes": 1183744,
+      "sha256": "3f256246f854fe82e139febfc5771827534beafab15ddda47e1354aaf1bac543"
+    },
+    {
+      "path": "node_modules/node-pty/build/Release/winpty.dll",
+      "bytes": 1062912,
+      "sha256": "d483a277f85e0c3a67de795b38a9f4ac945ec4ce0f3c5c3793a5383bda1b32af"
+    }
+  ],
+  "ptyControls": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18",
+    "summary": {
+      "durationMs": 36858,
+      "failed": 0,
+      "passed": 12,
+      "skipped": 0,
+      "total": 12
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 156,
+        "exitCode": 0,
+        "id": "ci/native-inspection-workflow",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\ci_native-inspection-workflow.attempt-1.log"
+        ],
+        "path": "ci/native-inspection-workflow.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 779,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-conout-disposal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-conout-disposal.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-conout-disposal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3600,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-01",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-01.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3603,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-02",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-02.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3559,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-03",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-03.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3590,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-04",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-04.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3583,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-05",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-05.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3566,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-06",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-06.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3600,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-07",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-07.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3615,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-08",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-08.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3594,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-09",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-09.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3597,
+        "exitCode": 0,
+        "id": "tooling/install/node-pty-fresh-lifecycle/fresh-10",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793831167769-o6di18\\tooling_install_node-pty-fresh-lifecycle_fresh-10.attempt-1.log"
+        ],
+        "path": "tooling/install/node-pty-fresh-lifecycle.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "cleanupUtilityAuthority": {
+    "baseline": "Only runWindowsHelperSync restored verbatim from ec78f3cb2;current valid path literals, finite resolver and other owners held fixed.",
+    "before": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832060393-xvbodf",
+      "summary": {
+        "durationMs": 109,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 100,
+          "exitCode": 1,
+          "id": "shared/kill-tree-windows-lineage",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832060393-xvbodf\\shared_kill-tree-windows-lineage.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832060393-xvbodf\\shared_kill-tree-windows-lineage.attempt-1.failure.json"
+          ],
+          "path": "shared/kill-tree-windows-lineage.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "beforeLog": "id: shared/kill-tree-windows-lineage\npath: shared/kill-tree-windows-lineage.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Cleanup executes the selected system binaries without CWD/PATH command lookup\r\n+ actual - expected\r\n\r\n  [\r\n+   'taskkill',\r\n+   'tasklist'\r\n-   'C:\\\\Windows\\\\System32\\\\taskkill.exe',\r\n-   'C:\\\\Windows\\\\System32\\\\tasklist.exe'\r\n  ]\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/shared/kill-tree-windows-lineage.test.js:42:10 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: [ 'taskkill', 'tasklist' ],\r\n  expected: [\r\n    'C:\\\\Windows\\\\System32\\\\taskkill.exe',\r\n    'C:\\\\Windows\\\\System32\\\\tasklist.exe'\r\n  ],\r\n  operator: 'deepStrictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+    "after": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832032642-24i72k",
+      "summary": {
+        "durationMs": 10221,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 93,
+          "exitCode": 0,
+          "id": "shared/kill-tree-windows-lineage",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832032642-24i72k\\shared_kill-tree-windows-lineage.attempt-1.log"
+          ],
+          "path": "shared/kill-tree-windows-lineage.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 575,
+          "exitCode": 0,
+          "id": "shared/kill-tree.windows",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832032642-24i72k\\shared_kill-tree_windows.attempt-1.log"
+          ],
+          "path": "shared/kill-tree.windows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1676,
+          "exitCode": 0,
+          "id": "shared/kill-tree.windows-orphan-descendant-fallback",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832032642-24i72k\\shared_kill-tree_windows-orphan-descendant-fallback.attempt-1.log"
+          ],
+          "path": "shared/kill-tree.windows-orphan-descendant-fallback.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 7868,
+          "exitCode": 0,
+          "id": "shared/subprocess/sync-timeout-kills-child-tree",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832032642-24i72k\\shared_subprocess_sync-timeout-kills-child-tree.attempt-1.log"
+          ],
+          "path": "shared/subprocess/sync-timeout-kills-child-tree.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "afterLog": "id: shared/kill-tree-windows-lineage\npath: shared/kill-tree-windows-lineage.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"helperAuthority\":[{\"command\":\"C:\\\\Windows\\\\System32\\\\taskkill.exe\",\"args\":[\"/PID\",\"43210\",\"/T\"],\"windowsHide\":true,\"timeoutMs\":2000},{\"command\":\"C:\\\\Windows\\\\System32\\\\tasklist.exe\",\"args\":[\"/FI\",\"PID eq 43210\",\"/FO\",\"CSV\",\"/NH\"],\"windowsHide\":true,\"timeoutMs\":2000}]}\nWindows PID snapshot walking preserves orphan lineage, cycles, authority and malformed-input rejection.\n",
+    "constructionFailures": "Earlier fixture paths lost backslash escaping;those failed invocations remain in historical scratch and are not the valid counterfactual."
+  },
+  "implementationSourceSha256": {
+    "patches/node-pty+1.1.0.patch": "ea15da08bdd6e172c0525b1579d19faaf6cd6b119b5ad63a4c0af0b592856ca0",
+    "src/shared/kill-tree/windows.js": "7f7319da39fa3d4b587879424433cacf455921f2745b838012ec5ac736bdf435",
+    "src/shared/native-package-probe.js": "d816c41c601acd45807fbe4ed53835fddafeb071944c8a472f7b19e7d79178c5",
+    "tools/setup/rebuild-native.js": "911966ac91d06081f4dab6b2955c4acac43da00acf5f1672a2b291b6076745a6",
+    "tests/shared/kill-tree-windows-snapshot.test.js": "2487ddd5548fc1f348a0f909f5600c0b65cf60a7fefbafb5a3b29b91f319d621",
+    "tests/shared/kill-tree-windows-lineage.test.js": "0d132366c2619ac026b5c4172d578d47ce3ee32c82e85875c366b78b658cda4a",
+    "tests/shared/kill-tree.windows.test.js": "647c733fc96ec2c6bde813924ef092feff6669c7e8e09300127f7028d5693e6a",
+    "tests/shared/kill-tree.windows-orphan-descendant-fallback.test.js": "e54ade589088e8bd2f622adf561f413bf66a86daeef3b7407ad21b53d761652f",
+    "tests/tooling/install/node-pty-patch-roundtrip.test.js": "2bd9452a3d42095b97e76be35185708aad788a33254c4ace6f971c146039a090",
+    "tests/tooling/install/rebuild-native-build-from-source-contract.test.js": "b26af04b761511f4e23aa91f348700b721cec847420cd309f0dcb8b5a06632ce"
+  },
+  "publicationChecks": {
+    "priorUnchangedChecks": [
+      {
+        "name": "budget",
+        "exitCode": 0,
+        "elapsedMs": 2802
+      },
+      {
+        "name": "env",
+        "exitCode": 0,
+        "elapsedMs": 1406
+      },
+      {
+        "name": "generated",
+        "exitCode": 0,
+        "elapsedMs": 14831
+      },
+      {
+        "name": "commands",
+        "exitCode": 0,
+        "elapsedMs": 3262
+      },
+      {
+        "name": "workflow",
+        "exitCode": 0,
+        "elapsedMs": 300
+      }
+    ],
+    "finalFormat": {
+      "exitCode": 0
+    },
+    "finalGate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj",
+      "summary": {
+        "durationMs": 5139,
+        "failed": 0,
+        "passed": 41,
+        "skipped": 0,
+        "total": 41
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 91,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 93,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 111,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 93,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 99,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 238,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 105,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 121,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 229,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3032,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 391,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 316,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 453,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 412,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 395,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 448,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 446,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 454,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 787,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 393,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1069,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1227,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1255,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1188,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1068,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 820,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1368,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1749,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 102,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1965,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1376,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1635,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1061,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3146,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1584,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 500,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 755,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1716,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1643,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 337,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793832098552-bds9zj\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "nativeVerification": "[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.\r\n[patches] @ganezdragon+tree-sitter-perl+1.1.1.patch: verified; 0 applied files, 1 already-applied files, 21 hunks\r\n[patches] @huggingface+transformers+4.3.2.patch: verified; 0 applied files, 5 already-applied files, 20 hunks\r\n[patches] mammoth+1.13.0.patch: verified; 0 applied files, 1 already-applied files, 1 hunks\r\n[patches] node-gyp+13.1.0.patch: verified; 0 applied files, 2 already-applied files, 3 hunks\r\n[patches] node-pty+1.1.0.patch: verified; 0 applied files, 6 already-applied files, 13 hunks\r\n[patches] tree-sitter+0.25.1.patch: verified; 0 applied files, 9 already-applied files, 11 hunks\r\n[patches] tree-sitter-swift+0.7.1.patch: verified; 0 applied files, 2 already-applied files, 4 hunks\r\n[patches] verify-only: 7 packages, 26 target files, 73 hunks; 0 files changed; 853ms\r\n[bootstrap] Verified readiness receipt saved.\r\n",
+    "diffCheck": {
+      "exitCode": 0
+    }
+  }
+}

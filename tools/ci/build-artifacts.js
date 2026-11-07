@@ -1,13 +1,11 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { runSubprocessOrExit } from '../shared/cli-utils.js';
 import { readRepoGitState } from '../shared/git-state.js';
-import { bootstrapRuntime, getIndexDir, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
-import { copyDirIfExists } from '../shared/fs-utils.js';
+import { bootstrapRuntime, resolveToolRoot } from '../shared/dict-utils.js';
+import { exportCiArtifactBundle } from './artifact-bundle.js';
 
 const argv = createCli({
   scriptName: 'ci-build',
@@ -24,7 +22,7 @@ const argv = createCli({
 }).parse();
 
 const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
-const totalSteps = (argv['skip-build'] ? 0 : 1) + (argv['skip-sqlite'] ? 0 : 1) + 1;
+const totalSteps = (argv['skip-build'] ? 0 : 1) + (argv['skip-build'] && !argv['skip-sqlite'] ? 1 : 0) + 1;
 let stepIndex = 0;
 const updateProgress = (message) => {
   display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message });
@@ -33,24 +31,6 @@ const updateProgress = (message) => {
 const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');
-const codeDir = getIndexDir(root, 'code', userConfig);
-const proseDir = getIndexDir(root, 'prose', userConfig);
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
-
-const sanitizeRemoteUrl = (value) => {
-  if (typeof value !== 'string') return value;
-  if (!value.includes('://')) return value;
-  try {
-    const url = new URL(value);
-    if (url.username || url.password) {
-      url.username = '';
-      url.password = '';
-    }
-    return url.toString();
-  } catch {
-    return value.replace(/\/\/[^@/]+@/g, '//');
-  }
-};
 
 /**
  * Run a command and exit on failure.
@@ -76,6 +56,7 @@ if (!argv['skip-build']) {
     path.join(scriptRoot, 'build_index.js'),
     '--repo',
     root,
+    argv['skip-sqlite'] ? '--no-sqlite' : '--sqlite',
     '--progress',
     childProgress
   ];
@@ -87,7 +68,7 @@ if (!argv['skip-build']) {
   stepIndex += 1;
 }
 
-if (!argv['skip-sqlite']) {
+if (!argv['skip-sqlite'] && argv['skip-build']) {
   const childProgress = argv.verbose ? (argv.progress || 'auto') : 'off';
   const args = [
     path.join(scriptRoot, 'build_index.js'),
@@ -107,73 +88,15 @@ if (!argv['skip-sqlite']) {
 }
 
 updateProgress('pack artifacts');
-await fsPromises.rm(outDir, { recursive: true, force: true });
-await fsPromises.mkdir(outDir, { recursive: true });
-
-const copied = {
-  code: await copyDirIfExists(codeDir, path.join(outDir, 'index-code')),
-  prose: await copyDirIfExists(proseDir, path.join(outDir, 'index-prose')),
-  sqlite: {
-    code: false,
-    prose: false
-  }
-};
-
-if (!copied.code || !copied.prose) {
-  logger.error('Index artifacts missing; build indexes before exporting.');
+try {
+  await exportCiArtifactBundle({ root, userConfig, outDir,
+    gitState: await readRepoGitState(root), includeSqlite: !argv['skip-sqlite'] });
+} catch (error) {
+  logger.error(error?.message || error);
   display.close();
-  process.exit(1);
+  process.exitCode = 1;
+  throw error;
 }
-
-if (!argv['skip-sqlite']) {
-  const sqliteDestDir = path.join(outDir, 'index-sqlite');
-  await fsPromises.mkdir(sqliteDestDir, { recursive: true });
-  const codeExists = fs.existsSync(sqlitePaths.codePath);
-  const proseExists = fs.existsSync(sqlitePaths.prosePath);
-  if (codeExists) {
-    await fsPromises.copyFile(sqlitePaths.codePath, path.join(sqliteDestDir, 'index-code.db'));
-    copied.sqlite.code = true;
-  }
-  if (proseExists) {
-    await fsPromises.copyFile(sqlitePaths.prosePath, path.join(sqliteDestDir, 'index-prose.db'));
-    copied.sqlite.prose = true;
-  }
-  if (!codeExists || !proseExists) {
-    logger.warn('SQLite index missing (code or prose); skipping missing sqlite artifacts.');
-  }
-  if (sqlitePaths.legacyExists) {
-    logger.warn(`Legacy sqlite index detected (ignored): ${sqlitePaths.legacyPath}`);
-  }
-}
-
-const gitState = await readRepoGitState(root, { includeRemote: true });
-const commit = gitState.head;
-const dirty = gitState.dirty;
-const remote = sanitizeRemoteUrl(gitState.remote);
-
-const manifest = {
-  version: 3,
-  generatedAt: new Date().toISOString(),
-  repo: {
-    remote: sanitizeRemoteUrl(remote),
-    root: path.resolve(root)
-  },
-  commit,
-  dirty,
-  artifacts: {
-    code: copied.code ? 'index-code' : null,
-    prose: copied.prose ? 'index-prose' : null,
-    sqlite: {
-      code: copied.sqlite.code ? 'index-sqlite/index-code.db' : null,
-      prose: copied.sqlite.prose ? 'index-sqlite/index-prose.db' : null
-    }
-  }
-};
-
-await fsPromises.writeFile(
-  path.join(outDir, 'manifest.json'),
-  JSON.stringify(manifest, null, 2)
-);
 
 stepIndex += 1;
 display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message: 'complete' });

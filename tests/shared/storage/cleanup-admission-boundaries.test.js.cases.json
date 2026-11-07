@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pre-cancelled-plan-and-apply", "deadline-after-authority-stat", "deadline-before-probe-read", "cancel-between-unlinks", "cancelled-reader-still-closes", "current-format-and-positive-apply"]
+}

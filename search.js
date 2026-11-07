@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from './src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
-const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
-const { isDirectExecution } = await import('./src/shared/direct-execution.js');
-const { runCli } = await import('./src/retrieval/cli/search-entry.js');
+const [{ emitLegacyCliEntrypointWarning }, { isDirectExecution }, { runCli }] = await Promise.all([
+  import('./src/shared/cli/legacy-entrypoint.js'),
+  import('./src/shared/direct-execution.js'),
+  import('./src/retrieval/cli/search-entry.js')
+]);
 
 if (isDirectExecution(import.meta.url)) {
   emitLegacyCliEntrypointWarning({

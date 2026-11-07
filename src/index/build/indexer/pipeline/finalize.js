@@ -7,6 +7,7 @@ import {
   readIndexArtifactBytes
 } from '../../../../shared/ops/resource-visibility.js';
 import { enqueueEmbeddingJob } from '../embedding-queue.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 
 /**
  * Finalize one successful pipeline mode run after orchestration completes.
@@ -50,14 +51,19 @@ export const finalizePipelineModeRun = async ({
     const finalStage = stagePlan[stagePlan.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
+  if (runtime.enqueueServiceEmbeddings !== false) {
+    await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
+  }
+  throwIfAborted(effectiveAbortSignal);
+  crashLogger.updatePhase('done');
+  cacheReporter.report();
   await writeSchedulerAutoTuneProfile({
     repoCacheRoot: runtimeRef.repoCacheRoot,
     schedulerStats: getSchedulerStats(),
     schedulerConfig: runtimeRef.schedulerConfig,
     buildId: runtimeRef.buildId,
+    mode,
+    outcome: 'completed',
     log
   });
-  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
-  crashLogger.updatePhase('done');
-  cacheReporter.report();
 };

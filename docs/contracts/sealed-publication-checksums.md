@@ -1,0 +1,11 @@
+# Sealed semantic and binary publication checksums
+
+The actual binary row-frame writer hashes completed data, offsets and lengths while writing them through their original descriptor owners. Hash state is bounded; ordinary rows retain the existing1MiB slab/256-row envelopes. Oversized borrowed buffers use bounded64KiB owned blocks through write completion and digest update. Positive short writes hash each completed block once. Preallocation tail bytes are truncated before publication, including empty families.
+
+A private weak receipt binds the original successful writer result to three exact finalized members, their original ordinary-file identity and admitted parent. Copied/serialized results, foreign members, same-size changes, file replacement and parent replacement cannot supply metadata. Original iterator/FileHandle work, physical close and publication prerequisites must settle before a receipt exists. Failures preserve the original resource/cleanup observations and publication boundaries; the three-file family is not relabeled as an atomic transaction.
+
+Chunk metadata and token postings update the existing piece registry metadata in place. Field postings use the existing write queue's success callback and publication templates. Registered ordering/layout and public binary formats remain unchanged. Legacy internal callers without a metadata updater retain ordinary manifest hashing. Normal generated JSON still follows its complete original checksum path; receipt-backed members carry stored-byte SHA256 checksums. No caller-provided field becomes deletion or native settlement authority.
+
+The semantic-family writer already propagates sealed data/offset digests. Its actual multipart and empty-partition fixture now proves zero manifest-only rereads of those members, equality with a full stored-byte SHA256 control manifest, and rejection of same-size corruption by a fresh independent store. Independent post-publication integrity validation remains unchanged for both semantic and binary artifacts.
+
+The [qualification receipt](../archived/sealed-checksum-closeout-2026-11-05.md) records original manifest rereads, actual producer and validator boundaries, the above-one-MiB case, CPU/I/O observations and existing resource negatives. These are bounded-work checks, not a general latency claim.

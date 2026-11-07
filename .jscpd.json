@@ -9,7 +9,7 @@
     "json",
     "markdown"
   ],
-  "output": "temp/jscpd",
+  "output": ".tmp/jscpd",
   "gitignore": true,
   "noSymlinks": true,
   "ignore": [

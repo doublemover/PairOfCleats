@@ -4,7 +4,7 @@ import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from '../../../src
 
 export const WORKER_POOL_SAMPLE = 'helloWorld fooBar';
 
-export const createWorkerPoolTestResources = async () => {
+export const createWorkerPoolTestResources = async ({ maxFileBytes = 4096 } = {}) => {
   const postingsConfig = normalizePostingsConfig({
     enablePhraseNgrams: true,
     phraseMinN: 2,
@@ -18,7 +18,7 @@ export const createWorkerPoolTestResources = async () => {
   const workerConfig = normalizeWorkerPoolConfig({
     enabled: true,
     maxWorkers: 1,
-    maxFileBytes: 4096,
+    maxFileBytes,
     quantizeBatchSize: 2,
     taskTimeoutMs: 5000
   }, { cpuLimit: 1 });
@@ -37,5 +37,5 @@ export const createWorkerPoolTestResources = async () => {
     context
   });
 
-  return { syncTokens, workerPool };
+  return { syncTokens, workerPool, context };
 };

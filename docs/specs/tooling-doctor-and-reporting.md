@@ -2,6 +2,30 @@
 
 Purpose: emit one actionable tooling health report (providers, runtime prerequisites, preflight capabilities, chunkUid prerequisites) without requiring raw-log inspection. This reflects current behavior in `src/index/tooling/doctor.js`.
 
+## TypeScript compiler compatibility
+
+Doctor, trusted repository/cache/global admission, the virtual compiler host and
+dependency preflight share `typescript/compatibility.js`. A stable TypeScript
+version >=5.7.2 and the complete host/preflight API inventory are required,
+including `JSDocParsingMode.ParseAll`, `getDefaultResolutionModeForFileWorker`
+and `forEachDynamicImportOrRequireCall`. The first stable 5.7 release is 5.7.2;
+official 5.6.3 lacks the last API. The pinned repository compiler remains 5.9.3.
+
+An incompatible selected compiler is an error, with its version, exact source
+path, missing capabilities and remediation. Default resolution does not silently
+skip an installed incompatible repository compiler; explicit resolve orders also
+fail. Install a compatible compiler at that location or deliberately change
+`tooling.typescript.resolveOrder`. An absent optional compiler remains a separate
+`typescript` missing-module check. Compatibility failures retain
+`ERR_SEMANTIC_DEPENDENCY_UNSEALED`, with internal reason
+`typescript_incompatible`; sealed source identity checks remain authoritative.
+
+`tooling/typescript-compiler-compatibility` covers doctor, async/sync loaders,
+host/preflight, malformed capabilities and missing-tool distinctions. Actual
+official 4.8.4/5.6.3 rejection and 5.7.2/5.9.3 tiny-host/provider positives are
+recorded separately in the October 20 issue repair receipt. Such qualification
+does not imply every compiler version or workload has been executed.
+
 ## 1) Report Artifact
 
 Written to `<buildRoot>/tooling_doctor_report.json`.

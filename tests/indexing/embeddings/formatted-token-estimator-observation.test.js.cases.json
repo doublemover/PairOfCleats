@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["formatted-counts-and-release", "ordinary-fallback-and-cancellation", "original-native-and-nested-terminal"]
+}

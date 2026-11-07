@@ -1,3 +1,4 @@
+import { resolveSourceFileUrl } from './source-file-url.js';
 import { createBrowserPortFlow } from './compiler-browser-port-flow.js';
 import { collectCompilerNodeWorkerFlow } from './compiler-node-worker-flow.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
@@ -6,6 +7,8 @@ import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from '
 import { createSemanticFactsRef } from './file-ref.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { createCompilerPortPeerIndex } from './compiler-port-peer-index.js';
+import { compilerRuntimeParameters } from './compiler-invocation.js';
 const keyPath = file => { const value = path.resolve(file); return process.platform === 'win32' ? value.toLowerCase() : value; };
 const library = node => node?.getSourceFile().fileName.replaceAll('\\', '/').split('/').pop();
 const ownerName = node => { let parent = node; while (parent && !parent.name && parent.parent) parent = parent.parent; return parent?.name?.text || ''; };
@@ -14,6 +17,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
   const argumentsPolicy = policy;
   const documents = [...(group.workerDocuments || [])].sort((a,b) => a.item.source.sourceUnitId.localeCompare(b.item.source.sourceUnitId)), output = [], hashes = documents.map(doc => doc.bindingPartition.canonicalHash).sort();
   const entries = new Map(), ledgers = new Map();
+  const documentBySourceFile = new Map(documents.map(doc => [doc.sourceFile, doc]));
   for (const doc of documents) {
     const policy = doc.policy || argumentsPolicy;
     const container = doc.containerPath || (!doc.item.source.mapping ? doc.item.source.path : null);
@@ -75,7 +79,9 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     // A bare string Worker URL depends on ambient document base, so only import.meta.url is anchored.
     if (!literal.text.startsWith('.') || /[?#\\]/.test(literal.text) || !doc.containerPath && doc.item.source.mapping) return null;
     const container = doc.containerPath || doc.item.source.path;
-    const target = keyPath(path.resolve(group.repoRoot,path.dirname(container),literal.text));
+    const resolved = resolveSourceFileUrl({ repoRoot: group.repoRoot, containerPath: container, literal: literal.text });
+    if (resolved.state !== 'resolved') { ledgers.get(doc).reasons.add('worker_entry_url_' + resolved.reason); return null; }
+    const target = keyPath(resolved.path);
     return entries.get(target)?.length === 1 ? entries.get(target)[0] : null;
   };
   const handlerFor = (doc,node) => {
@@ -129,7 +135,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
         }
       }
       if (!callback || !site) continue;
-      const parameter = callback.parameters[0]; if (!parameter || !ts.isIdentifier(parameter.name)) { ledgers.get(doc).reasons.add('message_parameter_binding_pattern_unsupported'); continue; }
+      const parameter = compilerRuntimeParameters(ts,callback)[0]; if (!parameter || !ts.isIdentifier(parameter.name) || parameter.dotDotDotToken) { ledgers.get(doc).reasons.add('message_parameter_binding_pattern_unsupported'); continue; }
       const symbol = checker.getSymbolAtLocation(parameter.name), invocation = doc.expressionFor(site); if (!symbol || !invocation) continue;
       const data = (dataBySymbol.get(symbol) || []).filter(value => value.node.pos >= callback.pos && value.node.end <= callback.end).map(value => value.ref);
       found.push({ doc,site,invocation,data,receiverWorker,receiverPort,receiverNode,parameterSymbol:symbol });
@@ -141,45 +147,76 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
   const globalSend = (doc, call, declaration) => authority(doc, declaration, ['postMessage'], ['lib.webworker.d.ts'])
     && (doc.ts.isIdentifier(call.expression) || doc.ts.isPropertyAccessExpression(call.expression)
       && platformType(doc, call.expression.expression, ['DedicatedWorkerGlobalScope'], ['lib.webworker.d.ts']));
-  const peers = (doc, call, declaration, consumer) => {
-    if (globalSend(doc, call, declaration)) return consumer.receiverWorker && literalEntry(consumer.doc, consumer.receiverWorker) === doc;
-    if (!doc.ts.isPropertyAccessExpression(call.expression)) return false;
-    const receiver = call.expression.expression;
-    if (platformType(doc, receiver, ['Worker']) && authority(doc, declaration, ['postMessage'])) {
-      const worker = resolveWorker(doc, receiver);
-      return worker && literalEntry(doc, worker) === consumer.doc && !consumer.receiverWorker && !consumer.receiverNode;
-    }
-    const ports = portFlow.candidates(resolvePort(doc, receiver));
-    return ports.some(port => portFlow.candidates(consumer.receiverPort).some(other => other.channel === port.channel && other.port !== port.port));
-  };
   const sends = documents.filter(enabledFor).flatMap(doc => doc.observations.filter(observation => observation.node && doc.ts.isCallExpression(observation.node)
     && (authority(doc, observation.signatureDeclaration, ['postMessage']) || doc.ts.isPropertyAccessExpression(observation.node.expression)
       && observation.node.expression.name.text === 'postMessage' && !observation.signatureDeclaration)).map(observation => ({doc, ...observation})));
-  const refreshPorts = () => {
-    for (const [doc, registrations] of consumers) for (const consumer of registrations) {
-      if (!portFlow.budget(doc)) return;
-      if (consumer.receiverNode) consumer.receiverPort = resolvePort(doc, consumer.receiverNode);
-    }
+  const registrations = [...consumers].filter(([doc]) => enabledFor(doc)).flatMap(([, rows]) => rows);
+  const globals = new Map(), responses = new Map(), subscriptions = new Map();
+  const dirtyConsumers = new Set(registrations), dirtySends = new Set(sends);
+  const overflow = item => ledgers.get(item.doc).reasons.add('browser_port_peer_index_budget');
+  const consumerPorts = createCompilerPortPeerIndex({ candidates: portFlow.candidates, onOverflow: overflow });
+  const sendPorts = createCompilerPortPeerIndex({ candidates: portFlow.candidates, onOverflow: overflow });
+  const append = (map, key, value) => { if (!key) return; if (!map.has(key)) map.set(key, []); map.get(key).push(value); };
+  const track = (item, fn) => {
+    for (const root of item.portDependencies || []) subscriptions.get(root)?.delete(item);
+    const captured = portFlow.capture(fn); item.portDependencies = captured.dependencies; item.portRevisions = captured.revisions;
+    for (const root of captured.dependencies) { if (!subscriptions.has(root)) subscriptions.set(root, new Set()); subscriptions.get(root).add(item); }
+    return captured.value;
   };
-  let changed = true, round = 0;
-  while (changed && round++ < 8) {
-    changed = false;
-    refreshPorts();
-    for (const send of sends) {
+  registrations.forEach((consumer, ordinal) => {
+    consumer.peerOrdinal = ordinal; consumer.peerKind = 'consumer';
+    if (consumer.receiverWorker) append(responses, literalEntry(consumer.doc, consumer.receiverWorker), consumer);
+    else if (!consumer.receiverNode) append(globals, consumer.doc, consumer);
+  });
+  sends.forEach((send, ordinal) => {
+    send.peerOrdinal = ordinal; send.peerKind = 'send';
+    send.receiver = send.doc.ts.isPropertyAccessExpression(send.node.expression) ? send.node.expression.expression : null;
+    send.route = globalSend(send.doc, send.node, send.signatureDeclaration) ? 'response'
+      : send.receiver && platformType(send.doc, send.receiver, ['Worker']) && authority(send.doc, send.signatureDeclaration, ['postMessage']) ? 'worker' : 'port';
+    if (send.route === 'worker') {
+      const worker = resolveWorker(send.doc, send.receiver); send.entry = worker && literalEntry(send.doc, worker);
+    }
+  });
+  const refreshConsumer = consumer => {
+    if (!portFlow.budget(consumer.doc)) return;
+    const previous = consumer.receiverPort;
+    consumer.receiverPort = track(consumer, () => consumer.receiverNode ? resolvePort(consumer.doc, consumer.receiverNode) : consumer.receiverPort);
+    consumerPorts.set(consumer, consumer.receiverPort);
+    // A newly resolved opposite endpoint can activate a send whose own inputs
+    // did not change. Include both sides so replacements cannot lose a route.
+    for (const value of [previous, consumer.receiverPort]) for (const send of sendPorts.find(value,
+      { fallback: sends, admit: () => portFlow.budget(consumer.doc) })) dirtySends.add(send);
+  };
+  const targetsForSend = send => send.route === 'response' ? responses.get(send.doc) || []
+    : send.route === 'worker' ? globals.get(send.entry) || []
+      : consumerPorts.find(send.endpoint, { fallback: registrations, admit: () => portFlow.budget(send.doc) });
+  let round = 0;
+  while ((dirtyConsumers.size || dirtySends.size) && round++ < 8) {
+    for (const consumer of dirtyConsumers) refreshConsumer(consumer);
+    dirtyConsumers.clear();
+    const active = [...dirtySends].sort((a, b) => a.peerOrdinal - b.peerOrdinal); dirtySends.clear();
+    for (const send of active) {
       if (!portFlow.budget(send.doc)) break;
-      const values = portFlow.transferred(send.doc, send.node, resolvePort);
+      const values = track(send, () => {
+        send.endpoint = send.route === 'port' && send.receiver ? resolvePort(send.doc, send.receiver) : null;
+        return portFlow.transferred(send.doc, send.node, resolvePort);
+      });
+      if (send.route === 'port') sendPorts.set(send, send.endpoint);
       if (!values.length) continue;
-      for (const [host, registrations] of consumers) if (enabledFor(host)) for (const consumer of registrations) {
+      for (const consumer of targetsForSend(send)) {
         if (!portFlow.budget(send.doc)) break;
-        if (peers(send.doc, send.node, send.signatureDeclaration, consumer)) for (const value of values) {
+        for (const value of values) {
           if (!portFlow.budget(send.doc)) break;
-          changed = portFlow.bind(host, consumer.parameterSymbol, value.parts, value.ports) || changed;
+          portFlow.bind(consumer.doc, consumer.parameterSymbol, value.parts, value.ports);
         }
       }
     }
+    for (const root of portFlow.drainChangedRoots()) for (const item of subscriptions.get(root) || []) {
+      if (item.portRevisions?.get(root) !== root.revision) (item.peerKind === 'send' ? dirtySends : dirtyConsumers).add(item);
+    }
   }
-  if (changed) for (const doc of documents.filter(enabledFor)) ledgers.get(doc).reasons.add('browser_port_fixed_point_budget');
-  refreshPorts();
+  if (dirtyConsumers.size || dirtySends.size) for (const doc of documents.filter(enabledFor)) ledgers.get(doc).reasons.add('browser_port_fixed_point_budget');
+  for (const consumer of dirtyConsumers) refreshConsumer(consumer);
   for (const doc of documents) if (enabledFor(doc)) for (const observation of doc.observations) {
     throwIfAborted(signal);
     if (!observation.invocation || !observation.node) continue;
@@ -211,8 +248,8 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
         edge(doc, 'dispatches', clone, dispatch, invocation);
       }
       let matched = 0;
-      for (const [host, registrations] of consumers) if (enabledFor(host)) for (const consumer of registrations) {
-        if (!consumer.receiverWorker || literalEntry(host, consumer.receiverWorker) !== doc) continue;
+      for (const consumer of responses.get(doc) || []) {
+        const host = consumer.doc;
         const receive = boundary(host, consumer.site, 'worker-source-response-consumer-candidate', consumer.invocation,
           'source:' + host.item.source.sourceUnitId, 'source:' + doc.item.source.sourceUnitId);
         edge(doc, 'dispatches', dispatch, receive, invocation);
@@ -239,15 +276,11 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
         edge(doc, 'dispatches', clone, dispatch, invocation);
       }
       const targets = [];
-      portTargets: for (const [host, registrations] of consumers) if (enabledFor(host)) for (const consumer of registrations) {
-        if (!portFlow.budget(doc)) break portTargets;
-        if (portFlow.candidates(endpoint).some(port => portFlow.candidates(consumer.receiverPort)
-          .some(other => other.channel === port.channel && other.port !== port.port))) targets.push(consumer);
-      }
+      targets.push(...consumerPorts.find(endpoint, { fallback: registrations, admit: () => portFlow.budget(doc) }));
       if (endpoint?.ports) {
         const transfer = boundary(doc, call.expression.expression, 'browser-transferred-port-candidate', invocation);
         for (const port of endpoint.ports) {
-          const owner = documents.find(value => value.sourceFile === port.channel.getSourceFile());
+          const owner = documentBySourceFile.get(port.channel.getSourceFile());
           edge(doc, 'transfers', owner?.expressionFor(port.channel), transfer, invocation);
         }
         edge(doc, 'dispatches', transfer, dispatch, invocation);
@@ -273,10 +306,13 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     if (!invocation) { ledger.reasons.add('dispatch_syntax_anchor_unavailable'); continue; }
     const dispatch = boundary(doc,call,'worker-message-dispatch-request',invocation,entry ? 'source:' + entry.item.source.sourceUnitId : null);
     edge(doc,'dispatches',invocation,dispatch,invocation); const payload = call.arguments[0]; if (payload) edge(doc,'consumes',doc.expressionFor(payload),dispatch,invocation,0);
-    const transferArg = call.arguments[1]; let transfer = null;
-    if (transferArg && doc.ts.isArrayLiteralExpression(transferArg)) transfer = transferArg;
-    else if (transferArg && doc.ts.isObjectLiteralExpression(transferArg)) { const property = transferArg.properties.find(property => doc.ts.isPropertyAssignment(property) && (doc.ts.isIdentifier(property.name) || doc.ts.isStringLiteral(property.name)) && property.name.text === 'transfer'); if (property && doc.ts.isArrayLiteralExpression(property.initializer)) transfer = property.initializer; else ledger.reasons.add('transfer_options_dynamic'); }
-    else if (transferArg) ledger.reasons.add('transfer_list_dynamic');
+    const selectedTransfer = portFlow.projectTransfer(doc, call.arguments[1]);
+    const transfer = selectedTransfer.state === 'supported' ? selectedTransfer.list : null;
+    if (selectedTransfer.state === 'unresolved') {
+      ledger.reasons.add('worker_transfer_' + selectedTransfer.reason);
+      ledger.reasons.add(doc.ts.isObjectLiteralExpression(call.arguments[1]) ? 'transfer_options_dynamic' : 'transfer_list_dynamic');
+      if (selectedTransfer.reason === 'list_spread_or_hole') ledger.reasons.add('transfer_list_spread_or_hole');
+    }
     if (transfer) for (const element of transfer.elements) {
       if (doc.ts.isSpreadElement(element) || doc.ts.isOmittedExpression(element)) { ledger.reasons.add('transfer_list_spread_or_hole'); continue; }
       if (platformType(doc,element,['SharedArrayBuffer'])) { ledger.reasons.add('shared_buffer_not_transferable'); continue; }
@@ -299,7 +335,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
       }
     }
     if (!worker || !entry) { ledger.reasons.add(worker ? 'worker_entry_dynamic_or_not_in_exact_inventory' : 'worker_receiver_alias_or_mutation_unresolved'); continue; }
-    const targets = enabledFor(entry) ? consumers.get(entry).filter(consumer => !consumer.receiverWorker && !consumer.receiverNode) : []; if (!targets.length) { ledger.reasons.add('worker_entry_message_consumer_unavailable'); continue; }
+    const targets = globals.get(entry) || []; if (!targets.length) { ledger.reasons.add('worker_entry_message_consumer_unavailable'); continue; }
     for (const consumer of targets) {
       const receive = boundary(entry,consumer.site,'worker-source-message-consumer-candidate',consumer.invocation,'source:' + entry.item.source.sourceUnitId,'source:' + doc.item.source.sourceUnitId);
       edge(doc,'dispatches',dispatch,receive,invocation); for (const target of consumer.data) edge(entry,'consumes',receive,target,invocation,0);

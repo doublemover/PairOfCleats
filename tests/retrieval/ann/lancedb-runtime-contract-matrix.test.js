@@ -42,10 +42,9 @@ const cases = [
   {
     name: 'candidate filtering preserves only allowed ids',
     async run() {
-      const fixture = await buildDb('lancedb-runtime-matrix-candidate-filtering', 50);
+      const fixture = await buildDb('lancedb-runtime-matrix-candidate-filtering', 1000);
       try {
-        const candidateSet = new Set([25]);
-        for (let i = 1000; i < 1600; i += 1) candidateSet.add(i);
+        const candidateSet = new Set(Array.from({ length: 501 }, (_, i) => 499 + i));
 
         const hits = await rankLanceDb({
           lancedbInfo: fixture.lancedbInfo,
@@ -56,7 +55,7 @@ const cases = [
         });
 
         assert.equal(hits.length, 1);
-        assert.equal(hits[0].idx, 25);
+        assert.equal(hits[0].idx, 499, 'deep nearest allowed row survives a large valid candidate filter');
       } finally {
         await fsPromises.rm(fixture.tempRoot, { recursive: true, force: true });
       }

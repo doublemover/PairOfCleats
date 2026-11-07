@@ -8,6 +8,7 @@ import { persistRuntimeAttempt } from '../../../src/index/build/build-state/runt
 import { createRuntimeAttempt, observeRuntimePath, sanitizeRuntimeReceipt, mergeRuntimeAttempts } from '../../../src/shared/runtime-envelope/receipt.js';
 import { readRuntimeReceipt, redactRuntimePaths } from '../../../src/shared/runtime-envelope/read-receipt.js';
 import { validateBuildState } from '../../../src/contracts/validators/build-state.js';
+import { setProgressHandlers } from '../../../src/shared/progress-runtime.js';
 
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-receipt-'));
 const buildRoot = path.join(dir, 'build');
@@ -40,13 +41,24 @@ try {
     assert.equal(attempt.lifecycle, 'running');
   }
   const oldRename = fs.rename;
+  let injectedRenames = 0;
+  const writeDiagnostics = [];
+  const restoreProgress = setProgressHandlers({ logLine: (message, meta) => writeDiagnostics.push({ message, meta }) });
   fs.rename = async (from, to) => {
-    if (to === statePath && String(from).startsWith(`${statePath}.tmp-`)) throw Object.assign(new Error('receipt disk full'), { code: 'ENOSPC' });
+    if (to === statePath && String(from).startsWith(`${statePath}.tmp-`)) {
+      injectedRenames += 1;
+      throw Object.assign(new Error('receipt disk full'), { code: 'ENOSPC' });
+    }
     return oldRename(from, to);
   };
   try {
     await assert.rejects(persistRuntimeAttempt(buildRoot, attempt, { lifecycle: 'succeeded' }), { code: 'ERR_RUNTIME_RECEIPT_PERSIST' });
-  } finally { fs.rename = oldRename; }
+  } finally { fs.rename = oldRename; restoreProgress(); }
+  assert.ok(injectedRenames > 0, 'the real atomic publication must hit the injected disk failure');
+  assert.deepEqual(writeDiagnostics, [{
+    message: `[build_state] [build_state] state write failed (ERR_ATOMIC_WRITE) for ${buildRoot}.`,
+    meta: { kind: 'warning' }
+  }], 'assert the expected failed-publication diagnostic and reject any extra diagnostic');
   state = JSON.parse(await fs.readFile(statePath));
   assert.equal(state.runtime.attempts.find((item) => item.attemptId === attempt.attemptId).lifecycle, 'running');
   const history = mergeRuntimeAttempts(null, { attempts: Array.from({ length: 24 }, (_, i) => ({ ...resumed, attemptId: `attempt-${i}`, startedAt: String(i).padStart(4, '0') })) });
@@ -61,10 +73,21 @@ try {
   assert.equal(blocked.state, 'inaccessible');
   const notDirectory = await observeRuntimePath(dir, { io: { stat: async () => { throw Object.assign(new Error('bad path'), { code: 'ENOTDIR' }); } } });
   assert.equal(notDirectory.state, 'unknown');
-  await fs.symlink(dir, path.join(dir, 'redirect'), process.platform === 'win32' ? 'junction' : 'dir');
-  const redirected = await observeRuntimePath(path.join(dir, 'redirect', 'missing'));
+  // Exercise the path observer's existing-ancestor projection with a controlled
+  // filesystem boundary. This unit case creates no privileged links and makes
+  // no claim about physical OS redirection support.
+  const redirect = path.join(dir, 'redirect');
+  const missing = () => Object.assign(new Error('missing fixture path'), { code: 'ENOENT' });
+  const redirected = await observeRuntimePath(path.join(redirect, 'missing'), { io: {
+    stat: async () => { throw missing(); },
+    realpath: async selected => { if (selected === redirect) return fs.realpath(dir); throw missing(); }
+  } });
   assert.equal(redirected.state, 'missing');
-  assert.equal(redirected.canonical, path.join(dir, 'missing'));
+  // Resolve the real temp ancestor too, since Windows can use a short-name alias.
+  assert.equal(redirected.canonical, path.join(await fs.realpath(dir), 'missing'));
+  assert.equal(redirected.selected, path.join(dir, 'redirect', 'missing'));
+  assert.equal(redirected.absolute, path.resolve(dir, 'redirect', 'missing'));
+  assert.equal(redirected.canonicalMethod, 'existing-ancestor');
   assert.notEqual(redirected.absolute, redirected.canonical);
   const legacy = path.join(dir, 'legacy');
   await fs.mkdir(legacy);

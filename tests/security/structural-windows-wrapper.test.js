@@ -118,14 +118,21 @@ try {
   assert.equal(calls.at(-1).options.shell, false);
 
   const request = { repoRoot, packsToRun: [{ engine: 'comby', rules: [rulePath] }] };
+  // This fixture owns transport only; managed runtime admission has a separate
+  // async lifetime regression and must not be bypassed by production callers.
+  const transportRuntime = async (_engine, _options, execute) => execute({ run: async args => {
+    const result = runBinary(wrappers[0], args, { cwd: repoRoot });
+    if (result.error) throw result.error;
+    return result;
+  } });
   const expectedCombyArgs = ['-json-lines', '-matcher', rule.language, rule.pattern, rule.rewrite, repoRoot];
-  assert.deepEqual(runStructuralSearch(request), []);
+  assert.deepEqual(await runStructuralSearch(request, transportRuntime), []);
   assert.deepEqual(calls.at(-1).args, resolveWindowsCmdInvocation(wrappers[0], expectedCombyArgs).args,
     'repository rule language, pattern, rewrite and root must use protected transport');
   for (const field of ['language', 'pattern', 'rewrite']) {
     const callCount = calls.length;
     await fs.writeFile(rulePath, JSON.stringify({ ...rule, [field]: 'bad\necho injected' }));
-    assert.throws(() => runStructuralSearch(request), (error) => error.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT');
+    await assert.rejects(runStructuralSearch(request, transportRuntime), (error) => error.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT');
     assert.equal(calls.length, callCount, `unsafe repository rule ${field} must not launch a process`);
   }
   await fs.writeFile(rulePath, JSON.stringify(rule));
@@ -164,14 +171,14 @@ try {
     await assertCaptured(straightWrapper, directArgs);
     await assertCaptured({ command: process.execPath, argsPrefix: [path.join(tempRoot, 'capture.cjs')] }, directArgs);
     await fs.rm(capturePath);
-    assert.deepEqual(runStructuralSearch(request), []);
+    assert.deepEqual(await runStructuralSearch(request, transportRuntime), []);
     assert.deepEqual(JSON.parse(await fs.readFile(capturePath, 'utf8')), expectedCombyArgs,
       'native Comby-rule transport must preserve all repository-controlled fields');
     await assert.rejects(fs.access(markerPath), 'native Comby rule must not execute injected command text');
     for (const field of ['language', 'pattern', 'rewrite']) {
       await fs.rm(capturePath, { force: true });
       await fs.writeFile(rulePath, JSON.stringify({ ...rule, [field]: 'bad\necho injected' }));
-      assert.throws(() => runStructuralSearch(request), (error) => error.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT');
+      await assert.rejects(runStructuralSearch(request, transportRuntime), (error) => error.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT');
       await assert.rejects(fs.access(capturePath), `unsafe native rule ${field} must not launch the fixture`);
     }
     console.log('structural Windows wrapper native execution test passed');

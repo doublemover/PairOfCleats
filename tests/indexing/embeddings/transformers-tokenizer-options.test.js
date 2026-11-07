@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 const require = createRequire(process.argv[2] ? path.resolve(process.argv[2]) : import.meta.url);
 const entry = require.resolve('@huggingface/transformers');
-const suite = path.join(process.cwd(), 'temp', 'tasks', 'tokenizer-options');
+const suite = path.join(process.cwd(), '.tmp', 'tasks', 'tokenizer-options');
 await fs.mkdir(suite, { recursive: true });
 const root = await fs.mkdtemp(path.join(suite, 'case-'));
 const cache = path.join(root, 'explicit-cache');

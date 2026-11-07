@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["legacy-reset", "native-merge", "stale-embeddings", "stale-attempt", "stale-generation", "owned-state", "new-invocation-claim", "outside-root", "traversal-mode", "unreadable-state", "pending-read", "legacy-path-preserved", "corrupt-manifest", "idempotent"]
+}

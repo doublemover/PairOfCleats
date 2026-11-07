@@ -1,0 +1,2 @@
+export const TRIAGE_EVIDENCE_VERSION = 1;
+export const TRIAGE_EVIDENCE_PREVIEW_LIMIT = 240;

@@ -6,7 +6,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { runNode } from '../../helpers/run-node.js';
 import { readBundleFile } from '../../../src/shared/bundle-io.js';
-const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('temp/tasks/retrieval-dependencies');
+import { decodeIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
+const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('.tmp/tasks/retrieval-dependencies');
 await fs.mkdir(parent,{recursive:true});
 const root=await fs.mkdtemp(path.join(parent,'stage-build-'));
 const repo=path.join(root,'repo');
@@ -20,7 +21,7 @@ const build=phrases=>{
 };
 const dir=path.join(cache,'repos',getRepoId(repo),'incremental','format-' + ARTIFACT_SURFACE_VERSION,'code');
 const read=async()=>{
-  const manifest=JSON.parse(await fs.readFile(path.join(dir,'manifest.json'),'utf8'));
+  const manifest=decodeIncrementalManifest(JSON.parse(await fs.readFile(path.join(dir,'manifest.json'),'utf8')));
   const entry=manifest.files['source.js'];
   assert.ok(entry,'source entry exists');
   const loaded=await readBundleFile(path.join(dir,'files',entry.bundles[0]),{format:entry.bundleFormat});

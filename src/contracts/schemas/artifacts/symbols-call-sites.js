@@ -1,3 +1,9 @@
+import { CALL_ARGUMENTS_SCHEMA } from '../../call-arguments.js';
+import { JAVASCRIPT_EVALUATION_SCHEMA } from '../javascript-declarations.js';
+import { LITERAL_EVIDENCE_SCHEMA } from '../../literal-evidence.js';
+import { CALL_SITE_SEMANTIC_REF_SCHEMA } from '../call-site-semantic-ref.js';
+import { CALLABLE_PARAMETER_SUMMARY_SCHEMA } from '../../callable-parameters.js';
+
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
@@ -90,7 +96,9 @@ const symbolRecord = {
     name: nullableString,
     qualifiedName: { type: 'string' },
     signature: nullableString,
-    extensions: { type: 'object' }
+    exported: { type: ['boolean', 'null'] },
+    exportNames: { type: 'array', items: { type: 'string' }, uniqueItems: true },
+    extensions: { type: 'object', properties: { callableParameters: CALLABLE_PARAMETER_SUMMARY_SCHEMA }, additionalProperties: true }
   },
   additionalProperties: true
 };
@@ -192,7 +200,21 @@ const callSiteEntry = {
     targetDocId: nullableInt,
     targetCandidates: { type: 'array', items: { type: 'string' } },
     snippetHash: nullableString,
-    extensions: { type: 'object' }
+    extensions: { type: 'object', properties: {
+      semanticRef: CALL_SITE_SEMANTIC_REF_SCHEMA,
+      arguments: CALL_ARGUMENTS_SCHEMA,
+      javascriptEvaluation: JAVASCRIPT_EVALUATION_SCHEMA,
+      argLiterals: { type: 'array', maxItems: 5, items: { anyOf: [LITERAL_EVIDENCE_SCHEMA, { type: 'null' }] } },
+      syntax: { type: 'object', additionalProperties: false,
+        required: ['producer', 'coordinateSystem', 'role', 'resolution', 'reason', 'rawPreviewTruncated'],
+        properties: {
+          producer: { const: 'tree-sitter' }, coordinateSystem: { const: 'utf16' },
+          role: { type: 'string', minLength: 1, maxLength: 64 },
+          resolution: { enum: ['resolved', 'ambiguous', 'unresolved'] },
+          reason: { type: 'string', minLength: 1, maxLength: 256 }, rawPreviewTruncated: { type: 'boolean' }
+        }
+      }
+    } }
   },
   additionalProperties: true
 };

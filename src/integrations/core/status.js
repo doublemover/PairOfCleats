@@ -1,14 +1,22 @@
+import { captureIndexStatusPlan, readIndexStatusPlan } from './status-plan.js';
+import { createIndexRepairAction } from './status-repair.js';
+import { validateIndexArtifacts } from '../../index/validate.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state.js';
 import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir, getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
+import { getIndexDir, resolveRepoCacheRootPath, getRepoRoot } from '../../shared/repo-paths.js';
 import { getCacheRoot, getDictConfig, getMetricsDir, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io/manifest.js';
 import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { sizeOfPath } from '../../shared/disk-space.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
+import { readIndexCoverage, readCurrentProvenance } from './status-coverage.js';
+import { compareIndexedFiles } from './status-freshness.js';
+import { discoverFreshnessFiles } from './status-discovery.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
@@ -21,19 +29,27 @@ const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 export async function getStatus(input = {}) {
   const root = getRepoRoot(input.repoRoot);
   const includeAll = input.includeAll === true;
-  const userConfig = loadUserConfig(root);
+  const userConfig = input.userConfig || loadUserConfig(root);
   const cacheRoot = (userConfig.cache && userConfig.cache.root)
     || getCacheRoot();
-  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const repoCacheRoot = resolveRepoCacheRootPath(root, userConfig);
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig.dir;
+  const plan = readIndexStatusPlan(input.plan || captureIndexStatusPlan({ root, userConfig }), { root, userConfig });
+  const selection = plan.selected;
   const sqlitePaths = resolveSqlitePaths(root, userConfig);
+  for (const [mode, key] of [['code', 'codePath'], ['prose', 'prosePath'], ['extracted-prose', 'extractedProsePath'], ['records', 'recordsPath']]) {
+    if (selection.roots[mode]) sqlitePaths[key] = resolveSqlitePaths(root, userConfig, { indexRoot: selection.roots[mode] })[key];
+  }
   const lmdbPaths = resolveLmdbPaths(root, userConfig);
+  for (const mode of ['code', 'prose']) {
+    if (selection.roots[mode]) lmdbPaths[`${mode}Path`] = resolveLmdbPaths(root, userConfig, { indexRoot: selection.roots[mode] })[`${mode}Path`];
+  }
 
-  const indexCodeDir = getIndexDir(root, 'code', userConfig);
-  const indexProseDir = getIndexDir(root, 'prose', userConfig);
-  const indexExtractedProseDir = getIndexDir(root, 'extracted-prose', userConfig);
-  const indexRecordsDir = getIndexDir(root, 'records', userConfig);
+  const indexCodeDir = selection.roots['code'] ? path.join(selection.roots['code'], 'index-code') : getIndexDir(root, 'code', userConfig);
+  const indexProseDir = selection.roots['prose'] ? path.join(selection.roots['prose'], 'index-prose') : getIndexDir(root, 'prose', userConfig);
+  const indexExtractedProseDir = selection.roots['extracted-prose'] ? path.join(selection.roots['extracted-prose'], 'index-extracted-prose') : getIndexDir(root, 'extracted-prose', userConfig);
+  const indexRecordsDir = selection.roots['records'] ? path.join(selection.roots['records'], 'index-records') : getIndexDir(root, 'records', userConfig);
   const repoArtifacts = {
     indexCode: indexCodeDir,
     indexProse: indexProseDir,
@@ -41,7 +57,8 @@ export async function getStatus(input = {}) {
     indexRecords: indexRecordsDir,
     metrics: path.join(repoCacheRoot, 'metrics'),
     queryCache: path.join(repoCacheRoot, 'query-cache'),
-    incremental: path.join(repoCacheRoot, 'incremental')
+    incremental: path.join(repoCacheRoot, 'incremental'),
+    snapshots: path.join(repoCacheRoot, 'snapshots')
   };
 
   const repoCacheSize = await sizeOfPath(repoCacheRoot);
@@ -90,7 +107,16 @@ export async function getStatus(input = {}) {
   const dictSize = await sizeOfPath(dictDir);
   const overallSize = cacheRootSize + sqliteOutsideCacheSize + lmdbOutsideCacheSize;
 
-  const health = { issues: [], hints: [] };
+  const health = { issues: [], hints: [], repairActions: [], selection: selection.source, modes: {}, backends: { sqlite: {}, lmdb: {} } };
+  const modeStates = plan.states;
+  if (!selection.modes.length) health.issues.push('No published index modes are selected.');
+  for (const mode of Object.keys(plan.stateErrors)) health.issues.push(`index-${mode} selected capability metadata unreadable`);
+  const repair = (mode, backend) => {
+    if (health.repairActions.some(action => action.backend === backend && action.modes.includes(mode))) return;
+    const action = createIndexRepairAction({ root, mode, backend, indexRoot: selection.roots[mode] });
+    health.repairActions.push(action);
+    health.hints.push(`${backend === 'files' ? 'Build a fresh selected file generation' : `Rebuild selected ${backend}`} (PowerShell): ${action.command}`);
+  };
   const indexIssues = [];
   const checkIndexArtifacts = (dir, label) => {
     if (!fs.existsSync(dir)) {
@@ -122,6 +148,7 @@ export async function getStatus(input = {}) {
     } else if (chunkMeta.missingMeta || (chunkMeta.missingPaths && chunkMeta.missingPaths.length)) {
       indexIssues.push(`${label} chunk_meta manifest paths missing`);
     }
+    if (modeStates[label.replace(/^index-/, '')]?.artifacts?.present?.token_postings === false) return;
     const tokenPostings = resolveArtifactPresence(dir, 'token_postings', {
       manifest,
       maxBytes: MAX_STATUS_JSON_BYTES,
@@ -135,42 +162,92 @@ export async function getStatus(input = {}) {
       indexIssues.push(`${label} token_postings manifest paths missing`);
     }
   };
-  checkIndexArtifacts(indexCodeDir, 'index-code');
-  checkIndexArtifacts(indexProseDir, 'index-prose');
-  checkIndexArtifacts(indexExtractedProseDir, 'index-extracted-prose');
-  checkIndexArtifacts(indexRecordsDir, 'index-records');
+  for (const [mode, dir] of Object.entries({ code: indexCodeDir, prose: indexProseDir,
+    'extracted-prose': indexExtractedProseDir, records: indexRecordsDir })) {
+    const selected = selection.modes.includes(mode);
+    health.modes[mode] = { selected, status: selected ? 'selected' : 'not-built', path: selected ? dir : null };
+    if (selected) {
+      const before = indexIssues.length;
+      checkIndexArtifacts(dir, `index-${mode}`);
+      if (indexIssues.length > before || !modeStates[mode]) health.modes[mode].status = 'invalid';
+      if (health.modes[mode].status === 'invalid') repair(mode, 'files');
+    }
+  }
   if (indexIssues.length) {
     health.issues.push(...indexIssues);
-    health.hints.push('Run `pairofcleats index build` (or `node build_index.js`) to rebuild file-backed indexes.');
   }
 
   const sqliteIssues = [];
-  if (userConfig.sqlite?.use !== false) {
-    if (!fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('sqlite code db missing');
-    if (!fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('sqlite prose db missing');
-    if (!fs.existsSync(sqlitePaths.extractedProsePath)) sqliteIssues.push('sqlite extracted-prose db missing');
-    if (!fs.existsSync(sqlitePaths.recordsPath)) sqliteIssues.push('sqlite records db missing');
+  const lmdbIssues = [];
+  for (const target of sqliteTargets) {
+    const mode = target.label;
+    const state = modeStates[mode]?.sqlite;
+    let status = !selection.modes.includes(mode) ? 'not-selected' : !state ? 'not-built'
+      : state.status === 'ready' ? 'ready' : state.status || 'unknown';
+    if (status === 'ready' && !fs.existsSync(target.path)) {
+      const indexDir = path.join(selection.roots[mode], `index-${mode}`);
+      const markerPath = path.join(indexDir, 'pieces', 'sqlite-zero-state.json');
+      try {
+        await validateSqliteZeroStateManifest({ indexDir, mode, outputPath: target.path,
+          payload: readJsonFile(markerPath, { containedRoot: indexDir }) });
+        status = 'zero-state';
+      } catch { status = 'missing'; sqliteIssues.push(`sqlite ${mode} published db missing or zero-state proof invalid`); }
+    } else if (status === 'failed') sqliteIssues.push(`sqlite ${mode} build failed`);
+    health.backends.sqlite[mode] = { status, selected: selection.modes.includes(mode), path: target.path };
+    if (['missing', 'failed'].includes(status)) repair(mode, 'sqlite');
+  }
+  for (const target of lmdbTargets) {
+    const state = modeStates[target.label]?.lmdb;
+    let status = !selection.modes.includes(target.label) ? 'not-selected' : !state ? 'unknown'
+      : state.status === 'ready' ? 'ready' : state.status || 'unknown';
+    if (status === 'ready' && !hasLmdbStore(target.path)) {
+      status = 'missing'; lmdbIssues.push(`lmdb ${target.label} published db missing`);
+    } else if (status === 'failed') lmdbIssues.push(`lmdb ${target.label} build failed`);
+    health.backends.lmdb[target.label] = { status, selected: selection.modes.includes(target.label), path: target.path };
+    if (['missing', 'failed'].includes(status)) repair(target.label, 'lmdb');
   }
   if (sqliteIssues.length) {
     health.issues.push(...sqliteIssues);
-    health.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite indexes.');
-  }
-
-  const lmdbIssues = [];
-  if (userConfig.lmdb?.use !== false) {
-    if (!hasLmdbStore(lmdbPaths.codePath)) {
-      lmdbIssues.push('lmdb code db missing');
-    }
-    if (!hasLmdbStore(lmdbPaths.prosePath)) {
-      lmdbIssues.push('lmdb prose db missing');
-    }
   }
   if (lmdbIssues.length) {
     health.issues.push(...lmdbIssues);
-    health.hints.push('Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB indexes.');
   }
 
+  const corruption = plan.validationSelection ? await validateIndexArtifacts({ root, userConfig,
+    modes: selection.modes, selection: plan.validationSelection })
+    : { ok: false, modes: {}, issues: ['No published index modes are selected.'], warnings: [], selection: null };
+  for (const finding of corruption.findings || []) {
+    if (finding.severity !== 'error') continue;
+    if (!health.issues.includes(finding.display)) health.issues.push(finding.display);
+    if (!finding.mode || !selection.modes.includes(finding.mode)) continue;
+    if (finding.capability === 'sqlite' || finding.capability === 'lmdb') {
+      if (health.backends[finding.capability][finding.mode]) health.backends[finding.capability][finding.mode].status = finding.state;
+      repair(finding.mode, finding.capability);
+    } else {
+      health.modes[finding.mode].status = finding.state;
+      repair(finding.mode, 'files');
+    }
+  }
+
+  const coverage = readIndexCoverage({
+    currentProvenance: await readCurrentProvenance(root, userConfig.indexing?.scm?.provider),
+    metricsDir: getMetricsDir(root, userConfig),
+    repoCacheRoot,
+    indexes: { code: indexCodeDir, prose: indexProseDir, 'extracted-prose': indexExtractedProseDir, records: indexRecordsDir }
+  });
+  const discovery = await discoverFreshnessFiles({ repoRoot: root, userConfig });
+  coverage.discovery = { status: discovery.status };
+  for (const [mode, indexDir] of Object.entries({ code: indexCodeDir, prose: indexProseDir,
+    'extracted-prose': indexExtractedProseDir, records: indexRecordsDir })) {
+    coverage.modes[mode].selected = selection.modes.includes(mode);
+    if (!selection.modes.includes(mode)) continue;
+    coverage.modes[mode].workingTree = await compareIndexedFiles({ repoRoot: root, indexDir,
+      currentFiles: discovery.files?.[mode], discoveryStatus: discovery.status });
+  }
+  coverage.workingTreeComparison = 'bounded-indexed-files-and-discovery';
   const payload = {
+    coverage,
+    corruption,
     repo: {
       root: path.resolve(root),
       cacheRoot: path.resolve(repoCacheRoot),
@@ -186,7 +263,9 @@ export async function getStatus(input = {}) {
       lmdb: {
         code: lmdbStats.code,
         prose: lmdbStats.prose
-      }
+      },
+      indexDirs: { code: indexCodeDir, prose: indexProseDir,
+        'extracted-prose': indexExtractedProseDir, records: indexRecordsDir }
     },
     health,
     runtime: await Promise.all(Array.from(new Set([
@@ -234,9 +313,16 @@ export async function getStatus(input = {}) {
   return payload;
 }
 
-export async function status(input = {}) {
+/**
+ * @typedef {{repoRoot?:string,includeAll?:boolean}} StatusRequest
+ * @typedef {{repo:object,health:object,overall:object,allRepos?:{root:string,repos:object[],totalBytes:number}}} StatusResult
+ * @param {StatusRequest|string} [input]
+ * @param {StatusRequest} [options] Options for the string overload.
+ * @returns {Promise<StatusResult>}
+ */
+export async function status(input = {}, options = {}) {
   if (typeof input === 'string') {
-    return getStatus({ repoRoot: input });
+    return getStatus({ ...options, repoRoot: input });
   }
   return getStatus(input);
 }

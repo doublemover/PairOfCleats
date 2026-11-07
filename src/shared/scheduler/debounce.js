@@ -1,5 +1,6 @@
-export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire, onError }) {
+export function createDebouncedScheduler({ debounceMs, maxWaitMs = null, onRun, onSchedule, onCancel, onFire, onError }) {
   let timer = null;
+  let firstScheduledAt = null;
   const reportError = (error) => {
     try {
       const result = onError?.(error);
@@ -7,12 +8,14 @@ export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCanc
     } catch {}
   };
   const schedule = () => {
+    firstScheduledAt ??= performance.now();
     if (timer) {
       clearTimeout(timer);
       if (onCancel) onCancel();
     }
     timer = setTimeout(() => {
       timer = null;
+      firstScheduledAt = null;
       try {
         const result = onFire?.();
         if (result && typeof result.catch === 'function') result.catch(reportError);
@@ -22,13 +25,16 @@ export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCanc
       void Promise.resolve()
         .then(() => onRun())
         .catch(reportError);
-    }, debounceMs);
+    }, Number.isFinite(maxWaitMs) && maxWaitMs >= 0
+      ? Math.min(debounceMs, Math.max(0, maxWaitMs - (performance.now() - firstScheduledAt)))
+      : debounceMs);
     if (onSchedule) onSchedule();
   };
   const cancel = () => {
     if (!timer) return;
     clearTimeout(timer);
     timer = null;
+    firstScheduledAt = null;
     if (onCancel) onCancel();
   };
   return { schedule, cancel };

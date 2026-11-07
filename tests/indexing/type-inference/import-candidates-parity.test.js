@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import {
@@ -66,3 +70,27 @@ assert.equal(resolveRelativeImport('src/app.ts', './target.js', new Set(['src/ta
 assert.equal(resolveRelativeImport('src\\app.ts', '.\\target.js', new Set(['src/target.ts'])), 'src/target.ts');
 
 console.log('import candidates parity test passed');
+
+assert.deepEqual(resolveRelativeImportCandidates('src/pkg.v2/', ['.js', '.ts']),
+  ['src/pkg.v2/index.js', 'src/pkg.v2/index.ts']);
+assert.equal(resolveRelativeImport('src/app.js', './pkg.v2/', new Set(['src/pkg.v2/index.js'])),
+  'src/pkg.v2/index.js');
+assert.equal(resolveRelativeImportCandidate('src/pkg.v2/', { extensions: ['.js'],
+  resolve: candidate => candidate === 'src/pkg.v2/index.js' ? candidate : null }), 'src/pkg.v2/index.js');
+assert.deepEqual(resolveRelativeImportCandidates('src/pkg.v2', ['.js']), ['src/pkg.v2'],
+  'a dotted path without a directory hint keeps literal-file precedence');
+
+const { dir: directoryRoot } = await prepareIsolatedTestCacheDir('dotted-directory-import');
+try {
+  const paths = ['src/app.js', 'src/pkg.v2/index.js'];
+  for (const file of paths) {
+    await fs.mkdir(path.dirname(path.join(directoryRoot, file)), { recursive: true });
+    await fs.writeFile(path.join(directoryRoot, file), file.endsWith('app.js') ? 'import "./pkg.v2/";' : 'export const target = 1;');
+  }
+  const fileRelations = new Map([['src/app.js', { imports: ['./pkg.v2/'] }]]);
+  const result = resolveImportLinks({ root: directoryRoot,
+    entries: paths.map(rel => ({ rel, abs: path.join(directoryRoot, rel) })),
+    importsByFile: { 'src/app.js': ['./pkg.v2/'] }, fileRelations, enableGraph: false });
+  assert.deepEqual(fileRelations.get('src/app.js').importLinks, ['src/pkg.v2/index.js']);
+  assert.equal(result.stats.unresolved, 0);
+} finally { await fs.rm(directoryRoot, { recursive: true, force: true }); }

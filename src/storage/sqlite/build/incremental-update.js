@@ -1,6 +1,13 @@
+import path from 'node:path';
+import { withSqliteStorageOperation, getSqliteStorageOperation, isSqliteDiagnosticSettled } from './storage-operation.js';
 import { assertSqliteIndexFormat } from '../index-format.js';
+import { createSqliteCacheCloseOwner } from '../../../retrieval/sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { assertSqliteMinhashReceiver } from '../minhash.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
+import { sqliteBundleIdentity } from '../bundle-identity.js';
 import { REQUIRED_TABLES } from '../schema.js';
 import {
   checkpointSqliteWithTelemetry,
@@ -8,7 +15,6 @@ import {
   hasRequiredTables,
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
-  removeSqliteSidecars,
   resolveExpectedDenseCount,
   resolveSqliteIngestPlan,
   bumpSqliteBatchStat
@@ -101,7 +107,12 @@ const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, delete
  * @param {object} [params.stats]
  * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number,totalFiles?:number,changedFiles?:number,deletedFiles?:number,manifestUpdates?:number}>}
  */
-export async function incrementalUpdateDatabase({
+export const incrementalUpdateDatabase = input => withSqliteStorageOperation(input?.storageContext,
+  [input?.outputPath || input?.outPath, input?.indexDir, input?.incrementalData?.bundleDir]
+    .filter(value => typeof value === 'string' && value).map(value => path.resolve(value)),
+  () => incrementalUpdateDatabaseOwned(input));
+
+async function incrementalUpdateDatabaseOwned({
   Database,
   outPath,
   mode,
@@ -120,6 +131,7 @@ export async function incrementalUpdateDatabase({
   signal = null,
   repoRoot = process.cwd()
 }) {
+  throwIfAborted(signal);
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -137,7 +149,7 @@ export async function incrementalUpdateDatabase({
   const denseClampStats = createUint8ClampStats();
   const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
   const batchStats = stats && typeof stats === 'object' ? stats : null;
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
+  const recordBatch = (key) => { throwIfAborted(signal); bumpSqliteBatchStat(batchStats, key); };
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
     batchStats.ingestPlan = {
@@ -165,11 +177,15 @@ export async function incrementalUpdateDatabase({
   const expectedDims = expectedDenseRequired && Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
 
   const useBuildPragmas = buildPragmas !== false;
+  getSqliteStorageOperation()?.admitTargets([path.resolve(outPath), `${path.resolve(outPath)}-wal`, `${path.resolve(outPath)}-shm`]);
   const db = new Database(outPath);
+  const native = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {} });
   try {
     assertSqliteIndexFormat({ db, operation: 'incremental-update', repoRoot, indexPath: outPath });
   } catch (error) {
-    db.close();
+    native.retainFailure(error);
+    try { native.retire(); }
+    catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
     throw error;
   }
   // Establish cleanup ownership before any fallible initialization runs.
@@ -177,41 +193,42 @@ export async function incrementalUpdateDatabase({
   let pageSize = ingestPlan.pageSize;
   let journalMode = ingestPlan.journalMode;
   let walEnabled = ingestPlan.walEnabled === true;
-  let dbClosed = false;
+  let operationError, operationFailed = false, finalization = null;
 
   /**
    * Ensure sqlite resources are cleaned up for every exit path.
    * This includes WAL checkpoint best-effort, pragma restoration, close, and
-   * sidecar cleanup.
+   * SQLite-owned WAL lifecycle.
    *
    * @returns {Promise<void>}
    */
-  const finalize = async () => {
-    if (dbClosed) return;
-    dbClosed = true;
-    try {
-      checkpointSqliteWithTelemetry(db, {
-        stats: batchStats,
-        dbPath: outPath,
-        stage: 'close',
-        pageSize,
-        journalMode,
-        walEnabled,
-        walPressure: ingestPlan.walPressure,
-        source: 'incremental'
-      });
-    } catch {}
-    if (pragmaState) {
+  const finalize = () => {
+    if (finalization) return finalization;
+    if (operationFailed) native.retainFailure(operationError);
+    finalization = Promise.resolve().then(() => {
+      let checkpointSettled = true;
       try {
-        restoreBuildPragmas(db, pragmaState);
-      } catch {}
-    }
-    try {
-      db.close();
-    } catch {}
-    try {
-      await removeSqliteSidecars(outPath);
-    } catch {}
+        checkpointSqliteWithTelemetry(db, {
+          stats: batchStats,
+          dbPath: outPath,
+          stage: 'close',
+          pageSize,
+          journalMode,
+          walEnabled,
+          walPressure: ingestPlan.walPressure,
+          source: 'incremental'
+        });
+      } catch (error) { checkpointSettled = isSqliteDiagnosticSettled(error, native); }
+      if (pragmaState && checkpointSettled) {
+        try {
+          restoreBuildPragmas(db, pragmaState);
+        } catch (error) { isSqliteDiagnosticSettled(error, native); }
+      }
+      native.retire();
+    }).catch(cleanup => {
+      throw operationFailed ? addStorageFailureContext(operationError, {}, cleanup, { secondaryPresent: true }) : cleanup;
+    });
+    return finalization;
   };
   try {
     pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
@@ -235,6 +252,7 @@ export async function incrementalUpdateDatabase({
     if (!hasRequiredTables(db, REQUIRED_TABLES)) {
       return { used: false, reason: 'schema missing' };
     }
+    assertSqliteMinhashReceiver(db, mode);
 
     const actualFtsVariants = listOptionalFtsTables(db).map(table => table.replace('chunks_fts_', '')).sort();
     if (JSON.stringify(actualFtsVariants) !== JSON.stringify(normalizeFtsVariants(ftsVariants))) {
@@ -308,21 +326,25 @@ export async function incrementalUpdateDatabase({
     }
 
     const updateFileManifest = db.prepare(
-      'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
+      'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ?, bundle_hash = ? WHERE mode = ? AND file = ?'
     );
     if (!changed.length && !deleted.length && !semanticPlan) {
       const updateTx = db.transaction(() => {
+        throwIfAborted(signal);
         for (const record of manifestUpdates) {
+          throwIfAborted(signal);
           const normalizedFile = record.normalized;
           const entry = record.entry || {};
           updateFileManifest.run(
             entry?.hash || null,
             Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
             Number.isFinite(entry?.size) ? entry.size : null,
+            sqliteBundleIdentity(entry),
             mode,
             normalizedFile
           );
         }
+        throwIfAborted(signal);
       });
       updateTx();
       try {
@@ -345,6 +367,8 @@ export async function incrementalUpdateDatabase({
     }
 
     const bundlePlan = await loadBundlesAndCollectState({
+      signal,
+      repoRoot,
       changed,
       bundleDir: incrementalData.bundleDir
     });
@@ -470,6 +494,7 @@ export async function incrementalUpdateDatabase({
         source: 'incremental'
       });
     } catch (err) {
+      if (!isSqliteDiagnosticSettled(err, native)) throw err;
       if (emitOutput) {
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
@@ -479,7 +504,8 @@ export async function incrementalUpdateDatabase({
       insertedChunks,
       ...changeSummary
     };
-  } finally {
+  } catch (error) { operationFailed = true; operationError = error; throw error; }
+  finally {
     await finalize();
   }
 }

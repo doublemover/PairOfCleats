@@ -1,3 +1,4 @@
+import { isCompilerTransparentExpression } from './compiler-property-paths.js';
 /** Runtime value inputs shared by CFG emission and the immutable value slice.
  * Syntax children are not interchangeable with value inputs: types, property
  * names, template text and evaluated-but-discarded operands stay separate.
@@ -7,11 +8,12 @@ export const compilerOperationDependencies = (ts, node) => {
   const input = (value, kind = 'flowsTo', certainty = 'exact-static', condition = null) =>
     ({ node: value, kind, certainty, condition });
   const result = (inputs = [], extra = {}) => ({ inputs, reason: null, mayThrow: false, requiresCfg: false, ...extra });
-  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)
-    || ts.isNonNullExpression(node) || ts.isSatisfiesExpression(node)) return result([input(node.expression)]);
+  if (isCompilerTransparentExpression(ts, node)) return result([input(node.expression)]);
   if (ts.isTemplateExpression(node)) return result(node.templateSpans.map(span => input(span.expression, 'flowsTo', 'modeled')),
     { mayThrow: true });
   if (ts.isTemplateSpan(node)) return result([input(node.expression)]);
+  if (ts.isComputedPropertyName(node)) return result([input(node.expression, 'flowsTo', 'modeled')],
+    { reason: 'property_key_coercion_effects_unresolved', mayThrow: true });
   if (ts.isAwaitExpression(node) || ts.isYieldExpression(node)) return result(node.expression ? [input(node.expression, 'flowsTo', 'modeled')] : [],
     { reason: 'suspension_shared_effects_unresolved', mayThrow: ts.isAwaitExpression(node) });
   if (ts.isObjectLiteralExpression(node)) return result(node.properties.map(member => input(
@@ -37,7 +39,9 @@ export const compilerOperationDependencies = (ts, node) => {
   ]);
   if (ts.isVoidExpression(node)) return result();
   if (ts.isTypeOfExpression(node)) return result([input(node.expression, 'flowsTo', 'modeled')]);
-  if (ts.isDeleteExpression(node)) return result([input(node.expression, 'flowsTo', 'modeled')],
+  // Delete consumes a reference, not the selected property's stored value. Its
+  // Boolean result and mutation effects stay unknown until a heap model owns them.
+  if (ts.isDeleteExpression(node)) return result([],
     { reason: 'delete_result_and_heap_effects_unresolved', mayThrow: true });
   if (ts.isCommaListExpression(node)) return result(node.elements.length ? [input(node.elements.at(-1))] : []);
   // Separate owners supply binding, invocation, storage and creation channels.

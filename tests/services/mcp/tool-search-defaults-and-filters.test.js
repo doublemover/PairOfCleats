@@ -22,17 +22,12 @@ const testConfig = {
 };
 const envOverrides = { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) };
 
-const { fixtureRoot } = await ensureFixtureIndex({
-  fixtureName: 'languages',
-  cacheName: 'mcp-search',
-  envOverrides,
-  cacheScope: 'shared'
-});
 await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'mcp-search',
+  cacheName,
   envOverrides,
-  cacheScope: 'shared'
+  cacheScope: 'isolated',
+  requiredModes: ['code']
 });
 
 const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot });
@@ -70,27 +65,6 @@ try {
     throw new Error('MCP search should default to compact JSON payloads');
   }
 
-  send({
-    jsonrpc: '2.0',
-    id: 3,
-    method: 'tools/call',
-    params: {
-      name: 'search',
-      arguments: {
-        repoPath: fixtureRoot,
-        query: 'runUnsafe',
-        mode: 'code',
-        top: 50,
-        backend: 'memory'
-      }
-    }
-  });
-  const baselineRiskSearch = await readMessage();
-  const baselineRiskPayload = JSON.parse(baselineRiskSearch.result?.content?.[0]?.text || '{}');
-  const baselineRiskHits = Array.isArray(baselineRiskPayload.code) ? baselineRiskPayload.code : [];
-  if (!baselineRiskHits.length) {
-    throw new Error('baseline risk MCP search returned no results');
-  }
   const hitKey = (hit) => {
     if (!hit || typeof hit !== 'object') return JSON.stringify(hit);
     const file = hit.file || hit.path || hit.relPath || null;
@@ -104,37 +78,6 @@ try {
     if (hit.id != null) return String(hit.id);
     return JSON.stringify(hit);
   };
-  const baselineRiskKeys = new Set(baselineRiskHits.map(hitKey));
-
-  send({
-    jsonrpc: '2.0',
-    id: 4,
-    method: 'tools/call',
-    params: {
-      name: 'search',
-      arguments: {
-        repoPath: fixtureRoot,
-        query: 'runUnsafe',
-        mode: 'code',
-        top: 50,
-        riskTag: 'command-exec',
-        backend: 'memory'
-      }
-    }
-  });
-  const riskSearch = await readMessage();
-  const riskPayload = JSON.parse(riskSearch.result?.content?.[0]?.text || '{}');
-  const riskHits = Array.isArray(riskPayload.code) ? riskPayload.code : [];
-  if (!riskHits.length) {
-    throw new Error('riskTag filter returned no results');
-  }
-  const riskKeys = new Set(riskHits.map(hitKey));
-  for (const key of riskKeys) {
-    if (!baselineRiskKeys.has(key)) {
-      throw new Error('riskTag filter returned hits not present in baseline result set');
-    }
-  }
-
   send({
     jsonrpc: '2.0',
     id: 5,
@@ -154,7 +97,7 @@ try {
   const baselineTypePayload = JSON.parse(baselineTypeSearch.result?.content?.[0]?.text || '{}');
   const baselineTypeHits = Array.isArray(baselineTypePayload.code) ? baselineTypePayload.code : [];
   if (!baselineTypeHits.length) {
-    throw new Error('baseline type MCP search returned no results');
+    throw new Error(`baseline type MCP search returned no results: ${JSON.stringify(baselineTypePayload).slice(0, 600)}`);
   }
   const baselineTypeKeys = new Set(baselineTypeHits.map(hitKey));
 

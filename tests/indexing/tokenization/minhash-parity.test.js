@@ -6,7 +6,7 @@ const tokens = ['alpha', 'beta', 'gamma', 'delta'];
 const mh = new SimpleMinHash();
 tokens.forEach((token) => mh.update(token));
 const idx = {
-  minhash: { signatures: [mh.hashValues] },
+  minhash: { hashIdentity: mh.hashIdentity, signatures: [mh.hashValues] },
   chunkMeta: [{ weight: 1 }]
 };
 const results = rankMinhash(idx, tokens, 1);

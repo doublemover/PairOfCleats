@@ -1,3 +1,6 @@
+import { isFileAnalysisCandidate, fileAnalysisAdmissionBytes, FILE_ANALYSIS_MAX_SOURCE_BYTES } from '../../workers/file-analysis-contract.js';
+import { withBundleTransformScope } from '../../../../shared/bundle-io/transform-owner.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
 import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
@@ -8,6 +11,7 @@ import { createSemanticCacheDependencySignatures } from '../../incremental/seman
 import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
+import { attachStage1SchedulerShadow } from '../../runtime/scheduler-shadow-adapter.js';
 import {
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
 } from '../../../../shared/concurrency/ordered-completion.js';
@@ -39,7 +43,7 @@ import {
 import { snapshotTrackedSubprocesses } from '../../../../shared/subprocess/snapshot.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
-import { getLanguageForFile } from '../../../language-registry.js';
+import { getLanguageRouteForFile } from '../../../language-registry/routing.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
@@ -348,7 +352,41 @@ export {
   runShardSubsetsWithRetry,
   sortEntriesByOrderIndex
 };
-export const processFiles = async ({
+export const processFiles = options => withBundleTransformScope({
+  scheduler: options.runtime?.scheduler || null, signal: options.abortSignal || null
+}, () => withStage1AbortForwarding(options.abortSignal, stageAbortScope =>
+  processFilesInTransformScope({ ...options, stageAbortScope })));
+
+// This lexical owner begins before any Stage1 validation/logger/startup work.
+// Inner resource cleanup can detach early, but every other exit reaches finally.
+const withStage1AbortForwarding = async (abortSignal, operation) => {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const signal = controller?.signal || abortSignal || null;
+  let attached = false;
+  const forward = () => {
+    if (signal?.aborted) return;
+    try { controller.abort(abortSignal.reason); } catch { controller.abort(); }
+  };
+  const detach = () => {
+    if (!attached) return;
+    attached = false;
+    abortSignal.removeEventListener('abort', forward);
+  };
+  const abort = (reason = undefined) => {
+    if (!controller || signal?.aborted) return;
+    try { controller.abort(reason); } catch { controller.abort(); }
+  };
+  try {
+    if (controller && abortSignal && typeof abortSignal.addEventListener === 'function') {
+      attached = true;
+      abortSignal.addEventListener('abort', forward, { once: true });
+      if (abortSignal.aborted) forward();
+    }
+    return await operation({ signal, abort, detach });
+  } finally { detach(); }
+};
+
+const processFilesInTransformScope = async ({
   mode,
   runtime,
   discovery,
@@ -365,48 +403,10 @@ export const processFiles = async ({
   relationsEnabled,
   shardPerfProfile,
   fileTextCache,
-  abortSignal = null
+  stageAbortScope
 }) => {
   const stage1OwnershipPrefix = `${resolveStage1FileSubprocessOwnershipPrefix(runtime, mode)}:`;
-  const stageAbortController = typeof AbortController === 'function'
-    ? new AbortController()
-    : null;
-  const effectiveAbortSignal = stageAbortController?.signal || abortSignal || null;
-  let detachExternalAbort = null;
-  if (stageAbortController && abortSignal && typeof abortSignal.addEventListener === 'function') {
-    /**
-     * Propagate outer abort to file-local controller.
-     *
-     * @returns {void}
-     */
-    const forwardAbort = () => {
-      if (effectiveAbortSignal?.aborted) return;
-      try {
-        stageAbortController.abort(abortSignal.reason);
-      } catch {
-        stageAbortController.abort();
-      }
-    };
-    abortSignal.addEventListener('abort', forwardAbort, { once: true });
-    detachExternalAbort = () => {
-      abortSignal.removeEventListener('abort', forwardAbort);
-    };
-    if (abortSignal.aborted) forwardAbort();
-  }
-  /**
-   * Abort active stage1 processing and trigger runtime cancellation hooks.
-   *
-   * @param {unknown} [reason]
-   * @returns {void}
-   */
-  const abortProcessing = (reason = null) => {
-    if (!stageAbortController || effectiveAbortSignal?.aborted) return;
-    try {
-      stageAbortController.abort(reason || undefined);
-    } catch {
-      stageAbortController.abort();
-    }
-  };
+  const { signal: effectiveAbortSignal, abort: abortProcessing, detach: detachExternalAbort } = stageAbortScope;
 
   throwIfAborted(effectiveAbortSignal);
   log('Processing and indexing files...');
@@ -414,6 +414,7 @@ export const processFiles = async ({
   const stageFileCount = Array.isArray(entries) ? entries.length : 0;
   const stageChunkCount = Array.isArray(state?.chunks) ? state.chunks.length : 0;
   if (stageFileCount === 0 && stageChunkCount === 0) {
+    detachExternalAbort?.();
     logLine(
       `[stage1:${mode}] processing elided (zero modality: files=0 chunks=0).`,
       {
@@ -630,105 +631,9 @@ export const processFiles = async ({
   const debugOrdered = envConfig.debugOrdered === true;
   const hangProbeConfig = resolveHangProbeConfig(envConfig);
   const enablePerfEvents = envConfig.debugPerfEvents === true;
-  const perfEventBaseLogger = await createPerfEventLogger({
-    buildRoot: runtime.buildRoot || runtime.root,
-    mode,
-    stream: 'heavy-file',
-    enabled: mode === 'code' && enablePerfEvents
-  });
-  const perfEventLogger = createHeavyFilePerfAggregator({
-    logger: perfEventBaseLogger
-  });
-
+  let perfEventLogger = null;
   let treeSitterScheduler = null;
   let completedSemanticFiles = new Set();
-  if (runtime.semanticPolicy?.enabled && mode === 'code') {
-    if (incrementalState?.enabled && runtime.cacheWriterLease && runtime.semanticPolicy.storage.decodedCacheBytes > 0) {
-      runtime.semanticReplayVerification = createSemanticReplayVerificationContext({
-        bundleDir: incrementalState.bundleDir, lease: runtime.cacheWriterLease,
-        maxBytes: Math.min(8 * 1024 * 1024, runtime.semanticPolicy.storage.decodedCacheBytes) });
-      incrementalState.semanticReplayVerification = runtime.semanticReplayVerification;
-    }
-    completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
-      semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
-        replayVerification: runtime.semanticReplayVerification,
-        signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
-          dependencySignatures: incrementalState.manifest.dependencySignatures,
-          policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
-  }
-  if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
-    // Recover crash-completed files before sweeping, while no workers are
-    // running. Commit their pins first; reclaim obsolete retained objects before
-    // opening the disk account so garbage cannot prevent admission forever.
-    await pruneIncrementalManifest({ enabled: incrementalState?.enabled,
-      manifest: incrementalState?.manifest, manifestPath: incrementalState?.manifestPath,
-      bundleDir: incrementalState?.bundleDir, seenFiles: new Set(entries.map(entry => entry.rel)), signal: effectiveAbortSignal });
-    const reopened = await reopenSemanticDiskAccount({
-      limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
-      roots: [incrementalState?.incrementalDir, runtime.buildRoot,
-        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'builds'),
-        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'semantic-frontier')],
-      signal: effectiveAbortSignal
-    });
-    state.semanticDiskAccount = reopened.account;
-    state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
-  }
-  const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
-  if (treeSitterEnabled) {
-    const cachedParseFiles = await preloadParseCheckpoints({entries,incrementalState});
-    const plannerInput = resolveTreeSitterPlannerEntries({
-      entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
-      root: runtime.root
-    });
-    if (plannerInput.skipped > 0) {
-      log(
-        `[tree-sitter:schedule] prefilter: skipped ${plannerInput.skipped} entries; `
-        + `${plannerInput.entries.length} queued for planning.`
-      );
-    }
-    log('[tree-sitter:schedule] planning global batches...');
-    treeSitterScheduler = await runTreeSitterScheduler({
-      mode,
-      runtime,
-      entries: plannerInput.entries,
-      outDir,
-      fileTextCache,
-      abortSignal: effectiveAbortSignal,
-      log,
-      crashLogger
-    });
-    const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
-    if (schedStats) {
-      log(
-        `[tree-sitter:schedule] plan ready: grammars=${schedStats.grammarKeys} ` +
-        `entries=${schedStats.indexEntries} cache=${schedStats.cacheEntries}`
-      );
-      if ((Number(schedStats.parserCrashSignatures) || 0) > 0) {
-        const degradedSummary = {
-          parserCrashSignatures: Number(schedStats.parserCrashSignatures) || 0,
-          failedGrammarKeys: Number(schedStats.failedGrammarKeys) || 0,
-          degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0,
-          quarantineDecisions: Number(schedStats.quarantineDecisions) || 0
-        };
-        if (state && typeof state === 'object') {
-          state.treeSitterDegraded = degradedSummary;
-        }
-        logLine(
-          `[tree-sitter:schedule] parser quarantine active: signatures=${degradedSummary.parserCrashSignatures} ` +
-          `failedGrammars=${degradedSummary.failedGrammarKeys} ` +
-          `degradedVirtualPaths=${degradedSummary.degradedVirtualPaths} ` +
-          `quarantineDecisions=${degradedSummary.quarantineDecisions}`,
-          {
-            kind: 'warning',
-            mode,
-            stage: 'processing',
-            substage: 'tree-sitter-scheduler',
-            treeSitterDegraded: degradedSummary
-          }
-        );
-      }
-    }
-  }
   const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   /**
@@ -765,8 +670,111 @@ export const processFiles = async ({
   runtime.cacheWriterDrain = () => inFlightProcessFileTasks.drain();
   runtime.cacheWriterPending = () => inFlightProcessFileTasks.pendingCount();
   let stage1ShuttingDown = false;
+  let processingFailed = false;
+  let processingFailure;
 
   try {
+    const perfEventBaseLogger = await createPerfEventLogger({
+      buildRoot: runtime.buildRoot || runtime.root,
+      mode,
+      stream: 'heavy-file',
+      enabled: mode === 'code' && enablePerfEvents
+    });
+    perfEventLogger = createHeavyFilePerfAggregator({
+      logger: perfEventBaseLogger
+    });
+
+    if (runtime.semanticPolicy?.enabled && mode === 'code') {
+      if (incrementalState?.enabled && runtime.cacheWriterLease && runtime.semanticPolicy.storage.decodedCacheBytes > 0) {
+        runtime.semanticReplayVerification = createSemanticReplayVerificationContext({
+          bundleDir: incrementalState.bundleDir, lease: runtime.cacheWriterLease,
+          maxBytes: Math.min(8 * 1024 * 1024, runtime.semanticPolicy.storage.decodedCacheBytes) });
+        incrementalState.semanticReplayVerification = runtime.semanticReplayVerification;
+      }
+      completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
+        semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
+          replayVerification: runtime.semanticReplayVerification,
+          signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
+            dependencySignatures: incrementalState.manifest.dependencySignatures,
+            policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
+    }
+    if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
+    // Recover crash-completed files before sweeping, while no workers are
+    // running. Commit their pins first; reclaim obsolete retained objects before
+    // opening the disk account so garbage cannot prevent admission forever.
+      await pruneIncrementalManifest({ enabled: incrementalState?.enabled,
+        manifest: incrementalState?.manifest, manifestPath: incrementalState?.manifestPath,
+        bundleDir: incrementalState?.bundleDir, seenFiles: new Set(entries.map(entry => entry.rel)), signal: effectiveAbortSignal });
+      const reopened = await reopenSemanticDiskAccount({
+        limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
+        roots: [incrementalState?.incrementalDir, runtime.buildRoot,
+          runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'builds'),
+          runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'semantic-frontier')],
+        signal: effectiveAbortSignal
+      });
+      state.semanticDiskAccount = reopened.account;
+      state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
+    }
+    const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
+    if (treeSitterEnabled) {
+    // Semantic sources require their full native/fact owner unless the durable
+    // completion verifier already admitted them. A geometry descriptor alone
+    // cannot certify complete semantic lanes.
+      const cachedParseFiles = runtime.semanticPolicy?.enabled ? new Set()
+        : await preloadParseCheckpoints({ entries, incrementalState, repoRoot: runtime.root, signal: effectiveAbortSignal });
+      const plannerInput = resolveTreeSitterPlannerEntries({
+        entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
+        root: runtime.root
+      });
+      if (plannerInput.skipped > 0) {
+        log(
+          `[tree-sitter:schedule] prefilter: skipped ${plannerInput.skipped} entries; `
+        + `${plannerInput.entries.length} queued for planning.`
+        );
+      }
+      log('[tree-sitter:schedule] planning global batches...');
+      treeSitterScheduler = await runTreeSitterScheduler({
+        mode,
+        runtime,
+        entries: plannerInput.entries,
+        outDir,
+        fileTextCache,
+        abortSignal: effectiveAbortSignal,
+        log,
+        crashLogger
+      });
+      const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
+      if (schedStats) {
+        log(
+          `[tree-sitter:schedule] plan ready: grammars=${schedStats.grammarKeys} ` +
+        `entries=${schedStats.indexEntries} cache=${schedStats.cacheEntries}`
+        );
+        if ((Number(schedStats.parserCrashSignatures) || 0) > 0) {
+          const degradedSummary = {
+            parserCrashSignatures: Number(schedStats.parserCrashSignatures) || 0,
+            failedGrammarKeys: Number(schedStats.failedGrammarKeys) || 0,
+            degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0,
+            quarantineDecisions: Number(schedStats.quarantineDecisions) || 0
+          };
+          if (state && typeof state === 'object') {
+            state.treeSitterDegraded = degradedSummary;
+          }
+          logLine(
+            `[tree-sitter:schedule] parser quarantine active: signatures=${degradedSummary.parserCrashSignatures} ` +
+          `failedGrammars=${degradedSummary.failedGrammarKeys} ` +
+          `degradedVirtualPaths=${degradedSummary.degradedVirtualPaths} ` +
+          `quarantineDecisions=${degradedSummary.quarantineDecisions}`,
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              substage: 'tree-sitter-scheduler',
+              treeSitterDegraded: degradedSummary
+            }
+          );
+        }
+      }
+    }
     assignFileIndexes(entries);
     const repoFileCount = Array.isArray(entries) ? entries.length : 0;
     const scmFilesPosix = entries.map((entry) => (
@@ -1126,6 +1134,8 @@ export const processFiles = async ({
         debugOrdered
       }
     );
+    const schedulerShadow = attachStage1SchedulerShadow({ runtime, mode, perfProfile,
+      previousProfile: shardPerfProfile, orderedAppender, resolveOrderIndex: resolveStableEntryOrderIndex });
     const inFlightFiles = new Map();
     /**
      * Clear one tracked in-flight file lifecycle entry once result handling
@@ -1855,7 +1865,8 @@ export const processFiles = async ({
       abortProcessing(err);
       void terminateTrackedSubprocesses({
         reason: 'stage1_processing_stall_timeout',
-        force: false
+        force: false,
+        ownershipPrefix: stage1OwnershipPrefix
       }).then((cleanup) => {
         if (!cleanup || cleanup.attempted <= 0) return;
         logLine(
@@ -2119,6 +2130,7 @@ export const processFiles = async ({
         embeddingBatchSize: runtimeRef.embeddingBatchSize,
         embeddingEnabled: runtimeRef.embeddingEnabled,
         embeddingNormalize: runtimeRef.embeddingNormalize,
+        embeddingQuantization: runtimeRef.embeddingQuantization,
         analysisPolicy: runtimeRef.analysisPolicy,
         typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
         riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,
@@ -2128,6 +2140,7 @@ export const processFiles = async ({
         seenFiles,
         gitBlameEnabled: runtimeRef.gitBlameEnabled,
         lintEnabled: runtimeRef.lintEnabled,
+        lintPolicy: runtimeRef.lintPolicy || null,
         complexityEnabled: runtimeRef.complexityEnabled,
         tokenizationStats,
         structuralMatches,
@@ -2491,6 +2504,7 @@ export const processFiles = async ({
           },
           {
             collectResults: false,
+            schedulerMetadata: schedulerShadow.metadata,
             signal: effectiveAbortSignal,
             onBeforeDispatch: async (ctx) => {
               if (typeof orderedAppender.waitForCapacity === 'function') {
@@ -2552,6 +2566,7 @@ export const processFiles = async ({
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = orderedBatchEntries[entryIndex];
               const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
+              const schedulerAttempt = schedulerShadow.captureCommitIdentity(orderIndex);
               if (result?.stage1Lease && !orderedAppender.isCurrentLease(result.stage1Lease)) return;
               try {
                 const bypassedForLowYield = Number.isFinite(orderIndex)
@@ -2594,6 +2609,8 @@ export const processFiles = async ({
                     { status: 'skipped', inputBytes: entry?.stat?.size || entry?.bytes || 0 }
                   );
                   orderedCompletionTracker.track(completion, () => {
+                    schedulerShadow.noteCommitted(runtimeRef.scheduler, orderIndex,
+                      { identity: schedulerAttempt, status: 'skipped' });
                     lastOrderedCompletionAt = Date.now();
                     refreshStage1ActiveWindows();
                   });
@@ -2618,7 +2635,7 @@ export const processFiles = async ({
                 if (fileMetrics && typeof fileMetrics === 'object') {
                   const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
                   const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
-                  const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
+                  const languageId = fileMetrics.languageId || getLanguageRouteForFile(entry?.ext, entry?.rel)?.id || 'unknown';
                   recordStageTimingSample('parseChunk', {
                     languageId,
                     bytes,
@@ -2647,6 +2664,8 @@ export const processFiles = async ({
                     chunks: result.chunks?.length || 0, cached: fileMetrics?.cached === true }
                 );
                 orderedCompletionTracker.track(completion, () => {
+                  schedulerShadow.noteCommitted(runtimeRef.scheduler, orderIndex,
+                    { identity: schedulerAttempt, status: result.skip ? 'skipped' : 'completed' });
                   lastOrderedCompletionAt = Date.now();
                   refreshStage1ActiveWindows();
                 });
@@ -2698,6 +2717,12 @@ export const processFiles = async ({
               } finally {
                 clearInFlightFile(orderIndex);
               }
+            },
+            estimateBytes: entry => {
+              const bytes = Math.max(0, Number(entry.stat?.size ?? entry.bytes) || 0);
+              return bytes <= FILE_ANALYSIS_MAX_SOURCE_BYTES && isFileAnalysisCandidate({ mode,
+                ext: path.extname(entry.abs).toLowerCase(), workerPool: runtimeRef.workerPool })
+                ? fileAnalysisAdmissionBytes(bytes) : bytes;
             },
             retries: 2,
             retryDelayMs: 200,
@@ -3175,6 +3200,10 @@ export const processFiles = async ({
       postingsQueue,
       tokenizationStats
     });
+  } catch (error) {
+    processingFailed = true;
+    processingFailure = error;
+    throw error;
   } finally {
     stage1ShuttingDown = true;
     inFlightProcessFileTasks.seal('stage1 tail cleanup');
@@ -3198,172 +3227,181 @@ export const processFiles = async ({
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
-    await runWithHangProbe({
-      ...hangProbeConfig,
-      label: 'stage1.tail-cleanup',
-      mode,
-      stage: 'processing',
-      step: 'cleanup',
-      log: logLine,
-      meta: { cleanupTimeoutMs },
-      run: () => runStage1TailCleanupTasks({
-        sequential: true,
-        tasks: [
-          {
-            label: 'stage1.process-file-drain',
-            run: async () => {
-              const drainLog = (line, meta) => logLine(line, {
-                ...(meta || {}),
-                mode,
-                stage: 'processing'
-              });
-              const drainResult = await drainTrackedProcessFileTasks({
-                registry: inFlightProcessFileTasks,
-                timeoutMs: cleanupTimeoutMs,
-                log: drainLog,
-                logMeta: {
+    try {
+      await runWithHangProbe({
+        ...hangProbeConfig,
+        label: 'stage1.tail-cleanup',
+        mode,
+        stage: 'processing',
+        step: 'cleanup',
+        log: logLine,
+        meta: { cleanupTimeoutMs },
+        run: () => runStage1TailCleanupTasks({
+          sequential: true,
+          tasks: [
+            {
+              label: 'stage1.process-file-drain',
+              run: async () => {
+                const drainLog = (line, meta) => logLine(line, {
+                  ...(meta || {}),
                   mode,
                   stage: 'processing'
-                },
-                onTimeout: async (_error, pendingEntries) => {
-                  const subprocessSnapshot = snapshotTrackedSubprocesses({
-                    ownershipPrefix: stage1OwnershipPrefix,
-                    limit: 12
-                  });
-                  if (subprocessSnapshot.total > 0) {
-                    drainLog(
-                      `[cleanup] stage1 process-file drain timeout retained ${subprocessSnapshot.total} tracked subprocess(es) `
+                });
+                const drainResult = await drainTrackedProcessFileTasks({
+                  registry: inFlightProcessFileTasks,
+                  timeoutMs: cleanupTimeoutMs,
+                  log: drainLog,
+                  logMeta: {
+                    mode,
+                    stage: 'processing'
+                  },
+                  onTimeout: async (_error, pendingEntries) => {
+                    const subprocessSnapshot = snapshotTrackedSubprocesses({
+                      ownershipPrefix: stage1OwnershipPrefix,
+                      limit: 12
+                    });
+                    if (subprocessSnapshot.total > 0) {
+                      drainLog(
+                        `[cleanup] stage1 process-file drain timeout retained ${subprocessSnapshot.total} tracked subprocess(es) `
                         + `for ${stage1OwnershipPrefix}`,
-                      {
-                        kind: 'warning',
-                        stage1Drain: {
-                          pendingCount: Array.isArray(pendingEntries) ? pendingEntries.length : 0,
-                          trackedSubprocesses: subprocessSnapshot
+                        {
+                          kind: 'warning',
+                          stage1Drain: {
+                            pendingCount: Array.isArray(pendingEntries) ? pendingEntries.length : 0,
+                            trackedSubprocesses: subprocessSnapshot
+                          }
                         }
-                      }
-                    );
+                      );
+                    }
+                    const cleanup = await terminateTrackedSubprocesses({
+                      reason: 'stage1_process_file_drain_timeout',
+                      force: true,
+                      ownershipPrefix: stage1OwnershipPrefix
+                    });
+                    if (cleanup?.attempted > 0) {
+                      drainLog(
+                        `[cleanup] forced termination of ${cleanup.attempted} stage1 tracked subprocess(es) `
+                        + `after process-file drain timeout.`,
+                        {
+                          kind: 'warning',
+                          cleanup
+                        }
+                      );
+                    }
                   }
+                });
+                if (!drainResult?.timedOut) {
+                  return drainResult;
+                }
+                const drainRetry = await runCleanupWithTimeout({
+                  label: 'stage1.process-file-drain.retry',
+                  cleanup: () => inFlightProcessFileTasks.drain(),
+                  timeoutMs: cleanupTimeoutMs,
+                  log: drainLog,
+                  logMeta: {
+                    mode,
+                    stage: 'processing'
+                  }
+                });
+                if (drainRetry?.timedOut) {
+                  const pendingEntries = inFlightProcessFileTasks.snapshot();
+                  const drainError = createTimeoutError({
+                    message: `[cleanup] stage1 process-file drain failed with ${pendingEntries.length} pending task(s).`,
+                    code: 'STAGE1_PROCESS_FILE_DRAIN_TIMEOUT',
+                    retryable: false,
+                    meta: {
+                      pendingCount: pendingEntries.length,
+                      pendingEntries: pendingEntries.slice(0, 12)
+                    }
+                  });
+                  throw drainError;
+                }
+                return {
+                  skipped: false,
+                  timedOut: true,
+                  elapsedMs: (Number(drainResult?.elapsedMs) || 0) + (Number(drainRetry?.elapsedMs) || 0)
+                };
+              }
+            },
+            {
+              label: 'perf-event-logger.close',
+              run: () => runCleanupWithTimeout({
+                label: 'perf-event-logger.close',
+                cleanup: () => perfEventLogger?.close(),
+                timeoutMs: cleanupTimeoutMs,
+                log: (line, meta) => logLine(line, {
+                  ...(meta || {}),
+                  mode,
+                  stage: 'processing'
+                })
+              })
+            },
+            {
+              label: 'tree-sitter-scheduler.close',
+              run: () => closeTreeSitterScheduler({
+                onTimeout: async () => {
                   const cleanup = await terminateTrackedSubprocesses({
-                    reason: 'stage1_process_file_drain_timeout',
+                    reason: 'tree_sitter_scheduler_close_timeout',
                     force: true,
                     ownershipPrefix: stage1OwnershipPrefix
                   });
                   if (cleanup?.attempted > 0) {
-                    drainLog(
-                      `[cleanup] forced termination of ${cleanup.attempted} stage1 tracked subprocess(es) `
-                        + `after process-file drain timeout.`,
+                    logLine(
+                      `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
                       {
                         kind: 'warning',
+                        mode,
+                        stage: 'processing',
                         cleanup
                       }
                     );
                   }
                 }
-              });
-              if (!drainResult?.timedOut) {
-                return drainResult;
-              }
-              const drainRetry = await runCleanupWithTimeout({
-                label: 'stage1.process-file-drain.retry',
-                cleanup: () => inFlightProcessFileTasks.drain(),
-                timeoutMs: cleanupTimeoutMs,
-                log: drainLog,
-                logMeta: {
-                  mode,
-                  stage: 'processing'
-                }
-              });
-              if (drainRetry?.timedOut) {
-                const pendingEntries = inFlightProcessFileTasks.snapshot();
-                const drainError = createTimeoutError({
-                  message: `[cleanup] stage1 process-file drain failed with ${pendingEntries.length} pending task(s).`,
-                  code: 'STAGE1_PROCESS_FILE_DRAIN_TIMEOUT',
-                  retryable: false,
-                  meta: {
-                    pendingCount: pendingEntries.length,
-                    pendingEntries: pendingEntries.slice(0, 12)
-                  }
-                });
-                throw drainError;
-              }
-              return {
-                skipped: false,
-                timedOut: true,
-                elapsedMs: (Number(drainResult?.elapsedMs) || 0) + (Number(drainRetry?.elapsedMs) || 0)
-              };
-            }
-          },
-          {
-            label: 'perf-event-logger.close',
-            run: () => runCleanupWithTimeout({
-              label: 'perf-event-logger.close',
-              cleanup: () => perfEventLogger.close(),
-              timeoutMs: cleanupTimeoutMs,
-              log: (line, meta) => logLine(line, {
-                ...(meta || {}),
-                mode,
-                stage: 'processing'
               })
-            })
-          },
-          {
-            label: 'tree-sitter-scheduler.close',
-            run: () => closeTreeSitterScheduler({
-              onTimeout: async () => {
-                const cleanup = await terminateTrackedSubprocesses({
-                  reason: 'tree_sitter_scheduler_close_timeout',
-                  force: true
-                });
-                if (cleanup?.attempted > 0) {
-                  logLine(
-                    `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
-                    {
-                      kind: 'warning',
-                      mode,
-                      stage: 'processing',
-                      cleanup
-                    }
-                  );
-                }
-              }
-            })
-          }
-        ],
-        logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
-          const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
-          const summaryText = outcomes
-            .map((outcome) => (
-              `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
-            ))
-            .join(', ');
-          const baseMeta = {
-            mode,
-            stage: 'processing',
-            cleanup: {
-              elapsedMs,
-              timeoutLabels,
-              fatalLabels: fatalErrors.map((entry) => entry.label)
             }
-          };
-          if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
-            logLine(
-              `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
-              {
-                kind: 'warning',
-                ...baseMeta
+          ],
+          logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
+            const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
+            const summaryText = outcomes
+              .map((outcome) => (
+                `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
+              ))
+              .join(', ');
+            const baseMeta = {
+              mode,
+              stage: 'processing',
+              cleanup: {
+                elapsedMs,
+                timeoutLabels,
+                fatalLabels: fatalErrors.map((entry) => entry.label)
               }
-            );
-            return;
+            };
+            if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
+              logLine(
+                `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
+                {
+                  kind: 'warning',
+                  ...baseMeta
+                }
+              );
+              return;
+            }
+            if (elapsedMs >= 1000) {
+              logLine(
+                `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
+                baseMeta
+              );
+            }
           }
-          if (elapsedMs >= 1000) {
-            logLine(
-              `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
-              baseMeta
-            );
-          }
-        }
-      })
-    });
-    runtime.semanticReplayVerification?.clear();
+        })
+      });
+    } catch (cleanupError) {
+      if (processingFailed) throw observeStorageResource(processingFailure, { phase: 'stage1-processing' })
+        .retain(cleanupError, { inspectionPresent: true });
+      throw cleanupError;
+    } finally {
+      runtime.semanticReplayVerification?.clear();
+      if (incrementalState) incrementalState.semanticReplayVerification = null;
+    }
   }
 };

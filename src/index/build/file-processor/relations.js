@@ -1,4 +1,9 @@
+import { createImportExtraction, getImportExtraction, projectImportExtraction } from '../../../shared/import-extraction.js';
+import { admitManagedReferenceFacts } from '../../../contracts/managed-reference-identities.js';
+import { ownCallIndexSource } from '../../../shared/call-index-source.js';
 const normalizeLimit = (value) => {
+  if (value == null || value === '' || typeof value === 'boolean'
+    || (typeof value === 'string' && !value.trim())) return null;
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return null;
   return Math.max(0, Math.floor(numeric));
@@ -90,6 +95,7 @@ export const buildCallIndex = (relations) => {
     }
   }
   const callDetailsByCaller = new Map();
+  const callDetailsByOccurrenceId = new Map();
   const callDetailsWithRange = [];
   if (Array.isArray(relations.callDetails)) {
     for (const detail of relations.callDetails) {
@@ -101,9 +107,15 @@ export const buildCallIndex = (relations) => {
       const list = callDetailsByCaller.get(caller) || [];
       list.push(detail);
       callDetailsByCaller.set(caller, list);
+      if (typeof detail.callerOccurrenceId === 'string') {
+        const owned = callDetailsByOccurrenceId.get(detail.callerOccurrenceId) || [];
+        owned.push(detail); callDetailsByOccurrenceId.set(detail.callerOccurrenceId, owned);
+      }
     }
   }
-  return { callsByCaller, callDetailsByCaller, callDetailsWithRange };
+  return ownCallIndexSource({ callsByCaller, callDetailsByCaller, callDetailsByOccurrenceId, callDetailsWithRange,
+    callsSource: relations.calls, callsLength: relations.calls?.length || 0,
+    callDetailsSource: relations.callDetails, callDetailsLength: relations.callDetails?.length || 0 }, relations);
 };
 
 export const buildFileRelations = (relations, relKey = null) => {
@@ -120,8 +132,22 @@ export const buildFileRelations = (relations, relKey = null) => {
     output.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
     return output;
   };
+  const rawImports = Array.isArray(relations.imports) ? relations.imports : [];
+  const normalizedImports = normalizeList(rawImports);
+  const validImports = rawImports.filter(entry => typeof entry === 'string' && entry).length;
+  const extraction = relations.importExtraction || getImportExtraction(rawImports) || createImportExtraction({ entries: rawImports,
+    text: null, producerId: 'file-relations-legacy-array', scope: 'unqualified-file-relation-input', reasons: ['legacy_array_producer'] });
+  const importExtraction = projectImportExtraction(extraction, rawImports, normalizedImports, { owner: 'file-relations',
+    duplicates: validImports - normalizedImports.length, invalid: rawImports.length - validImports });
+  const managedReferenceFacts = admitManagedReferenceFacts(relations.managedReferenceFacts, relations.managedReferenceFacts?.languageId);
   return {
-    imports: normalizeList(relations.imports),
+    importExtraction,
+    ...(managedReferenceFacts ? { managedReferenceFacts } : {}),
+    ...(relations.importScanExtraction ? { importScanExtraction: relations.importScanExtraction } : {}),
+    ...(relations.sqlRelationEvidence ? { sqlRelationEvidence: relations.sqlRelationEvidence } : {}),
+    ...(relations.jsDeclarations ? { jsDeclarations: relations.jsDeclarations } : {}),
+    ...(relations.jsDeclarations ? { callOwnership: relations.callOwnership } : {}),
+    imports: normalizedImports,
     exports: normalizeList(relations.exports),
     usages: normalizeList(relations.usages),
     importLinks: normalizeList(relations.importLinks, relKey),
@@ -140,6 +166,11 @@ export const buildFileRelations = (relations, relKey = null) => {
 export const stripFileRelations = (codeRelations) => {
   if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
   const {
+    sqlRelationEvidence,
+    managedReferenceFacts,
+    importExtraction,
+    importScanExtraction,
+    jsDeclarations,
     imports,
     exports,
     usages,

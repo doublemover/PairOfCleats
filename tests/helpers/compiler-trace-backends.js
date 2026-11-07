@@ -9,6 +9,31 @@ import { createArtifactSemanticStore } from '../../src/semantic/artifact-store.j
 import { createSqliteSemanticStore } from '../../src/semantic/sqlite-store.js';
 import { createSemanticTraceService } from '../../src/semantic/trace.js';
 import { writeSemanticQueryIndex } from '../../src/index/build/artifacts/writers/semantic/query-index.js';
+import { canonicalSemanticJson } from '../../src/index/semantic/identity.js';
+
+export const drainSemanticTrace = async ({ store, repoRoot, generation, seed,
+  direction = 'downstream', limits = { records: 3, edges: 3, bytes: 65536, depth: 64 } }) => {
+  const service = createSemanticTraceService(), aggregate = { records: [], edges: [], evidenceRefs: [] };
+  const seenEvidence = new Set();
+  const request = { repoRoot, generation, seed, direction, limits };
+  let cursor = null, pages = 0;
+  do {
+    const page = await service({ store, request: { ...request, cursor } });
+    assert.ok(!page.frontier.some(item => ['depth_budget', 'visited_budget', 'call_context_budget', 'record_not_found'].includes(item.reason)),
+      'A negative reachability assertion requires exhaustion of the supported bounded graph.');
+    aggregate.records.push(...page.records);
+    aggregate.edges.push(...page.edges);
+    for (const ref of page.evidenceRefs) {
+      const key = canonicalSemanticJson(ref);
+      if (seenEvidence.has(key)) continue;
+      seenEvidence.add(key);
+      aggregate.evidenceRefs.push(ref);
+    }
+    cursor = page.cursor;
+    assert.ok(++pages < 1000, 'bounded trace continuation advances to exhaustion');
+  } while (cursor);
+  return aggregate;
+};
 
 /** Produce both real query backends from one compiler fixture's immutable facts. */
 export const createCompilerTraceBackends = async (fixture, partitions) => {
@@ -23,7 +48,8 @@ export const createCompilerTraceBackends = async (fixture, partitions) => {
 /** Existing published artifact handles are retained; parity never writes to an
  * immutable published family. SQLite is a separate in-memory test projection.
  */
-export const createSemanticTraceParityBackends = async ({ artifact, partitions, generation, repoRoot }) => {
+export const createSemanticTraceParityBackends = async ({ artifact, partitions, generation, repoRoot,
+  limits = { records: 3, edges: 3, bytes: 65536, depth: 64 } }) => {
   const db = new Database(':memory:');
   try {
     db.pragma('user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
@@ -33,25 +59,15 @@ export const createSemanticTraceParityBackends = async ({ artifact, partitions, 
     db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(generation));
     const sqlite = createSqliteSemanticStore({ db, repoRoot, indexPath: ':memory:',
       generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
-    const drain = async (store, seed, direction) => {
-      const service = createSemanticTraceService(), aggregate = { records: [], edges: [], evidenceRefs: [] };
-      const request = { repoRoot, generation, seed, direction,
-        limits: { records: 3, edges: 3, bytes: 65536, depth: 64 } };
-      let cursor = null, pages = 0;
-      do {
-        const page = await service({ store, request: { ...request, cursor } });
-        assert.ok(!page.frontier.some(item => ['depth_budget', 'visited_budget', 'call_context_budget', 'record_not_found'].includes(item.reason)),
-          'A negative reachability assertion requires exhaustion of the supported bounded graph.');
-        for (const field of Object.keys(aggregate)) aggregate[field].push(...page[field]);
-        cursor = page.cursor;
-        assert.ok(++pages < 1000, 'bounded trace continuation advances to exhaustion');
-      } while (cursor);
-      return aggregate;
-    };
-    return { artifact, sqlite, close: () => db.close(), async trace(seed, direction = 'downstream') {
-      const actual = await drain(artifact, seed, direction);
-      assert.deepEqual(await drain(sqlite, seed, direction), actual, 'fully drained compiler trace backend parity');
-      return actual;
-    } };
+    const drain = (store, seed, direction) => drainSemanticTrace({ store, repoRoot, generation, seed, direction, limits });
+    return { artifact, sqlite, close: () => db.close(),
+      traceArtifact: (seed, direction = 'downstream') => drain(artifact, seed, direction),
+      async trace(seed, direction = 'downstream') {
+        const [actual, sqliteActual] = await Promise.all([
+          drain(artifact, seed, direction), drain(sqlite, seed, direction)
+        ]);
+        assert.deepEqual(sqliteActual, actual, 'fully drained compiler trace backend parity');
+        return actual;
+      } };
   } catch (error) { db.close(); throw error; }
 };

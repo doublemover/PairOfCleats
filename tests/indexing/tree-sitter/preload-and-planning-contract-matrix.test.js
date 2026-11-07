@@ -13,7 +13,7 @@ import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 import { LANGUAGE_GRAMMAR_KEYS } from '../../../src/lang/tree-sitter/config.js';
 import {
   preflightNativeTreeSitterGrammars,
-  warmupNativeTreeSitterParsers
+  warmupNativeTreeSitterParsers, getNativeTreeSitterParser, loadNativeTreeSitterGrammar
 } from '../../../src/lang/tree-sitter/native-runtime.js';
 import { resolveTreeSitterPreloadPlan } from '../../../src/index/build/indexer/steps/process-files/tree-sitter.js';
 import { resolveTreeSitterRuntime } from '../../../src/index/build/runtime/tree-sitter.js';
@@ -32,10 +32,7 @@ const resetCaches = () => {
 };
 
 const ok = await initTreeSitterRuntime({ log: () => {} });
-if (!ok) {
-  console.log('tree-sitter runtime unavailable; skipping preload/planning matrix test.');
-  process.exit(0);
-}
+assert.equal(ok, true, 'the prepared native runtime is required for preload/query qualification');
 
 resetCaches();
 
@@ -113,22 +110,27 @@ await preloadTreeSitterLanguages(['javascript', 'python'], {
   const options = {
     treeSitter: {
       enabled: true,
-      useQueries: true
+      useQueries: true,
+      chunkCache: false
     },
     log: () => {}
   };
 
   const text = 'export class Widget { greet() {} }';
+  resetTreeSitterStats();
   const first = buildTreeSitterChunks({ text, languageId: 'javascript', options });
-  if (!Array.isArray(first) || !first.length) {
-    console.log('tree-sitter chunking unavailable; skipping query cache assertions.');
-  } else {
-    assert.ok(treeSitterState.queryCache.has('javascript'));
-    const firstQuery = treeSitterState.queryCache.get('javascript');
-    const second = buildTreeSitterChunks({ text, languageId: 'javascript', options });
-    assert.ok(second && second.length);
-    assert.strictEqual(treeSitterState.queryCache.get('javascript'), firstQuery);
-  }
+  assert.ok(Array.isArray(first) && first.length, 'native query output is required');
+  assert.ok(first.some(chunk => chunk.name === 'Widget' && chunk.kind === 'ClassDeclaration'));
+  const key = 'native:javascript', firstQuery = treeSitterState.queryCache.get(key);
+  assert.ok(firstQuery?.query, 'actual native query compiled');
+  assert.equal(firstQuery.language, loadNativeTreeSitterGrammar('javascript').language);
+  assert.equal(firstQuery.runtime, getNativeTreeSitterParser('javascript').constructor);
+  const second = buildTreeSitterChunks({ text, languageId: 'javascript', options });
+  assert.deepEqual(second, first);
+  assert.strictEqual(treeSitterState.queryCache.get(key), firstQuery);
+  assert.equal(treeSitterState.queryCache.has('javascript'), false, 'retired language-only namespace cannot certify native query readiness');
+  assert.ok(getTreeSitterStats().queryBuilds >= 1 && getTreeSitterStats().queryHits >= 1);
+  assert.ok(getTreeSitterStats().queryExecutions > 0); assert.equal(getTreeSitterStats().queryFailures, 0);
 }
 
 {

@@ -1,0 +1,13 @@
+# Capped source-reader lifecycle repairs
+
+The reader now adopts the actual opened descriptor before scheduler compute reacquisition can fail. The existing contained-file resource owner retains original reads, probes and close; the existing cleanup deadline remains unchanged. Failed or nonvoid close cannot publish a successful read or release retained reservations. Explicit recovery closes only that original descriptor and cannot rerun decoding or publish its failed result. Frozen and falsey read failures remain reachable alongside cleanup failures.
+
+Eight final regressions fail against the original source from e54ed4bb961556b078b197fdcdc431c35f08fcba. They use actual ordinary files and descriptor operations: shutdown after open, shutdown plus failed close, four original read-failure values with failed close, and successful reads with false/throwing close. Original sources were restored only for these bounded demonstrations. Seventeen distinct affected controls pass on the repair, including truncation, positive short reads, pure wait suspension, detached wait retention and actual worker permit retention. No retries, skips or longer deadlines qualify these observations.
+
+#1330 remains open: semantic/provider wait boundaries and representative mixed-latency resource/work and output-parity qualification are not completed by this reader repair. No general speedup is claimed. No semantic producer meaning changed.
+
+A separate CI2181 workspace-status failure at the parent commit records a completed partial seed (9,588ms), then a supervisor discard response while native input still awaited that response. Its next Escape requested cancellation, leaving the typed form visible. The fixture now waits for the rendered discard acknowledgement before sending navigation; the real binary, supervisor, original stage4 preview, no-launch assertions and all deadlines remain. This does not repair the older full-seed search-published budget failure. CI2181 settings authority separately failed because its guarded canonical configuration child exceeded10 seconds with no output; cause remains unproved and no authority assertion is skipped.
+
+Machine-readable original/current reports, exact source hashes and publication checks are retained in the companion JSON. Author-workspace .tmp/.testLogs paths are historical provenance, not promised files in a clean checkout. Hosted observations at e54ed4b are parent-source evidence; no full final-tree or cross-platform acceptance is claimed.
+
+All eight publication checks exit0 on the recorded candidate, including43/43 gate cases. Both affected real Windows native workflows pass (preview-cancel6.52s, workspace-status17.2s); this is focused qualification, not whole-suite acceptance.

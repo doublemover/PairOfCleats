@@ -61,7 +61,8 @@ const main = async () => {
 
   console.error(
     `[coverage-policy] overall=${formatPercent(report.overall.coverageFraction)} `
-    + `changed=${formatPercent(report.changedFiles.summary.coverageFraction)} `
+    + `changedObserved=${formatPercent(report.changedFiles.summary.coverageFraction)} `
+    + `measurement=${report.changedFiles.measurement.status} measured=${report.changedFiles.measurement.measuredFiles}/${report.changedFiles.measurement.eligibleFiles} `
     + `strategy=${report.changedFiles.strategy}`
   );
   for (const surface of report.criticalSurfaces) {

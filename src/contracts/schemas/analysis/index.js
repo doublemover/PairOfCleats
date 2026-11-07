@@ -14,5 +14,8 @@ export { COMPOSITE_CONTEXT_PACK_SCHEMA } from './context-pack.js';
 export { API_CONTRACTS_SCHEMA } from './api.js';
 export {
   ARCHITECTURE_REPORT_SCHEMA,
+  ARCHITECTURE_VIOLATION_EVIDENCE_SCHEMA,
   SUGGEST_TESTS_SCHEMA
 } from './architecture.js';
+
+export { ARCHITECTURE_RULES_SCHEMA } from '../../architecture-rules.js';

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-input-format.js';
@@ -11,12 +10,16 @@ import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-me
 import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels, resolveCompareModelCacheRoot } from '../../src/experimental/compare/config.js';
 import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
-import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
-import { mean, meanNullable } from '../../src/shared/stats.js';
+import { aggregateRetrievalScoreDeltas } from '../../src/retrieval/score-observation.js';
+import { createComparisonCorpusRegistry } from './compare-model-corpus.js';
+import { readQueryInputPlan, resolveTopNAndLimit } from '../shared/query-file-utils.js';
+import { meanNullable } from '../../src/shared/stats.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
+import { admitComparisonResponse } from '../shared/retrieval-result-admission.js';
+import { createRetrievalEvidenceRegistry } from '../shared/retrieval-execution-evidence.js';
 import { emitJson, exitLikeCommandResult, runSubprocessOrExit } from '../shared/cli-utils.js';
 import {
   DEFAULT_MODEL_ID,
@@ -38,6 +41,19 @@ const argv = createCli({
 
 const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
+const defaultQueryCandidates = [
+  path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt'),
+  path.join(root, 'queries.txt'),
+  path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt')
+];
+const defaultQueriesPath = defaultQueryCandidates.find((candidate) => fs.existsSync(candidate)) || defaultQueryCandidates[0];
+const queriesPath = argv.queries != null ? path.resolve(argv.queries) : defaultQueriesPath;
+const { topN, limit } = resolveTopNAndLimit({ top: argv.top, limit: argv.limit, defaultTop: 5, defaultLimit: 0 });
+let queryPlan;
+try { queryPlan = await readQueryInputPlan(queriesPath, { limit, explicit: argv.queries != null }); }
+catch (error) { console.error(`[${error.code || 'ERR_QUERY_INPUT'}] ${error.message}`); process.exit(1); }
+const selectedQueries = queryPlan.cases.map(entry => entry.query);
+
 const envConfig = getEnvConfig();
 const embeddingsConfig = userConfig.indexing?.embeddings || {};
 const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
@@ -108,24 +124,12 @@ if (!buildIndex && models.length > 1 && configCacheRoot) {
 }
 
 /**
- * Create a stable slug for a model id.
- * @param {string} modelId
- * @returns {string}
- */
-function modelSlug(modelId) {
-  const safe = modelId.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
-  const hash = crypto.createHash('sha1').update(modelId).digest('hex').slice(0, 8);
-  return `${safe || 'model'}-${hash}`;
-}
-
-/**
  * Resolve the cache root for a specific model comparison run.
  * @param {string} modelId
  * @returns {string}
  */
 function getModelCacheRoot(modelId) {
-  if (configCacheRoot) return configCacheRoot;
-  return path.join(cacheRootBase, 'model-compare', modelSlug(modelId));
+  return resolveCompareModelCacheRoot({ modelId, cacheRootBase, configCacheRoot });
 }
 
 /**
@@ -266,27 +270,6 @@ function runSearch(query, env) {
   }
 }
 
-const defaultQueryCandidates = [
-  path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt'),
-  path.join(root, 'queries.txt'),
-  path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt')
-];
-const defaultQueriesPath = defaultQueryCandidates.find((candidate) => fs.existsSync(candidate)) || defaultQueryCandidates[0];
-const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
-const queries = await readQueryFileSafe(queriesPath, { allowJson: true, jsonMode: 'stringify' });
-if (!queries.length) {
-  console.error(`No queries found at ${queriesPath}`);
-  process.exit(1);
-}
-
-const { topN, limit } = resolveTopNAndLimit({
-  top: argv.top,
-  limit: argv.limit,
-  defaultTop: 5,
-  defaultLimit: 0
-});
-const selectedQueries = selectQueriesByLimit(queries, limit);
-
 if (sqliteBackend && buildSqlite) {
   if (!buildIndex && !ensureIndex(getModelCacheRoot(models[0]))) {
     console.error('Index missing. Use --build or build the index first.');
@@ -294,8 +277,11 @@ if (sqliteBackend && buildSqlite) {
   }
 }
 
-const results = selectedQueries.map((query) => ({ query, runs: {}, comparisons: {} }));
+const results = queryPlan.cases.map(({ query, caseId, weight }) => ({ query, caseId, weight, runs: {}, comparisons: {} }));
 const warnings = [];
+const corpusRegistries = new Map();
+const executionRegistries = new Map();
+const selectedModes = ['code', 'prose'].filter(mode => mode === 'code' ? compareCode : compareProse);
 
 for (const modelId of models) {
   const modelCacheRoot = getModelCacheRoot(modelId);
@@ -325,16 +311,30 @@ for (const modelId of models) {
     }
   }
 
+  const corpusRegistry = createComparisonCorpusRegistry();
+  corpusRegistries.set(modelId,corpusRegistry);
+  const registry = createRetrievalEvidenceRegistry();
+  executionRegistries.set(modelId, registry);
   for (let i = 0; i < selectedQueries.length; i++) {
     const query = selectedQueries[i];
     const { payload, wallMs } = runSearch(query, env);
-    const codeHits = Array.isArray(payload.code) ? payload.code : [];
-    const proseHits = Array.isArray(payload.prose) ? payload.prose : [];
+    const observed = admitComparisonResponse(payload, selectedModes, { registry, expectedBackend: backend });
+    const corpus = {};
+    for (const mode of selectedModes) {
+      const value=await corpusRegistry.observe({generation:observed.receipt?.generations?.[mode],mode,
+        repoCacheRoot:path.join(resolveVersionedCacheRoot(modelCacheRoot),'repos',repoId)});
+      corpus[mode]={ref:value.ref,comparable:value.comparable,digest:value.digest,policy:value.policy,
+        ...(value.reason?{reason:value.reason}:{})};
+    }
+    const codeHits = observed.cohorts?.code ?? null;
+    const proseHits = observed.cohorts?.prose ?? null;
     results[i].runs[modelId] = {
-      elapsedMs: payload.stats?.elapsedMs || 0,
+      elapsedMs: Number.isFinite(payload?.stats?.elapsedMs) ? payload.stats.elapsedMs : null,
+      admission: observed.admission,
+      corpus,
       wallMs,
-      codeCount: codeHits.length,
-      proseCount: proseHits.length,
+      codeCount: codeHits?.length ?? null,
+      proseCount: proseHits?.length ?? null,
       codeHits,
       proseHits
     };
@@ -347,9 +347,23 @@ for (const modelId of models) {
  * @param {Array<object>} otherHits
  * @returns {{overlap:number,avgDelta:number,rankCorr:(number|null),top1Same:boolean}}
  */
-function compareHits(baseHits, otherHits) {
-  const { overlap, avgDelta, rankCorr, top1Same } = summarizeRetrievalHitComparison(baseHits, otherHits, { topN });
-  return { overlap, avgDelta, rankCorr, top1Same };
+function compareHits(baseRun, otherRun, mode) {
+  const baseCorpus = baseRun.corpus?.[mode];
+  const otherCorpus = otherRun.corpus?.[mode];
+  if (!baseCorpus?.comparable || !otherCorpus?.comparable || baseCorpus.digest !== otherCorpus.digest) {
+    const reason = 'source-or-chunking-corpus-mismatch-or-unverified';
+    return { comparable: false, reason, overlap: null, avgDelta: null, rankCorr: null, top1Same: null, baseCorpus, otherCorpus };
+  }
+  const baseHits = baseRun[mode + 'Hits'], otherHits = otherRun[mode + 'Hits'];
+  if (!baseHits || !otherHits) return { comparable: false, reason: 'selected-response-unavailable',
+    overlap: null, avgDelta: null, rankCorr: null, top1Same: null, zeroHits: false };
+  const comparison = summarizeRetrievalHitComparison(baseHits, otherHits, { topN, mode, repoScope: repoId });
+  const comparable = comparison.comparable && baseRun.admission.byMode[mode].qualified && otherRun.admission.byMode[mode].qualified;
+  return { ...comparison, comparable, baseCorpus,otherCorpus,reason: comparable ? null : comparison.comparable
+    ? 'observed-execution-unqualified' : 'unknown-hit-identity',
+  overlap: comparable ? comparison.overlap : null, avgDelta: comparable ? comparison.avgDelta : null,
+  rankCorr: comparable ? comparison.rankCorr : null,top1Same:comparable?comparison.top1Same:null };
+
 }
 
 for (const entry of results) {
@@ -359,18 +373,18 @@ for (const entry of results) {
     const otherRun = entry.runs[modelId];
     if (!baseRun || !otherRun) continue;
     entry.comparisons[modelId] = {
-      code: compareCode ? compareHits(baseRun.codeHits || [], otherRun.codeHits || []) : null,
-      prose: compareProse ? compareHits(baseRun.proseHits || [], otherRun.proseHits || []) : null
+      code: compareCode ? compareHits(baseRun, otherRun, 'code') : null,
+      prose: compareProse ? compareHits(baseRun, otherRun, 'prose') : null
     };
   }
 }
 
 const summaryByModel = {};
 for (const modelId of models) {
-  const elapsed = results.map((entry) => entry.runs[modelId]?.elapsedMs || 0);
-  const wall = results.map((entry) => entry.runs[modelId]?.wallMs || 0);
-  const codeCounts = results.map((entry) => entry.runs[modelId]?.codeCount || 0);
-  const proseCounts = results.map((entry) => entry.runs[modelId]?.proseCount || 0);
+  const elapsed = results.map((entry) => entry.runs[modelId]?.elapsedMs);
+  const wall = results.map((entry) => entry.runs[modelId]?.wallMs);
+  const codeCounts = results.map((entry) => entry.runs[modelId]?.codeCount);
+  const proseCounts = results.map((entry) => entry.runs[modelId]?.proseCount);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
       rootDir: root,
@@ -380,10 +394,10 @@ for (const modelId of models) {
     })
     : null;
   summaryByModel[modelId] = {
-    elapsedMsAvg: mean(elapsed),
-    wallMsAvg: mean(wall),
-    codeCountAvg: mean(codeCounts),
-    proseCountAvg: mean(proseCounts),
+    elapsedMsAvg: meanNullable(elapsed),
+    wallMsAvg: meanNullable(wall),
+    codeCountAvg: meanNullable(codeCounts),
+    proseCountAvg: meanNullable(proseCounts),
     embeddingConfig: {
       provider: embeddingProvider,
       mode: embeddingsConfig.mode || 'auto',
@@ -409,22 +423,34 @@ for (const modelId of models) {
   if (modelId === baseline) continue;
   const codeComparisons = results
     .map((entry) => entry.comparisons[modelId]?.code)
-    .filter(Boolean);
+    .filter(entry => entry && entry.comparable !== false);
   const proseComparisons = results
     .map((entry) => entry.comparisons[modelId]?.prose)
-    .filter(Boolean);
+    .filter(entry => entry && entry.comparable !== false);
+  const scoreDeltas = Object.fromEntries(selectedModes.map(mode => [mode, aggregateRetrievalScoreDeltas(
+    results.map(entry => entry.comparisons[modelId]?.[mode]))]));
   comparisonSummary[modelId] = {
     code: compareCode ? {
-      overlapAvg: mean(codeComparisons.map((entry) => entry.overlap)),
-      scoreDeltaAvg: mean(codeComparisons.map((entry) => entry.avgDelta)),
+      comparableQueries: codeComparisons.length,
+      requestedQueries: results.length, unavailableQueries: results.length - codeComparisons.length,
+      zeroHitQueries: codeComparisons.filter(row => row.zeroHits).length,
+      positiveHitQueries: codeComparisons.filter(row => !row.zeroHits).length,
+      overlapAvg: meanNullable(codeComparisons.map((entry) => entry.overlap)),
+      scoreDeltaAvg: scoreDeltas.code.meanAbsoluteDelta,
+      scoreDelta: scoreDeltas.code,
       rankCorrAvg: meanNullable(codeComparisons.map((entry) => entry.rankCorr)),
-      top1MatchRate: mean(codeComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
+      top1MatchRate: meanNullable(codeComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
     } : null,
     prose: compareProse ? {
-      overlapAvg: mean(proseComparisons.map((entry) => entry.overlap)),
-      scoreDeltaAvg: mean(proseComparisons.map((entry) => entry.avgDelta)),
+      comparableQueries: proseComparisons.length,
+      requestedQueries: results.length, unavailableQueries: results.length - proseComparisons.length,
+      zeroHitQueries: proseComparisons.filter(row => row.zeroHits).length,
+      positiveHitQueries: proseComparisons.filter(row => !row.zeroHits).length,
+      overlapAvg: meanNullable(proseComparisons.map((entry) => entry.overlap)),
+      scoreDeltaAvg: scoreDeltas.prose.meanAbsoluteDelta,
+      scoreDelta: scoreDeltas.prose,
       rankCorrAvg: meanNullable(proseComparisons.map((entry) => entry.rankCorr)),
-      top1MatchRate: mean(proseComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
+      top1MatchRate: meanNullable(proseComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
     } : null
   };
 }
@@ -434,25 +460,44 @@ const outputResults = results.map((entry) => {
   for (const modelId of models) {
     const run = entry.runs[modelId] || {};
     runs[modelId] = {
-      elapsedMs: run.elapsedMs || 0,
-      wallMs: run.wallMs || 0,
-      codeCount: run.codeCount || 0,
-      proseCount: run.proseCount || 0
+      elapsedMs: run.elapsedMs ?? null,
+      admission: run.admission,
+      corpus: run.corpus,
+      wallMs: run.wallMs ?? null,
+      codeCount: run.codeCount ?? null,
+      proseCount: run.proseCount ?? null
     };
   }
   return {
     query: entry.query,
+    caseId: entry.caseId,
+    weight: entry.weight,
     runs,
     comparisons: entry.comparisons
   };
 });
 
+const requestedComparisons = results.flatMap(entry => Object.values(entry.comparisons)
+  .flatMap(comparison => selectedModes.map(mode => comparison[mode]).filter(Boolean)));
+const qualifiedComparisons = requestedComparisons.filter(comparison => comparison.comparable);
+const executionEvidence = Object.fromEntries([...executionRegistries].map(([model, registry]) => [model, registry.snapshot()]));
 const output = {
+  schemaVersion: 3,
+  corpusEvidence:Object.fromEntries([...corpusRegistries].map(([model,registry])=>[model,registry.snapshot()])),
+  kind: 'model-retrieval-comparison',
   generatedAt: new Date().toISOString(),
   repo: {
     root: path.resolve(root),
     repoId
   },
+  queryPlan,
+  executionEvidence,
+  qualification: { state: requestedComparisons.length > 0 && qualifiedComparisons.length === requestedComparisons.length
+    && qualifiedComparisons.some(comparison => !comparison.zeroHits)
+    && Object.values(executionEvidence).every(evidence => evidence.status === 'qualified' && evidence.consistency === 'stable') ? 'qualified' : 'unqualified',
+  requestedComparisons: requestedComparisons.length, comparableComparisons: qualifiedComparisons.length,
+  unavailableComparisons: requestedComparisons.length - qualifiedComparisons.length,
+  zeroHitComparisons: qualifiedComparisons.filter(comparison => comparison.zeroHits).length },
   settings: {
     backend,
     topN,
@@ -476,6 +521,9 @@ const output = {
   results: outputResults
 };
 
+const metric = (value, digits) => Number.isFinite(value) ? value.toFixed(digits) : 'n/a';
+if (results.some(row => Object.values(row.runs).some(run => run.admission.state === 'unavailable'))) process.exitCode = 1;
+
 if (argv.json) {
   emitJson(output);
 } else {
@@ -487,14 +535,19 @@ if (argv.json) {
   console.error(`- Baseline: ${baseline}`);
   for (const modelId of models) {
     const stats = summaryByModel[modelId];
-    console.error(`- ${modelId}: avg ${stats.elapsedMsAvg.toFixed(1)} ms (wall ${stats.wallMsAvg.toFixed(1)} ms)`);
+    console.error(`- ${modelId}: avg ${metric(stats.elapsedMsAvg, 1)} ms (wall ${metric(stats.wallMsAvg, 1)} ms)`);
   }
   for (const modelId of models) {
     if (modelId === baseline) continue;
     const cmp = comparisonSummary[modelId];
-    const codeLabel = cmp.code ? `code overlap ${cmp.code.overlapAvg.toFixed(3)}` : 'code n/a';
-    const proseLabel = cmp.prose ? `prose overlap ${cmp.prose.overlapAvg.toFixed(3)}` : 'prose n/a';
+    const codeLabel = cmp.code ? `code overlap ${metric(cmp.code.overlapAvg, 3)}` : 'code n/a';
+    const proseLabel = cmp.prose ? `prose overlap ${metric(cmp.prose.overlapAvg, 3)}` : 'prose n/a';
     console.error(`- ${modelId} vs ${baseline}: ${codeLabel}, ${proseLabel}`);
+    for (const mode of selectedModes) {
+      const measurement = cmp[mode]?.scoreDelta;
+      console.error(`  ${mode} final score delta ${metric(measurement?.meanAbsoluteDelta, 4)} ` +
+        `(${measurement?.comparedPairs ?? 0}/${measurement?.requestedPairs ?? 0} compatible shared pairs)`);
+    }
   }
 }
 

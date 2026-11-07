@@ -1,15 +1,25 @@
 #!/usr/bin/env node
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-build-index');
-const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+const temporaryRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-mcp-build-'));
+const cacheRoot = path.join(temporaryRoot, 'cache');
+const sampleRepo = path.join(temporaryRoot, 'repo');
+await fsPromises.mkdir(sampleRepo);
+await fsPromises.writeFile(path.join(sampleRepo, 'math.js'), 'export function sum(a, b) { return a + b; }\n');
+applyTestEnv({ cacheRoot, embeddings: 'off', testConfig: {
+  indexing: { scm: { provider: 'none' }, workerPool: { enabled: false }, embeddings: { enabled: false },
+    typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
+  tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }, sqlite: { use: false }
+} });
 
 const { send, readMessage, notifications, shutdown } = await startMcpServer({
   cacheRoot,
-  timeoutMs: 240000
+  timeoutMs: 30000
 });
 
 try {
@@ -37,7 +47,8 @@ try {
       }
     }
   });
-  await readMessage();
+  const response = await readMessage();
+  assert.ok(!response.error && !response.result?.isError, JSON.stringify(response));
 
   const progressEvents = notifications.filter(
     (msg) => msg.method === 'notifications/progress' && msg.params?.tool === 'build_index'
@@ -51,9 +62,10 @@ try {
   send({ jsonrpc: '2.0', method: 'exit' });
 } catch (err) {
   console.error(err?.message || err);
-  process.exit(1);
+  throw err;
 } finally {
   await shutdown();
+  await fsPromises.rm(temporaryRoot, { recursive: true, force: true });
 }
 
 console.log('MCP build_index progress ok.');

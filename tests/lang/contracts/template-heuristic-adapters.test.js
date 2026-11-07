@@ -59,6 +59,6 @@ const CASES = [
   }
 ];
 
-assertHeuristicAdapterCases(CASES, { usageLabel: 'template usage' });
+await assertHeuristicAdapterCases(CASES, { usageLabel: 'template usage' });
 
 console.log('template heuristic adapters contract test passed');

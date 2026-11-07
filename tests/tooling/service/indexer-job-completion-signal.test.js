@@ -101,4 +101,20 @@ await completion.finalizeJobRun({
 assert.equal(calls[0].status, 'queued', 'string attempts/maxRetries should be parsed numerically');
 assert.equal(calls[0].result.attempts, 2);
 
+for (const override of [undefined, null, '', 0, 3, '3']) {
+  calls.length = 0; quarantineCalls.length = 0;
+  const caseMetrics = { processed: 0, succeeded: 0, failed: 0, retried: 0 };
+  await completion.finalizeJobRun({
+    job: { id: 'background', attempts: 0, ...(override === undefined ? {} : { maxRetries: override }) },
+    runResult: { exitCode: 1 }, metrics: caseMetrics
+  });
+  if (override === 0) {
+    assert.equal(caseMetrics.failed, 1);
+    assert.equal(quarantineCalls[0].reason, 'retry-exhausted');
+  } else {
+    assert.equal(caseMetrics.retried, 1, `${String(override)} override inherits or supplies retries`);
+    assert.equal(calls[0].status, 'queued');
+    assert.equal(calls[0].result.retry, true);
+  }
+}
 console.log('indexer service job-completion signal test passed');

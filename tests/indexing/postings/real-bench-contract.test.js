@@ -18,19 +18,8 @@ const result = runNode(
   'postings real bench contract',
   root,
   env,
-  { stdio: 'pipe', encoding: 'utf8', timeoutMs: MAX_RUNTIME_MS, allowFailure: true }
+  { stdio: 'pipe', encoding: 'utf8', timeoutMs: MAX_RUNTIME_MS }
 );
-
-if (result.error?.code === 'ETIMEDOUT') {
-  console.warn(`postings real bench contract skipped after ${MAX_RUNTIME_MS}ms timeout`);
-  process.exit(0);
-}
-
-if (result.status !== 0) {
-  console.error(result.stdout || '');
-  console.error(result.stderr || '');
-  process.exit(1);
-}
 
 const output = `${result.stdout || ''}${result.stderr || ''}`;
 assert.ok(output.includes('[bench] baseline'), 'missing baseline output');

@@ -1,3 +1,8 @@
+import { FLOW_EVIDENCE_SCHEMA } from '../flow-evidence.js';
+import { SOURCE_OUTLINE_SCHEMA } from '../source-outline.js';
+import { JAVASCRIPT_CALLABLE_JOIN_SCHEMA } from '../javascript-declarations.js';
+import { RECORD_SOURCE_SCHEMA } from '../../record-source.js';
+import { EMBEDDED_CONTENT_VIEW_SCHEMA, EMBEDDED_CONTENT_ORIGIN_SCHEMA } from '../embedded-content.js';
 import {
   metaTypes,
   nullableNumber,
@@ -37,10 +42,13 @@ export const METADATA_V2_SCHEMA = {
     file: { type: 'string' },
     fileHash: nullableString,
     fileHashAlgo: nullableString,
+    recordSource: RECORD_SOURCE_SCHEMA,
     segment: {
       type: ['object', 'null'],
       properties: {
         segmentId: nullableString,
+        contentView: EMBEDDED_CONTENT_VIEW_SCHEMA,
+        contentOrigin: EMBEDDED_CONTENT_ORIGIN_SCHEMA,
         segmentUid: nullableString,
         virtualPath: nullableString,
         type: nullableString,
@@ -128,6 +136,11 @@ export const METADATA_V2_SCHEMA = {
     params: { type: ['array', 'null'], items: { type: 'string' } },
     tags: { type: ['array', 'null'], items: { type: 'string' } },
     types: metaTypes,
+    flowEvidence: FLOW_EVIDENCE_SCHEMA,
+    sourceOutline: SOURCE_OUTLINE_SCHEMA,
+    javascriptDeclaration: JAVASCRIPT_CALLABLE_JOIN_SCHEMA,
+    yields: { type: 'boolean' }, returnsValue: { type: 'boolean' },
+    throws: { type: 'array', items: { type: 'string' } }, awaits: { type: 'array', items: { type: 'string' } },
     risk: {
       type: ['object', 'null'],
       properties: {

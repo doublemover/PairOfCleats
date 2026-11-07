@@ -3,12 +3,15 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import {
   assertNoAbsolutePathLeak,
+  assertRegistryDirectory,
+  assertRegistryEntryIds,
   deepCloneRegistryJson,
   ensureRegistryId,
   isRegistryObject,
   normalizeRegistryRelativePath,
   readRegistryJsonObject,
   registryInvalidRequest,
+  resolveRegistryChildDirectory,
   withRegistryLock,
   writeRegistryStableJson
 } from '../registry-support.js';
@@ -20,10 +23,14 @@ const DEFAULT_STAGING_MAX_AGE_HOURS = 24;
 const invalidRequest = registryInvalidRequest;
 const isObject = isRegistryObject;
 
-const resolveSnapshotsRoot = (repoCacheRoot) => path.join(repoCacheRoot, SNAPSHOTS_DIR);
+const resolveSnapshotsRoot = (repoCacheRoot) => {
+  const root = path.join(repoCacheRoot, SNAPSHOTS_DIR);
+  assertRegistryDirectory(root);
+  return root;
+};
 const resolveManifestPath = (repoCacheRoot) => path.join(resolveSnapshotsRoot(repoCacheRoot), 'manifest.json');
-const resolveSnapshotDir = (repoCacheRoot, snapshotId) => (
-  path.join(resolveSnapshotsRoot(repoCacheRoot), snapshotId)
+export const resolveSnapshotDir = (repoCacheRoot, snapshotId) => (
+  resolveRegistryChildDirectory(resolveSnapshotsRoot(repoCacheRoot), snapshotId, SNAPSHOT_ID_RE)
 );
 const resolveSnapshotPath = (repoCacheRoot, snapshotId) => (
   path.join(resolveSnapshotDir(repoCacheRoot, snapshotId), 'snapshot.json')
@@ -40,6 +47,12 @@ const sanitizeSnapshotManifest = (manifest) => {
   const next = deepCloneRegistryJson(manifest);
   assertNoAbsolutePathLeak(next);
   return next;
+};
+
+const validateManifestEntries = (repoCacheRoot, manifest) => {
+  assertRegistryEntryIds(manifest.snapshots, 'snapshotId', SNAPSHOT_ID_RE,
+    snapshotId => resolveSnapshotDir(repoCacheRoot, snapshotId));
+  return manifest;
 };
 
 const sanitizeSnapshotRecord = (snapshotJson) => {
@@ -89,9 +102,8 @@ export const createEmptySnapshotsManifest = () => ({
   tags: {}
 });
 
-export const loadSnapshotsManifest = (repoCacheRoot) => (
-  readRegistryJsonObject(resolveManifestPath(repoCacheRoot), createEmptySnapshotsManifest())
-);
+export const loadSnapshotsManifest = (repoCacheRoot) => validateManifestEntries(repoCacheRoot,
+  readRegistryJsonObject(resolveManifestPath(repoCacheRoot), createEmptySnapshotsManifest()));
 
 export const loadSnapshot = (repoCacheRoot, snapshotId) => {
   ensureSnapshotId(snapshotId);
@@ -108,6 +120,7 @@ export const writeSnapshotsManifest = async (repoCacheRoot, manifest, options = 
     throw invalidRequest('Snapshot manifest must be an object.');
   }
   const sanitized = sanitizeSnapshotManifest(manifest);
+  validateManifestEntries(repoCacheRoot, sanitized);
   return withIndexLock(repoCacheRoot, options, async () => {
     const manifestPath = resolveManifestPath(repoCacheRoot);
     await fsPromises.mkdir(path.dirname(manifestPath), { recursive: true });
@@ -149,17 +162,19 @@ const collectStagingDirs = async (snapshotsRoot) => {
   if (!fs.existsSync(snapshotsRoot)) return out;
   const entries = await fsPromises.readdir(snapshotsRoot, { withFileTypes: true });
   for (const entry of entries) {
+    if (entry.isSymbolicLink()) throw invalidRequest(`Linked snapshot staging entry: ${entry.name}`);
     if (!entry.isDirectory()) continue;
-    const entryPath = path.join(snapshotsRoot, entry.name);
+    const entryPath = resolveRegistryChildDirectory(snapshotsRoot, entry.name, /^(?:snap-|frozen\.staging-)[A-Za-z0-9._-]+$/);
     if (entry.name.startsWith('frozen.staging-')) {
       out.push(entryPath);
       continue;
     }
     const nested = await fsPromises.readdir(entryPath, { withFileTypes: true });
     for (const nestedEntry of nested) {
+      if (nestedEntry.isSymbolicLink()) throw invalidRequest(`Linked snapshot staging entry: ${nestedEntry.name}`);
       if (!nestedEntry.isDirectory()) continue;
       if (!nestedEntry.name.startsWith('frozen.staging-')) continue;
-      out.push(path.join(entryPath, nestedEntry.name));
+      out.push(resolveRegistryChildDirectory(entryPath, nestedEntry.name, /^frozen\.staging-[A-Za-z0-9._-]+$/));
     }
   }
   return out;
@@ -175,7 +190,7 @@ export const cleanupStaleFrozenStagingDirs = async (repoCacheRoot, options = {})
   return withIndexLock(repoCacheRoot, options, async () => {
     const snapshotsRoot = resolveSnapshotsRoot(repoCacheRoot);
     const candidates = await collectStagingDirs(snapshotsRoot);
-    const removed = [];
+    const planned = [];
     for (const dirPath of candidates) {
       let stat = null;
       try {
@@ -186,11 +201,23 @@ export const cleanupStaleFrozenStagingDirs = async (repoCacheRoot, options = {})
       if (!stat) continue;
       const ageMs = Math.max(0, nowMs - Number(stat.mtimeMs || 0));
       if (ageMs < maxAgeMs) continue;
-      await fsPromises.rm(dirPath, { recursive: true, force: true });
-      removed.push(dirPath);
+      planned.push(dirPath);
+    }
+    const removed = [];
+    if (options.dryRun !== true) {
+      for (const dirPath of planned) {
+        const snapshotsRoot = resolveSnapshotsRoot(repoCacheRoot);
+        if (path.dirname(dirPath) !== snapshotsRoot) {
+          resolveSnapshotDir(repoCacheRoot, path.basename(path.dirname(dirPath)));
+        }
+        resolveRegistryChildDirectory(path.dirname(dirPath), path.basename(dirPath), /^frozen\.staging-[A-Za-z0-9._-]+$/);
+        await fsPromises.rm(dirPath, { recursive: true, force: true });
+        removed.push(dirPath);
+      }
     }
     return {
       scanned: candidates.length,
+      planned,
       removed
     };
   });

@@ -94,17 +94,17 @@ export const parseHistoricalTestTimes = (raw) => {
   return byPath;
 };
 
-const loadHistoricalTestTimes = async (filePath) => {
+const loadHistoricalTestTimes = async (filePath, readText = null) => {
   try {
-    const raw = await fsPromises.readFile(filePath, 'utf8');
+    const raw = await (readText ? readText(filePath) : fsPromises.readFile(filePath, 'utf8'));
     return parseHistoricalTestTimes(raw);
   } catch {
     return new Map();
   }
 };
 
-const parseLogTimesArtifact = async (filePath) => {
-  const raw = await fsPromises.readFile(filePath, 'utf8');
+const parseLogTimesArtifact = async (filePath, readText = null) => {
+  const raw = await (readText ? readText(filePath) : fsPromises.readFile(filePath, 'utf8'));
   const byId = new Map();
   for (const line of raw.split(/\r?\n/u)) {
     const trimmed = line.trim();
@@ -119,8 +119,8 @@ const parseLogTimesArtifact = async (filePath) => {
   return byId;
 };
 
-const parseJsonTimingsArtifact = async (filePath) => {
-  const parsed = JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
+const parseJsonTimingsArtifact = async (filePath, readText = null) => {
+  const parsed = JSON.parse(await (readText ? readText(filePath) : fsPromises.readFile(filePath, 'utf8')));
   const byId = new Map();
   const tests = Array.isArray(parsed?.tests) ? parsed.tests : [];
   for (const row of tests) {
@@ -132,7 +132,7 @@ const parseJsonTimingsArtifact = async (filePath) => {
   return byId;
 };
 
-const loadTimingArtifacts = async ({ root, timingArtifactPaths = [] }) => {
+const loadTimingArtifacts = async ({ root, timingArtifactPaths = [], readText = null }) => {
   const maps = [];
   const resolvedPaths = [];
   for (const rawPath of timingArtifactPaths) {
@@ -148,7 +148,7 @@ const loadTimingArtifacts = async ({ root, timingArtifactPaths = [] }) => {
       ? parseJsonTimingsArtifact
       : parseLogTimesArtifact;
     try {
-      maps.push(await parser(absolutePath));
+      maps.push(await parser(absolutePath, readText));
       resolvedPaths.push(absolutePath);
     } catch {}
   }
@@ -164,10 +164,11 @@ const getDurationFromTimingMaps = (maps, id) => {
   return null;
 };
 
-const buildPathById = async (root) => {
-  const runRules = loadRunRules({ root });
+const buildPathById = async (root, snapshot = null) => {
+  snapshot?.assertRoot(root);
+  const runRules = snapshot?.runRules || loadRunRules({ root });
   const testsDir = path.join(root, 'tests');
-  const discovered = await discoverTests({
+  const discovered = snapshot?.discovered || await discoverTests({
     testsDir,
     excludedDirs: runRules.excludedDirs,
     excludedFiles: runRules.excludedFiles
@@ -357,18 +358,21 @@ export const generateLaneEvidence = async ({
   root = process.cwd(),
   historicalTimingsPath = path.join(process.cwd(), DEFAULT_HISTORICAL_TIMINGS_PATH),
   outputJsonPath = path.join(process.cwd(), 'docs', 'testing', 'lane-evidence.json'),
-  outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'lane-evidence.md')
+  outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'lane-evidence.md'),
+  snapshot = null
 } = {}) => {
-  const config = await loadLaneManifestConfig({ root });
-  const pathById = await buildPathById(root);
-  const historicalByPath = await loadHistoricalTestTimes(historicalTimingsPath);
+  snapshot?.assertRoot(root);
+  const config = snapshot?.laneConfig || await loadLaneManifestConfig({ root });
+  const pathById = await buildPathById(root, snapshot);
+  const historicalByPath = await loadHistoricalTestTimes(historicalTimingsPath, snapshot?.readText);
   const laneRows = [];
 
   for (const laneConfig of config.orderedLanes.values()) {
-    const ids = await parseOrderFile(laneConfig.orderFilePath);
+    const ids = await (snapshot ? snapshot.readOrderIds(laneConfig.orderFilePath) : parseOrderFile(laneConfig.orderFilePath));
     const { maps: timingMaps, resolvedPaths } = await loadTimingArtifacts({
       root,
-      timingArtifactPaths: laneConfig.timingArtifactPaths
+      timingArtifactPaths: laneConfig.timingArtifactPaths,
+      readText: snapshot?.readText || null
     });
     const timingArtifactPath = laneConfig.timingArtifactPaths[0]
       ? path.resolve(root, laneConfig.timingArtifactPaths[0])

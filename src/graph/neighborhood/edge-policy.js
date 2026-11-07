@@ -41,7 +41,7 @@ export const edgeKeyFromIndex = (edge, index, normalizeImport) => {
     const fromId = index.callGraphIds?.idToIndex?.get(edge.from?.chunkUid || '');
     const toId = index.callGraphIds?.idToIndex?.get(edge.to?.chunkUid || '');
     if (fromId != null && toId != null) {
-      return `callGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
+      return JSON.stringify(['callGraph', fromId, edge.edgeType || '', toId]);
     }
     return edgeKey(edge);
   }
@@ -49,7 +49,7 @@ export const edgeKeyFromIndex = (edge, index, normalizeImport) => {
     const fromId = index.usageGraphIds?.idToIndex?.get(edge.from?.chunkUid || '');
     const toId = index.usageGraphIds?.idToIndex?.get(edge.to?.chunkUid || '');
     if (fromId != null && toId != null) {
-      return `usageGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
+      return JSON.stringify(['usageGraph', fromId, edge.edgeType || '', toId]);
     }
     return edgeKey(edge);
   }
@@ -59,7 +59,7 @@ export const edgeKeyFromIndex = (edge, index, normalizeImport) => {
     const fromId = index.importGraphIds?.idToIndex?.get(fromPath);
     const toId = index.importGraphIds?.idToIndex?.get(toPath);
     if (fromId != null && toId != null) {
-      return `importGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
+      return JSON.stringify(['importGraph', fromId, edge.edgeType || '', toId]);
     }
     return edgeKey(edge);
   }

@@ -6,9 +6,12 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
 import { summarizeRetrievalHitComparison } from '../../../src/retrieval/hit-comparison.js';
-import { mean, meanNullable } from '../../../src/shared/stats.js';
-import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
+import { aggregateRetrievalScoreDeltas } from '../../../src/retrieval/score-observation.js';
+import { meanNullable } from '../../../src/shared/stats.js';
+import { readQueryInputPlan, resolveTopNAndLimit } from '../../../tools/shared/query-file-utils.js';
 import { runSearchCliWithSpawnSync } from '../../../tools/shared/search-cli-harness.js';
+import { admitComparisonResponse } from '../../../tools/shared/retrieval-result-admission.js';
+import { createRetrievalEvidenceRegistry } from '../../../tools/shared/retrieval-execution-evidence.js';
 import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
 import { formatParityDuration } from '../../helpers/duration-format.js';
@@ -43,6 +46,36 @@ const argv = createCli({
 
 const workspaceRoot = process.cwd();
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const defaultQueriesPath = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
+const queriesPath = argv.queries != null ? path.resolve(argv.queries) : defaultQueriesPath;
+const fallbackQueries = [
+  'index',
+  'search',
+  'sqlite',
+  'dictionary',
+  'bootstrap',
+  'chunk',
+  'minhash',
+  'ann',
+  'bm25',
+  'cache'
+];
+
+const { topN, limit } = resolveTopNAndLimit({ top: argv.top, limit: argv.limit,
+  defaultTop: 5, defaultLimit: isTestRun ? 1 : 0 });
+let queryPlan;
+try {
+  queryPlan = await readQueryInputPlan(queriesPath, { limit, explicit: argv.queries != null,
+    fallback: fallbackQueries });
+} catch (error) {
+  console.error(`[${error.code || 'ERR_QUERY_INPUT'}] ${error.message}`);
+  process.exit(1);
+}
+const selectedQueries = queryPlan.cases.map(entry => entry.query);
+if (queryPlan.source.selection === 'missing-default-fallback') {
+  console.warn(`Default query file is absent; using the named smoke fallback (${selectedQueries.length} selected cases).`);
+}
+
 const createTestParityRepo = async () => {
   const repoRoot = path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'repo');
   await fs.rm(repoRoot, { recursive: true, force: true });
@@ -160,38 +193,6 @@ if (missing.length) {
   process.exit(1);
 }
 
-const defaultQueriesPath = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
-const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
-if (argv.queries && !fsSync.existsSync(queriesPath)) {
-  console.error(`Query file not found at ${queriesPath}`);
-  process.exit(1);
-}
-const fallbackQueries = [
-  'index',
-  'search',
-  'sqlite',
-  'dictionary',
-  'bootstrap',
-  'chunk',
-  'minhash',
-  'ann',
-  'bm25',
-  'cache'
-];
-
-const loadedQueries = await readQueryFileSafe(queriesPath, { allowJson: true, jsonMode: 'stringify' });
-const queries = loadedQueries.length ? loadedQueries : fallbackQueries;
-if (!loadedQueries.length) {
-  console.warn(`Query file not found or empty; using fallback queries (${queries.length}).`);
-}
-
-const { topN, limit } = resolveTopNAndLimit({
-  top: argv.top,
-  limit: argv.limit,
-  defaultTop: 5,
-  defaultLimit: 0
-});
-const selectedQueries = selectQueriesByLimit(queries, limit);
 const annEnabled = argv.ann !== false;
 const annArg = annEnabled ? '--ann' : '--no-ann';
 const sqliteBackendRaw = String(argv['sqlite-backend'] || 'sqlite').toLowerCase();
@@ -225,52 +226,60 @@ function runSearch(query, backend) {
   }
 }
 
-function summarizeMatch(memoryHits, sqliteHits) {
-  const comparison = summarizeRetrievalHitComparison(memoryHits, sqliteHits, {
-    topN,
-    missingLimit: 5,
-    treatBothEmptyAsPerfect: true
+function summarizeMatch(memory, sqlite, mode) {
+  const reasons = [...memory.admission.byMode[mode].reasons, ...sqlite.admission.byMode[mode].reasons];
+  if (!memory.cohorts[mode] || !sqlite.cohorts[mode]) return { comparable: false, status: 'unavailable', reasons,
+    overlap: null, avgDelta: null, rankCorr: null, zeroHits: false,
+    unknownIdentityCounts: { base: 0, other: 0 }, missingFromSqlite: [], missingFromMemory: [], topMemory: [], topSqlite: [] };
+  const comparison = summarizeRetrievalHitComparison(memory.cohorts[mode], sqlite.cohorts[mode], {
+    topN, mode, missingLimit: 5, treatBothEmptyAsPerfect: true
   });
-  const summary = {
-    overlap: comparison.overlap,
-    avgDelta: comparison.avgDelta,
-    missingFromSqlite: comparison.missingFromOther,
-    missingFromMemory: comparison.missingFromBase,
-    rankCorr: comparison.rankCorr,
-    topMemory: comparison.baseKeys,
-    topSqlite: comparison.otherKeys
-  };
-  if (comparison.zeroHits) summary.zeroHits = true;
-  return summary;
+  if (!comparison.comparable) reasons.push('unknown-hit-identity');
+  if (memory.receipt && sqlite.receipt && JSON.stringify(memory.receipt.generations[mode]) !== JSON.stringify(sqlite.receipt.generations[mode])) {
+    reasons.push('selected-source-generation-mismatch');
+  }
+  return { comparable: reasons.length === 0 && comparison.comparable, status: 'available', reasons,
+    overlap: comparison.comparable ? comparison.overlap : null, avgDelta: comparison.comparable ? comparison.avgDelta : null,
+    missingFromSqlite: comparison.missingFromOther, missingFromMemory: comparison.missingFromBase,
+    scoreDelta: comparison.scoreDelta,
+    rankCorr: comparison.comparable ? comparison.rankCorr : null, zeroHits: comparison.zeroHits,
+    unknownIdentityCounts: comparison.unknownIdentityCounts, identityPolicy: comparison.identityPolicy,
+    duplicatePolicy: comparison.duplicatePolicy, topMemory: comparison.baseKeys, topSqlite: comparison.otherKeys };
 }
-
-function toMb(bytes) {
-  return bytes ? bytes / (1024 * 1024) : 0;
-}
+const toMb = bytes => Number.isFinite(bytes) && bytes >= 0 ? bytes / (1024 * 1024) : null;
+const metric = (value, digits) => Number.isFinite(value) ? value.toFixed(digits) : 'n/a';
+const executionRegistries = { memory: createRetrievalEvidenceRegistry(), sqlite: createRetrievalEvidenceRegistry() };
 
 const results = [];
 const totalQueries = selectedQueries.length;
 const overallStart = performance.now();
 let completed = 0;
-for (const query of selectedQueries) {
+for (const queryCase of queryPlan.cases) {
+  const query = queryCase.query;
   const queryStart = performance.now();
   const memRun = runSearch(query, 'memory');
+  const memory = admitComparisonResponse(memRun.payload, ['code', 'prose'], { registry: executionRegistries.memory, expectedBackend: 'memory' });
   const sqlRun = runSearch(query, sqliteBackend);
+  const sqlite = admitComparisonResponse(sqlRun.payload, ['code', 'prose'], { registry: executionRegistries.sqlite, expectedBackend: sqliteBackend });
   const memPayload = memRun.payload;
   const sqlPayload = sqlRun.payload;
 
   results.push({
     query,
+    caseId: queryCase.caseId,
+    weight: queryCase.weight,
     memory: {
-      stats: memPayload.stats || {},
+      stats: memPayload?.stats || {},
+      admission: memory.admission,
       wallMs: memRun.wallMs
     },
     sqlite: {
-      stats: sqlPayload.stats || {},
+      stats: sqlPayload?.stats || {},
+      admission: sqlite.admission,
       wallMs: sqlRun.wallMs
     },
-    code: summarizeMatch(memPayload.code || [], sqlPayload.code || []),
-    prose: summarizeMatch(memPayload.prose || [], sqlPayload.prose || [])
+    code: summarizeMatch(memory, sqlite, 'code'),
+    prose: summarizeMatch(memory, sqlite, 'prose')
   });
 
   completed += 1;
@@ -286,36 +295,46 @@ for (const query of selectedQueries) {
   );
 }
 
-const overlapValues = results.flatMap((entry) => [entry.code.overlap, entry.prose.overlap]);
-const deltaValues = results.flatMap((entry) => [entry.code.avgDelta, entry.prose.avgDelta]);
-const rankCorrValues = results.flatMap((entry) => [entry.code.rankCorr, entry.prose.rankCorr]);
-const memLatency = results.map((entry) => entry.memory.stats.elapsedMs || 0);
-const sqlLatency = results.map((entry) => entry.sqlite.stats.elapsedMs || 0);
-const memWall = results.map((entry) => entry.memory.wallMs || 0);
-const sqlWall = results.map((entry) => entry.sqlite.wallMs || 0);
-
-const memRss = results.map((entry) => toMb(entry.memory.stats.memory?.rss || 0));
-const sqlRss = results.map((entry) => toMb(entry.sqlite.stats.memory?.rss || 0));
+const comparisons = results.flatMap(entry => [entry.code, entry.prose]);
+const qualified = comparisons.filter(entry => entry.comparable);
+const overlapValues = qualified.map(entry => entry.overlap);
+const scoreDelta = aggregateRetrievalScoreDeltas(comparisons);
+const rankCorrValues = qualified.map(entry => entry.rankCorr);
+const memLatency = results.map(entry => entry.memory.stats.elapsedMs);
+const sqlLatency = results.map(entry => entry.sqlite.stats.elapsedMs);
+const memWall = results.map(entry => entry.memory.wallMs);
+const sqlWall = results.map(entry => entry.sqlite.wallMs);
+const memRss = results.map(entry => toMb(entry.memory.stats.memory?.rss));
+const sqlRss = results.map(entry => toMb(entry.sqlite.stats.memory?.rss));
+const coverage = { requestedComparisons: comparisons.length, comparableComparisons: qualified.length,
+  unavailableComparisons: comparisons.length - qualified.length,
+  invalidResponses: results.filter(entry => entry.memory.admission.state === 'unavailable' || entry.sqlite.admission.state === 'unavailable').length,
+  zeroHitComparisons: qualified.filter(entry => entry.zeroHits).length,
+  positiveByMode: Object.fromEntries(['code', 'prose'].map(mode => [mode, results.filter(entry => entry[mode].comparable && !entry[mode].zeroHits).length])),
+  unknownIdentityCounts: { memory: comparisons.reduce((sum, entry) => sum + entry.unknownIdentityCounts.base, 0),
+    sqlite: comparisons.reduce((sum, entry) => sum + entry.unknownIdentityCounts.other, 0) } };
 
 const summary = {
   queries: results.length,
+  coverage,
   topN,
   annEnabled,
   sqliteBackend,
-  overlapAvg: mean(overlapValues),
-  scoreDeltaAvg: mean(deltaValues),
+  overlapAvg: meanNullable(overlapValues),
+  scoreDeltaAvg: scoreDelta.meanAbsoluteDelta,
+  scoreDelta,
   rankCorrAvg: meanNullable(rankCorrValues),
   latencyMsAvg: {
-    memory: mean(memLatency),
-    sqlite: mean(sqlLatency)
+    memory: meanNullable(memLatency),
+    sqlite: meanNullable(sqlLatency)
   },
   wallMsAvg: {
-    memory: mean(memWall),
-    sqlite: mean(sqlWall)
+    memory: meanNullable(memWall),
+    sqlite: meanNullable(sqlWall)
   },
   rssMbAvg: {
-    memory: mean(memRss),
-    sqlite: mean(sqlRss)
+    memory: meanNullable(memRss),
+    sqlite: meanNullable(sqlRss)
   }
 };
 
@@ -324,20 +343,24 @@ console.log(`- Queries: ${summary.queries}`);
 console.log(`- TopN: ${summary.topN}`);
 console.log(`- Ann: ${summary.annEnabled}`);
 console.log(`- SQLite backend: ${summary.sqliteBackend}`);
-console.log(`- Overlap avg: ${summary.overlapAvg.toFixed(3)}`);
-console.log(`- Score delta avg: ${summary.scoreDeltaAvg.toFixed(4)}`);
+console.log(`- Overlap avg: ${metric(summary.overlapAvg, 3)}`);
+console.log(`- Score delta avg: ${metric(summary.scoreDeltaAvg, 4)}`);
 if (summary.rankCorrAvg === null) {
   console.log('- Rank corr avg: n/a');
 } else {
-  console.log(`- Rank corr avg: ${summary.rankCorrAvg.toFixed(3)}`);
+  console.log(`- Rank corr avg: ${metric(summary.rankCorrAvg, 3)}`);
 }
-console.log(`- Latency ms avg (memory/sqlite): ${summary.latencyMsAvg.memory.toFixed(1)} / ${summary.latencyMsAvg.sqlite.toFixed(1)}`);
-console.log(`- Wall ms avg (memory/sqlite): ${summary.wallMsAvg.memory.toFixed(1)} / ${summary.wallMsAvg.sqlite.toFixed(1)}`);
-console.log(`- RSS MB avg (memory/sqlite): ${summary.rssMbAvg.memory.toFixed(1)} / ${summary.rssMbAvg.sqlite.toFixed(1)}`);
+console.log(`- Latency ms avg (memory/sqlite): ${metric(summary.latencyMsAvg.memory, 1)} / ${metric(summary.latencyMsAvg.sqlite, 1)}`);
+console.log(`- Wall ms avg (memory/sqlite): ${metric(summary.wallMsAvg.memory, 1)} / ${metric(summary.wallMsAvg.sqlite, 1)}`);
+console.log(`- RSS MB avg (memory/sqlite): ${metric(summary.rssMbAvg.memory, 1)} / ${metric(summary.rssMbAvg.sqlite, 1)}`);
 
 const report = {
+  schemaVersion: 2,
+  kind: 'retrieval-backend-parity',
   generatedAt: new Date().toISOString(),
   queryFile: queriesPath,
+  queryPlan,
+  executionEvidence: Object.fromEntries(Object.entries(executionRegistries).map(([arm, registry]) => [arm, registry.snapshot()])),
   topN,
   annEnabled,
   summary,
@@ -352,7 +375,16 @@ if (argv['write-report']) {
   console.log(`Report written to ${outPath}`);
 }
 
+if (coverage.invalidResponses) process.exitCode = 1;
+
 if (argv.enforce) {
+  const unavailable = coverage.unavailableComparisons > 0 || Object.values(coverage.positiveByMode).some(count => count === 0)
+    || Object.values(report.executionEvidence).some(evidence => evidence.status !== 'qualified' || evidence.consistency !== 'stable');
+  if (unavailable) { console.error('Parity evidence is incomplete: required comparisons or positive-hit witnesses are unavailable.'); process.exitCode = 1; }
+  if (!scoreDelta.complete) {
+    console.error('Parity score evidence is incomplete: every requested comparison requires measured shared pairs in compatible final score spaces.');
+    process.exitCode = 1;
+  }
   const isFts = sqliteBackend === 'sqlite-fts';
   const defaults = isFts
     ? { minOverlap: 0.7, minRankCorr: 0.55, maxDelta: 0.5, minSingleOverlap: 0.6 }
@@ -368,18 +400,18 @@ if (argv.enforce) {
   const minOverlapSingle = overlapValues.length ? Math.min(...overlapValues) : 1;
   const failures = [];
   if (summary.overlapAvg < thresholds.minOverlap) {
-    failures.push(`overlapAvg ${summary.overlapAvg.toFixed(3)} < ${thresholds.minOverlap}`);
+    failures.push(`overlapAvg ${metric(summary.overlapAvg, 3)} < ${thresholds.minOverlap}`);
   }
   if (summary.rankCorrAvg !== null && summary.rankCorrAvg < thresholds.minRankCorr) {
-    failures.push(`rankCorrAvg ${summary.rankCorrAvg.toFixed(3)} < ${thresholds.minRankCorr}`);
+    failures.push(`rankCorrAvg ${metric(summary.rankCorrAvg, 3)} < ${thresholds.minRankCorr}`);
   }
-  if (summary.scoreDeltaAvg > thresholds.maxDelta) {
-    failures.push(`avgDelta ${summary.scoreDeltaAvg.toFixed(3)} > ${thresholds.maxDelta}`);
+  if (!Number.isFinite(summary.scoreDeltaAvg) || summary.scoreDeltaAvg > thresholds.maxDelta) {
+    failures.push(`avgDelta ${metric(summary.scoreDeltaAvg, 3)} > ${thresholds.maxDelta}`);
   }
   if (minOverlapSingle < thresholds.minSingleOverlap) {
     failures.push(`minOverlap@K ${minOverlapSingle.toFixed(3)} < ${thresholds.minSingleOverlap}`);
   }
-  if (failures.length) {
+  if (failures.length && !unavailable) {
     const label = failures.join('; ');
     if (isFts && argv['enforce-fts'] !== true) {
       console.warn(`SQLite FTS parity warning: ${label}`);

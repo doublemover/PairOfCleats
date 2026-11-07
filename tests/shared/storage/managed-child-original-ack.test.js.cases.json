@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["result-pending", "error-pending", "captured-action", "receipt-pending", "receipt-getter", "forged-owner", "capability-getter", "preparation-pending"]
+}

@@ -37,7 +37,7 @@ const directExecutionTargets = [
 ];
 
 const runtimeBootstrapTargets = [
-  'tools/analysis/map-iso-serve.js',
+  'tools/analysis/map-iso-preview.js',
   'tools/bench/language-matrix.js',
   'tools/bench/embeddings/model-bakeoff.js'
 ];

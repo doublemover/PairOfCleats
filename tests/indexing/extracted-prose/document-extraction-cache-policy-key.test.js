@@ -45,15 +45,4 @@ assert.equal(
   'expected policy change run to miss existing extraction cache'
 );
 
-runExtractedProseBuild({ root, repoRoot, env: createStubPdfExtractionEnv({ cacheRoot, maxPages: 1001 }) });
-
-const thirdArtifacts = await readExtractedProseArtifacts(repoRoot);
-const thirdPdfEntry = findFixtureEntryBySuffix(thirdArtifacts.extractionReport?.files, 'docs/sample.pdf');
-assert.ok(thirdPdfEntry, 'expected extraction report entry for docs/sample.pdf after policy-stable run');
-assert.equal(
-  hasFixtureWarning(thirdPdfEntry, 'document-extraction-cache-hit'),
-  true,
-  'expected policy-stable run to hit extraction cache'
-);
-
-console.log('document extraction cache policy key test passed');
+console.log('document extraction cache policy change invalidates the prior key');

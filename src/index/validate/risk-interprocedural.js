@@ -175,7 +175,7 @@ export const validateRiskInterproceduralArtifacts = async ({
           }
         }
       }
-      if (stats?.counts?.uniqueCallSitesReferenced !== undefined && referencedCallSites.size && referencedCallSites.size !== stats.counts.uniqueCallSitesReferenced) {
+      if (stats?.counts?.uniqueCallSitesReferenced !== undefined && referencedCallSites.size !== stats.counts.uniqueCallSitesReferenced) {
         addIssue(report, mode, `risk_interprocedural_stats uniqueCallSitesReferenced mismatch (${referencedCallSites.size} != ${stats.counts.uniqueCallSitesReferenced})`, 'Rebuild index artifacts for this mode.');
       }
     } catch (err) {

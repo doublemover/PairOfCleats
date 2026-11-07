@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   normalizeWorkerPoolConfig,
+  resolveWorkerPoolConfig,
   resolveFdConcurrencyCap
 } from '../../../src/index/build/workers/config.js';
 
@@ -36,3 +37,9 @@ assert.equal(
 );
 
 console.log('worker fd concurrency cap test passed');
+
+const overridden = resolveWorkerPoolConfig({ maxWorkers: 8,
+  fdPressure: { softLimit: 65, reserveDescriptors: 64, descriptorsPerWorker: 4 } },
+{ workerPoolMaxWorkers: 8 }, { cpuLimit: 64 });
+assert.equal(overridden.fdPressure.cap, 1);
+assert.equal(overridden.maxWorkers, 1, 'environment override remains within the original FD cap');

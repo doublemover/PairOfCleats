@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["identity-and-byte-export", "independent-dense-reference", "directional-contract-rejection", "factor-integrity-and-numerical-failures", "private-ownership-and-retirement"]
+}

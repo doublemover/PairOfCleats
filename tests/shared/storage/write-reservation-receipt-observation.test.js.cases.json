@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-before-fields", "revoked-resource-id", "pending-field-value", "independent-callback-inspection", "revoked-after-record-close", "guarded-positive-and-invalid"]
+}

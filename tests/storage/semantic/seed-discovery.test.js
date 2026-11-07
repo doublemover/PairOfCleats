@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import { buildSemanticContextSection } from '../../../src/context-pack/semantic.js';
 import { createSemanticDetailService } from '../../../src/semantic/detail.js';
 import { createSemanticTraceService } from '../../../src/semantic/trace.js';
@@ -37,7 +38,7 @@ try {
     partitions: [partition], store: base, diskAccount: fixture.account,
     entries: operationIndexEntries(base, [partition]), compareRows: compareOperationIndexRows,
     keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-    schemaVersion: 2, directoryPrefix: 'semantic-operation-index-', batchRows: 3, batchBytes: 4096 });
+    schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION, directoryPrefix: 'semantic-operation-index-', batchRows: 3, batchBytes: 4096 });
   const queryIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions: [partition], store: base, diskAccount: fixture.account });
   const artifact = fixture.store([partition], { operationIndex: index, queryIndex });
   db.exec('PRAGMA user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildRetrievalMetadata } from '../../../src/retrieval/output/retrieval-metadata.js';
 
 const metadata = buildRetrievalMetadata({
+  effectivePlanIdentity: 'eqp1-' + 'a'.repeat(64),
   backendLabel: 'memory',
   backendPolicyInfo: {
     requested: 'auto',
@@ -60,6 +61,7 @@ const metadata = buildRetrievalMetadata({
 });
 
 assert.equal(metadata.backend.selected, 'memory');
+assert.equal(metadata.effectivePlanIdentity, 'eqp1-' + 'a'.repeat(64));
 assert.equal(metadata.backend.requested, 'auto');
 assert.equal(metadata.backend.defaultBackend, 'sqlite');
 assert.equal(metadata.backend.selectionKind, 'policy');

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["cancel", "supersede", "dispose", "invalid-output", "truncated-output", "stderr-flood"]
+}

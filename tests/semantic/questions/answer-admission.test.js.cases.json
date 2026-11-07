@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["live-query-and-quotes", "publication-and-failures", "request-and-history", "transport-parity"]
+}

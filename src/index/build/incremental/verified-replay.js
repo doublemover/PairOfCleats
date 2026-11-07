@@ -8,7 +8,9 @@ import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { assertIndexCacheLease } from '../cache-lease.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { issueVerifiedReplayToken, consumeVerifiedReplayToken, recordVerifiedReplayConsumption, invalidateVerifiedReplayToken,
-  replayIdentity, replayStatIdentity } from './replay-authority.js';
+  replayIdentity, replayStatIdentity, registerSemanticReplayContext } from './replay-authority.js';
+import { validateEmbeddedCacheSource } from '../../semantic/embedded-cache.js';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 
 /** Keep only bounded immutable verification metadata, never source bytes or decoded rows. */
 export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, lease }) => {
@@ -20,7 +22,10 @@ export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, l
   let active = true, metadataBytes = 0, receiptBytes = 0;
   const metrics = { verificationHits: 0, verificationMisses: 0, verificationBytes: 0,
     verificationWallMs: 0, uncachedVerifications: 0, currentSourceBytesRead: 0, copiedBytes: 0, copyWallMs: 0,
-    consumedReplays: 0, metadataBytes: 0, peakMetadataBytes: 0, droppedReceipts: 0 };
+    consumedReplays: 0, metadataBytes: 0, peakMetadataBytes: 0, droppedReceipts: 0,
+    childDescriptorOpens: 0, childSourceReads: 0, childMapReads: 0,
+    parentHashes: 0, parentDecodes: 0, parentBytesHashed: 0, parentBytesDecoded: 0,
+    peakPreparedParentBytes: 0, peakPreparedParentAllowance: 0 };
   const updateBytes = () => {
     metrics.metadataBytes = metadataBytes + receiptBytes;
     metrics.peakMetadataBytes = Math.max(metrics.peakMetadataBytes, metrics.metadataBytes);
@@ -67,20 +72,33 @@ export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, l
     }
     return { inventory: admitted ? inventory : null, bytes, metadata };
   };
-  const verify = async options => {
+  const verify = async (options, embedded = false) => {
     if (!active) throw new Error('Replay verification context has been cleared.');
     assertIndexCacheLease(lease); throwIfAborted(options.signal);
     const input = { ...options, bundleDir, locator: structuredClone(options.locator),
       dependencySignatures: structuredClone(options.dependencySignatures) };
+    let opened, embeddedSource;
+    if (embedded) {
+      metrics.childDescriptorOpens++;
+      opened = await openSemanticCacheEntry({ repoRoot: input.repoRoot, bundleDir, locator: input.locator,
+        expectedDependencySignatures: input.dependencySignatures,
+        expectedRepositoryNamespace: input.parentFacts.repositoryNamespace, signal: input.signal });
+      embeddedSource = await validateEmbeddedCacheSource({ opened, parentFacts: input.parentFacts,
+        preparedParent: input.preparedParent, segmentUid: input.segmentUid, signal: input.signal, metrics });
+      if (embeddedSource.sourceUnitId !== opened.factsRef.sourceUnitId || embeddedSource.byteHash !== opened.factsRef.sourceHash
+        || embeddedSource.repositoryNamespace !== opened.factsRef.repositoryNamespace) throw new Error('Embedded replay source differs from its verified descriptor.');
+      input.sourceHash = embeddedSource.byteHash; input.sourcePath = embeddedSource.path; input.repositoryNamespace = embeddedSource.repositoryNamespace;
+    }
     const identity = replayIdentity(input), prior = cache.get(identity);
     if (prior) {
-      const opened = await consumeVerifiedReplayToken({ ...input, token: prior.token });
-      if (opened) { cache.delete(identity); cache.set(identity, prior); metrics.verificationHits += 1; return { ...opened, token: prior.token, verificationReceipt: prior.receipt }; }
+      const retained = await consumeVerifiedReplayToken({ ...input, token: prior.token });
+      if (retained) { cache.delete(identity); cache.set(identity, prior); metrics.verificationHits += 1; return { ...retained, token: prior.token, verificationReceipt: prior.receipt,
+        ...(embeddedSource ? { embeddedSource } : {}) }; }
       remove(identity);
     }
     metrics.verificationMisses += 1;
     const started = performance.now();
-    const opened = await openSemanticCacheEntry({ repoRoot: input.repoRoot, bundleDir, locator: input.locator,
+    opened ||= await openSemanticCacheEntry({ repoRoot: input.repoRoot, bundleDir, locator: input.locator,
       expectedDependencySignatures: input.dependencySignatures, expectedSourceHash: input.sourceHash,
       expectedSourcePath: input.sourcePath, expectedRepositoryNamespace: input.repositoryNamespace, signal: input.signal });
     const before = await inventoryFor(opened, input.locator, input.signal);
@@ -96,9 +114,10 @@ export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, l
         try { ({ buffer } = await readVerifiedContainedFile(opened.root, path.join(opened.root, relative),
           { maxBytes: 16 * 1024 * 1024, expectedHash: path.basename(relative, '.json'), signal: input.signal })); }
         catch (error) {
+          const diagnostic = describeStorageFailure(error, { phase: 'semantic-replay-mapping-verification' });
           throwIfAborted(input.signal);
-          if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) {
-            throw Object.assign(new Error('Replay mapping verification failed.'), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
+          if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(diagnostic.code)) {
+            throw Object.assign(new Error('Replay mapping verification failed.'), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY', cause: error });
           }
           throw error;
         }
@@ -121,7 +140,8 @@ export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, l
     witnesses.add(receipt);
     const bytes = Buffer.byteLength(identity) + Buffer.byteLength(canonicalSemanticJson(opened.factsRef)) * 3
       + after.metadata + Buffer.byteLength(canonicalSemanticJson(receipt));
-    if (!after.inventory || bytes > tokenBudget) { metrics.uncachedVerifications += 1; return { ...opened, token: null, verificationReceipt: receipt }; }
+    if (!after.inventory || bytes > tokenBudget) { metrics.uncachedVerifications += 1; return { ...opened, token: null, verificationReceipt: receipt,
+      ...(embeddedSource ? { embeddedSource } : {}) }; }
     remove(identity);
     while (metadataBytes + bytes > tokenBudget) remove(cache.keys().next().value);
     let token;
@@ -129,14 +149,15 @@ export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, l
       isActive: () => active && cache.get(identity)?.token === token,
       onConsumed: factsRef => record(receipt, factsRef) });
     cache.set(identity, { token, bytes, receipt }); metadataBytes += bytes; updateBytes();
-    return { ...opened, token, verificationReceipt: receipt };
+    return { ...opened, token, verificationReceipt: receipt, ...(embeddedSource ? { embeddedSource } : {}) };
   };
-  return Object.freeze({ verify, metrics,
+  return registerSemanticReplayContext(Object.freeze({ verify: options => verify(options),
+    verifyEmbedded: options => verify(options, true), metrics,
     recordSourceRead(bytes) { metrics.currentSourceBytesRead += bytes; },
     recordReplay(token, factsRef, receipt = null) {
       if (!recordVerifiedReplayConsumption(token, factsRef)) record(receipt, factsRef);
     },
     snapshotReceipts() { return receipts.map(receipt => structuredClone(receipt)); },
     clear() { active = false; for (const key of cache.keys()) remove(key); }
-  });
+  }), lease, () => active, bundleDir);
 };

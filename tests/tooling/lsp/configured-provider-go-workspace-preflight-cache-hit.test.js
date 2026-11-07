@@ -121,7 +121,14 @@ assert.equal(await readCount(moduleCountPath), 1, 'expected first run to execute
 assert.equal(await readCount(warmupCountPath), 1, 'expected first run to execute go warmup preflight once');
 
 const second = await runToolingProviders(createContext(), providerInputs);
-assert.equal(second.metrics?.preflights?.total, 0, 'expected provider output cache hit to skip preflight entirely');
+assert.equal(second.metrics?.preflights?.total, 1, 'unqualified provider dependency closure requires live admission on every invocation');
+assert.equal(second.metrics?.preflights?.cached, 1, 'the source-bound workspace preflight may still reuse its own marker');
+for (const target of providerInputs.targets) {
+  const uid = target.chunkRef.chunkUid;
+  assert.ok(first.byChunkUid.has(uid));
+  assert.deepEqual(second.byChunkUid.get(uid)?.payload, first.byChunkUid.get(uid).payload,
+    'live provider execution preserves content while workspace probes reuse their markers');
+}
 assert.equal(await readCount(moduleCountPath), 1, 'expected cached go module preflight to skip rerun');
 assert.equal(await readCount(warmupCountPath), 1, 'expected cached go warmup preflight to skip rerun');
 

@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -15,7 +16,7 @@ const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLow
   : 'compare';
 const benchRoot = args.root
   ? path.resolve(String(args.root))
-  : path.join(process.cwd(), '.benchCache', 'index-state-write');
+  : resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'index-state-write');
 
 const makeIndexState = (updatedAt) => {
   const filesList = new Array(files);

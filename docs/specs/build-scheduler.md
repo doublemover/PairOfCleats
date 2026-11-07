@@ -22,6 +22,48 @@ Scheduler owns admission control, concurrency caps, fairness, and backpressure b
 
 ## Work model
 
+Blocked admission scans retain only a per-queue cursor and capacity/policy
+identity. New requests are still checked behind blocked heads. Capacity release,
+limits, adaptive ceilings, byte pressure, queue reconfiguration, cancellation and
+clear invalidate the prior blocked prefix when relevant. Diagnostic top-N
+selection applies its full elapsed/order rank at the cutoff; absent idle time
+uses elapsed progress time while an explicit zero remains zero. Singleton
+Tree-sitter batches still receive language metadata. NUMA lifecycle observations
+are independent of crash logging, and unsupported Windows load average falls
+back to labeled process CPU deltas in checkpoint evidence.
+
+Queue `concurrency` is a hard running-task admission cap, independent of producer
+pending/byte windows, resource tokens and adaptive surface ceilings. Adapters
+register the minimum of their effective capacity and any explicit queue cap.
+Raising a runtime adapter cap triggers admission again; lowering it lets running
+work finish while blocking further starts. Nested non-CPU tasks retain their
+existing resource requests and do not hold global tokens waiting for a second
+adapter queue. Reservation release and cancellation settle exactly once.
+
+Worker teardown retains its pool handle on failed destruction; process pools
+retain aggregate memory reservations while children remain unconfirmed. Failed
+cleanup is retryable, and cannot admit a replacement over a still-owned pool.
+
+Resource discovery uses process-available parallelism and the shared minimum
+host/container/configured memory envelope. Host CPU count is diagnostic.
+Tree-sitter subprocess fanout is the minimum of the explicit fanout, effective
+CPU capacity, descriptor pressure cap and retained-memory budget. Each child
+holds its existing scheduler reservation for its complete subprocess lifetime;
+receipts distinguish configured, effective and peak observed fanout.
+
+Windows host load is unavailable unless a sampler supplies a real observation.
+An unavailable sample cannot be interpreted as idle CPU. Parent-process heap,
+GC and aggregate RSS are pressure proxies, not per-worker heap or GC readings.
+Adaptive holds preserve the previous actual scale direction for reversal guards.
+Learned scheduler profiles require the same resource/policy identity and expire
+after seven days. Repository-size profiles additionally expire from their actual
+sample timestamp; truncated scans never select a confident policy override.
+
+Incidental repository scans bound entries, directories, frontier and pending
+stats in addition to files and bytes. Incomplete scans report unknown size and
+their stopping reason. Memoization requires a complete scan and a stable ignore
+policy fingerprint, including ignore-file contents.
+
 - Work unit: one schedulable operation.
 - Resource tokens: `cpu`, `io`, `mem`.
 - Cost class: `small`, `medium`, `large`, `xlarge`.

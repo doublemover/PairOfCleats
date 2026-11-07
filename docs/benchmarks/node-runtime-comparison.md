@@ -1,5 +1,11 @@
 # Matched macOS Node 24 / 26 evaluation
 
+> DEPRECATED recipe as of 2026-10-18, reconciled at `ab00d918d` (PR #572).
+> The [current runtime policy](../guides/node-runtime.md) requires Node >=26.10.0 <27.
+> The Node 24 arm below cannot pass the current checkout's bootstrap guard;
+> it needs a separately scoped compatible source revision and matched setup.
+> The original unexecuted proposal is retained for provenance.
+
 Status: **planned, not executed**. This recipe does not authorize starting a
 local task or accessing any Mac folder. Obtain approval for the task, checkout,
 benchmark directories and any runtime installation before running it.

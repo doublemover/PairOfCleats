@@ -14,7 +14,7 @@ import { relocateSemanticCacheEntry } from '../../../src/index/build/incremental
 import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 
 const fixture = await createSemanticCacheFixture();
-const lock = await acquireIndexLock({ repoCacheRoot: path.join(fixture.root, 'writer-cache') });
+const lock = await acquireIndexLock({ repoCacheRoot: path.join(fixture.root, 'writer-cache'), requireSettlement: true });
 assert.ok(lock);
 const lease = createIndexCacheLease(lock, path.join(fixture.root, 'writer-cache'));
 const counters = () => ({ sourceBytes: 0, semanticBytes: 0, otherBytes: 0, copiedBytes: 0,

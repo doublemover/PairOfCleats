@@ -307,6 +307,41 @@ return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
 Extraction, analysis and response coverage are separate. Query coverage carries
 partition provenance and retains incomplete evidence rather than claiming no path.
 
+Trace and explain requests can opt into a versioned path declaration with
+`"pathSemantics": "balanced-call-value"` or `"relation-neighborhood"`. The returned
+`pathCapability` identifies the operation, producer, exact generation and partition
+inventory, selected edge kinds, validation policy and current page allowances.
+Continuations bind these meanings and their declaration version, as well as the
+repository, generation and existing request identity. A trace continuation cannot
+be used for an explanation or a different path policy.
+
+`balanced-call-value` uses the existing call-site/context-key stack. Calls entered
+from the seed can leave only through the matching return; a seed inside a callee
+may return without an earlier entry in the page's path. The declared policy is
+therefore prefix balanced. `relation-neighborhood` follows the selected semantic
+relations without balancing those crossings. The separate `graph-witness`
+declaration describes graph-node references and index signatures; it is not an
+accepted semantic trace mode. Graph context and impact builders accept that mode
+and publish a graph capability pinned to their exact index signature. Their
+returned relation domains and witness chains are checked in the selected graph
+direction; source extraction remains unqualified. Compatibility identity alone
+cannot supply a graph witness generation identity. Graph witness capabilities
+retain existing caps and report unresolved targets, omitted witnesses and
+truncation explicitly.
+
+Opt-in validation checks retained edge endpoints, call-site source ownership and
+available operand ordinals with at most six record hydrations per edge. Malformed
+references and incompatible retained kinds fail the query. Missing context or
+operand metadata retains its edge with an explicit incomplete frontier; supported
+modeled ordinal uncertainty remains incomplete evidence. Depth, call-stack, visited
+record, edge, partition, byte and work allowances bound the existing traversal.
+Extraction, analysis and response completeness stay separate. Neither an empty
+page nor a completed relation search proves that an executable path is absent.
+Capabilities report feasibility as unsupported and execution as none; these
+operations perform no path-condition solving, IFDS analysis or runtime execution.
+Runtime and bounded overhead qualification of this opt-in surface is deferred to
+the stable-tree acceptance run.
+
 ## Shared symbolic finite-string types
 
 The explicit `tooling.typescript.typeRepresentation: "symbolic"` backend retains
@@ -446,6 +481,9 @@ Missing control-store capability leaves work deferred. Completion is acknowledge
 only after normal whole-generation promotion. Changing generations produces a new
 target request; old tasks are never retargeted by filename. Bindings, local flow and
 cross-file flow can be selected through the experimental manual enrichment service.
+Manual drains bind live configuration, cache/build publication ownership and
+tooling authority before builder/runtime mutation and again before publication;
+see [drain authority](../contracts/semantic-drain-authority.md).
 Independent overlay publication and complete field/context-sensitive analysis are
 not available. Local and cross-file deferred tasks retain durable descriptors.
 Targeted LSP locations reuse the existing session independently of signature
@@ -544,6 +582,12 @@ query contract in `src/contracts/schemas/runtime-query.js`. Destinations resolve
 relative to the repository and must remain within it or its configured repository
 cache after resolving symlinks and junctions.
 
+Discovery uses the [saved-runtime catalog](../contracts/runtime-family-catalog.md)
+and pins its published snapshot across cursor pages. `maxScan` bounds catalog-node
+reads; the generations directory is not rescanned. Imports on either side of an
+existing cursor appear only in a fresh discovery pass. Uncataloged destinations
+and obsolete cursors require fresh ingestion/discovery rather than a scan fallback.
+
 The nested query pins `repositoryNamespace`, the source `generation` and
 `familyGenerations`. Selectors match capture IDs, executable/version/platform,
 workload fingerprint and phase, session/process/isolate/worker, exact source hashes,
@@ -593,6 +637,11 @@ available. MCP tools are `runtime_compare` and `runtime_claims`; HTTP POST route
 `/analysis/runtime-compare` and `/analysis/runtime-claims`. All surfaces use the same
 repository destination authority and bounded service. General causal inference remains
 unsupported.
+
+Claim response bytes/records size the returned page. All-family physical citation
+verification has separate fixed allowances and a `verification` cost receipt;
+insufficient work or output allowance is a budget refusal, not evidence corruption.
+See [saved-claim verification](../contracts/runtime-claims-verification.md).
 
 Queries verify the manifest, registered lookup index, offset table and hydrated row
 hashes. They do not read every raw artifact on each request; that distinction is
@@ -712,3 +761,14 @@ surface says `parse=disabled`. Settings are resolved at startup; there is no
 supported live config reload. Changing this admission policy requires a new run,
 with `--incremental` and the same source/cache/content inputs to reuse durable
 completions. See the [eight-slot receipt](../archived/stage1-concurrency-2026-10-11.md).
+
+Semantic-find pages reuse verified operation/node/query-index readers within one
+logical request. Admission retains at most four piece-reader pairs and 1 MiB of
+snapshot/block-digest storage (including reserved large-reader scratch), plus at
+most sixteen bounded selector-range metadata entries. Candidate refs are fetched
+in batches of at most 32 and records remain incrementally hydrated under the
+existing response/work limits. Rejected candidates advance only their processed
+offsets. A continuation stores generation/scope/offset facts, never file handles
+or verification certificates. Every new page/request rehashes current content;
+all admitted readers settle before the request returns or throws. This source
+change has no new production timing or memory measurement qualification.

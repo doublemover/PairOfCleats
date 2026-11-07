@@ -1,3 +1,4 @@
+import { CALLABLE_PARAMETERS_VERSION } from '../../contracts/callable-parameters.js';
 import {
   extractTypeScriptInheritance,
   extractTypeScriptParamTypes,
@@ -13,11 +14,14 @@ import {
 export function extractTypeScriptDocMeta(chunk) {
   const meta = chunk.meta || {};
   const signature = meta.signature || '';
-  const params = Array.isArray(meta.params) && meta.params.length
+  const callable = meta.callableParameters;
+  const parsedCallable = callable?.schemaVersion === CALLABLE_PARAMETERS_VERSION && callable.language === 'typescript'
+    && ['typescript-compiler', 'typescript-babel'].includes(callable.parser);
+  const params = Array.isArray(meta.params) && (parsedCallable || meta.params.length)
     ? meta.params
     : (signature ? extractTypeScriptParams(signature) : []);
   const paramTypes = meta.paramTypes && typeof meta.paramTypes === 'object'
-    && Object.keys(meta.paramTypes).length
+    && (parsedCallable || Object.keys(meta.paramTypes).length)
     ? meta.paramTypes
     : (signature ? extractTypeScriptParamTypes(signature) : {});
   const decorators = Array.isArray(meta.attributes) ? meta.attributes : [];
@@ -33,7 +37,7 @@ export function extractTypeScriptDocMeta(chunk) {
       implementsList = inheritance.implementsList;
     }
   }
-  const returns = meta.returns || (signature ? extractTypeScriptReturns(signature) : null);
+  const returns = parsedCallable ? meta.returns ?? null : meta.returns || (signature ? extractTypeScriptReturns(signature) : null);
   return {
     doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
     params,
@@ -41,6 +45,7 @@ export function extractTypeScriptDocMeta(chunk) {
     returns,
     returnType: returns,
     signature: signature || null,
+    ...(parsedCallable ? { callableParameters: callable } : {}),
     decorators,
     modifiers,
     visibility: meta.visibility || null,

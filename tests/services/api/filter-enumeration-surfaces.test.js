@@ -18,7 +18,7 @@ import { createRequestController } from '../../../src/map/workspace/request.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-public-enumeration-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
-const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'public-enumeration', profileId: 'default' });
+const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'public-enumeration', profileId: 'default', published: true });
 const chunks = Array.from({ length: 17 }, (_, id) => ({ id, file: 'src/' + id + '.ts', start: 0, end: 1,
   kind: 'FunctionDeclaration', name: 'fn' + id, chunkUid: 'uid:' + id, tokens: ['unused'],
   docmeta: { returns: id % 2 ? 'boolean' : 'number' } }));
@@ -28,7 +28,8 @@ const server = http.createServer(router.handleRequest);
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = 'http://127.0.0.1:' + server.address().port;
 const transport = new StdioClientTransport({ command: process.execPath,
-  args: [path.resolve('bin/pairofcleats.js'), 'service', 'mcp', '--repo', root, '--mcp-mode', 'sdk'], stderr: 'pipe' });
+  args: [path.resolve('bin/pairofcleats.js'), 'service', 'mcp', '--repo', root, '--mcp-mode', 'sdk'],
+  env: { ...process.env }, stderr: 'pipe' });
 const client = new Client({ name: 'public-enumeration', version: '1' });
 const input = { repoPath: root, mode: 'code', backend: 'memory', returnType: 'boolean', top: 2 };
 const post = async value => {
@@ -46,14 +47,14 @@ try {
   await client.connect(transport);
   const callers = {
     cli,
-    post: async value => { const response = await post(value); assert.equal(response.status, 200); return response.body.result; },
+    post: async value => { const response = await post(value); assert.equal(response.status, 200, JSON.stringify(response.body)); return response.body.result; },
     get: async value => {
       const query = new URLSearchParams(Object.entries(value).filter(([, v]) => v !== undefined));
       const response = await fetch(base + '/search?' + query); assert.equal(response.status, 200);
       return (await response.json()).result;
     },
     mcp: async value => { const response = await client.callTool({ name: 'search', arguments: value });
-      assert.equal(response.isError, undefined); return JSON.parse(response.content[0].text); },
+      assert.equal(response.isError, undefined, JSON.stringify(response)); return JSON.parse(response.content[0].text); },
     viewer: async value => (await viewer.request('search', value)).result
   };
   for (const [name, call] of Object.entries(callers)) {
@@ -75,7 +76,8 @@ try {
   for (const context of [1, -1, 0.5, null, '0']) {
     const response = await post({ ...input, context }); assert.equal(response.status, 400);
     assert.match(JSON.stringify(response.body), /removed|context_pack/);
-    assert.throws(() => buildMcpSearchArgs({ ...input, context }), /removed/);
+    assert.throws(() => buildMcpSearchArgs({ ...input, context }), error => error.code === 'INVALID_REQUEST'
+      && /Invalid MCP search args:.*\/context/.test(error.message));
   }
   assert.equal((await post({ mode: 'code', ann: false })).status, 400);
   assert.equal((await post({ ...input, query: 'text', cursor: first.pagination.nextCursor })).status, 400);
@@ -87,9 +89,13 @@ try {
   parseSearchArgs(vscode.buildSearchArgs('', root, { mode: 'code', type: 'FunctionDeclaration', contextLines: 0 }).slice(1));
   assert.throws(() => vscode.buildSearchArgs('x', root, { contextLines: 1 }), /removed/);
   const python = spawnSync('python3', ['-c',
-    'import json,runpy; m=runpy.run_path(' + JSON.stringify(path.resolve('sublime/PairOfCleats/lib/search.py'))
-      + '); print(json.dumps(m["build_search_payload"]("", repo_root=' + JSON.stringify(root)
-      + ', mode="code", backend="memory", limit=2, ann=False, as_of="latest", advanced={"return_type":"boolean"})))'],
+    ['import json,sys',
+      'sys.path.insert(0,' + JSON.stringify(path.resolve('tests/helpers/sublime')) + ')',
+      'from runtime_harness import install_fake_modules', 'install_fake_modules()',
+      'from PairOfCleats.lib.search import build_search_payload',
+      'print(json.dumps(build_search_payload("", repo_root=' + JSON.stringify(root)
+        + ', mode="code", backend="memory", limit=2, ann=False, as_of="latest", advanced={"return_type":"boolean"})))'
+    ].join('; ')],
   { encoding: 'utf8', timeout: 5000 });
   assert.equal(python.status, 0, python.stderr);
   const generated = JSON.parse(python.stdout); assert.equal(generated.output, 'compact');

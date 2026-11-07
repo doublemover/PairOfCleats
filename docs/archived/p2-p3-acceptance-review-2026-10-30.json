@@ -1,0 +1,4086 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "historicalAuthorWorkspace": true,
+  "kind": "p2-p3-original-followup-acceptance-review",
+  "readOnlyReview": true,
+  "auditedHead": "ef1b2c15dbac1d71a1692c7834c4f11d00e4d23c",
+  "scope": "26 live reports and all comments; production owners and discriminating actual-consumer fixtures compared to published source-bound receipts. No new project runtime, benchmark, Git or GitHub mutation.",
+  "publicationState": "Written after parent released clean-source publication ordering; review source remains the recorded audited head.",
+  "sourceComparisonPolicy": "Git filtered/normalized blobs compare named source/fixture owners; raw current SHA256 retained separately. Historical failure and repaired passing revisions are distinct. Shared-owner diffs are disclosed; none of this is a final-head full-suite pass.",
+  "archives": [
+    {
+      "file": "docs/archived/p2-p3-closeout-2026-10-29.json",
+      "sha256": "525a8b7c811ef1392ef20014fb132359ae4dd49541a25317899cb5c7e8031df2",
+      "url": "https://github.com/doublemover/PairOfCleats/blob/ef1b2c15dbac1d71a1692c7834c4f11d00e4d23c/docs/archived/p2-p3-closeout-2026-10-29.json"
+    },
+    {
+      "file": "docs/archived/windows-consumer-measurement-closeout-2026-10-29.json",
+      "sha256": "d864ed6bf3f14c5e1851b0b86b72c2239191f6a6ed59a96dcd40b1baf4236ac6",
+      "url": "https://github.com/doublemover/PairOfCleats/blob/ef1b2c15dbac1d71a1692c7834c4f11d00e4d23c/docs/archived/windows-consumer-measurement-closeout-2026-10-29.json"
+    },
+    {
+      "file": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+      "sha256": "1b2462c9fe85372850679490f1f962876a220a686aa55132d8857eca9a2dec06",
+      "url": "https://github.com/doublemover/PairOfCleats/blob/ef1b2c15dbac1d71a1692c7834c4f11d00e4d23c/docs/archived/windows-consumer-repair-wave-2026-10-30.json"
+    },
+    {
+      "file": "docs/archived/windows-focused-followup-2026-10-30.json",
+      "sha256": "3f0c50e84415f35a0e51e25fbb22e1dc86ec70ada81862ede91a7837830217dc",
+      "url": "https://github.com/doublemover/PairOfCleats/blob/ef1b2c15dbac1d71a1692c7834c4f11d00e4d23c/docs/archived/windows-focused-followup-2026-10-30.json"
+    }
+  ],
+  "rawHistoricalEvidence": "Author-workspace .testLogs/.tmp paths remain historical provenance, not clean-checkout promises. No unexecuted or unpublished model/performance capsule is counted as a published closure receipt.",
+  "hostedWindowsAuthority": {
+    "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+    "runId": 41006737458,
+    "url": "https://github.com/doublemover/PairOfCleats/actions/runs/41006737458",
+    "result": {
+      "passed": 41,
+      "failed": 0,
+      "skipped": 0
+    },
+    "bindings": [
+      {
+        "file": "src/shared/contained-file.js",
+        "currentSha256": "113738dbb5b863501aa2c78672f0a49aa179a0a738939d2876bb95dbd0b5d0ec",
+        "worktreeBlob": "bdae3196272f97c0762f17ced8b9d5c4674c9d8a",
+        "revisions": [
+          {
+            "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+            "blob": "bdae3196272f97c0762f17ced8b9d5c4674c9d8a",
+            "exactNormalizedOwnerMatch": true
+          }
+        ]
+      },
+      {
+        "file": "src/semantic/manifest-reader.js",
+        "currentSha256": "d0ad0fee7bef97afde1e0ef096a8a8ba1c54bd75d7f2a9cf88a63fd14cf1a72e",
+        "worktreeBlob": "03f492f1b77dbdf1cd03e367a98948f359245218",
+        "revisions": [
+          {
+            "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+            "blob": "03f492f1b77dbdf1cd03e367a98948f359245218",
+            "exactNormalizedOwnerMatch": true
+          }
+        ]
+      },
+      {
+        "file": "src/semantic/published-store.js",
+        "currentSha256": "86925568a7ed54343d3b3a10563f8806eae8930eb1459fbffd104feb888812db",
+        "worktreeBlob": "c77d1d50e03e6fc3f7e5a0d8b194cc088e9b4192",
+        "revisions": [
+          {
+            "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+            "blob": "c77d1d50e03e6fc3f7e5a0d8b194cc088e9b4192",
+            "exactNormalizedOwnerMatch": true
+          }
+        ]
+      },
+      {
+        "file": "tests/shared/contained-file-verified-read.test.js",
+        "currentSha256": "0b2020e7640ea0c52480c70d7e2550fe38d44c678c205398eb766c636aa91d34",
+        "worktreeBlob": "e5c5809753b079a2d02095adf578b4c0948ac02e",
+        "revisions": [
+          {
+            "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+            "blob": "e5c5809753b079a2d02095adf578b4c0948ac02e",
+            "exactNormalizedOwnerMatch": true
+          }
+        ]
+      },
+      {
+        "file": "tests/retrieval/filters/filter-only-cache-integrity.test.js",
+        "currentSha256": "c84ded1c2185d431552ed8f09f10485dc8a5db0c20e0033717cde49fc57091c0",
+        "worktreeBlob": "14ac57c93b2e4ca23a9f292802178bace4aa3667",
+        "revisions": [
+          {
+            "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+            "blob": "14ac57c93b2e4ca23a9f292802178bace4aa3667",
+            "exactNormalizedOwnerMatch": true
+          }
+        ]
+      },
+      {
+        "file": "tests/tooling/reports/map-selected-index-identity.test.js",
+        "currentSha256": "09e459e3c1187851d43e863771ae4dc556ef8c51059702a208a244ef00550c8e",
+        "worktreeBlob": "3a09ec383433c4517087eb1470c305b5fa07e7fe",
+        "revisions": [
+          {
+            "source": "51edb89916049e2d89820042231e57f51ecc36c7",
+            "blob": "3a09ec383433c4517087eb1470c305b5fa07e7fe",
+            "exactNormalizedOwnerMatch": true
+          }
+        ]
+      }
+    ],
+    "scope": "Real hard-link original-object identity/colliding numeric inode checks; real escaped cache-namespace directory junction; canonical selected-index directory alias. Semantic metadata path/link observations are separately injected through actual serving consumers. Windows does not execute POSIX-only symlink-substitution branches. No final-head suite claim."
+  },
+  "rust156": {
+    "tests": 156,
+    "failed": 0,
+    "ignored": 0,
+    "testDurationMs": 5600,
+    "toolchain": "1.99.1",
+    "command": "cargo +1.99.1 test --locked --manifest-path crates/pairofcleats-tui/Cargo.toml -- --test-threads=1",
+    "raw": {
+      "path": ".testLogs/consumer-wave-next-20261030/rust-current-wave.log",
+      "sha256": "287dbbdc32a165b5c1423b877437d2c25d236527e2431ee0ab20622c3109caed"
+    },
+    "ownerHashes": [
+      {
+        "file": "crates/pairofcleats-tui/src/main.rs",
+        "sha256": "048d4a3cceed6480b7513e44baf2f07405caa15d34795a7d712e5924e24ee0e9",
+        "currentSha256": "048d4a3cceed6480b7513e44baf2f07405caa15d34795a7d712e5924e24ee0e9",
+        "matchesRecordedRawHash": true
+      },
+      {
+        "file": "crates/pairofcleats-tui/src/recording_tests.rs",
+        "sha256": "1bfb80d49c337f06163dab83c604e902f480f2a6b9a3a33dccee6e6b06e184f3",
+        "currentSha256": "1bfb80d49c337f06163dab83c604e902f480f2a6b9a3a33dccee6e6b06e184f3",
+        "matchesRecordedRawHash": true
+      },
+      {
+        "file": "crates/pairofcleats-tui/src/transport_acceptance_tests.rs",
+        "sha256": "252e009b17a87d7e954de4bd1754049661fbc4042026c8849b995fcd4a4028ad",
+        "currentSha256": "252e009b17a87d7e954de4bd1754049661fbc4042026c8849b995fcd4a4028ad",
+        "matchesRecordedRawHash": true
+      }
+    ]
+  },
+  "issues": [
+    {
+      "issue": 713,
+      "owners": [
+        {
+          "file": "tools/reports/compare-models.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/reports/compare-model-corpus.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/corpus-comparison.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/shared/retrieval-execution-evidence.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "tooling/reports/compare-models-observed-corpus/",
+        "tooling/reports/compare-models-partial-ranks/"
+      ],
+      "disposition": "measurement-remainder",
+      "coverage": "Actual result-generation corpus registry and controlled promotion/between-query/independent-mode consumers repair the preflight race; source reads and retention caps are asserted.",
+      "remaining": "Requested many-queries/one-generation versus many-generations measurement with metadata bytes, peak interned receipts and separately recorded query latency is not in published receipts. Tiny two-query correctness is not that comparison.",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/reports/compare-models-observed-corpus/between-queries",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[207]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/reports/compare-models-observed-corpus/changed-generation",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[208]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/reports/compare-models-observed-corpus/independent-modes",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[209]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/reports/compare-models-observed-corpus/missing-generation",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[210]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/reports/compare-models-observed-corpus/promotion",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[211]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/reports/compare-models-observed-corpus/retired-generation",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[212]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/tooling/reports/compare-models-observed-corpus.test.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6e976b1053327d8fe9fa4fca88410966a41e7bbf"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/713",
+        "title": "[P2] Compare model hits by stable corpus identity instead of generation-local document ordinals",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:21:30Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 3,
+        "comments": [
+          {
+            "id": 6365769905,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/713#issuecomment-6365769905",
+            "updatedAt": "2026-10-23T13:16:36Z"
+          },
+          {
+            "id": 6485057094,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/713#issuecomment-6485057094",
+            "updatedAt": "2026-10-29T01:09:53Z"
+          },
+          {
+            "id": 6512574014,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/713#issuecomment-6512574014",
+            "updatedAt": "2026-10-30T01:21:08Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": false,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "9725d070673f89166c6595d2909e036b072e5ea2",
+          "rawReport": {
+            "path": ".tmp/tasks/p2-p3-closeout-20261029/serial-repair-02.json",
+            "sha256": "3b7074a0fd0aa1803e2c71e13a1dbdb11410e03df6dc6ea21b0318706aa1f08b"
+          },
+          "caseIds": [
+            "tooling/reports/compare-models-partial-ranks/different-source",
+            "tooling/reports/compare-models-partial-ranks/missing-source",
+            "tooling/reports/compare-models-partial-ranks/one-common",
+            "tooling/reports/compare-models-partial-ranks/opposite-orders",
+            "tooling/reports/compare-models-partial-ranks/renumbered"
+          ],
+          "casePointers": [
+            "$.serialRepairBatch.observations[1].tests[2]",
+            "$.serialRepairBatch.observations[1].tests[3]",
+            "$.serialRepairBatch.observations[1].tests[4]",
+            "$.serialRepairBatch.observations[1].tests[5]",
+            "$.serialRepairBatch.observations[1].tests[6]"
+          ],
+          "durationsMs": [
+            3785,
+            3836,
+            3803,
+            6585,
+            3897
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "tooling/reports/compare-models-observed-corpus/between-queries",
+            "tooling/reports/compare-models-observed-corpus/changed-generation",
+            "tooling/reports/compare-models-observed-corpus/independent-modes",
+            "tooling/reports/compare-models-observed-corpus/missing-generation",
+            "tooling/reports/compare-models-observed-corpus/promotion",
+            "tooling/reports/compare-models-observed-corpus/retired-generation",
+            "tooling/reports/compare-models-observed-corpus/oversize-generation"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[115]",
+            "$.runs[1].cases[116]",
+            "$.runs[1].cases[117]",
+            "$.runs[1].cases[118]",
+            "$.runs[1].cases[120]",
+            "$.runs[1].cases[121]",
+            "$.runs[1].cases[119]"
+          ],
+          "durationsMs": [
+            7485,
+            4245,
+            4387,
+            4430,
+            4395,
+            4250,
+            4516
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 798,
+      "owners": [
+        {
+          "file": "tools/mcp/transport.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/mcp/server-sdk.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/integrations/mcp/result-envelope.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/integrations/mcp/result-envelope.d.ts",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "docs/api/mcp-server.md",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "integrations/mcp/transport-classifier-consumers/",
+        "integrations/mcp/consumer-error-admission",
+        "integrations/mcp/result-envelope-types"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Actual legacy and locked SDK transport/registered-handler outputs pass through the classifier for success, failure, overload, unknown/invalid method, timeout and cancellation. SDK cancellation deliberately suppresses wire response; original handler CANCELLED is classified. No mutation replay.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+          "id": "integrations/mcp/consumer-error-admission",
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "pointer": "$.integrationRepairBatch.parentReports[2].report.tests[0]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "integrations/mcp/transport-classifier-consumers/sdk",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[66]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/integrations/mcp/transport-classifier-consumers.test.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6e976b1053327d8fe9fa4fca88410966a41e7bbf"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/798",
+        "title": "[P3] Document and type both MCP overload error envelopes for clients",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:25:40Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485132275,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/798#issuecomment-6485132275",
+            "updatedAt": "2026-10-29T01:14:45Z"
+          },
+          {
+            "id": 6512630968,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/798#issuecomment-6512630968",
+            "updatedAt": "2026-10-30T01:25:21Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "integrations/mcp/consumer-error-admission",
+            "integrations/mcp/result-envelope-types"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[63]",
+            "$.runs[0].cases[64]"
+          ],
+          "durationsMs": [
+            66,
+            489
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "integrations/mcp/transport-classifier-consumers/legacy",
+            "integrations/mcp/transport-classifier-consumers/sdk"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[44]",
+            "$.runs[1].cases[45]"
+          ],
+          "durationsMs": [
+            2951,
+            2997
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 985,
+      "owners": [
+        {
+          "file": "src/index/registry-lock.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/registry-support.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "indexing/registry-borrowed-retirement-race",
+        "indexing/registry-borrowed-lock-capability"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Capability recheck after metadata await and synchronous pre-dispatch owner fence; actual deferred descriptor-close and promise-continuation retirement both reject before worker. Impostor/root/domain/replaced/retired controls and replacement-lock preservation remain.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/indexing/registry-borrowed-retirement-race.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/985",
+        "title": "[P2] Borrowed registry lock accepts any release-shaped object without ownership check",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:25:02Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485136305,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/985#issuecomment-6485136305",
+            "updatedAt": "2026-10-29T01:15:01Z"
+          },
+          {
+            "id": 6512622121,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/985#issuecomment-6512622121",
+            "updatedAt": "2026-10-30T01:24:42Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/registry-borrowed-lock-capability",
+            "indexing/registry-borrowed-retirement-race"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[32]",
+            "$.runs[0].cases[33]"
+          ],
+          "durationsMs": [
+            321,
+            330
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1033,
+      "owners": [
+        {
+          "file": "src/index/build/runtime/workers.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/workers/pool.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/workers/pool/lifecycle.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/integrations/core/build-index/runtime.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/cache-writer-drain.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "indexing/runtime/worker-cleanup-public-consumers/",
+        "indexing/workers/cleanup-rejection-owner-retry",
+        "indexing/workers/worker-pool-group-cleanup"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Actual runtime/group/leaf chains through teardown and cache drain preserve falsey/frozen failures, original handles, sibling settlement, explicit failed-child retry and protected leases; real Worker positive and original logger retry barriers retain exact ownership. Controlled attempt/owner counts are meaningful work observations.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/runtime/worker-cleanup-public-consumers/shared-cache",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[34]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/runtime/worker-cleanup-public-consumers/shared-teardown",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[35]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "indexing/runtime/worker-cleanup-public-consumers/split-cache",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[37]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/runtime/worker-cleanup-public-consumers/split-teardown",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[37]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/indexing/runtime/worker-cleanup-public-consumers.test.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "71706bd5c9c23260cfc6074b5fd38e0af8a079bc"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1033",
+        "title": "[P2] Worker-pool lifecycle loses cleanup handle when destroy rejects",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:10:38Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6484992505,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1033#issuecomment-6484992505",
+            "updatedAt": "2026-10-29T01:05:38Z"
+          },
+          {
+            "id": 6512425057,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1033#issuecomment-6512425057",
+            "updatedAt": "2026-10-30T01:10:17Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "27c2a65afe7c47e2682733992ce34ca360022819",
+          "rawReport": null,
+          "caseIds": [
+            "indexing/workers/cleanup-rejection-owner-retry"
+          ],
+          "casePointers": [
+            "$.policyQualificationBatch.agentReceipts.resourceNative11.rawObservations[22]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-measurement-closeout-2026-10-29.json",
+          "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+          "rawReport": null,
+          "caseIds": [
+            "indexing/workers/worker-pool-group-cleanup"
+          ],
+          "casePointers": [
+            "$.latestObservations[87]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/fourth-focused.json",
+            "sha256": "58a8b8cd5cd0aff8fb652930a55771daab7b67f10ed5253350211498e14348dc",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/runtime/worker-cleanup-public-consumers/shared-cache",
+            "indexing/runtime/worker-cleanup-public-consumers/shared-teardown",
+            "indexing/runtime/worker-cleanup-public-consumers/split-cache",
+            "indexing/runtime/worker-cleanup-public-consumers/split-teardown"
+          ],
+          "casePointers": [
+            "$.runs[4].cases[3]",
+            "$.runs[4].cases[4]",
+            "$.runs[4].cases[5]",
+            "$.runs[4].cases[6]"
+          ],
+          "durationsMs": [
+            1106,
+            1129,
+            1080,
+            1119
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1076,
+      "owners": [
+        {
+          "file": "src/index/build/indexer/steps/process-files.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": false,
+              "gitBlob": "1d1f6328a244c40c0a1b1fd13740bdd37ed955ab"
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "indexing/stage1/process-files-abort-listener-lifetime",
+        "indexing/stage1/process-files-live-abort-owner/",
+        "indexing/stage1/process-files-zero-modality-elision"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Public processFiles repeated pre-aborted empty/nonempty, falsey/frozen logger/startup rejection, unrelated listener identity and healthy empty/late-abort checks; separate live nonempty/mid-stage controls preserve exact reason and listener settlement.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/stage1/process-files-live-abort-owner/complete",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[38]"
+        },
+        {
+          "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+          "id": "indexing/stage1/process-files-live-abort-owner/mid-stage-abort",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[2].cases[28]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/indexing/stage1/process-files-abort-listener-lifetime.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1076",
+        "title": "[P3] Empty Stage1 modality leaves external abort listener attached",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:09:18Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485079672,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1076#issuecomment-6485079672",
+            "updatedAt": "2026-10-29T01:11:19Z"
+          },
+          {
+            "id": 6512406355,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1076#issuecomment-6512406355",
+            "updatedAt": "2026-10-30T01:08:59Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Only primary-owner change since bdf is exact falsey abort-reason forwarding; listener acquisition/removal structure is unchanged. Final7e public live-abort and reason controls separately pass.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+          "rawReport": null,
+          "caseIds": [
+            "indexing/stage1/process-files-zero-modality-elision"
+          ],
+          "casePointers": [
+            "$.integrationRepairBatch.latestObservations[37]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/stage1/process-files-abort-listener-lifetime"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[39]"
+          ],
+          "durationsMs": [
+            1421
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/final-focused.json",
+            "sha256": "c152e2df729f3ce438fea3b16cdd3b9635abbface62478a9b6f17a9d5838711a",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/stage1/process-files-live-abort-owner/complete",
+            "indexing/stage1/process-files-live-abort-owner/mid-stage-abort"
+          ],
+          "casePointers": [
+            "$.runs[5].cases[7]",
+            "$.runs[5].cases[8]"
+          ],
+          "durationsMs": [
+            5381,
+            3408
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1102,
+      "owners": [
+        {
+          "file": "src/index/build/workers/thread-pool.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/workers/pool.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/file-processor/process-chunks/token-flow.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/tree-sitter/chunking.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "indexing/workers/thread-task-association-native",
+        "indexing/workers/thread-task-association-recording",
+        "indexing/workers/thread-task-facade-cancellation/",
+        "indexing/file-processor/token-worker-abort-and-evidence"
+      ],
+      "disposition": "measurement-remainder",
+      "coverage": "Actual locked Piscina original-exit gate and all four actual facades retain CPU/memory/bytes/throttle and block peers until original exit; queued/pre-aborted no-owner and replacement identity controls remain.",
+      "remaining": "Follow-up item6 requests natural canceled-task-to-exit latency, replacement overlap/event-loop overhead and ordinary steady-state throughput. Held terminate phases and 32 trivial adapter-tag tasks are credited but do not establish natural cancellation or real-work steady throughput.",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/indexing/workers/thread-task-association-native.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1102",
+        "title": "[P2] Canceled worker tokenization is retried on the main thread and can return success",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:11:20Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 3,
+        "comments": [
+          {
+            "id": 6329669867,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1102#issuecomment-6329669867",
+            "updatedAt": "2026-10-22T00:28:22Z"
+          },
+          {
+            "id": 6484975531,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1102#issuecomment-6484975531",
+            "updatedAt": "2026-10-29T01:04:32Z"
+          },
+          {
+            "id": 6512435042,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1102#issuecomment-6512435042",
+            "updatedAt": "2026-10-30T01:10:59Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": false,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+          "rawReport": null,
+          "caseIds": [
+            "indexing/file-processor/token-worker-abort-and-evidence"
+          ],
+          "casePointers": [
+            "$.runtimeQualificationBatch.storageReceipt.rawObservations[1]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/workers/thread-task-association-native",
+            "indexing/workers/thread-task-association-recording",
+            "indexing/workers/thread-task-facade-cancellation/analysis",
+            "indexing/workers/thread-task-facade-cancellation/batch",
+            "indexing/workers/thread-task-facade-cancellation/quantize",
+            "indexing/workers/thread-task-facade-cancellation/single"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[55]",
+            "$.runs[0].cases[56]",
+            "$.runs[0].cases[57]",
+            "$.runs[0].cases[58]",
+            "$.runs[0].cases[59]",
+            "$.runs[0].cases[60]"
+          ],
+          "durationsMs": [
+            164,
+            120,
+            1764,
+            1739,
+            1751,
+            1756
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1437,
+      "owners": [
+        {
+          "file": "src/lang/tree-sitter/config.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/tree-sitter/go-type-role.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/tree-sitter/chunking.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": false,
+              "gitBlob": "3f9517d1d9d6e18821f099791663fd4b3e54de19"
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/go-transparent-type-role-consumers",
+        "lang/contracts/native-go-swift-kotlin-declaration-acceptance"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Actual native query/traversal grouped mixed-order and ungrouped direct/parenthesized roles, alias and nested slice/map/pointer/channel/function negatives; exact source syntax/ranges/UID helper and wrapper-visit counts; chunk producer17 invalidates old roles.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/go-transparent-type-role-consumers.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1437",
+        "title": "[P2] Do not emit Go grouped type containers as duplicate first-type declarations",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:18:02Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 3,
+        "comments": [
+          {
+            "id": 6384905107,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1437#issuecomment-6384905107",
+            "updatedAt": "2026-10-24T13:39:42Z"
+          },
+          {
+            "id": 6485191516,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1437#issuecomment-6485191516",
+            "updatedAt": "2026-10-29T01:27:34Z"
+          },
+          {
+            "id": 6512516932,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1437#issuecomment-6512516932",
+            "updatedAt": "2026-10-30T01:16:54Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Primary role/config/AST owners exactly match bdf. Shared analysis-versions changes importResolution27→29/discovery8→9; sourceChunking52 and Tree-sitter17 roles remain unchanged.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/native-go-swift-kotlin-declaration-acceptance",
+            "lang/contracts/go-transparent-type-role-consumers"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[78]",
+            "$.runs[0].cases[67]"
+          ],
+          "durationsMs": [
+            946,
+            846
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1468,
+      "owners": [
+        {
+          "file": "src/lang/tree-sitter/chunking.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/tree-sitter/config.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/perl.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/identity/chunk-uid.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/native-perl-package-ownership-consumers/",
+        "lang/contracts/native-rust-java-scope-acceptance",
+        "lang/contracts/python-local-class-scopes",
+        "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+      ],
+      "disposition": "consumer-matrix-remainder",
+      "coverage": "Actual native Perl braced/unbraced/nested preparation→UID/relations/lexicon/call-site/payload proves PackageDeclaration remains lexical. Rust/Java/C++/Python exact scope cases remain credited; requested broader accepted language scope matrix is incomplete.",
+      "remaining": "Full accepted comments require Ruby module/nested-class, PHP braced+semicolon namespace free functions, Scala helpers in two distinct methods, Groovy nested-class owner chains and R local helper identity through registered UID/call/export consumers. Present passing Perl/Rust/Java/C++/Python and unrelated Ruby/PHP/Groovy call-role fixtures do not assert those exact scope witnesses.",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/native-perl-package-ownership-consumers.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1468",
+        "title": "[P2] Distinguish native lexical scopes from type ownership before classifying functions as methods",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:19:50Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 6,
+        "comments": [
+          {
+            "id": 6331428708,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1468#issuecomment-6331428708",
+            "updatedAt": "2026-10-22T02:45:33Z"
+          },
+          {
+            "id": 6331446224,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1468#issuecomment-6331446224",
+            "updatedAt": "2026-10-22T02:47:00Z"
+          },
+          {
+            "id": 6331722852,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1468#issuecomment-6331722852",
+            "updatedAt": "2026-10-22T03:09:30Z"
+          },
+          {
+            "id": 6331768996,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1468#issuecomment-6331768996",
+            "updatedAt": "2026-10-22T03:13:17Z"
+          },
+          {
+            "id": 6485111648,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1468#issuecomment-6485111648",
+            "updatedAt": "2026-10-29T01:13:25Z"
+          },
+          {
+            "id": 6512551939,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1468#issuecomment-6512551939",
+            "updatedAt": "2026-10-30T01:19:30Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": false,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/native-c-objc-cpp-declaration-acceptance",
+            "lang/contracts/native-rust-java-scope-acceptance",
+            "lang/contracts/python-local-class-scopes",
+            "lang/contracts/native-perl-package-ownership-consumers/braced",
+            "lang/contracts/native-perl-package-ownership-consumers/nested",
+            "lang/contracts/native-perl-package-ownership-consumers/unbraced"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[71]",
+            "$.runs[0].cases[87]",
+            "$.runs[0].cases[90]",
+            "$.runs[0].cases[79]",
+            "$.runs[0].cases[80]",
+            "$.runs[0].cases[81]"
+          ],
+          "durationsMs": [
+            947,
+            1253,
+            476,
+            986,
+            988,
+            986
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1477,
+      "owners": [
+        {
+          "file": "src/lang/lua.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": false,
+              "gitBlob": "831206b01f00c48f6db601b98855433bbae9150f"
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/lua-lexical-header-call-consumers",
+        "lang/contracts/lua-assignment-call-consumer-acceptance"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Actual native and intended lexical routes retain same-header-line ordinary/recursive calls, exclude declaration headers, retain nested ownership and project exact edges through registered call consumers and durable refresh.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "lang/contracts/lua-lexical-header-call-consumers",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[68]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/lua-lexical-header-call-consumers.test.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6e976b1053327d8fe9fa4fca88410966a41e7bbf"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1477",
+        "title": "[P2] Exclude Lua declaration headers from call relations without removing real recursion",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:12:59Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485122905,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1477#issuecomment-6485122905",
+            "updatedAt": "2026-10-29T01:14:09Z"
+          },
+          {
+            "id": 6512458033,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1477#issuecomment-6512458033",
+            "updatedAt": "2026-10-30T01:12:40Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Lua owner exactly matches6e. Later shared version changes concern imports/discovery, retaining sourceChunking52.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+          "rawReport": null,
+          "caseIds": [
+            "lang/contracts/lua-assignment-call-consumer-acceptance"
+          ],
+          "casePointers": [
+            "$.integrationRepairBatch.latestObservations[277]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/lua-lexical-header-call-consumers"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[46]"
+          ],
+          "durationsMs": [
+            1183
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1483,
+      "owners": [
+        {
+          "file": "src/lang/shell.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/shared/import-specifier.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/import-resolution/path-utils.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/import-resolution/engine.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/shell-literal-suffix-resolution",
+        "lang/contracts/logical-build-template-import-acceptance"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Registered literal #/spaces/quoted? imports reach exact local targets with plausible decoy present/absent and warm resolver replay; preserves Node #alias and JS/HTML URL suffix policy. Windows question-mark filename is explicitly inventory-only.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/shell-literal-suffix-resolution.test.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "71706bd5c9c23260cfc6074b5fd38e0af8a079bc"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1483",
+        "title": "[P2] Preserve complete quoted Bash source paths before import resolution",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:19:10Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485150697,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1483#issuecomment-6485150697",
+            "updatedAt": "2026-10-29T01:15:56Z"
+          },
+          {
+            "id": 6512542562,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1483#issuecomment-6512542562",
+            "updatedAt": "2026-10-30T01:18:48Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+          "rawReport": null,
+          "caseIds": [
+            "lang/contracts/logical-build-template-import-acceptance"
+          ],
+          "casePointers": [
+            "$.integrationRepairBatch.latestObservations[276]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/fourth-focused.json",
+            "sha256": "58a8b8cd5cd0aff8fb652930a55771daab7b67f10ed5253350211498e14348dc",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/shell-literal-suffix-resolution"
+          ],
+          "casePointers": [
+            "$.runs[4].cases[19]"
+          ],
+          "durationsMs": [
+            905
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1493,
+      "owners": [
+        {
+          "file": "src/index/language-registry/import-collectors/starlark.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/starlark-escaped-triple-import-consumers",
+        "lang/contracts/logical-build-template-import-acceptance"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Single/double triple strings, odd/even parity, LF/CRLF/Unicode, balanced escaped arguments and four original Starlark call roles produce independently expected imports through registered relation/replay with budget negative and no phantom dependency. Broad benchmark explicitly unnecessary.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/starlark-escaped-triple-import-consumers.test.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "71706bd5c9c23260cfc6074b5fd38e0af8a079bc"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1493",
+        "title": "[P2] Preserve Starlark argument lexical roles when collecting build imports",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:13:54Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485196016,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1493#issuecomment-6485196016",
+            "updatedAt": "2026-10-29T01:18:55Z"
+          },
+          {
+            "id": 6512470511,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1493#issuecomment-6512470511",
+            "updatedAt": "2026-10-30T01:13:35Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+          "rawReport": null,
+          "caseIds": [
+            "lang/contracts/logical-build-template-import-acceptance"
+          ],
+          "casePointers": [
+            "$.integrationRepairBatch.latestObservations[276]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/fourth-focused.json",
+            "sha256": "58a8b8cd5cd0aff8fb652930a55771daab7b67f10ed5253350211498e14348dc",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/starlark-escaped-triple-import-consumers"
+          ],
+          "casePointers": [
+            "$.runs[4].cases[20]"
+          ],
+          "durationsMs": [
+            721
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1501,
+      "owners": [
+        {
+          "file": "src/index/chunking/formats/xml.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/xml-structure.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": false,
+              "gitBlob": "3f9517d1d9d6e18821f099791663fd4b3e54de19"
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/xml-native-document-envelope-consumers",
+        "lang/contracts/config-native-unavailable-consumers/xml",
+        "lang/contracts/sql-xml-source-import-acceptance"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Explicit enabled native query/traversal and lexical document-envelope union cover prolog/DOCTYPE/root attributes/mixed content/CDATA/Unicode and actual token-flow marker payload; installed-native and unavailable-native controls distinct; source chunking52.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/xml-native-document-envelope-consumers.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1501",
+        "title": "[P2] Preserve XML root metadata and leading mixed content in indexed chunks",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:14:35Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6485184944,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1501#issuecomment-6485184944",
+            "updatedAt": "2026-10-29T01:18:12Z"
+          },
+          {
+            "id": 6512479527,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1501#issuecomment-6512479527",
+            "updatedAt": "2026-10-30T01:14:15Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "XML owner and xml-structure exactly match bdf and7e; sourceChunking52 unchanged. Final7e unavailable-native XML is independently passing.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+          "rawReport": null,
+          "caseIds": [
+            "lang/contracts/sql-xml-source-import-acceptance"
+          ],
+          "casePointers": [
+            "$.integrationRepairBatch.latestObservations[291]"
+          ],
+          "durationsMs": [
+            null
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/xml-native-document-envelope-consumers"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[97]"
+          ],
+          "durationsMs": [
+            862
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/final-focused.json",
+            "sha256": "c152e2df729f3ce438fea3b16cdd3b9635abbface62478a9b6f17a9d5838711a",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/config-native-unavailable-consumers/xml"
+          ],
+          "casePointers": [
+            "$.runs[5].cases[9]"
+          ],
+          "durationsMs": [
+            838
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1547,
+      "owners": [
+        {
+          "file": "src/semantic/manifest-reader.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/semantic/published-store.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/contained-file.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": false,
+              "gitBlob": "fc2e001767e8d441867e9bb8b7f488464f87ad29"
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "storage/semantic/published-manifest-snapshot",
+        "storage/semantic/published-manifest-cache-authority/",
+        "storage/semantic/manifest-serving-consumers/"
+      ],
+      "disposition": "receipt-attribution-remainder",
+      "coverage": "All three metadata kinds use one bounded hash/parse snapshot through actual detail and artifact/native-SQLite find/explain consumers. Hosted source51 supplies real hard-link identity and directory-junction authority controls; current shared/semantic owner and physical-fixture blobs exactly match source51. This is useful compositional Windows authority evidence, without claiming every semantic metadata link-substitution case was physical.",
+      "remaining": "Current valid-generation/unsupported-format stale parsed-memo controls are declared passed in the live historical body, but the exact execution/source receipt for those two current case IDs was not found in the designated durable ledgers or current top-level raw reports. Locate the claimed final26 receipt before relying on that acceptance claim. No new local physical links are required.",
+      "priorFailures": [
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "storage/semantic/manifest-serving-consumers/detail",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[96]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "storage/semantic/manifest-serving-consumers/explain-artifact",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[97]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "storage/semantic/manifest-serving-consumers/explain-sqlite",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[98]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "storage/semantic/manifest-serving-consumers/find-artifact",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[99]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "storage/semantic/manifest-serving-consumers/find-sqlite",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[100]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/storage/semantic/published-manifest-snapshot.test.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "5368f9642bcf4423a895715b9e33f34e1e1346a8"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1547",
+        "title": "[P2] Bind served semantic manifests to the same bounded bytes that are checksum-verified",
+        "state": "open",
+        "updatedAt": "2026-10-29T01:18:01Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 1,
+        "comments": [
+          {
+            "id": 6485182389,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1547#issuecomment-6485182389",
+            "updatedAt": "2026-10-29T01:18:01Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Older5368 snapshot proof predates the additional scoped statNative primitive; five serving controls at6bf and physical source51 bind the current contained-file owner. Hosted51 matching hashes do not imply a final-head suite pass.",
+      "closureReady": false,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-measurement-closeout-2026-10-29.json",
+          "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+          "rawReport": null,
+          "caseIds": [
+            "storage/semantic/published-manifest-snapshot"
+          ],
+          "casePointers": [
+            "$.latestObservations[36]"
+          ],
+          "durationsMs": [
+            1152
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/third-focused.json",
+            "sha256": "06397f4866690dc7e0bb904c73c5435961aa6cc35fab7275782b4617433cffda",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "storage/semantic/manifest-serving-consumers/detail",
+            "storage/semantic/manifest-serving-consumers/explain-artifact",
+            "storage/semantic/manifest-serving-consumers/explain-sqlite",
+            "storage/semantic/manifest-serving-consumers/find-artifact",
+            "storage/semantic/manifest-serving-consumers/find-sqlite"
+          ],
+          "casePointers": [
+            "$.runs[2].cases[36]",
+            "$.runs[2].cases[37]",
+            "$.runs[2].cases[38]",
+            "$.runs[2].cases[39]",
+            "$.runs[2].cases[40]"
+          ],
+          "durationsMs": [
+            1811,
+            1848,
+            1962,
+            1789,
+            1861
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1565,
+      "owners": [
+        {
+          "file": "src/index/build/incremental/source-snapshot.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/incremental/state-reconciliation.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/incremental/file-completion.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/file-processor/incremental.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/preprocess.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "indexing/incremental/source-caller-authority/",
+        "indexing/incremental/source-snapshot-authority",
+        "indexing/metadata/source-freshness-and-prefix-reads"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Seven actual callers exercise bounded same-byte text/SHA1/SHA256 authority, replacement/external descriptor identity/link observations, growth/short reads/deletion/abort/failed close and unchanged reuse. Physical-link platform qualification is explicitly separate in original requirements; do not invent it as a local closure blocker for this injected caller contract.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "indexing/incremental/source-caller-authority/completion",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[22]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/incremental/source-caller-authority/imports",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[18]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/incremental/source-caller-authority/missing-checkpoint",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[19]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "indexing/incremental/source-caller-authority/missing-semantic",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[25]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/incremental/source-caller-authority/nonsemantic",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[21]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "indexing/incremental/source-caller-authority/prefix",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[22]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "indexing/incremental/source-caller-authority/semantic",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[28]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/indexing/incremental/source-caller-authority.test.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1565",
+        "title": "[P2] Admit indexing source bytes through contained descriptor-bound snapshots",
+        "state": "open",
+        "updatedAt": "2026-10-29T01:16:28Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 1,
+        "comments": [
+          {
+            "id": 6485159168,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1565#issuecomment-6485159168",
+            "updatedAt": "2026-10-29T01:16:28Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/third-focused.json",
+            "sha256": "06397f4866690dc7e0bb904c73c5435961aa6cc35fab7275782b4617433cffda",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/incremental/source-snapshot-authority",
+            "indexing/incremental/source-caller-authority/completion",
+            "indexing/incremental/source-caller-authority/imports",
+            "indexing/incremental/source-caller-authority/missing-checkpoint",
+            "indexing/incremental/source-caller-authority/missing-semantic",
+            "indexing/incremental/source-caller-authority/nonsemantic",
+            "indexing/incremental/source-caller-authority/prefix",
+            "indexing/incremental/source-caller-authority/semantic"
+          ],
+          "casePointers": [
+            "$.runs[2].cases[14]",
+            "$.runs[2].cases[7]",
+            "$.runs[2].cases[8]",
+            "$.runs[2].cases[9]",
+            "$.runs[2].cases[10]",
+            "$.runs[2].cases[11]",
+            "$.runs[2].cases[12]",
+            "$.runs[2].cases[13]"
+          ],
+          "durationsMs": [
+            105,
+            1193,
+            1232,
+            1118,
+            1650,
+            1123,
+            1126,
+            1627
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/metadata/source-freshness-and-prefix-reads"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[26]"
+          ],
+          "durationsMs": [
+            153
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1577,
+      "owners": [
+        {
+          "file": "src/retrieval/sparse/providers/tantivy.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/pipeline/candidate-stage.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/pipeline/query-ast.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/contracts/retrieval-execution.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "retrieval/providers/tantivy-boolean-membership-consumers",
+        "retrieval/providers/tantivy-boolean-and-failure"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Planner→candidate→rank exact positive/complement membership and zero order across injected Tantivy, JS and real SQLite FTS, code/prose, generation, file filters and cold/warm; actual row128 cancellation plus bounded universe work and unchanged positive-overfetch. Optional installed-native smoke stays separate/unavailable, conditional rather than fabricated pass.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+          "id": "retrieval/providers/tantivy-boolean-membership-consumers",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[4].cases[21]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/retrieval/providers/tantivy-boolean-membership-consumers.test.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "7e9866a8720880eeebad85a5b9bf44e4d62cb71a"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1577",
+        "title": "[P2] Preserve Boolean complement queries in the Tantivy sparse route",
+        "state": "open",
+        "updatedAt": "2026-10-29T01:18:28Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 1,
+        "comments": [
+          {
+            "id": 6485189109,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1577#issuecomment-6485189109",
+            "updatedAt": "2026-10-29T01:18:27Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/final-focused.json",
+            "sha256": "c152e2df729f3ce438fea3b16cdd3b9635abbface62478a9b6f17a9d5838711a",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "retrieval/providers/tantivy-boolean-and-failure",
+            "retrieval/providers/tantivy-boolean-membership-consumers"
+          ],
+          "casePointers": [
+            "$.runs[5].cases[26]",
+            "$.runs[5].cases[27]"
+          ],
+          "durationsMs": [
+            407,
+            557
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1578,
+      "owners": [
+        {
+          "file": "src/retrieval/sparse/providers/tantivy.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/pipeline/candidate-stage.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/contracts/retrieval-execution.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "retrieval/providers/tantivy-boolean-and-failure",
+        "retrieval/providers/tantivy-outcome-cache-consumers",
+        "retrieval/cache/query-cache-execution-admission",
+        "retrieval/cache/degraded-session-recovery"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Recording native mechanism→actual pipeline/session/cache distinguishes positive/empty/unavailable/open/query/abort, forced route versus permitted fallback, healthy empty no fallback, nonreusable failure and unchanged-generation recovery; execution3 declines old cached receipts1/2.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/retrieval/providers/tantivy-boolean-and-failure.test.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "7e9866a8720880eeebad85a5b9bf44e4d62cb71a"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1578",
+        "title": "[P2] Distinguish Tantivy native failures from successful empty search results",
+        "state": "open",
+        "updatedAt": "2026-10-29T01:16:25Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 1,
+        "comments": [
+          {
+            "id": 6485158305,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1578#issuecomment-6485158305",
+            "updatedAt": "2026-10-29T01:16:25Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/final-focused.json",
+            "sha256": "c152e2df729f3ce438fea3b16cdd3b9635abbface62478a9b6f17a9d5838711a",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "retrieval/cache/query-cache-execution-admission",
+            "retrieval/cache/degraded-session-recovery",
+            "retrieval/providers/tantivy-boolean-and-failure"
+          ],
+          "casePointers": [
+            "$.runs[5].cases[25]",
+            "$.runs[5].cases[24]",
+            "$.runs[5].cases[26]"
+          ],
+          "durationsMs": [
+            350,
+            573,
+            407
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "retrieval/providers/tantivy-outcome-cache-consumers"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[138]"
+          ],
+          "durationsMs": [
+            524
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1586,
+      "owners": [
+        {
+          "file": "tools/service/indexer-service/queue-worker.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/service/indexer-service/claim-renewal.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/service/queue.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "services/queue/completion-confirmed-authority",
+        "services/queue/confirmed-lease-expiry"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Actual worker producer-success→held renewal/pending-close/telemetry→expiry clock phase matrix plus real locked completeJob future/equality/expiry/load-race/replacement checks; rollback, no-write/late extension, metrics and timer cleanup retained. Controlled phase evidence is exactly the requested correctness schedule.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": null,
+          "id": "services/queue/confirmed-lease-expiry",
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "pointer": "$.windowsCorrectnessBaseline.failures[8]"
+        },
+        {
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "id": "services/queue/completion-confirmed-authority",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[1].cases[72]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/services/queue/completion-confirmed-authority.test.js",
+          "recorded": [
+            {
+              "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1586",
+        "title": "[P2] Stop producer execution when its last confirmed queue lease expires",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:09:57Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 3,
+        "comments": [
+          {
+            "id": 6408119458,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1586#issuecomment-6408119458",
+            "updatedAt": "2026-10-26T04:18:07Z"
+          },
+          {
+            "id": 6485160361,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1586#issuecomment-6485160361",
+            "updatedAt": "2026-10-29T01:16:32Z"
+          },
+          {
+            "id": 6512415592,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1586#issuecomment-6512415592",
+            "updatedAt": "2026-10-30T01:09:38Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/p2-p3-closeout-2026-10-29.json",
+          "source": "ed21c8a01d6dc18b05486512a55b8ef247c6c15c",
+          "rawReport": {
+            "path": ".tmp/tasks/p2-p3-closeout-20261029/repair-01.json",
+            "sha256": "639fd7174ca75535dfc9bd4b6393747c91e0beba8cdf52ec0283e5e4a010a681"
+          },
+          "caseIds": [
+            "services/queue/confirmed-lease-expiry"
+          ],
+          "casePointers": [
+            "$.currentRepairBatch.observations[0].tests[15]"
+          ],
+          "durationsMs": [
+            137
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/third-focused.json",
+            "sha256": "06397f4866690dc7e0bb904c73c5435961aa6cc35fab7275782b4617433cffda",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "services/queue/completion-confirmed-authority"
+          ],
+          "casePointers": [
+            "$.runs[2].cases[35]"
+          ],
+          "durationsMs": [
+            422
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1702,
+      "owners": [
+        {
+          "file": "src/graph/impact-direction.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/graph/impact.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/graph/path-capability.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/semantic/path-capabilities.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "graph/impact-production-direction",
+        "graph/impact-indexed-source-cli/",
+        "graph/real-source-change-workflow"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Canonical caller/importer edge orientation stays unchanged while shared semantic incoming/outgoing mapping controls producer-derived depth1/2, multi-seed/both, CSR/legacy/warm, fanout/zero-cap and real indexed CLI/changed-set/test suggestions.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "graph/impact-indexed-source-cli/imports",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[2]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/graph/impact-production-direction.test.js",
+          "recorded": [
+            {
+              "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "5368f9642bcf4423a895715b9e33f34e1e1346a8"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1702",
+        "title": "[P2] Align change-impact direction with caller and importer dependency semantics",
+        "state": "open",
+        "updatedAt": "2026-10-29T01:21:37Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 2,
+        "comments": [
+          {
+            "id": 6368890684,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1702#issuecomment-6368890684",
+            "updatedAt": "2026-10-23T15:49:46Z"
+          },
+          {
+            "id": 6485235947,
+            "url": "https://github.com/doublemover/PairOfCleats/issues/1702#issuecomment-6485235947",
+            "updatedAt": "2026-10-29T01:21:37Z"
+          }
+        ]
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-measurement-closeout-2026-10-29.json",
+          "source": "5368f9642bcf4423a895715b9e33f34e1e1346a8",
+          "rawReport": null,
+          "caseIds": [
+            "graph/real-source-change-workflow",
+            "graph/impact-production-direction"
+          ],
+          "casePointers": [
+            "$.latestObservations[155]",
+            "$.latestObservations[52]"
+          ],
+          "durationsMs": [
+            11235,
+            1187
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "graph/impact-indexed-source-cli/calls",
+            "graph/impact-indexed-source-cli/imports"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[0]",
+            "$.runs[1].cases[1]"
+          ],
+          "durationsMs": [
+            12190,
+            16944
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1750,
+      "owners": [
+        {
+          "file": "src/index/build/artifacts-write/family-dispatch.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "indexing/artifacts/cleanup-removal-failure-receipts"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "prepareArtifactCleanup immediate/staged EACCES/EIO/EMFILE and ownership-bearing ENOENT preserve original observation errors/receipts, healthy sibling, absent no-op, failed-removal/repeated-commit accounting and close-only release. Fault action counters show no repeat removal.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/indexing/artifacts/cleanup-removal-failure-receipts.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1750",
+        "title": "[P2] Preserve artifact-cleanup observation failures instead of reporting inaccessible targets as absent",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:05:31Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "indexing/artifacts/cleanup-removal-failure-receipts"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[4]"
+          ],
+          "durationsMs": [
+            129
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1752,
+      "owners": [
+        {
+          "file": "src/shared/artifact-io/payload-admission.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/artifact-io/loaders/core-row-stream.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/artifact-io/loaders/core-array-payload.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/artifact-io/loaders/chunk-meta.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "shared/artifact-io/json-array-shape-consumers"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Exported raw/gzip/backup strict/permissive materialized/stream routes and real seed-map plus optional/required cold consumers reject nonarrays, preserve empty/ordered arrays;4096-row admission returns exact original array without copy. Existing syntax/limits/descriptor checks remain separately owned.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/shared/artifact-io/json-array-shape-consumers.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1752",
+        "title": "[P2] Reject non-array JSON payloads instead of completing strict artifact streams as empty",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:07:19Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "shared/artifact-io/json-array-shape-consumers"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[157]"
+          ],
+          "durationsMs": [
+            362
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1755,
+      "owners": [
+        {
+          "file": "src/lang/python/imports.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/python-escaped-triple-import-consumers"
+      ],
+      "disposition": "measurement-remainder",
+      "coverage": "Registered lexical plus real prepared CPython route, odd/even/raw/prefixed triple quotes, semicolon/comments/LF/CRLF and actual scan/durable refresh establish no phantom/missing imports with current producer.",
+      "remaining": "Requested saved identical escaped-string corpus source work, scanner CPU/allocation and cold/warm replay measurements are not in published receipts. New python-inline capsules exercise a different source shape and do not independently measure escaped-triple cold/warm incremental replay.",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/python-escaped-triple-import-consumers.test.js",
+          "recorded": [
+            {
+              "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "71706bd5c9c23260cfc6074b5fd38e0af8a079bc"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1755",
+        "title": "[P2] Keep escaped triple-string content out of Python import pre-scan",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:14:55Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": false,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "71706bd5c9c23260cfc6074b5fd38e0af8a079bc",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/fourth-focused.json",
+            "sha256": "58a8b8cd5cd0aff8fb652930a55771daab7b67f10ed5253350211498e14348dc",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/python-escaped-triple-import-consumers"
+          ],
+          "casePointers": [
+            "$.runs[4].cases[15]"
+          ],
+          "durationsMs": [
+            1070
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1756,
+      "owners": [
+        {
+          "file": "src/lang/python/imports.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/python/identifiers.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/lang/python/identifier-tables.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/build/import-resolution/engine.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/semantic/analysis-versions.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "lang/contracts/python-unicode-import-consumers"
+      ],
+      "disposition": "measurement-remainder",
+      "coverage": "Pinned actual CPython3.15/UCD17 oracle checks generated XID boundaries/compiler truth, NFKC/raw spellings and join controls; prepared AST/registered scan, real Unicode files, exact local targets and changed-producer resolver replay pass.",
+      "remaining": "Bounded mixed ASCII/Unicode scanner CPU/allocation comparison and cold/warm incremental replay costs requested in the performance plan remain unpublished/uncombined. New inline Python costs and correctness resolver reuse are credited independently, not promoted into that whole comparison.",
+      "priorFailures": [
+        {
+          "source": "6bf8a197cd16e9d037eeb4b4ceb31e0ba75f5fa2",
+          "id": "lang/contracts/python-unicode-import-consumers",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[2].cases[29]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/lang/contracts/python-unicode-import-consumers.test.js",
+          "recorded": [
+            {
+              "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "7e9866a8720880eeebad85a5b9bf44e4d62cb71a"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1756",
+        "title": "[P2] Preserve Python Unicode module names and aliases in import pre-scan",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:15:15Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": false,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "7e9866a8720880eeebad85a5b9bf44e4d62cb71a",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/final-focused.json",
+            "sha256": "c152e2df729f3ce438fea3b16cdd3b9635abbface62478a9b6f17a9d5838711a",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "lang/contracts/python-unicode-import-consumers"
+          ],
+          "casePointers": [
+            "$.runs[5].cases[11]"
+          ],
+          "durationsMs": [
+            1343
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1760,
+      "owners": [
+        {
+          "file": "src/retrieval/lancedb.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/ann/providers/lancedb.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/pipeline/provider-runtime.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/pipeline/execution-outcome.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/contracts/retrieval-execution.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": false,
+              "gitBlob": "83048f787963bbc09b912867ec75ae9a6584b049"
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "retrieval/ann/lancedb-outcome-consumers/",
+        "retrieval/ann/lancedb-close-ownership"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Recording native connect/open/builder/query/iteration/unsupported/absence/abort and pending close pass through actual rank/provider/ANN/session/cache; failedAttempts and health/backoff samples, single dispatch, row bytes and controlled recovery recorded; ANN-only result appears after recovery and subsequent cache hits.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "retrieval/ann/lancedb-outcome-consumers/count-aware",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[107]"
+        },
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "retrieval/ann/lancedb-outcome-consumers/session-cache",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[110]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/retrieval/ann/lancedb-outcome-consumers.test.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6e976b1053327d8fe9fa4fca88410966a41e7bbf"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1760",
+        "title": "[P2] Preserve LanceDB native failures instead of caching healthy empty ANN results",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:22:30Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Lance native/outcome owners exactly match6e; execution identity advances2→3 for selected-FTS-empty semantics. Final7e cache admission controls reject versions1/2 and preserve current outcome meaning.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "retrieval/ann/lancedb-close-ownership"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[106]"
+          ],
+          "durationsMs": [
+            83
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        },
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "retrieval/ann/lancedb-outcome-consumers/count-aware",
+            "retrieval/ann/lancedb-outcome-consumers/missing-package",
+            "retrieval/ann/lancedb-outcome-consumers/native-outcomes",
+            "retrieval/ann/lancedb-outcome-consumers/session-cache",
+            "retrieval/ann/lancedb-outcome-consumers/unsupported-api"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[65]",
+            "$.runs[1].cases[66]",
+            "$.runs[1].cases[67]",
+            "$.runs[1].cases[68]",
+            "$.runs[1].cases[69]"
+          ],
+          "durationsMs": [
+            521,
+            495,
+            489,
+            668,
+            480
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1761,
+      "owners": [
+        {
+          "file": "src/shared/language-aliases.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/retrieval/filters.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/index/language-registry/linguist-routing.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "retrieval/filters/protobuf-alias-consumers"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Real registered .proto metadata, all canonical descriptor round trips, alias/case/quoted compound intersections, bitmap/fallback predicates, actual SQLite fact page and actual published-index memory searches conserve exact Proto ID and exclude JS row. No benchmark required.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "retrieval/filters/protobuf-alias-consumers",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[135]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/retrieval/filters/protobuf-alias-consumers.test.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6e976b1053327d8fe9fa4fca88410966a41e7bbf"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1761",
+        "title": "[P2] Map Protobuf filter aliases to the indexed proto language ID",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:22:49Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "retrieval/filters/protobuf-alias-consumers"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[70]"
+          ],
+          "durationsMs": [
+            1940
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1764,
+      "owners": [
+        {
+          "file": "src/shared/repo-cache-retirement.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/repo-cache-config.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/api/router/cache.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "src/shared/cache/policy.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "tooling/api-mcp/repo-cache-async-shutdown"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Actual shared/API manager/LRU/policy hook promise captured once; sync/falsey/async rejection before/after report, pending independent observer, fulfilled-but-pending owner, implicit eviction and generation retirement preserve failed outcome and awaitable settlement; elapsed tiny callbacks and pending-count checks recorded.",
+      "remaining": "",
+      "priorFailures": [
+        {
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "id": "tooling/api-mcp/repo-cache-async-shutdown",
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "pointer": "$.runs[0].cases[186]"
+        }
+      ],
+      "fixtures": [
+        {
+          "file": "tests/tooling/api-mcp/repo-cache-async-shutdown.test.js",
+          "recorded": [
+            {
+              "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "6e976b1053327d8fe9fa4fca88410966a41e7bbf"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1764",
+        "title": "[P2] Retain declared asynchronous repository shutdown hooks in the existing retirement ledger",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:27:00Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "6e976b1053327d8fe9fa4fca88410966a41e7bbf",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/repair-122.json",
+            "sha256": "5c098d8874b7c13d2dd1511fe0137fc52f83b0e7ac5c56491e46902c7812827b",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "tooling/api-mcp/repo-cache-async-shutdown"
+          ],
+          "casePointers": [
+            "$.runs[1].cases[101]"
+          ],
+          "durationsMs": [
+            2199
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "issue": 1766,
+      "owners": [
+        {
+          "file": "tools/bench/usr/shared.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/bench/usr/item37-governance-drift.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/bench/usr/item35-framework-canonicalization.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/bench/usr/item36-backcompat-matrix.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/bench/usr/item38-catalog-contract.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/bench/usr/item39-normalization-linking-identity.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        },
+        {
+          "file": "tools/bench/usr/item40-pipeline-incremental-transforms.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "testPatterns": [
+        "tooling/bench/usr-named-source-digest"
+      ],
+      "disposition": "closure-ready",
+      "coverage": "Independent Python-framed known SHA constants plus boundary shift/order/role/path/empty/NUL/Unicode/type negatives; actual item37 tiny files verify true UTF8 bytes; all five other report CLIs retain nonidentity fields and explicit version2 identity. Cost comparison is conditional, not requested benchmark.",
+      "remaining": "",
+      "priorFailures": [],
+      "fixtures": [
+        {
+          "file": "tests/tooling/bench/usr-named-source-digest.test.js",
+          "recorded": [
+            {
+              "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+              "unchanged": true
+            }
+          ]
+        }
+      ],
+      "criticalSourceRevisions": [
+        "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b"
+      ],
+      "liveRequirements": {
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1766",
+        "title": "[P3] Frame named USR benchmark inputs before computing report source digests",
+        "state": "open",
+        "updatedAt": "2026-10-30T01:28:18Z",
+        "fullBodyFetched": true,
+        "allCommentsFetched": true,
+        "declaredCommentCount": 0,
+        "comments": []
+      },
+      "ownerDiffAssessment": "Named primary-boundary owners match the indicated critical passing revision; older controls retain their original source attribution. See individual normalized owner/fixture hashes, not a whole-tree acceptance claim.",
+      "closureReady": true,
+      "executionEvidence": [
+        {
+          "archive": "docs/archived/windows-consumer-repair-wave-2026-10-30.json",
+          "source": "bdf3d50dfaf88344f9b5e6eaba961d1ebd7c967b",
+          "rawReport": {
+            "path": ".testLogs/consumer-wave-next-20261030/focused-223.json",
+            "sha256": "cfc53bd23ed21ed1367290ef93bc9f6dc3d70162c6bcd5550afaaac40fbcff9d",
+            "historicalAuthorWorkspace": true
+          },
+          "caseIds": [
+            "tooling/bench/usr-named-source-digest"
+          ],
+          "casePointers": [
+            "$.runs[0].cases[201]"
+          ],
+          "durationsMs": [
+            1952
+          ],
+          "outcomes": "all-passed-no-timeout",
+          "attempts": 1
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "reviewed": 26,
+    "closureReady": [
+      798,
+      985,
+      1033,
+      1076,
+      1437,
+      1477,
+      1483,
+      1493,
+      1501,
+      1565,
+      1577,
+      1578,
+      1586,
+      1702,
+      1750,
+      1752,
+      1760,
+      1761,
+      1764,
+      1766
+    ],
+    "remaining": [
+      {
+        "issue": 713,
+        "disposition": "measurement-remainder",
+        "remainder": "Requested many-queries/one-generation versus many-generations measurement with metadata bytes, peak interned receipts and separately recorded query latency is not in published receipts. Tiny two-query correctness is not that comparison."
+      },
+      {
+        "issue": 1102,
+        "disposition": "measurement-remainder",
+        "remainder": "Follow-up item6 requests natural canceled-task-to-exit latency, replacement overlap/event-loop overhead and ordinary steady-state throughput. Held terminate phases and 32 trivial adapter-tag tasks are credited but do not establish natural cancellation or real-work steady throughput."
+      },
+      {
+        "issue": 1468,
+        "disposition": "consumer-matrix-remainder",
+        "remainder": "Full accepted comments require Ruby module/nested-class, PHP braced+semicolon namespace free functions, Scala helpers in two distinct methods, Groovy nested-class owner chains and R local helper identity through registered UID/call/export consumers. Present passing Perl/Rust/Java/C++/Python and unrelated Ruby/PHP/Groovy call-role fixtures do not assert those exact scope witnesses."
+      },
+      {
+        "issue": 1547,
+        "disposition": "receipt-attribution-remainder",
+        "remainder": "Current valid-generation/unsupported-format stale parsed-memo controls are declared passed in the live historical body, but the exact execution/source receipt for those two current case IDs was not found in the designated durable ledgers or current top-level raw reports. Locate the claimed final26 receipt before relying on that acceptance claim. No new local physical links are required."
+      },
+      {
+        "issue": 1755,
+        "disposition": "measurement-remainder",
+        "remainder": "Requested saved identical escaped-string corpus source work, scanner CPU/allocation and cold/warm replay measurements are not in published receipts. New python-inline capsules exercise a different source shape and do not independently measure escaped-triple cold/warm incremental replay."
+      },
+      {
+        "issue": 1756,
+        "disposition": "measurement-remainder",
+        "remainder": "Bounded mixed ASCII/Unicode scanner CPU/allocation comparison and cold/warm incremental replay costs requested in the performance plan remain unpublished/uncombined. New inline Python costs and correctness resolver reuse are credited independently, not promoted into that whole comparison."
+      }
+    ]
+  },
+  "currentOwnerAndFixtureHashes": [
+    {
+      "file": "tools/reports/compare-models.js",
+      "sha256": "3f52e59cb332085101cea3029c481ed62879d0bcb2851448deaeee79b86408b8",
+      "gitBlob": "479657a8245d449c93877a0f6baab6b928183ba7"
+    },
+    {
+      "file": "tools/reports/compare-model-corpus.js",
+      "sha256": "19c7ea1f00bb288629acae5d638b31046970bb2def2c8274f9d331fbcf900d21",
+      "gitBlob": "576c3d8b2038e694233feaee0c07e4235ecd3e67"
+    },
+    {
+      "file": "src/retrieval/corpus-comparison.js",
+      "sha256": "2070bd2cd5ccd7c65f4cfa712b379ca1c792060e0ed38c0d17b5019616150b58",
+      "gitBlob": "899b26467c88832d7eeb24b0659d04493a9b9b69"
+    },
+    {
+      "file": "tools/shared/retrieval-execution-evidence.js",
+      "sha256": "f727efe6ba0d4f70898114474afb48eb94b7007d758ae3036a2bb3de5a6eed78",
+      "gitBlob": "db622e1723ad195356f0f021b00b1b48594d25ab"
+    },
+    {
+      "file": "tests/tooling/reports/compare-models-observed-corpus.test.js",
+      "sha256": "a62c97e821ed11a827360bcf9858caf2fe061eba846909cb93b083c7d55a436b",
+      "gitBlob": "c2b70fc7709045d672cd817fe4f428ecb004f267"
+    },
+    {
+      "file": "tools/mcp/transport.js",
+      "sha256": "4471d46eac7e62e47469c57c8b0a405cc2574bdc1fb2adff14ce855d5044ba3d",
+      "gitBlob": "fc2be3675fb524d9d78a615be6b0657a18a3b23f"
+    },
+    {
+      "file": "tools/mcp/server-sdk.js",
+      "sha256": "52b5f23bdae6757761b4d52e0e69aedd2008c1c6b5a2ac5d8fdb7ea18d319436",
+      "gitBlob": "464e635db3f789d6a3428d64c5cb0815b2f2e731"
+    },
+    {
+      "file": "src/integrations/mcp/result-envelope.js",
+      "sha256": "d377494165c4e4778594adb4f164e6381356a1b981018818ea312727c77cfefc",
+      "gitBlob": "7cc446ee8e7588a4301deaef992ab98413f2d7b7"
+    },
+    {
+      "file": "src/integrations/mcp/result-envelope.d.ts",
+      "sha256": "a0408dea4bac09a27ef6f3ad24bd312a87dcd067dc0f0ff7dcd065ecb71650c3",
+      "gitBlob": "990f5b93f187d8f2eacf77321a3318c1420f555c"
+    },
+    {
+      "file": "docs/api/mcp-server.md",
+      "sha256": "e1923cb763f28eadbf1f4b5078228f6a550e1e4bff3e4a08e499d8dc7fbc23ec",
+      "gitBlob": "13c7b914075f55fe4d908158c1e6211f0d0380d3"
+    },
+    {
+      "file": "tests/integrations/mcp/transport-classifier-consumers.test.js",
+      "sha256": "21ed4ab32902b3d80f9a5afa1de92b69eee43d83bb1d524c12cc4812bc0080c1",
+      "gitBlob": "77702a02aea2623e16507aface6744d261c606ce"
+    },
+    {
+      "file": "src/index/registry-lock.js",
+      "sha256": "bdf3823b40b3adb413ca75121e087d7f16be06a43c9b01247bcf61b1a03d11d2",
+      "gitBlob": "90700003e1b585779420bbdbdef85067b8e816ec"
+    },
+    {
+      "file": "src/index/registry-support.js",
+      "sha256": "de6eff2a9e2108da24406093f3285affc48f66f4529f719a740fd175745b44fe",
+      "gitBlob": "f4244f3916bac4a58d579810016689467fd98c73"
+    },
+    {
+      "file": "tests/indexing/registry-borrowed-retirement-race.test.js",
+      "sha256": "7f1b345ad8aab630d4c848e32686be0ee6778a9939e4d6eb461353051eac7720",
+      "gitBlob": "d2a69a07fe40ce2e5162aedaa29f4954c26c7a1d"
+    },
+    {
+      "file": "src/index/build/runtime/workers.js",
+      "sha256": "0db23254fb4b63733c9c1f0302ca4fafa94278013b6c5f356656541ae891ba54",
+      "gitBlob": "2e3af35e71a17d75ecb476e0edbb6966e9725791"
+    },
+    {
+      "file": "src/index/build/workers/pool.js",
+      "sha256": "6b94f6f4c0f7716518e224c7e100d5874b882779b98be502db79f4640494256c",
+      "gitBlob": "7f8938ef85c647b0d965ce481698882d3f3fd42d"
+    },
+    {
+      "file": "src/index/build/workers/pool/lifecycle.js",
+      "sha256": "114e64a77ec40201f454bce7221c89da18a8f2faddda900ac6851caaa48afde9",
+      "gitBlob": "79c4a6a7510765e2bb69983f0f2834068e6d08fd"
+    },
+    {
+      "file": "src/integrations/core/build-index/runtime.js",
+      "sha256": "4af06482cf84a7532cb8f8dd15d50ebeb4e14b8a23418a459f879a7e60daee2b",
+      "gitBlob": "5b532880602d1502dc1ffe96b9dc47c2f581f6e7"
+    },
+    {
+      "file": "src/index/build/cache-writer-drain.js",
+      "sha256": "f58db06d3b70185cbc247ea28e6d3c9a929fd42de52bb91dfbccc33f7131dac6",
+      "gitBlob": "a05413b1d23b3822e8d0fa1b8e0d9d03b5e208d5"
+    },
+    {
+      "file": "tests/indexing/runtime/worker-cleanup-public-consumers.test.js",
+      "sha256": "e28a38b381cbbab6a3c054c652ed439fa92b858d93a6de50cf0a464bd3c5e30a",
+      "gitBlob": "5e463f94802d452722fc43fd08ea3ea7c1c00dab"
+    },
+    {
+      "file": "src/index/build/indexer/steps/process-files.js",
+      "sha256": "dd542e9bb567b7367f44ce0c0163135538fa88d5b467433def6be6cb503eee22",
+      "gitBlob": "4181e5d4a75c84f007e2a677e44eb7729db5653a"
+    },
+    {
+      "file": "tests/indexing/stage1/process-files-abort-listener-lifetime.test.js",
+      "sha256": "3c3ca6e89b00e22d1905bb52377d8d4e522a9aa4a68ef31eab728598bd88e46e",
+      "gitBlob": "39f5acc128b3104cdedf69da29f5c610bd295a92"
+    },
+    {
+      "file": "src/index/build/workers/thread-pool.js",
+      "sha256": "ce7a4088b74882ed96fdc0896c10fa0ad3f437767984594b7699e91e29fcbce8",
+      "gitBlob": "73b41aa2d5fd7e54668fc3ce1289985cf74bc87e"
+    },
+    {
+      "file": "src/index/build/file-processor/process-chunks/token-flow.js",
+      "sha256": "62c20c72ac813a13d5e8f9f08996f07b91a93bbc352bb659d162f4ae69b24de0",
+      "gitBlob": "27089add0a92f35f5ecf505436bf51d1fab00ec0"
+    },
+    {
+      "file": "src/lang/tree-sitter/chunking.js",
+      "sha256": "f2fde4ae8e42bf97967419565e927f86177d7188b94da05e5a567c338ecb1c26",
+      "gitBlob": "0837fcbec66df5590883ba347f74b9159df326b9"
+    },
+    {
+      "file": "tests/indexing/workers/thread-task-association-native.test.js",
+      "sha256": "dfa32b6e345b026419da7f7822820c93d2941c35c264fb808e37001437983783",
+      "gitBlob": "2eea2dd191d073029fb6d7b4715b90632d56d6ae"
+    },
+    {
+      "file": "src/lang/tree-sitter/config.js",
+      "sha256": "f7ad605da90f58f0be8699464d06278e99cee0ca6ab1953c09300b7b0d4bff8b",
+      "gitBlob": "9d05a4ece13aabd916ca2cda0caa0890eb7eaaea"
+    },
+    {
+      "file": "src/lang/tree-sitter/go-type-role.js",
+      "sha256": "97f28408c05bdcf213d6c51b65a2e191d161b13454a4c202c1ccf1d5737f8a54",
+      "gitBlob": "801765e0d996ebb1ce08f464c3b77955656b6b88"
+    },
+    {
+      "file": "src/index/semantic/analysis-versions.js",
+      "sha256": "751b95081685c76bb4069d1ab6d03617022e7070c811e385aa1ad4aa793007a6",
+      "gitBlob": "1944e4a5efb6341729fccfe6ff164efd52d49fbd"
+    },
+    {
+      "file": "tests/lang/contracts/go-transparent-type-role-consumers.test.js",
+      "sha256": "e75be84065f45177238055ce1dc44aa46e7fa210cef38b50c1da692564b3020f",
+      "gitBlob": "f150c9771a469784cf3ac6ceb94b0ec1b2111884"
+    },
+    {
+      "file": "src/lang/perl.js",
+      "sha256": "46e71a6a8c3afa95a53c3bf1b4791c364d510234402bb63fb3bdecca47172c54",
+      "gitBlob": "71f19fcdaf0c60cc98ef8e6298e8cf1b523d40ff"
+    },
+    {
+      "file": "src/index/identity/chunk-uid.js",
+      "sha256": "fca1fdb2f6dd67a8fcaf9b34d7aa312c816bfb1064296a0720f78edb82f5114a",
+      "gitBlob": "ea2731059503b38444c8871ae54ee41fbb678bdf"
+    },
+    {
+      "file": "tests/lang/contracts/native-perl-package-ownership-consumers.test.js",
+      "sha256": "fcc68850fca1df5bbc5bd4c8c39c05c6c01d612462366a3c72825ed4ed78cf60",
+      "gitBlob": "df03777c7ff787eb3af7d6991f3567d405d34adf"
+    },
+    {
+      "file": "src/lang/lua.js",
+      "sha256": "49b9b1ce02f19adbdf6b28e347373c64838edd19dd39f09f8607ddb37c7e1e4a",
+      "gitBlob": "033df6105d7c34bfdb54a7dcac31019d8c47a928"
+    },
+    {
+      "file": "tests/lang/contracts/lua-lexical-header-call-consumers.test.js",
+      "sha256": "83db6d3ae119df64d07ff3c9e5b9d383b17e426009df3f9e9d15fedad2e1969b",
+      "gitBlob": "98da67d773e3b9b1475a4db84761a5b760e27bbc"
+    },
+    {
+      "file": "src/lang/shell.js",
+      "sha256": "db9eef14f659725cbdabb403ff305ce73494509b209a1c97060c904960ab8000",
+      "gitBlob": "b5f7e33932fb1467608be38c8dace3fd1c7029ae"
+    },
+    {
+      "file": "src/index/shared/import-specifier.js",
+      "sha256": "fd89906c8709878889eb4b56feba6879c35bdfbe3512cbffba4b26b06edbf29b",
+      "gitBlob": "975e1c406618ebbee1815c759d463fc43840b11b"
+    },
+    {
+      "file": "src/index/build/import-resolution/path-utils.js",
+      "sha256": "ef41569ae925dc515aa6a27edd926b07ea7a148f153c45167da13f6707252254",
+      "gitBlob": "b28a6edf0a4d218c128b11e6364c7efe824a50cc"
+    },
+    {
+      "file": "src/index/build/import-resolution/engine.js",
+      "sha256": "178523adf859a60ebee1f5c842d03250078cbaca1867c8af24d702f4ea4472f1",
+      "gitBlob": "61a18be813632a7f208dc05fc45cc5752d06bd5c"
+    },
+    {
+      "file": "tests/lang/contracts/shell-literal-suffix-resolution.test.js",
+      "sha256": "c12f73485e335a4166473e235d7756b32f9613f78564a0e418c3ee5aea7fdb9e",
+      "gitBlob": "d1ec295ca9f5d83e65cdf5d4c2df1b68efa5bbae"
+    },
+    {
+      "file": "src/index/language-registry/import-collectors/starlark.js",
+      "sha256": "7f198fa571e8056252ced07199eff54438221f949e7134383a9b48479f291fce",
+      "gitBlob": "c0fe84f313c896a9e6b3d12eb15b3e8b137fe9d3"
+    },
+    {
+      "file": "tests/lang/contracts/starlark-escaped-triple-import-consumers.test.js",
+      "sha256": "4cfcaccc455184707e29da3b3bdc44e052d7981041ddec1fac27eca059332851",
+      "gitBlob": "94b214d55ffe452a63efd322606d4aed4114036f"
+    },
+    {
+      "file": "src/index/chunking/formats/xml.js",
+      "sha256": "6588c5245a77885651154d8fa08c050824bf60186f7f5f3b590e51230f40beac",
+      "gitBlob": "09a1dca11d81bf8480b9056bfdcd473fab51d599"
+    },
+    {
+      "file": "src/shared/xml-structure.js",
+      "sha256": "e2b7ba0a96c5487c313e3ad4d634dfeb558afafa83ea674d3c346b69bd2652cb",
+      "gitBlob": "729b416ca2455820ec43d20637c62687d60ea00f"
+    },
+    {
+      "file": "tests/lang/contracts/xml-native-document-envelope-consumers.test.js",
+      "sha256": "683860f660152c4ba8e851660a863c0ffdf9dff6f6456ea0815a8c6cbcee89eb",
+      "gitBlob": "d44e16f61dbc9303e39cd4f212d2f7f7ada17160"
+    },
+    {
+      "file": "src/semantic/manifest-reader.js",
+      "sha256": "d0ad0fee7bef97afde1e0ef096a8a8ba1c54bd75d7f2a9cf88a63fd14cf1a72e",
+      "gitBlob": "03f492f1b77dbdf1cd03e367a98948f359245218"
+    },
+    {
+      "file": "src/semantic/published-store.js",
+      "sha256": "86925568a7ed54343d3b3a10563f8806eae8930eb1459fbffd104feb888812db",
+      "gitBlob": "c77d1d50e03e6fc3f7e5a0d8b194cc088e9b4192"
+    },
+    {
+      "file": "src/shared/contained-file.js",
+      "sha256": "113738dbb5b863501aa2c78672f0a49aa179a0a738939d2876bb95dbd0b5d0ec",
+      "gitBlob": "bdae3196272f97c0762f17ced8b9d5c4674c9d8a"
+    },
+    {
+      "file": "tests/storage/semantic/published-manifest-snapshot.test.js",
+      "sha256": "9c215dfc72406ed9fba98a8c434d693610c354b866408f68f727175f4933936a",
+      "gitBlob": "3e0a6a05c0b848cee10f8f854cd5cace27232912"
+    },
+    {
+      "file": "src/index/build/incremental/source-snapshot.js",
+      "sha256": "5682f66b7aa537bfeb6da9dae93b77bd37478cd9ffd28ed9c9333b6163fc2b72",
+      "gitBlob": "380c37205d0e0c4f3c38b3e15926717de30c0d3c"
+    },
+    {
+      "file": "src/index/build/incremental/state-reconciliation.js",
+      "sha256": "d713b48aa714683a8c68ab92d8e2ab1c63029154f15ec0e23515c92a2d519c94",
+      "gitBlob": "761beead8495e05773c239eb19627d7ae5e80937"
+    },
+    {
+      "file": "src/index/build/incremental/file-completion.js",
+      "sha256": "fe58c580325fd01eb0dbb13471830121eb9311c1d67324c1d48a97bbc208950c",
+      "gitBlob": "7133347187802f3cbc05cc651204d2d07970d6f8"
+    },
+    {
+      "file": "src/index/build/file-processor/incremental.js",
+      "sha256": "aeb727ebf3a76d793584422e23732953954ea86a9d26f0ddccaaf56625a1440b",
+      "gitBlob": "9ad81bd363a0b386963f58f458a6653945692d03"
+    },
+    {
+      "file": "src/index/build/preprocess.js",
+      "sha256": "764ae645c05305231086c6e03d9c8eff395f0342b28fe137a8782509d961d07d",
+      "gitBlob": "9b094b506b3c65c2798ea68da9815893835cd818"
+    },
+    {
+      "file": "tests/indexing/incremental/source-caller-authority.test.js",
+      "sha256": "3566a14599c08f6e761355d3853a651b2836b18ad1d41d1562efd81889937f12",
+      "gitBlob": "d89086a61fb5becff80d0afa6c2f5fbbbe7932e9"
+    },
+    {
+      "file": "src/retrieval/sparse/providers/tantivy.js",
+      "sha256": "8871a2bfbc824d67eb5bc032dd3ac255f8dbd70dc6a15edfd762bd04a6d4cc2f",
+      "gitBlob": "410bd0fd9a12a1a9a50ec23757dd6e2d5064a546"
+    },
+    {
+      "file": "src/retrieval/pipeline/candidate-stage.js",
+      "sha256": "4f308969741077b95ff5a6242621e6740dc32876b9630374f672e7462d69844c",
+      "gitBlob": "c93abd47310ffe06859d707b50458288e96eda3c"
+    },
+    {
+      "file": "src/retrieval/pipeline/query-ast.js",
+      "sha256": "0a1c8d693d735ba13c5ce06a56204fbc7157c1bd1991b0b73caf1e0a223400c4",
+      "gitBlob": "0495aa811dfc1f3aa1d68e732ea2d9d732115ed2"
+    },
+    {
+      "file": "src/contracts/retrieval-execution.js",
+      "sha256": "452e6b865f19cc9472f61d42d315c2b534db10d393e071e12034e379ac30df6c",
+      "gitBlob": "f8a7adc10149a71799f22efd575ee83c2a7fc5aa"
+    },
+    {
+      "file": "tests/retrieval/providers/tantivy-boolean-membership-consumers.test.js",
+      "sha256": "b0f671e9e45e02dacc9082f7c5e55808265af9f82ea859c72bd5c0d5f67a0232",
+      "gitBlob": "19fc5ce4b608db652972fb0118a4a586ea7a0747"
+    },
+    {
+      "file": "tests/retrieval/providers/tantivy-boolean-and-failure.test.js",
+      "sha256": "55d65c7f44d993de7594e337abb1aa3a429237efb5be221ef36f735d09474a99",
+      "gitBlob": "a7d3a5e22812f091adbcd5c09303a39db1827326"
+    },
+    {
+      "file": "tools/service/indexer-service/queue-worker.js",
+      "sha256": "332af177f48d4ad74b1ea7d9f9a8757829bd5a5211f83f422410f8af51c170a2",
+      "gitBlob": "5441807d6369a68f70583366661561874bf4e223"
+    },
+    {
+      "file": "tools/service/indexer-service/claim-renewal.js",
+      "sha256": "78e9a0a75bd22c958a8ab250829e06261401a1154d0c87d2d8b41451b09ba80b",
+      "gitBlob": "0ad9a861e8ed00544355e5d5dba35c5e70402338"
+    },
+    {
+      "file": "tools/service/queue.js",
+      "sha256": "5a87c82cf7f0c5f8f9aab4623cce8151818f891c6a39afff2a46b70abd0f95ea",
+      "gitBlob": "2130e494d5c2b8057ecd6ec5e7ec749ca03e1c20"
+    },
+    {
+      "file": "tests/services/queue/completion-confirmed-authority.test.js",
+      "sha256": "4ef7b4a317ca3e4595e737cde1c5396b408df09beea3a663da5fcb4faf1c85da",
+      "gitBlob": "d25b1127a05c0768439ea7f568e87ed0ebb7c9b8"
+    },
+    {
+      "file": "src/graph/impact-direction.js",
+      "sha256": "7542ce3ea2fe6095bca38789ff94dd4ea7ca8bc6e4c91b584887028edc1d6d7b",
+      "gitBlob": "6d358d9cc6409c89ea7101ae9c9f356959263e8e"
+    },
+    {
+      "file": "src/graph/impact.js",
+      "sha256": "2478d757c1339af8b90b38fbf90dd174624335dfb27dbcc7cfbd7f8ee10300a7",
+      "gitBlob": "e51fc6780929d408572af04e7e824c0721745f1a"
+    },
+    {
+      "file": "src/graph/path-capability.js",
+      "sha256": "5f7e9abc72734acc6bacc78fb668d49d7da3cf6594fd319d6f4660e5b62a1268",
+      "gitBlob": "a043a3dd908164808c16ea5c2bc3ce0a352455e3"
+    },
+    {
+      "file": "src/semantic/path-capabilities.js",
+      "sha256": "8084ad5aedd92c566a1c05feb0426c176dcd1b10e9be5774003155489e707c44",
+      "gitBlob": "4b1c3e1de42e450ae99f469e6c5a03d856fcaba2"
+    },
+    {
+      "file": "tests/graph/impact-production-direction.test.js",
+      "sha256": "74ea8cc2c8252b59d310b90d3218071775fa2a93f518526615a67006c25cfbaf",
+      "gitBlob": "119684566f363045f04c48dc6bab691d2010c8bc"
+    },
+    {
+      "file": "src/index/build/artifacts-write/family-dispatch.js",
+      "sha256": "5de569a7d3d8842e7682c23340f19a51cee79e5c4dcb4884c316592598953ac2",
+      "gitBlob": "57081128eabe1c38f65dd4ce82d345e3e349d34d"
+    },
+    {
+      "file": "tests/indexing/artifacts/cleanup-removal-failure-receipts.test.js",
+      "sha256": "542f61152b831e6f985217d18ebab7e760bb8f7ed1f249a48bc6b491d0adefdc",
+      "gitBlob": "be14f24b017c2041f577a1593218efa1586190e1"
+    },
+    {
+      "file": "src/shared/artifact-io/payload-admission.js",
+      "sha256": "91e296c8c81bbeb0ad176b7b65c1ecdbc092f287ee863953935fdbb684bf9640",
+      "gitBlob": "d9660c13dd8966b02b103904b61bfade4cd192e3"
+    },
+    {
+      "file": "src/shared/artifact-io/loaders/core-row-stream.js",
+      "sha256": "391c538884226438496ed303015e42c88742a0990995cf9eab0a9568ea27c402",
+      "gitBlob": "4ae021399e46f9740e280485f01f139df2801b7d"
+    },
+    {
+      "file": "src/shared/artifact-io/loaders/core-array-payload.js",
+      "sha256": "2567a014f89799dd9173c2ba86230c12c5671ed66f70074ba3b2d8e8d10ed81c",
+      "gitBlob": "c17b320d7dfc10903ba5ec17276347839d4d20ac"
+    },
+    {
+      "file": "src/shared/artifact-io/loaders/chunk-meta.js",
+      "sha256": "87f88194bcffda71b6ba3f2c938d2a91db6ab3691dba60b99cb9f71dd83f602f",
+      "gitBlob": "eca9abdad5505f82b847b0fd4820b959fe9907e7"
+    },
+    {
+      "file": "tests/shared/artifact-io/json-array-shape-consumers.test.js",
+      "sha256": "1cdcd66433ee5f71237ed29c5447f210ad66972904eca1fb7099e0ca5f177ef3",
+      "gitBlob": "7eb4ab8e8f425dd3854dd49b5217c887704fb269"
+    },
+    {
+      "file": "src/lang/python/imports.js",
+      "sha256": "44a46787227c7a3253e62bbbbbfad4cbaa3ead738cca7ee36aa3bbab261594b4",
+      "gitBlob": "ad8b8d275da5c51adcce829c759d7da17f9dfed8"
+    },
+    {
+      "file": "tests/lang/contracts/python-escaped-triple-import-consumers.test.js",
+      "sha256": "50cd8d4f42207c8441e79e0bcfd61ff572e92aa85d8e1b77d4689ace0daf0e54",
+      "gitBlob": "001aef3d686d0b4714680f67c1e94d5769976d60"
+    },
+    {
+      "file": "src/lang/python/identifiers.js",
+      "sha256": "1b85d428b32bcb930862815b9af04c352e3e343e5c059f1a7afc4a5ea147bc2f",
+      "gitBlob": "319ac59bf063cf82bea21f324c1fa90080aa19d9"
+    },
+    {
+      "file": "src/lang/python/identifier-tables.js",
+      "sha256": "d111586499aab893a6a50f68eafc55a1c1af84c6191d1b8d89d5b04d502bbf2b",
+      "gitBlob": "56509edbe1d24cc387e9fc362c032eeec8ead659"
+    },
+    {
+      "file": "tests/lang/contracts/python-unicode-import-consumers.test.js",
+      "sha256": "397d47498f177d227012ec208140c8897f43c5fdf5fe924c03bc50f8edd9918b",
+      "gitBlob": "e5c1ff42948cdf4604d8b807844d8b38f7e6faba"
+    },
+    {
+      "file": "src/retrieval/lancedb.js",
+      "sha256": "778ab494273c3d37060fb6695eb9993ca93777d336b19914c355a0178aea761d",
+      "gitBlob": "44a05be1066fb4c9f7e0d0ce7438d5135220590d"
+    },
+    {
+      "file": "src/retrieval/ann/providers/lancedb.js",
+      "sha256": "4cd1d00509ba970029d126b976261fa9f0a420a6aced48eb0896cbec624fb4d6",
+      "gitBlob": "555db254a94f0271fbd116f8f877b00121de7257"
+    },
+    {
+      "file": "src/retrieval/pipeline/provider-runtime.js",
+      "sha256": "2efa7e4330307f535fe4f38d5e5d5e3f5298dabdba4f11f8e41c07f050b56564",
+      "gitBlob": "1e9e8362cd519f03dff04bf9e2a4fdcc844fe404"
+    },
+    {
+      "file": "src/retrieval/pipeline/execution-outcome.js",
+      "sha256": "27940305a835c9efdfdfec0f41815fc9a3cb384e5d6d3818471041a9e0d47990",
+      "gitBlob": "e99f66bbccea4f1d2941b137992f8bd130d5346f"
+    },
+    {
+      "file": "tests/retrieval/ann/lancedb-outcome-consumers.test.js",
+      "sha256": "f0a8ee84f4d6f607c819217619548da69844f8e548ecb226ae89b94afe0f6ca3",
+      "gitBlob": "f6145ab30e4a89554e5e4cb9af05df5fbbc4047e"
+    },
+    {
+      "file": "src/shared/language-aliases.js",
+      "sha256": "6c8e4d4615a3ed0593e6bb5537c777f4fb97503dfbc3444180b6bbefae0cb18a",
+      "gitBlob": "0cf105a9a8b504d423f6a6285e07a62fc7ce3457"
+    },
+    {
+      "file": "src/retrieval/filters.js",
+      "sha256": "d5f1357c6e191c56b717f3c753749f149c8cf5f5b3399ba476f28788cd5637a4",
+      "gitBlob": "70974b067e0d413d5224f94483b008cd11154c64"
+    },
+    {
+      "file": "src/index/language-registry/linguist-routing.js",
+      "sha256": "1134874b6a995b61e0689911d762971dd914374763e9d08be3aa76a9f71a8c6c",
+      "gitBlob": "34656baab48ca3fcdc9beaadcc4bcb5047f89c58"
+    },
+    {
+      "file": "tests/retrieval/filters/protobuf-alias-consumers.test.js",
+      "sha256": "57c6d9f5eab05b15e411d6562a946a39bdcf47dff162c2569881ce8c72d73fab",
+      "gitBlob": "46d4d74c0a7b9533f7456371a7274f5db7f152be"
+    },
+    {
+      "file": "src/shared/repo-cache-retirement.js",
+      "sha256": "49582c7c8c4c5b9db4f850c5dbea1a50579a6a4e7259d745378c5047f685461b",
+      "gitBlob": "67e14005239d652aa361b0bbe142dbeddac48db5"
+    },
+    {
+      "file": "src/shared/repo-cache-config.js",
+      "sha256": "e383efb890b50f98bedf01512d9096771f1dd1bba7863f8870f534801246489f",
+      "gitBlob": "ca9382a05b635b1d875928fea39a942129c12c0b"
+    },
+    {
+      "file": "tools/api/router/cache.js",
+      "sha256": "a9d7b72645fc2a47b409221e9281cbdda7cf45950b754bbb836ea8a7e8c371b0",
+      "gitBlob": "3fc1bf8d87c94c032e9dcf75a0623fa6e2fa778e"
+    },
+    {
+      "file": "src/shared/cache/policy.js",
+      "sha256": "efcc94bfb959e6127fb601ff987d93fa15779674f9117bd1fb8eabcca1f47b67",
+      "gitBlob": "72b3abdbbbf90beaec2c24cab9fd9ef60590f79f"
+    },
+    {
+      "file": "tests/tooling/api-mcp/repo-cache-async-shutdown.test.js",
+      "sha256": "1d8552d3349690bd06e6bda6e829d0cafdaf920895b8f5b3f4e41da2eee201d2",
+      "gitBlob": "60e82c8c419f45bedae87c960ca436e8f3feb1cd"
+    },
+    {
+      "file": "tools/bench/usr/shared.js",
+      "sha256": "cb13f2243859b8e2e37f4430c3ed335da5af128438c83c6588d124a7dd8552bc",
+      "gitBlob": "9ca792149b65d2af5b6aaf0a2400fd0f1ce02b05"
+    },
+    {
+      "file": "tools/bench/usr/item37-governance-drift.js",
+      "sha256": "6d874da64207a832a434f2c29e46ebc32835f42c37d384a93f0fb01a0783fb44",
+      "gitBlob": "6e21b600035a8de22afff9475790c2262a47bd1b"
+    },
+    {
+      "file": "tools/bench/usr/item35-framework-canonicalization.js",
+      "sha256": "c21d6d8b4d7b62c8bd9f9c3484280f61063f9ec452ec0903c8d82dd231a881d8",
+      "gitBlob": "320086ff76bdf4a8bfecea574d20c37bf6940ee6"
+    },
+    {
+      "file": "tools/bench/usr/item36-backcompat-matrix.js",
+      "sha256": "4a5f2e9e6a2a08e47c082291cc3bf8191b350dc5732fe3310b9c24cfc287ee30",
+      "gitBlob": "7fa6d8335e61658f8ff88cbfbf318e450d5e3581"
+    },
+    {
+      "file": "tools/bench/usr/item38-catalog-contract.js",
+      "sha256": "5e8e412f20463e0c8fbd26543be93f4dabcff5f66ca847ad162a64d769dd821c",
+      "gitBlob": "aa55ec2623da0e43e54dc2050426a005ed600d06"
+    },
+    {
+      "file": "tools/bench/usr/item39-normalization-linking-identity.js",
+      "sha256": "fc4f748a3a120911c3c88df0dc7ef39d6666158f308ff4665f88fc4fe3331ab0",
+      "gitBlob": "3e67d50fbfb5ea51c345b5f1a44ce21e1dc85e53"
+    },
+    {
+      "file": "tools/bench/usr/item40-pipeline-incremental-transforms.js",
+      "sha256": "dfd48fcd0f36c2c5174c332da0d42edf083a3022ce50e018c60c4e910987e669",
+      "gitBlob": "5ecb6bd0bcb4fcf2f9a3f8e09d7d482d2a81da84"
+    },
+    {
+      "file": "tests/tooling/bench/usr-named-source-digest.test.js",
+      "sha256": "ca6cf02f65fdb71d88dcbec9b3f1fa67a2f920a5ce1dcf1ba6fa280105535334",
+      "gitBlob": "d7c79248061a55740f925f3ccb38dc3550a96dd6"
+    }
+  ]
+}

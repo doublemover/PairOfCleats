@@ -5,6 +5,8 @@ import { createSchedulerCoreConfig } from './config.js';
 import { createSchedulerDispatch } from './dispatch.js';
 import { createSchedulerQueueLifecycle } from './queue-lifecycle.js';
 import { createSchedulerShutdown } from './shutdown.js';
+import { createSchedulerDispatchReplay } from '../scheduler-dispatch-replay.js';
+import { createSchedulerWorkloadObservation } from '../scheduler-workload-observation.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -20,11 +22,14 @@ export function createBuildScheduler(input = {}) {
     runningTasks: new Set(),
     globalInFlightBytes: 0,
     telemetryStage: config.telemetryStage,
+    telemetryStageEpoch: 0,
+    workloadScope: null,
     traceIntervalMs: config.traceIntervalMs,
     queueDepthSnapshotIntervalMs: config.queueDepthSnapshotIntervalMs,
     queueDepthSnapshotsEnabled: config.queueDepthSnapshotsEnabled,
     lastMemorySignals: null,
     lastSystemSignals: null,
+    lastSystemSignalsAt: null,
     lastAdaptiveAt: 0,
     adaptiveCurrentIntervalMs: config.adaptiveMinIntervalMs,
     adaptiveMode: 'steady',
@@ -36,6 +41,19 @@ export function createBuildScheduler(input = {}) {
   };
 
   const queueLifecycle = createSchedulerQueueLifecycle({ config });
+  const resources = { tokens: state.tokens, counters: config.counters,
+    get inFlightBytes() { return state.globalInFlightBytes; },
+    get active() { return state.runningTasks.size > 0 || state.globalInFlightBytes > 0
+      || state.tokens.cpu.used > 0 || state.tokens.io.used > 0 || state.tokens.mem.used > 0; } };
+  const workloadContext = { get buildId() { return state.workloadScope?.buildId; },
+    get mode() { return state.workloadScope?.mode; }, get stage() { return state.telemetryStage; },
+    get stageEpoch() { return state.telemetryStageEpoch; } };
+  state.workloadObservation = createSchedulerWorkloadObservation({ nowMs: config.nowMs,
+    readResources: () => resources, readContext: () => workloadContext, resourceIdentity: input.resourceIdentity });
+  state.workloadObservation.resourcesChanged();
+  const dispatchReplay = createSchedulerDispatchReplay({ nowMs: config.nowMs,
+    startedAtMs: config.startedAtMs, starvationMs: config.starvationMs });
+  dispatchReplay.configure(input.dispatchReplay);
   const cloneTokenState = () => ({
     cpu: { ...state.tokens.cpu },
     io: { ...state.tokens.io },
@@ -50,6 +68,7 @@ export function createBuildScheduler(input = {}) {
     evaluateWriteBackpressure: queueLifecycle.evaluateWriteBackpressure,
     writeBackpressureState: config.writeBackpressureState,
     cloneTokenState,
+    onSchedulingSample: sample => state.workloadObservation.sample(sample.activity, state.lastSystemSignals, state.lastSystemSignalsAt),
     traceMaxSamples: config.traceMaxSamples,
     queueDepthSnapshotMaxSamples: config.queueDepthSnapshotMaxSamples,
     getStage: () => state.telemetryStage,
@@ -65,7 +84,8 @@ export function createBuildScheduler(input = {}) {
   const adaptiveController = createAdaptiveSchedulerController({
     config,
     state,
-    queueLifecycle
+    queueLifecycle,
+    admissionReason: (queue, request, pressure) => dispatch.admissionBlockReason(queue, request, pressure)
   });
   const telemetryTimer = config.enabled && !config.lowResourceMode
     ? setInterval(() => {
@@ -79,7 +99,8 @@ export function createBuildScheduler(input = {}) {
     state,
     queueLifecycle,
     adaptiveController,
-    captureTelemetryIfDue
+    captureTelemetryIfDue,
+    dispatchReplay
   });
   const shutdownController = createSchedulerShutdown({
     config,
@@ -88,6 +109,7 @@ export function createBuildScheduler(input = {}) {
     telemetryTimer,
     captureSchedulingTrace,
     captureQueueDepthSnapshot,
+    handoffRetainedSettlementWait: dispatch.handoffRetainedSettlementWait,
     pump: dispatch.pump
   });
 
@@ -118,13 +140,15 @@ export function createBuildScheduler(input = {}) {
       adaptiveSurfaceControllersEnabled: config.adaptiveSurfaceControllersEnabled,
       adaptiveDecisionTrace: config.adaptiveDecisionTrace,
       lastSystemSignals: state.lastSystemSignals,
+      lastSystemSignalsAt: state.lastSystemSignalsAt,
       evaluateWriteBackpressure: queueLifecycle.evaluateWriteBackpressure,
       writeBackpressure: config.writeBackpressure,
       telemetryStage: state.telemetryStage,
       traceIntervalMs: state.traceIntervalMs,
       queueDepthSnapshotIntervalMs: state.queueDepthSnapshotIntervalMs,
       queueDepthSnapshotsEnabled: state.queueDepthSnapshotsEnabled,
-      telemetryCapture
+      telemetryCapture,
+      workloadObservation: state.workloadObservation
     }) };
   };
 
@@ -132,11 +156,28 @@ export function createBuildScheduler(input = {}) {
 
   return {
     schedule: dispatch.schedule,
+    // Internal optional-child admission: Promise when reserved now, null when
+    // busy; it never queues behind a parent's retained byte/memory reservation.
+    scheduleIfAvailable: dispatch.scheduleIfAvailable,
     stats,
+    // Internal learned-profile evidence only; these observers never select work.
+    setDispatchReplayContext: dispatchReplay.configure,
+    getDispatchReplay: dispatchReplay.snapshot,
+    getDispatchReplayResourceIdentity: dispatch.getReplayResourceIdentity,
+    noteDispatchReplayCommit: dispatchReplay.observeCommit,
     shutdown: shutdownController.shutdown,
     setLimits: shutdownController.setLimits,
-    registerQueue: queueLifecycle.registerQueue,
+    registerQueue: (name, queueConfig) => {
+      const queue = queueLifecycle.registerQueue(name, queueConfig);
+      dispatch.pump();
+      return queue;
+    },
     registerQueues: queueLifecycle.registerQueues,
+    registerQueueConcurrencyLimit: (name, initialLimit) => {
+      const limit = queueLifecycle.registerQueueConcurrencyLimit(name, initialLimit);
+      dispatch.pump();
+      return { get: limit.get, set: value => { limit.set(value); dispatch.pump(); } };
+    },
     clearQueue: queueLifecycle.clearQueue,
     setTelemetryOptions: shutdownController.setTelemetryOptions,
     enabled: config.enabled,

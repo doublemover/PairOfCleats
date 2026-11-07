@@ -32,3 +32,13 @@ JSON payload keys:
 - `<repoCacheRoot>/metrics/metrics.json` (file hit + term lists)
 - `<repoCacheRoot>/metrics/searchHistory` (JSONL)
 - `<repoCacheRoot>/metrics/noResultQueries` (JSONL)
+
+## Worker telemetry lifetime
+
+The Prometheus worker duration histogram retains process-lifetime pool/task/
+status totals under `worker="all"`; worker pressure is the latest pool/stage
+proxy observation. Individual IDs belong to bounded current-pool diagnostics,
+which are pruned on exit and replacement. See
+[worker metric lifetime](../contracts/worker-metric-lifetime.md) for label
+migration, cardinality bounds and outstanding execution/measurement evidence.
+These telemetry families are separate from the persisted report inputs above.

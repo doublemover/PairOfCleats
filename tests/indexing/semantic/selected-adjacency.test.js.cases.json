@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["projected-bags-and-parent-identity", "exact-selection-and-swap", "partial-domain-and-world-transitions", "atomic-replay-and-passive-input", "bounded-and-cancelled-transitions", "independent-expanded-bag"]
+}

@@ -4,7 +4,7 @@ import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { resolveArtifactPresence } from '../../shared/artifact-io/manifest.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
-import { addIssue } from './issues.js';
+import { addIssue, validationErrorMetadata } from './issues.js';
 import { validateSchema } from './schema.js';
 
 export const createArtifactPresenceHelpers = ({
@@ -17,6 +17,7 @@ export const createArtifactPresenceHelpers = ({
 }) => {
   const minJsonBytes = 64 * 1024;
   const resolveMaxBytes = (name) => {
+    if (name === 'index_state') return 8 * 1024 * 1024;
     if (name === 'index_state' || name === 'filelists') {
       return Math.max(MAX_JSON_BYTES, minJsonBytes);
     }
@@ -24,9 +25,9 @@ export const createArtifactPresenceHelpers = ({
   };
   const presenceCache = new Map();
   const resolvePresence = (name) => {
-    if (!strict || !manifest) return null;
+    if (!manifest) return null;
     if (presenceCache.has(name)) return presenceCache.get(name);
-    const presence = resolveArtifactPresence(dir, name, { manifest, strict: true });
+    const presence = resolveArtifactPresence(dir, name, { manifest, strict });
     presenceCache.set(name, presence);
     return presence;
   };
@@ -44,20 +45,22 @@ export const createArtifactPresenceHelpers = ({
       if (required) {
         modeReport.ok = false;
         modeReport.missing.push(name);
-        report.issues.push(`[${mode}] ${label}`);
+        addIssue(report, mode, label, null, 'issues', { state: 'missing', artifact: name, modeMessage: name, code: 'ERR_INDEX_ARTIFACT_MISSING' });
       } else {
         modeReport.warnings.push(name);
-        report.warnings.push(`[${mode}] optional ${name} missing`);
+        addIssue(report, mode, `optional ${name} missing`, null, 'warnings', { state: 'missing', artifact: name, modeMessage: name, code: 'WARN_INDEX_OPTIONAL_MISSING' });
       }
       return presence;
     }
     if (presence.missingMeta) {
-      addIssue(report, mode, `${name} meta missing`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `${name} meta missing`, 'Rebuild index artifacts for this mode.', 'issues',
+        { artifact: name, state: 'missing', code: 'ERR_INDEX_ARTIFACT_META_MISSING' });
       modeReport.ok = false;
     }
     if (presence.missingPaths.length) {
       presence.missingPaths.forEach((missing) => {
-        addIssue(report, mode, `${name} shard missing: ${path.relative(dir, missing)}`);
+        addIssue(report, mode, `${name} shard missing: ${path.relative(dir, missing)}`, null, 'issues',
+          { artifact: name, state: 'missing', code: 'ERR_INDEX_ARTIFACT_SHARD_MISSING' });
       });
       modeReport.ok = false;
     }
@@ -85,8 +88,9 @@ export const createArtifactPresenceHelpers = ({
 
   const readJsonArtifact = (name, { required = false, allowOversize = false } = {}) => {
     try {
-      if (strict && manifest) {
+      if (manifest && (strict || manifest.pieces?.some(piece => piece.name === name))) {
         const presence = resolvePresence(name);
+        if (presence?.error) throw presence.error;
         if (!presence || presence.format === 'missing') return null;
         if (presence.format !== 'json') {
           throw new Error(`Unexpected ${name} format: ${presence.format}`);
@@ -97,7 +101,7 @@ export const createArtifactPresenceHelpers = ({
         if (presence.paths.length > 1) {
           throw new Error(`Ambiguous JSON sources for ${name}`);
         }
-        return readJsonFile(presence.paths[0], { maxBytes: resolveMaxBytes(name) });
+        return readJsonFile(presence.paths[0], { maxBytes: resolveMaxBytes(name), containedRoot: strict ? dir : null });
       }
       const jsonPath = path.join(dir, `${name}.json`);
       if (!fs.existsSync(jsonPath) && !fs.existsSync(`${jsonPath}.gz`) && !fs.existsSync(`${jsonPath}.zst`)) {
@@ -108,18 +112,21 @@ export const createArtifactPresenceHelpers = ({
       if (allowOversize && err?.code === 'ERR_JSON_TOO_LARGE') {
         const warning = `${name} load skipped (${err?.message || err})`;
         modeReport.warnings.push(warning);
-        report.warnings.push(`[${mode}] ${warning}`);
+        addIssue(report, mode, warning, null, 'warnings', { artifact: name, state: 'unverified', code: 'WARN_INDEX_ARTIFACT_UNVERIFIED' });
         return null;
       }
-      addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, name));
       if (required) modeReport.ok = false;
       return null;
     }
   };
 
   const shouldLoadOptional = (name) => {
-    if (!strict) return true;
     const presence = resolvePresence(name);
+    // Missing optional data is allowed in both modes. Non-strict validation
+    // still reads declared, invalid, or physically present legacy artifacts;
+    // it cannot turn a declared missing shard into a successful omission.
+    if (!strict) return Boolean(presence && (presence.format !== 'missing' || presence.error)) || hasLegacyArtifact(name);
     return presence && presence.format !== 'missing' && !presence.error;
   };
 

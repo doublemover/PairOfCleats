@@ -47,7 +47,7 @@ assert(supervisedManifest.outputs.length >= 6, 'expected multiple supervised out
 const startupFramePath = getCapturePaths(
   supervisedManifest,
   'startup',
-  'narrow-color'
+  'desktop-color'
 ).frame_path;
 const startupFrame = readText(startupFramePath);
 assert.match(startupFrame, /Session/);
@@ -58,6 +58,17 @@ assert.match(startupFrame, /Jobs/);
 assert.match(startupFrame, /mode supervised/);
 assert.match(startupFrame, /no supervised jobs|supervisor ready/);
 assert.doesNotMatch(startupFrame, /\{\"connection\"/);
+
+// Automatic density has a separate contract below 100 columns or 32 rows.
+// Keep the old full-panel assertions above on a real desktop-sized frame,
+// and retain every narrow fixture rather than forcing that layout into 80x24.
+const compactStartup = readText(getCapturePaths(supervisedManifest, 'startup', 'narrow-color').frame_path);
+assert.match(compactStartup, /^supervised \| connected \| scope repo:fixtures\/supervised/m);
+assert.match(compactStartup, /jobs \| no selection \| job none \| Tab panes/);
+assert.match(compactStartup, /Jobs \* \| filter all/);
+assert.match(compactStartup, /no supervised jobs yet/);
+assert.match(compactStartup, /R search \| b commands \| O sessions \| s settings/);
+assert.doesNotMatch(compactStartup, /┌Session|\{"connection"/);
 
 const activeMetaPath = getCapturePaths(
   supervisedManifest,
@@ -82,7 +93,7 @@ assert.equal(noColorMeta.non_default_style_cells, 0, 'no-color variant should av
 
 const replayManifest = readFixtureManifest('bench-replay');
 const replayFrame = readText(
-  getCapturePaths(replayManifest, 'degraded', 'medium-color').frame_path
+  getCapturePaths(replayManifest, 'degraded', 'desktop-color').frame_path
 );
 assert.match(replayFrame, /mode replay/);
 assert.match(replayFrame, /Bench/);
@@ -96,7 +107,7 @@ assert.doesNotMatch(replayFrame, /\{\"event\"/);
 
 const observabilityManifest = readFixtureManifest('external-observability');
 const observabilityFrame = readText(
-  getCapturePaths(observabilityManifest, 'logs-only', 'medium-color').frame_path
+  getCapturePaths(observabilityManifest, 'logs-only', 'desktop-color').frame_path
 );
 assert.match(observabilityFrame, /mode external-observability/);
 assert.match(observabilityFrame, /external stream without/);
@@ -114,57 +125,72 @@ assert.equal(navigationBefore.job_scroll, 0);
 assert.equal(navigationAfter.job_scroll, 1);
 assert.equal(navigationAfter.log_scroll, 1);
 assert.equal(navigationAfter.selected_job, 'job-b');
+const logTail = readText(getCapturePaths(navigationManifest, 'log-tail', 'medium-color').frame_path);
+const logRowUp = readText(getCapturePaths(navigationManifest, 'log-row-up', 'medium-color').frame_path);
+assert.match(logTail, /VIEW19/u, 'the live viewport exposes the final row of one oversized entry');
+assert.doesNotMatch(logRowUp, /VIEW19/u, 'one scroll moves inside that entry rather than dropping the whole entry');
+assert.match(logRowUp, /VIEW18/u);
+const logRowMeta = readJson(getCapturePaths(navigationManifest, 'log-row-up', 'medium-color').metadata_path);
+assert.equal(logRowMeta.log_scroll, 1);
 
 const operatorManifest = readFixtureManifest('operator-workflows');
 const operatorBaseline = readText(
-  getCapturePaths(operatorManifest, 'baseline', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'baseline', 'desktop-color').frame_path
 );
 assert.match(operatorBaseline, /Operator/);
 assert.match(operatorBaseline, /focus jobs/);
 assert.match(operatorBaseline, /follow live/);
 
 const jobsFilterFrame = readText(
-  getCapturePaths(operatorManifest, 'jobs-active-filter', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'jobs-active-filter', 'desktop-color').frame_path
 );
 assert.match(jobsFilterFrame, /Jobs \* \| filter active/);
 assert.match(jobsFilterFrame, /job-b \| running \| Serve A/);
 assert.doesNotMatch(jobsFilterFrame, /^│job-a \| failed/m);
+const compactJobs = readText(getCapturePaths(operatorManifest, 'jobs-active-filter', 'narrow-no-color').frame_path);
+assert.match(compactJobs, /job-b \| running/);
+assert.doesNotMatch(compactJobs, /^│job-a \| failed/m, 'compact jobs retain the same active filter');
 
 const logFilterFrame = readText(
-  getCapturePaths(operatorManifest, 'logs-warn-filter', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'logs-warn-filter', 'desktop-color').frame_path
 );
 assert.match(logFilterFrame, /Logs \* \| filter warn\+\/all/);
 assert.match(logFilterFrame, /warn \| supervisor \| watchdog warning/);
 assert.match(logFilterFrame, /error \| supervisor \| provider degraded/);
 assert.doesNotMatch(logFilterFrame, /background refresh complete/);
+const compactLogs = readText(getCapturePaths(operatorManifest, 'logs-warn-filter', 'narrow-no-color').frame_path);
+assert.match(compactLogs, /> Logs \| p follow\/pause/);
+assert.match(compactLogs, /warn \| supervisor \| watchdog warning/);
+assert.match(compactLogs, /error \| supervisor \| provider degraded/);
+assert.doesNotMatch(compactLogs, /background refresh complete/);
 
 const searchFrame = readText(
-  getCapturePaths(operatorManifest, 'logs-search', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'logs-search', 'desktop-color').frame_path
 );
 assert.match(searchFrame, /search sourcekit/);
 assert.match(searchFrame, /sourcekit/);
 assert.doesNotMatch(searchFrame, /background refresh complete/);
 
 const pausedFrame = readText(
-  getCapturePaths(operatorManifest, 'follow-paused', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'follow-paused', 'desktop-color').frame_path
 );
 assert.match(pausedFrame, /follow paused/);
 
 const helpFrame = readText(
-  getCapturePaths(operatorManifest, 'help-overlay', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'help-overlay', 'desktop-color').frame_path
 );
-assert.match(helpFrame, /Operator Help/);
-assert.match(helpFrame, /Tab switch focus panels/);
+assert.match(helpFrame, /Help \| Esc close/);
+assert.match(helpFrame, /Tab: switch Jobs \/ Tasks \/ Logs/);
 
 const paletteFrame = readText(
-  getCapturePaths(operatorManifest, 'palette-open', 'medium-color').frame_path
+  getCapturePaths(operatorManifest, 'palette-open', 'desktop-color').frame_path
 );
 assert.match(paletteFrame, /Actions/);
 assert.match(paletteFrame, /Toggle follow \/ pause/);
 
 const indexingManifest = readFixtureManifest('indexing-summary');
 const indexingFrame = readText(
-  getCapturePaths(indexingManifest, 'sqlite-active', 'medium-color').frame_path
+  getCapturePaths(indexingManifest, 'sqlite-active', 'desktop-color').frame_path
 );
 assert.match(indexingFrame, /Indexing/);
 assert.match(indexingFrame, /repo fixtures\/indexing/);
@@ -174,7 +200,7 @@ assert.match(indexingFrame, /sqlite building sidecar/);
 
 const serviceManifest = readFixtureManifest('service-summary');
 const serviceFrame = readText(
-  getCapturePaths(serviceManifest, 'service-active', 'medium-color').frame_path
+  getCapturePaths(serviceManifest, 'service-active', 'desktop-color').frame_path
 );
 assert.match(serviceFrame, /Service/);
 assert.match(serviceFrame, /service indexer/);

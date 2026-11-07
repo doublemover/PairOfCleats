@@ -1,3 +1,4 @@
+import { attachImportExtraction, canReuseImportExtraction } from '../../../shared/import-extraction.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -163,6 +164,9 @@ export const readBundleOrNull = async (input) => {
  * @returns {Array<object>|null}
  */
 export const resolveBundleImports = (bundle, { expectedImportScanFingerprint = null } = {}) => {
+  // A bounded lexical prefix is useful evidence, never a complete cached scan.
+  const coverage = bundle?.fileRelations?.importScanCoverage || bundle?.fileRelations?.cssImportCoverage;
+  if (coverage && coverage.state !== 'complete') return null;
   if (expectedImportScanFingerprint != null) {
     const cachedFingerprint = typeof bundle?.fileRelations?.importScanFingerprint === 'string'
       ? bundle.fileRelations.importScanFingerprint
@@ -172,7 +176,9 @@ export const resolveBundleImports = (bundle, { expectedImportScanFingerprint = n
     }
   }
   const imports = bundle?.fileRelations?.imports;
-  return Array.isArray(imports) ? imports : null;
+  const extraction = bundle?.fileRelations?.importScanExtraction || bundle?.fileRelations?.importExtraction;
+  return Array.isArray(imports) && canReuseImportExtraction(extraction, imports)
+    ? attachImportExtraction(imports, extraction) : null;
 };
 
 /**

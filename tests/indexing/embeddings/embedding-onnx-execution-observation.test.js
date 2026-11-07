@@ -24,7 +24,7 @@ export const createOnnxEmbedder = (options) => globalThis[Symbol.for(${JSON.stri
 const { createEmbedder } = await import('../../../src/index/embedding.js');
 const { __setTransformersModuleLoaderForTests, __resetEmbeddingAdapterCachesForTests } = await import('../../../src/shared/embedding-adapter.js');
 const options = {
-  modelId: 'mock-onnx', provider: 'onnx', dims: 384,
+  modelId: 'mock-onnx', provider: 'onnx', dims: 3,
   onnx: { executionProviders: ['cuda', 'cpu'], intraOpNumThreads: 9 }
 };
 const createMockOnnx = (load, vectors = [Float32Array.from([1, 2, 3])]) => ({
@@ -33,20 +33,26 @@ const createMockOnnx = (load, vectors = [Float32Array.from([1, 2, 3])]) => ({
   getEmbedding: async () => { await load.promise; return vectors[0]; },
   estimateTokens: async () => { await load.promise; return [3]; },
   prewarm: async () => { await load.promise; },
+  dispose: async () => { await load.promise.catch(() => {}); },
   executionInfo: () => ({ provider: 'onnx', modelArtifact: null, effectiveSessionOptions: null,
     effectiveNativeThreads: null, device: null, maxConcurrentInference: 1 })
 });
+const warning = console.warn, warnings = [];
+console.warn = (...args) => warnings.push(args.join(' '));
 try {
   const load = deferred();
-  globalThis[key] = () => createMockOnnx(load);
+  const nativeRequested = deferred();
+  globalThis[key] = () => { nativeRequested.resolve(); return createMockOnnx(load); };
   const embedder = createEmbedder(options);
   assert.equal(embedder.executionInfo().loaded, false);
-  assert.equal(embedder.executionInfo().loading, true);
+  assert.equal(embedder.executionInfo().loading, false, 'native acquisition is deferred until an operation');
   assert.equal(embedder.executionInfo().observedDims, null);
   assert.equal(embedder.executionInfo().requestedOnnxConfig.intraOpNumThreads, 9);
   assert.equal(embedder.executionInfo().requestedSessionOptions.intraOpNumThreads, 9);
   assert.equal(embedder.executionInfo().effectiveNativeThreads, null);
   const result = embedder.getChunkEmbeddings(['alpha']);
+  await nativeRequested.promise;
+  assert.equal(embedder.executionInfo().loading, true);
   load.resolve({ session: {} });
   await result;
   assert.equal(embedder.executionInfo().loaded, true);
@@ -55,17 +61,20 @@ try {
   assert.equal(embedder.executionInfo().device, null, 'requested CUDA is not an observed device');
   assert.equal(embedder.executionInfo().executionProviders, null);
   assert.equal(embedder.executionInfo().effectiveSessionOptions, null);
+  await embedder.dispose();
 
   __resetEmbeddingAdapterCachesForTests();
   const nativeLoad = deferred();
+  const fallbackRequested = deferred();
   const xenovaLoad = deferred();
   const xenovaRequested = deferred();
-  globalThis[key] = () => createMockOnnx(nativeLoad);
+  globalThis[key] = () => { fallbackRequested.resolve(); return createMockOnnx(nativeLoad); };
   __setTransformersModuleLoaderForTests(async () => ({
     env: {}, pipeline: () => { xenovaRequested.resolve(); return xenovaLoad.promise; }
   }));
-  const fallback = createEmbedder(options);
+  const fallback = createEmbedder({ ...options, dims: 5 });
   const fallbackResult = fallback.getChunkEmbedding('alpha');
+  await fallbackRequested.promise;
   nativeLoad.reject(Object.assign(new Error('mock native load failed'), { code: 'ERR_DLOPEN_FAILED' }));
   await xenovaRequested.promise;
   const pendingFallback = fallback.executionInfo();
@@ -86,12 +95,17 @@ try {
   assert.equal(fallback.executionInfo().device, null);
   assert.equal((await fallback.getChunkEmbeddings(['beta']))[0].length, 5);
   assert.equal(fallback.executionInfo().provider, 'xenova');
+  assert.equal(warnings.length, 1, 'only the expected native-load fallback emits a warning');
+  assert.match(warnings[0], /ERR_DLOPEN_FAILED.*falling back to xenova/);
+  await fallback.dispose();
 
   __resetEmbeddingAdapterCachesForTests();
   const failure = deferred();
-  globalThis[key] = () => createMockOnnx(failure);
+  const failureRequested = deferred();
+  globalThis[key] = () => { failureRequested.resolve(); return createMockOnnx(failure); };
   const failed = createEmbedder(options);
   const rejected = assert.rejects(failed.getChunkEmbedding('alpha'), /missing mock model artifact/);
+  await failureRequested.promise;
   failure.reject(new Error('missing mock model artifact'));
   await rejected;
   assert.equal(failed.executionInfo().loaded, false);
@@ -99,7 +113,10 @@ try {
   assert.equal(failed.executionInfo().fallback, null, 'ordinary model errors must not change providers');
   assert.equal(failed.executionInfo().inferenceSucceeded, false);
   assert.equal(failed.executionInfo().observedDims, null);
+  assert.equal(warnings.length, 1, 'an ordinary model error does not emit a fallback warning');
+  await failed.dispose();
 } finally {
+  console.warn = warning;
   hook.deregister();
   delete globalThis[key];
   __setTransformersModuleLoaderForTests(null);

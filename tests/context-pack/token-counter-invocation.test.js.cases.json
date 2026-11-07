@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["reuse", "retired", "ignored-operation", "ignored-failure", "publish-before-close", "action-error", "pre-cancel", "limit", "nested"]
+}

@@ -158,6 +158,7 @@ export const matchMetaFilters = ({
         continue;
       }
       const needle = normalize(value);
+      if(field == null)return false;
       if (Array.isArray(field)) {
         if (!field.some((entry) => normalize(entry).includes(needle))) return false;
       } else if (field && typeof field === 'object') {

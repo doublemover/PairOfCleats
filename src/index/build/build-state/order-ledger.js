@@ -39,7 +39,7 @@ export const mergeOrderingLedger = (base, patch) => {
     stages: {}
   };
   const next = {
-    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    schemaVersion: Math.max(ORDERING_LEDGER_SCHEMA_VERSION, normalizedBase.schemaVersion, normalizedPatch.schemaVersion),
     seeds: { ...(normalizedBase.seeds || {}), ...(normalizedPatch.seeds || {}) },
     stages: { ...(normalizedBase.stages || {}) }
   };

@@ -57,13 +57,13 @@ export const validateManifestEntries = (report, mode, dir, manifest, { strictSch
 
 export const validateSchema = (report, mode, name, payload, hint, { strictSchema = false } = {}) => {
   if (strictSchema && !ARTIFACT_SCHEMA_DEFS[name]) {
-    addIssue(report, mode, `unknown artifact schema: ${name}`, hint);
+    addIssue(report, mode, `unknown artifact schema: ${name}`, hint, 'issues', { artifact: name, code: 'ERR_INDEX_SCHEMA_UNKNOWN' });
     return false;
   }
   const result = validateArtifact(name, payload);
   if (!result.ok) {
     const detail = result.errors.length ? ` (${result.errors.join('; ')})` : '';
-    addIssue(report, mode, `${name} schema invalid${detail}`, hint);
+    addIssue(report, mode, `${name} schema invalid${detail}`, hint, 'issues', { artifact: name, code: 'ERR_INDEX_ARTIFACT_SCHEMA' });
   }
   return result.ok;
 };

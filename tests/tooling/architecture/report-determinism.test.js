@@ -32,6 +32,20 @@ const reportB = buildArchitectureReport({
   now
 });
 
-assert.deepStrictEqual(reportA, reportB, 'expected deterministic architecture report output');
+// Execution is an invocation-owned measurement, separately asserted below.
+// Every semantic/policy/source/index/count/truncation field remains exact.
+const { execution: coldExecution, ...coldContent } = reportA;
+const { execution: warmExecution, ...warmContent } = reportB;
+assert.deepStrictEqual(warmContent, coldContent);
+assert.strictEqual(coldExecution.work.policyCompilations, 1);
+assert.strictEqual(warmExecution.work.policyCompilations, 0);
+assert.strictEqual(warmExecution.work.policyCompilationHits, 1);
+assert.strictEqual(coldExecution.work.graphPreparations, 1);
+assert.strictEqual(warmExecution.work.graphPreparationHits, 1);
+for (const execution of [coldExecution, warmExecution]) {
+  for (const duration of Object.values(execution.phaseMs)) assert(Number.isFinite(duration) && duration >= 0);
+  assert(Number.isFinite(execution.totalMs) && execution.totalMs >= 0);
+  for (const count of Object.values(execution.work)) assert(Number.isSafeInteger(count) && count >= 0);
+}
 
 console.log('architecture determinism test passed');

@@ -36,9 +36,11 @@ try {
   assert.ok(heldLock, 'expected test to acquire sourcekit preflight lock');
 
   await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath }, async () => {
+    await fixture.authorizeOperations(ctx);
     const result = await ensureSourcekitPackageResolutionPreflight({
       repoRoot: ctx.repoRoot,
       log: (line) => logs.push(String(line || '')),
+      resolutionPlan: ctx.sourcekitOperationPlan,
       sourcekitConfig: {
         preflightFailOpen: true,
         preflightLockWaitMs: 0,

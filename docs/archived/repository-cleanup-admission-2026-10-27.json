@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "06c3324d00392da08fca6025e55c3ecb8aff9458",
+  "sourceTree": "cfd597d14c3c8ebd49b116672978bd671e6c886d",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 1574,
+      "state": "open",
+      "scope": "Canonical repository cleanup admission repaired; custom backend follow-up remains.",
+      "qualifiedTests": [
+        "indexing/artifacts/clean",
+        "shared/cache/repo-access",
+        "shared/storage/access-unknown-owner-authority",
+        "shared/storage/index-writer-category-session",
+        "tooling/index/clean-artifacts-reader-exclusion",
+        "shared/storage/repo-cleanup-exclusion/metadata-failure",
+        "shared/storage/repo-cleanup-exclusion/original-close",
+        "shared/storage/repo-cleanup-exclusion/readers-and-race"
+      ],
+      "remainingWork": [
+        "Register custom backend roots with producer/publication identity and explicit launch authority.",
+        "Adopt actual reader/probe/cache/builder/sidecar lifetimes through original native owners.",
+        "Qualify category-specific disposable outputs, all/multi-repo and every remaining backend adapter."
+      ]
+    }
+  ],
+  "currentCounts": {
+    "open": 723,
+    "qualificationPending": 462,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "dependencies": {
+    "changed": false,
+    "verification": "Earlier clean required native/patch verification; current readiness passes."
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Only inherited missing trust selector omitted in task children; global/user settings unchanged."
+  },
+  "uniqueAffectedFixtures": 8,
+  "finalObservations": [
+    {
+      "id": "indexing/artifacts/clean",
+      "status": "passed",
+      "durationMs": 2021,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/cache/repo-access",
+      "status": "passed",
+      "durationMs": 2814,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/storage/access-unknown-owner-authority",
+      "status": "passed",
+      "durationMs": 177,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/storage/index-writer-category-session",
+      "status": "passed",
+      "durationMs": 621,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tooling/index/clean-artifacts-reader-exclusion",
+      "status": "passed",
+      "durationMs": 2482,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/storage/repo-cleanup-exclusion/metadata-failure",
+      "status": "passed",
+      "durationMs": 459,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/storage/repo-cleanup-exclusion/original-close",
+      "status": "passed",
+      "durationMs": 448,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/storage/repo-cleanup-exclusion/readers-and-race",
+      "status": "passed",
+      "durationMs": 2200,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    }
+  ],
+  "frontGate": [
+    {
+      "arguments": [
+        "run",
+        "config:budget"
+      ],
+      "durationMs": 1988,
+      "executable": "npm.cmd",
+      "name": "config-budget",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "run",
+        "env:check"
+      ],
+      "durationMs": 1231,
+      "executable": "npm.cmd",
+      "name": "environment",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tools/docs/generated-surfaces.js",
+        "--check-freshness"
+      ],
+      "durationMs": 10554,
+      "executable": "node",
+      "name": "generated",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tools/ci/check-command-surface.js"
+      ],
+      "durationMs": 2529,
+      "executable": "node",
+      "name": "command-surface",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tests/ci/workflow-contract.test.js"
+      ],
+      "durationMs": 223,
+      "executable": "node",
+      "name": "workflow",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tests/run.js",
+        "--lane",
+        "gate",
+        "--jobs",
+        "1",
+        "--timeout-ms",
+        "30000",
+        "--retries",
+        "0",
+        "--native-status-redo=false",
+        "--pairofcleats-threads",
+        "1",
+        "--json"
+      ],
+      "durationMs": 22688,
+      "executable": "node",
+      "name": "gate-lane",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "diff",
+        "--check"
+      ],
+      "durationMs": 66,
+      "executable": "git",
+      "name": "diff",
+      "exitCode": 0
+    }
+  ],
+  "gateLane": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 21980
+  },
+  "priorOwnerControl": {
+    "sourceHead": "793cc52730ed151d1cee89ee94b0ee8da9a734db",
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 1013
+    },
+    "assertion": "Actual CLI exits 0 while the modern reader session is still admitted, rather than retaining protection."
+  },
+  "rawReceipts": {
+    "historicalAuthorWorkspace": true,
+    "cleanCheckoutAvailability": false,
+    "taskDirectory": ".tmp/tasks/backend-cleanup-20261027/",
+    "logs": [
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085320003-kjrebe\\indexing_artifacts_clean.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085320003-kjrebe\\shared_cache_repo-access.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085320003-kjrebe\\shared_storage_access-unknown-owner-authority.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085320003-kjrebe\\shared_storage_index-writer-category-session.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085320003-kjrebe\\tooling_index_clean-artifacts-reader-exclusion.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085393318-dk8z33\\shared_storage_repo-cleanup-exclusion_metadata-failure.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085393318-dk8z33\\shared_storage_repo-cleanup-exclusion_original-close.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793085393318-dk8z33\\shared_storage_repo-cleanup-exclusion_readers-and-race.attempt-1.log"
+    ]
+  },
+  "initialFailure": "Metadata assertion corrected to exact primary cause-chain root and secondary identity across preserved context wrappers.",
+  "remaining": "Custom backend registration/adoption #1574, lifecycle policy #1267 and broader Windows/platform/model/performance/release qualification."
+}

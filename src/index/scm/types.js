@@ -38,7 +38,14 @@
  */
 
 /**
+ * @typedef {{schemaVersion:1,provider:ScmProviderName,operation:'tracked'|'changed'|'history',
+ * complete:boolean,status:'complete'|'unavailable',reason:string|null,capture:object|null}} ScmFileInventoryReceipt
+ */
+
+/**
  * @typedef {{
+ *  complete: true,
+ *  inventory?: ScmFileInventoryReceipt,
  *  filesPosix: string[]
  * }} ScmFileList
  */
@@ -46,6 +53,8 @@
 /**
  * @typedef {{
  *  ok: false,
+ *  complete?: false,
+ *  inventory?: ScmFileInventoryReceipt,
  *  reason: 'unsupported'|'unavailable'|'disabled'|'timeout'
  * }} ScmUnavailable
  */
@@ -81,9 +90,9 @@
  * @typedef {{
  *  name: ScmProviderName,
  *  detect: (input: { startPath: string }) => Promise<ScmDetectResult> | ScmDetectResult,
- *  listTrackedFiles: (input: { repoRoot: string, subdir?: string|null }) => Promise<ScmFileList|ScmUnavailable|null> | ScmFileList|ScmUnavailable|null,
+ *  listTrackedFiles: (input: { repoRoot: string, subdir?: string|null, signal?:AbortSignal|null }) => Promise<ScmFileList|ScmUnavailable|null> | ScmFileList|ScmUnavailable|null,
  *  getRepoProvenance: (input: { repoRoot: string }) => Promise<ScmRepoProvenance> | ScmRepoProvenance,
- *  getChangedFiles: (input: { repoRoot: string, fromRef?: string|null, toRef?: string|null, subdir?: string|null }) => Promise<ScmFileList|ScmUnavailable> | ScmFileList|ScmUnavailable,
+ *  getChangedFiles: (input: { repoRoot: string, fromRef?: string|null, toRef?: string|null, subdir?: string|null, signal?:AbortSignal|null }) => Promise<ScmFileList|ScmUnavailable> | ScmFileList|ScmUnavailable,
  *  getFileMeta: (input: {
  *    repoRoot: string,
  *    filePosix: string,

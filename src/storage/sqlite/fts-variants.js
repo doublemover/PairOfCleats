@@ -1,6 +1,10 @@
+import { createMultiRowInserter } from './build/multi-row.js';
+
 export const FTS_VARIANT_TABLES = Object.freeze({
   unicode61: 'chunks_fts', trigram: 'chunks_fts_trigram', porter: 'chunks_fts_porter'
 });
+const FTS_COLUMNS = Object.freeze(['rowid', 'file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokens']);
+export const SQLITE_FTS_ROW_KEYS = Object.freeze(['id', 'file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokensText']);
 export const normalizeFtsVariants = (variants = []) => {
   if (!Array.isArray(variants) || variants.some(value => !['trigram', 'porter'].includes(value))) {
     throw new TypeError('ftsVariants must contain only trigram and porter');
@@ -21,9 +25,19 @@ export const createOptionalFtsTables = (db, variants = []) => {
 };
 export const createFtsInserter = (db, insertClause = 'INSERT OR REPLACE') => {
   const statements = ['chunks_fts', ...listOptionalFtsTables(db)].map(table => db.prepare(
-    `${insertClause} INTO ${table} (rowid,file,name,signature,kind,headline,doc,tokens)
-      VALUES (@id,@file,@name,@signature,@kind,@headline,@doc,@tokensText)`));
+    `${insertClause} INTO ${table} (${FTS_COLUMNS.join(',')})
+      VALUES (${SQLITE_FTS_ROW_KEYS.map(key => '@' + key).join(',')})`));
   return { run: row => { for (const statement of statements) statement.run(row); } };
+};
+
+/** Full-build positional batches retain the same FTS fields and variant tables. */
+export const createFtsMultiRowInserter = (db, { insertClause = 'INSERT', stats = null } = {}) => {
+  const inserters = ['chunks_fts', ...listOptionalFtsTables(db)].map(table => createMultiRowInserter(db, {
+    table, columns: FTS_COLUMNS, insertClause, stats
+  }));
+  const insert = rows => { for (const inserter of inserters) inserter(rows); };
+  insert.maxRows = Math.min(...inserters.map(inserter => inserter.maxRows));
+  return insert;
 };
 export const insertOptionalFtsFromStage = db => {
   for (const table of listOptionalFtsTables(db)) {

@@ -1,5 +1,11 @@
 # macOS verification checklist
 
+> Historical October 6 candidate plan, reconciled on 2026-10-18 at `ab00d918d`
+> (PR #572). Current checkouts require [Node 26 and verified bootstrap](node-runtime.md);
+> the frozen Node 24 candidate and its measurements below remain historical.
+> Use the [release matrix](release-matrix.md) and [roadmap](../roadmap.md)
+> to scope fresh platform acceptance. This document does not authorize a run.
+
 This is a runnable acceptance plan, not macOS evidence. Use an explicitly
 authorized Mac checkout and record `git rev-parse HEAD`, `git status --short`,
 `node --version`, `uname -a`, and `cargo --version` with every receipt. Do not mix

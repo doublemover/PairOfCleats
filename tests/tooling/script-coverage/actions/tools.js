@@ -2,46 +2,6 @@ import path from 'node:path';
 
 export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ciOutDir, runNode }) => [
   {
-    label: 'summary-report-test',
-    run: () => runNode('summary-report-test', path.join(root, 'tests', 'tooling', 'reports', 'summary', 'report.test.js')),
-    covers: ['summary-report-test', 'summary-report']
-  },
-  {
-    label: 'metrics-dashboard-test',
-    run: () => runNode('metrics-dashboard-test', path.join(root, 'tests', 'tooling', 'reports', 'metrics-dashboard.test.js')),
-    covers: ['metrics-dashboard-test', 'metrics-dashboard']
-  },
-  {
-    label: 'index-validate-test',
-    run: () => runNode('index-validate-test', path.join(root, 'tests', 'indexing', 'validate', 'index.test.js')),
-    covers: ['index-validate-test', 'index-validate']
-  },
-  {
-    label: 'triage-test',
-    run: () => runNode('triage-test', path.join(root, 'tests', 'tooling', 'triage', 'records-index-and-search.test.js')),
-    covers: ['triage-test']
-  },
-  {
-    label: 'ctags-ingest-test',
-    run: () => runNode('ctags-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'ctags', 'ingest.test.js')),
-    covers: ['ctags-ingest-test']
-  },
-  {
-    label: 'scip-ingest-test',
-    run: () => runNode('scip-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'scip', 'ingest.test.js')),
-    covers: ['scip-ingest-test']
-  },
-  {
-    label: 'lsif-ingest-test',
-    run: () => runNode('lsif-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'lsif', 'ingest.test.js')),
-    covers: ['lsif-ingest-test']
-  },
-  {
-    label: 'gtags-ingest-test',
-    run: () => runNode('gtags-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'gtags', 'ingest.test.js')),
-    covers: ['gtags-ingest-test']
-  },
-  {
     label: 'ctags-ingest-help',
     run: () => runNode('ctags-ingest', path.join(root, 'tools', 'ingest', 'ctags.js'), ['--help']),
     covers: ['ctags-ingest']
@@ -61,57 +21,33 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     run: () => runNode('gtags-ingest', path.join(root, 'tools', 'ingest', 'gtags.js'), ['--help']),
     covers: ['gtags-ingest']
   },
-  {
-    label: 'vscode-package-contract-matrix-test',
-    run: () => runNode('vscode-package-contract-matrix-test', path.join(root, 'tests', 'tooling', 'vscode', 'package-contract-matrix.test.js')),
-    covers: ['vscode-extension-test', 'vscode-package-contract-matrix-test']
-  },
-  {
-    label: 'repo-root-test',
-    run: () => runNode('repo-root-test', path.join(root, 'tests', 'cli', 'general', 'repo-root.test.js')),
-    covers: ['repo-root-test']
-  },
-  {
-    label: 'tool-root-test',
-    run: () => runNode('tool-root-test', path.join(root, 'tests', 'tooling', 'install', 'tool-root.test.js')),
-    covers: ['tool-root-test']
-  },
-  {
-    label: 'jsonrpc-parser-test',
-    run: () => runNode('jsonrpc-parser-test', path.join(root, 'tests', 'shared', 'jsonrpc', 'parser.test.js')),
-    covers: ['jsonrpc-parser-test']
-  },
-  {
-    label: 'index-cache-contract-matrix-test',
-    run: () => runNode('index-cache-contract-matrix-test', path.join(root, 'tests', 'retrieval', 'cache', 'index-cache-contract-matrix.test.js')),
-    covers: ['index-cache-test', 'index-cache-contract-matrix-test']
-  },
-  {
-    label: 'worker-pool-test',
-    run: () => runNode('worker-pool-test', path.join(root, 'tests', 'indexing', 'workers', 'worker-pool.test.js')),
-    covers: ['worker-pool-test']
-  },
-  {
-    label: 'worker-pool-windows-test',
-    run: () => runNode('worker-pool-windows-test', path.join(root, 'tests', 'indexing', 'workers', 'worker-pool-windows.test.js')),
-    covers: ['worker-pool-windows-test']
-  },
-  {
-    label: 'repo-build-index',
-    run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+  ...['code', 'prose', 'extracted-prose', 'records'].map(mode => ({
+    label: `repo-build-index-${mode}`,
+    run: async () => {
+      const startedAt = Date.now();
+      const result = await runNode(`build-index-${mode}`, path.join(root, 'build_index.js'),
+        ['--mode', mode, '--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv });
+      // Inventory-only harnesses record the invocation without executing it.
+      if (mode === 'code' && result?.status === 'passed') {
+        const { withTemporaryEnv } = await import('../../../helpers/test-env.js');
+        const { assertDefaultToolingDiagnostics } = await import('../../../helpers/default-tooling-diagnostics.js');
+        const { getRepoCacheRoot } = await import('../../../../src/shared/repo-paths.js');
+        const { loadUserConfig } = await import('../../../../tools/shared/dict-utils.js');
+        await withTemporaryEnv({ PAIROFCLEATS_CACHE_ROOT: repoEnv.PAIROFCLEATS_CACHE_ROOT,
+          PAIROFCLEATS_TEST_CONFIG: repoEnv.PAIROFCLEATS_TEST_CONFIG }, async () => {
+          await assertDefaultToolingDiagnostics({ repoCacheRoot: getRepoCacheRoot(fixtureRoot, loadUserConfig(fixtureRoot)), startedAt });
+        });
+      }
+      return result;
+    },
     covers: ['build-index']
-  },
-  {
-    label: 'build-index-all-test',
-    run: () => runNode('build-index-all-test', path.join(root, 'tests', 'cli', 'build-index', 'all.test.js')),
-    covers: ['build-index-all-test']
-  },
+  })),
   {
     label: 'parity',
     run: () => runNode(
       'parity',
       path.join(root, 'tests', 'retrieval', 'parity', 'equivalence.test.js'),
-      ['--search', path.join(root, 'search.js'), '--no-ann'],
+      ['--search', path.join(root, 'search.js'), '--no-ann', '--repo', fixtureRoot],
       { cwd: fixtureRoot, env: repoEnv }
     ),
     covers: ['parity']
@@ -125,41 +61,6 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     label: 'report-artifacts',
     run: () => runNode('report-artifacts', path.join(root, 'tools', 'index', 'report-artifacts.js'), ['--json', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['report-artifacts']
-  },
-  {
-    label: 'cache-gc-test',
-    run: () => runNode('cache-gc-test', path.join(root, 'tests', 'shared', 'cache', 'gc.test.js')),
-    covers: ['cache-gc', 'cache-gc-test']
-  },
-  {
-    label: 'cache-contract-matrix-test',
-    run: () => runNode('cache-contract-matrix-test', path.join(root, 'tests', 'shared', 'cache', 'contract-matrix.test.js')),
-    covers: ['cache-lru-test', 'cache-contract-matrix-test']
-  },
-  {
-    label: 'discovery-contract-matrix-test',
-    run: () => runNode('discovery-contract-matrix-test', path.join(root, 'tests', 'indexing', 'discovery', 'contract-matrix.test.js')),
-    covers: ['discover-test', 'discovery-contract-matrix-test']
-  },
-  {
-    label: 'watch-debounce-test',
-    run: () => runNode('watch-debounce-test', path.join(root, 'tests', 'indexing', 'watch', 'debounce.test.js')),
-    covers: ['watch-debounce-test']
-  },
-  {
-    label: 'watch-backend-selection-test',
-    run: () => runNode('watch-backend-selection-test', path.join(root, 'tests', 'indexing', 'watch', 'backend-selection.test.js')),
-    covers: ['watch-backend-selection-test']
-  },
-  {
-    label: 'watch-stability-guard-test',
-    run: () => runNode('watch-stability-guard-test', path.join(root, 'tests', 'indexing', 'watch', 'stability-guard.test.js')),
-    covers: ['watch-stability-guard-test']
-  },
-  {
-    label: 'watch-filter-test',
-    run: () => runNode('watch-filter-test', path.join(root, 'tests', 'indexing', 'watch', 'filter.test.js')),
-    covers: ['watch-filter-test']
   },
   {
     label: 'generate-repo-dict',
@@ -184,27 +85,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
       ['--skip-install', '--skip-dicts', '--skip-index', '--skip-artifacts', '--skip-tooling', '--repo', fixtureRoot],
       { cwd: fixtureRoot, env: repoEnv }
     ),
-    covers: ['bootstrap']
-  },
-  {
-    label: 'setup-test',
-    run: () => runNode('setup-test', path.join(root, 'tests', 'tooling', 'install', 'setup.test.js')),
-    covers: ['setup', 'setup-test']
-  },
-  {
-    label: 'setup-index-detection-test',
-    run: () => runNode('setup-index-detection-test', path.join(root, 'tests', 'tooling', 'install', 'setup-index-detection.test.js')),
-    covers: ['setup-index-detection-test']
-  },
-  {
-    label: 'config-validate-test',
-    run: () => runNode('config-contract-matrix-test', path.join(root, 'tests', 'tooling', 'config', 'contract-matrix.test.js')),
-    covers: ['config-validate', 'config-validate-test']
-  },
-  {
-    label: 'config-contract-matrix-dump-test',
-    run: () => runNode('config-contract-matrix-dump-test', path.join(root, 'tests', 'tooling', 'config', 'contract-matrix.test.js')),
-    covers: ['config-dump-test', 'config-contract-matrix-dump-test']
+    covers: []
   },
   {
     label: 'structural-search-help',
@@ -234,22 +115,27 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   {
     label: 'config-budget-help',
     run: () => runNode('config:budget', path.join(root, 'tools', 'config', 'inventory.js'), ['--help']),
-    covers: ['config:budget']
+    covers: []
   },
   {
     label: 'env-check-help',
     run: () => runNode('env:check', path.join(root, 'tools', 'ci', 'check-env-usage.js'), ['--help']),
+    covers: []
+  },
+  {
+    label: 'config-budget-check',
+    run: () => runNode('config:budget', path.join(root, 'tools/config/inventory.js'), ['--check']),
+    covers: ['config:budget']
+  },
+  {
+    label: 'env-check',
+    run: () => runNode('env:check', path.join(root, 'tools/ci/check-env-usage.js')),
     covers: ['env:check']
   },
   {
     label: 'release-check-help',
     run: () => runNode('release-check', path.join(root, 'tools', 'release', 'check.js'), ['--help']),
     covers: ['release-check']
-  },
-  {
-    label: 'release-check-breaking-help',
-    run: () => runNode('release-check:breaking', path.join(root, 'tools', 'release', 'check.js'), ['--help']),
-    covers: ['release-check:breaking']
   },
   {
     label: 'parity-matrix-help',
@@ -294,45 +180,5 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     label: 'shard-census-help',
     run: () => runNode('shard-census', path.join(root, 'tools', 'index', 'shard-census.js'), ['--help']),
     covers: ['shard-census']
-  },
-  {
-    label: 'shared-runtime-contract-matrix-test',
-    run: () => runNode('shared-runtime-contract-matrix-test', path.join(root, 'tests', 'shared', 'runtime', 'runtime-contract-matrix.test.js')),
-    covers: ['uv-threadpool-env-test', 'uv-threadpool-no-override-test', 'shared-runtime-contract-matrix-test']
-  },
-  {
-    label: 'io-concurrency-cap-test',
-    run: () => runNode('io-concurrency-cap-test', path.join(root, 'tests', 'shared', 'concurrency', 'io-cap.test.js')),
-    covers: ['io-concurrency-cap-test']
-  },
-  {
-    label: 'backend-policy-test',
-    run: () => runNode('backend-policy-test', path.join(root, 'tests', 'storage', 'backend', 'policy.test.js')),
-    covers: ['backend-policy-test']
-  },
-  {
-    label: 'dict-adaptive-test',
-    run: () => runNode('dict-adaptive-test', path.join(root, 'tests', 'tooling', 'dict-utils', 'dict-adaptive.test.js')),
-    covers: ['dict-adaptive-test']
-  },
-  {
-    label: 'chargram-guardrails-test',
-    run: () => runNode('chargram-guardrails-test', path.join(root, 'tests', 'indexing', 'postings', 'chargram-guardrails.test.js')),
-    covers: ['chargram-guardrails-test']
-  },
-  {
-    label: 'core-api-test',
-    run: () => runNode('core-api-test', path.join(root, 'tests', 'services', 'api', 'core.test.js')),
-    covers: ['core-api-test']
-  },
-  {
-    label: 'script-coverage-harness-test',
-    run: () => runNode('script-coverage-harness-test', path.join(root, 'tests', 'tooling', 'script-coverage', 'harness.test.js')),
-    covers: ['script-coverage-harness-test']
-  },
-  {
-    label: 'cli-test',
-    run: () => runNode('cli-test', path.join(root, 'tests', 'cli', 'general', 'cli.test.js')),
-    covers: ['cli-test']
   }
 ];

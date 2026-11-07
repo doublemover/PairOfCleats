@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../cross-file-fidelity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
@@ -10,8 +11,10 @@ import { writeJsonValue } from '../../shared/json-stream/encode.js';
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import { mergeSymbolicTypeGraphs, validateTypeExpressionReferences } from '../../shared/symbolic-types.js';
 import { isRequiredToolingComputationError } from '../tooling/required-computation.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
+import { RETURN_TYPE_EVIDENCE_VERSION } from './return-evidence.js';
 
-export const CROSS_FILE_CACHE_SCHEMA_VERSION = 3;
+export const CROSS_FILE_CACHE_SCHEMA_VERSION = 5;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
@@ -34,21 +37,23 @@ const compareStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
  * @returns {Array<{file:string,usages:number,relationHash:string}>|null}
  */
 const resolveFileRelationSignatures = (fileRelations) => {
-  if (!fileRelations) return null;
-  try {
-    const entries = typeof fileRelations.entries === 'function'
-      ? Array.from(fileRelations.entries())
-      : Object.entries(fileRelations);
-    return entries
-      .map(([file, relation]) => ({
-        file,
-        usages: Array.isArray(relation?.usages) ? relation.usages.length : 0,
-        relationHash: sha1(stableStringify(relation || null))
-      }))
-      .sort((a, b) => compareStrings(String(a.file || ''), String(b.file || '')));
-  } catch {
-    return null;
+  if (fileRelations == null) return null;
+  if (typeof fileRelations !== 'object' || Array.isArray(fileRelations)) {
+    throw new TypeError('Cross-file fileRelations must be an object, Map or null.');
   }
+  // Failure to establish identity is not evidence of absent relations. Preserve
+  // the exact failure (including any privately owned resource error) before a
+  // cached result can be read or mutable propagation begins.
+  const entries = typeof fileRelations.entries === 'function'
+    ? Array.from(fileRelations.entries())
+    : Object.entries(fileRelations);
+  return entries
+    .map(([file, relation]) => ({
+      file,
+      usages: Array.isArray(relation?.usages) ? relation.usages.length : 0,
+      relationHash: sha1(stableStringify(relation || null))
+    }))
+    .sort((a, b) => compareStrings(String(a.file || ''), String(b.file || '')));
 };
 
 const normalizeCacheMaxBytes = (value) => {
@@ -59,6 +64,9 @@ const normalizeCacheMaxBytes = (value) => {
 };
 
 const normalizeCacheStats = (cacheStats) => ({
+  admission: cacheStats?.admission || null,
+  sourceReadCoverage: cacheStats?.sourceReadCoverage || null,
+  linkedCallSummaries: Number(cacheStats?.linkedCallSummaries) || 0,
   linkedCalls: Number(cacheStats?.linkedCalls) || 0,
   linkedUsages: Number(cacheStats?.linkedUsages) || 0,
   inferredReturns: Number(cacheStats?.inferredReturns) || 0,
@@ -258,6 +266,7 @@ export const buildCrossFileFingerprint = ({
   useTooling,
   fileRelations,
   inferenceLite = false,
+  fidelity = resolveCrossFileFidelity(),
   inferenceLiteHighSignalOnly = true
 }) => {
   const fileRelationSignatures = resolveFileRelationSignatures(fileRelations);
@@ -266,29 +275,24 @@ export const buildCrossFileFingerprint = ({
     const chunk = chunks[index];
     if (!chunk || typeof chunk !== 'object') continue;
     const relations = chunk.codeRelations || {};
-    const relationPayload = {
-      calls: Array.isArray(relations.calls) ? relations.calls : [],
-      callDetails: Array.isArray(relations.callDetails)
-        ? relations.callDetails.map((entry) => ({
-          callee: entry?.callee || null,
-          start: Number.isSafeInteger(entry?.start) ? entry.start : null,
-          end: Number.isSafeInteger(entry?.end) ? entry.end : null,
-          semanticFactsHash: entry?.semanticFactsHash || null,
-          compilerBinding: entry?.compilerBinding || null,
-          args: Array.isArray(entry?.args) ? entry.args : [],
-          targetChunkUid: entry?.targetChunkUid || null,
-          targetCandidates: Array.isArray(entry?.targetCandidates) ? entry.targetCandidates : []
-        }))
-        : [],
-      usages: Array.isArray(relations.usages) ? relations.usages : []
-    };
+    // Cache replay replaces the full object, so every input field owns identity.
+    const relationPayload = relations;
     chunkSignatures.push({
       id: resolveChunkIdentity(chunk, index),
       file: chunk.file || null,
+      fileHash: chunk.fileHash ?? chunk.metaV2?.fileHash ?? null,
+      fileHashAlgo: chunk.fileHashAlgo ?? chunk.metaV2?.fileHashAlgo ?? null,
       name: chunk.name || null,
       kind: chunk.kind || null,
-      start: Number.isFinite(chunk.start) ? chunk.start : 0,
-      end: Number.isFinite(chunk.end) ? chunk.end : 0,
+      language: chunk.lang || null,
+      // Resolution consumes the canonical symbol, including its qualified name
+      // and candidate identity. Source bytes and a stable chunkUid cannot stand
+      // in for that producer handoff when replay restores derived links.
+      symbolHash: sha1(stableStringify(chunk.metaV2?.symbol || null)),
+      // Invalid offsets must not alias a valid zero offset before the pinned
+      // source reader gets a chance to reject the range on a cache miss.
+      start: Number.isSafeInteger(chunk.start) ? chunk.start : null,
+      end: Number.isSafeInteger(chunk.end) ? chunk.end : null,
       relationHash: sha1(stableStringify(relationPayload)),
       docmetaHash: sha1(stableStringify(chunk.docmeta || null))
     });
@@ -299,6 +303,10 @@ export const buildCrossFileFingerprint = ({
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
+    ...(useTooling ? { toolingProducerVersion: SEMANTIC_ANALYSIS_VERSIONS.lspBindings } : {}),
+    fidelity,
+    producers: { callFlow: SEMANTIC_ANALYSIS_VERSIONS.callFlow, riskPropagation: SEMANTIC_ANALYSIS_VERSIONS.riskPropagation,
+      returnTypeEvidence: RETURN_TYPE_EVIDENCE_VERSION },
     inferenceLite: inferenceLite === true,
     inferenceLiteHighSignalOnly: inferenceLiteHighSignalOnly !== false,
     chunks: chunkSignatures,

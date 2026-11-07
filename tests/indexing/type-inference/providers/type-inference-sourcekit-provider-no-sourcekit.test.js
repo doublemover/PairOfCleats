@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createSourcekitProvider } from '../../../../src/index/tooling/sourcekit-provider.js';
+import { grantFixtureRepositoryExecution } from '../../../helpers/execution-authority.js';
 
 import {
   createLogCapture,
@@ -27,6 +28,7 @@ const provider = createSourcekitProvider();
 const originalPath = process.env.PATH;
 process.env.PATH = '';
 let result = null;
+const restoreExecution = grantFixtureRepositoryExecution(repoRoot);
 try {
   result = await provider.run({
     repoRoot,
@@ -36,6 +38,7 @@ try {
     logger: log
   }, { documents, targets });
 } finally {
+  restoreExecution();
   process.env.PATH = originalPath;
 }
 
@@ -54,7 +57,8 @@ if (!checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
   process.exit(1);
 }
 
-if (!logs.some((entry) => entry.includes('sourcekit-lsp not detected'))) {
+if (!logs.some((entry) => entry.includes('sourcekit-lsp not detected')
+  || entry.includes('sourcekit skipped because package preflight did not complete safely'))) {
   console.error('sourcekit provider missing expected fallback log message.');
   process.exit(1);
 }

@@ -14,6 +14,7 @@ import {
   writeJsonLine
 } from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
+import { withOperationalTool } from '../tooling/operational-execution.js';
 
 const argv = createCli({
   scriptName: 'gtags-ingest',
@@ -23,7 +24,7 @@ const argv = createCli({
     out: { type: 'string' },
     json: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
-    global: { type: 'string', default: 'global' },
+    global: { type: 'string' },
     args: { type: 'string' },
     'timeout-ms': { type: 'number' }
   }
@@ -37,8 +38,14 @@ const outputPath = argv.out
 const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runGlobal = argv.run === true;
-const globalCmd = argv.global || 'global';
+const globalCmd = argv.global || null;
 const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
+const suppliedArgs = argv.args ? splitCliArgs(argv.args) : [];
+const marker = suppliedArgs.indexOf('--');
+const optionArgs = marker < 0 ? suppliedArgs : suppliedArgs.slice(0, marker);
+const shortFlags = token => /^-[acdfgIPpuVdEFGilMnNqrstTvx]+$/.test(token) ? token.slice(1) : '';
+const referenceQuery = optionArgs.some(token => token === '--reference' || token === '--symbol' || /[rs]/.test(shortFlags(token)));
+const recordRole = runGlobal && referenceQuery ? 'reference' : 'definition';
 
 const normalizePath = (value) => {
   return normalizeRepoRelativePath(repoRoot, value);
@@ -52,14 +59,15 @@ const stats = {
 let writeStream = null;
 
 const parseGlobalLine = (line) => {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split(/\s+/);
-  if (parts.length < 3) return null;
-  const name = parts[0];
-  const lineNo = Number.parseInt(parts[1], 10);
-  const file = normalizePath(parts.slice(2).join(' '));
-  if (!name || !file || !Number.isFinite(lineNo)) return null;
+  // cxref is name, line, encoded path, then an optional arbitrary source image.
+  const fields = /^[ \t]*([^ \t\r\n]+)[ \t]+([0-9]+)[ \t]+([^ \t\r\n]+)(?:[ \t]+.*)?$/.exec(line);
+  if (!fields) return null;
+  const name = fields[1], lineNo = Number(fields[2]);
+  let decoded;
+  try { decoded = decodeURIComponent(fields[3]); } catch { return null; }
+  if (decoded.includes('\0')) return null;
+  const file = normalizePath(decoded);
+  if (!file || !Number.isSafeInteger(lineNo) || lineNo < 1) return null;
   return { file, name, line: lineNo };
 };
 
@@ -76,7 +84,7 @@ const handleGlobalLine = async (line) => {
     name: parsed.name,
     startLine: parsed.line,
     endLine: parsed.line,
-    role: 'definition',
+    role: recordRole,
     source: 'gtags'
   });
 };
@@ -86,20 +94,26 @@ const ingestTextLines = async (stream) => {
 };
 
 const runGlobalCommand = async () => {
-  const args = ['-x'];
-  if (argv.args) {
-    args.push(...splitCliArgs(argv.args));
+  if (optionArgs.some(token => /^--(?:completion|grep|idutils|path|print(?:-dbpath)?|update|single-update|help|version|directory)(?:=|$)/.test(token)
+    || /[cgIPpuV]/.test(shortFlags(token)) || /^-C/.test(token))) {
+    throw new Error('GTAGS ingest supports symbol/file tag queries within --repo; other commands and directory overrides do not produce scoped symbol occurrences.');
   }
-  await runLineStreamingCommand({
-    command: globalCmd,
-    args,
+  if (optionArgs.some(token => /^--(?:result|encode-path|color)(?:=|$)/.test(token) || shortFlags(token).includes('t'))) {
+    throw new Error('GTAGS ingest owns the cxref format, path encoding and color options. Pass search selection arguments only.');
+  }
+  if (optionArgs.some(token => /^--from-here(?:=|$)/.test(token))) {
+    throw new Error('GTAGS ingest requires an explicit definition or reference query; --from-here has context-dependent roles.');
+  }
+  const args = ['-x', '--result=ctags-x', '--encode-path= \t%', '--color=never',
+    ...(suppliedArgs.length ? suppliedArgs : ['.'])];
+  await withOperationalTool('gnu-global', { repoRoot, commandOverride: globalCmd }, tool => tool.stream(runLineStreamingCommand, args, {
     cwd: repoRoot,
     timeoutMs: commandTimeoutMs,
     onStdoutLine: async (line) => {
       await handleGlobalLine(line);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
-  });
+  }));
 };
 
 await withStagedIngestOutput(outputPath, async (stream) => {

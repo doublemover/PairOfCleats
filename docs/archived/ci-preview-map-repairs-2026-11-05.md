@@ -1,0 +1,13 @@
+# CI preview, map and inspection repairs — 2026-11-05
+
+Source parent `d6e398750fbc3162fd29fde9757369ea3381689d`; exact sources, original failures and focused reports are in the [machine receipt](ci-preview-map-repairs-2026-11-05.json). Node26.13.0/ABI147 on Windows x64; one job,30s,zero retries/native redo. These are targeted checks, not a new whole-suite acceptance.
+
+Canonical config preview now links capability/report modules only for explicit capability requests. The cold-import regression fails on the original producer with exactly two unrequested imports and passes after repair; explicit canonical report content, injection and rejected configuration remain covered. Eight adjacent configuration/settings/bootstrap cases preserve actual command dispatch, redaction, authority and lifecycle assertions.
+
+Selected-map identity now prepares two tiny artifact generations through the actual piece-checksum, publication-validation, publication and promotion owners. It retains all selected-root, cold/warm cache, retained-build-ID replacement, pointer and malformed/incompatible manifest assertions, with the original5s CLI limit. The first reduced fixture failed its replacement assertion because it omitted piece hashes; using the canonical manifest producer corrected the fixture. The final portable case passes in9.06s. Its original physical alias assertions have a separate capable-launch fixture; the strict Windows authority inventory remains41 cases. Full Stage1/parser coverage remains with existing build fixtures.
+
+All seven real Windows native inspection modes pass after metadata assertions wait for a complete screen frame under their original deadline. The hosted oversized case had observed the status label before its attempts row. Original assertions remain; raw terminal, event, screen and source identity receipts are now uploaded for failed inspection sessions. No Rust/native dependency changes.
+
+CI2168 authority had39 passes, one failure and one timeout. CI2169 passed those original authority cases before this repair; that does not establish a cause for the earlier silent10s config child. CI2169 separately timed out native validate-published at30.249s after its real seed completed at22.923s. That aggregate remains under repair, and no larger deadline, retry, backend change or final-head green claim is used. No local physical links or Linux/WSL execution.
+
+Validation:19 distinct affected checks pass, and all43 gate cases pass. All eight required front-gate commands exit0; no skips, retries, timeouts or unexpected warnings. The physical alias case is retained for the capable hosted cohort and was not run locally.

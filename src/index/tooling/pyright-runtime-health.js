@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../shared/file-read.js';
 import { writeToolingCacheJson } from './cache-storage.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import {
   buildProviderFidelityContract,
   PROVIDER_FIDELITY_STATE
@@ -67,18 +68,21 @@ const resolveSoftCooldownMs = () => {
 
 export const buildPyrightRuntimeFingerprint = ({
   workspaceRootRel,
-  selectedDocumentSummaries
+  selectedDocumentSummaries,
+  requestIdentity = null
 } = {}) => {
   const docs = Array.isArray(selectedDocumentSummaries)
     ? selectedDocumentSummaries
-      .map((entry) => normalizeVirtualWorkspacePath(entry?.virtualPath))
-      .filter(Boolean)
-      .sort((left, right) => left.localeCompare(right))
+      .map((entry) => [normalizeVirtualWorkspacePath(entry?.virtualPath), entry?.sourceHash || null])
+      .filter(([name]) => Boolean(name))
+      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
     : [];
   return crypto.createHash('sha1')
+    .update('pyright-runtime-health@2\0')
     .update(normalizeWorkspaceRootRel(workspaceRootRel))
     .update('\0')
     .update(JSON.stringify(docs))
+    .update(JSON.stringify(requestIdentity))
     .digest('hex');
 };
 
@@ -112,18 +116,25 @@ export const resolvePyrightRuntimeHealth = async ({
   cacheRoot = null,
   workspaceRootRel,
   selectedDocumentSummaries,
+  requestIdentity = null,
+  requireRequestIdentity = false,
+  signal = null,
   now = Date.now()
 } = {}) => {
+  throwIfAborted(signal);
   const normalizedWorkspaceRootRel = normalizeWorkspaceRootRel(workspaceRootRel);
   const fingerprint = buildPyrightRuntimeFingerprint({
     workspaceRootRel: normalizedWorkspaceRootRel,
-    selectedDocumentSummaries
+    selectedDocumentSummaries,
+    requestIdentity
   });
+  throwIfAborted(signal);
   const { healthPath, state: persistedState } = await readRuntimeHealth({
     repoRoot,
     cacheRoot,
     workspaceRootRel: normalizedWorkspaceRootRel
   });
+  throwIfAborted(signal);
   const fingerprintChanged = Boolean(
     persistedState?.fingerprint
     && persistedState.fingerprint !== fingerprint
@@ -131,7 +142,10 @@ export const resolvePyrightRuntimeHealth = async ({
   let effectiveState = persistedState?.state || PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
   let reasonCode = persistedState?.reasonCode || null;
   let cooldownRemainingMs = 0;
-  if (!persistedState) {
+  if (requireRequestIdentity && !requestIdentity) {
+    effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.WARMING;
+    reasonCode = 'request_identity_unavailable';
+  } else if (!persistedState) {
     effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
   } else if (fingerprintChanged) {
     effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.WARMING;
@@ -357,7 +371,7 @@ export const derivePyrightRuntimeOutcome = ({
       captureDiagnostics
     }),
     record: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       updatedAt: new Date(now).toISOString(),
       workspaceRootRel: healthContext?.workspaceRootRel || '.',
       fingerprint: healthContext?.fingerprint || null,
@@ -376,13 +390,17 @@ export const persistPyrightRuntimeHealth = async ({
   repoRoot,
   cacheRoot = null,
   workspaceRootRel,
-  record
+  record,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const healthPath = resolveRuntimeHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
   await writeToolingCacheJson(healthPath, withGeneratedCacheMetadata(record, 'pyright-runtime-health'), {
     spaces: 0,
-    newline: false
+    newline: false,
+    signal
   });
+  throwIfAborted(signal);
   return healthPath;
 };
 

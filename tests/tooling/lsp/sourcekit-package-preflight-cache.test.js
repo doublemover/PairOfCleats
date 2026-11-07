@@ -38,6 +38,7 @@ try {
     assert.equal(secondCount, 1, 'expected sourcekit package preflight cache to skip repeated resolve');
 
     await fixture.writePackage({ dependencyVersion: '1.1.0', includeDependencies: true });
+    await fixture.authorizeOperations(ctx);
     const third = await provider.run(ctx, { documents: [document], targets: [target] });
     assert.ok(third && typeof third.byChunkUid === 'object', 'expected third sourcekit run output');
     const thirdCount = await countNonEmptyLines(fixture.counterPath);

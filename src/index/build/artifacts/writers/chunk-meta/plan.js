@@ -2,6 +2,8 @@ import { log } from '../../../../../shared/progress-runtime.js';
 import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io/constants.js';
 import { formatBytes } from '../../../../../shared/disk-space.js';
 import { resolveChunkMetaMaxBytes } from './shared.js';
+import { planChunkMetaRepresentations } from '../../sparse-representation-plan.js';
+import { readPreparedJsonlRow } from '../../../../../shared/json-stream/prepared-row.js';
 
 /**
  * Decide chunk_meta artifact mode/sharding based on estimated row size and limits.
@@ -15,6 +17,7 @@ export const resolveChunkMetaPlan = ({
   chunkMetaFormatConfig,
   chunkMetaStreaming = false,
   chunkMetaBinaryColumnar = false,
+  chunkMetaBinaryColumnarRequired = false,
   chunkMetaBinaryColumnarMaxBytes = 512 * 1024 * 1024,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
@@ -33,6 +36,7 @@ export const resolveChunkMetaPlan = ({
   const chunkMetaCount = chunks.length;
   const chunkMetaFormat = chunkMetaFormatConfig
     || (artifactMode === 'jsonl' ? 'jsonl' : (artifactMode === 'json' ? 'json' : 'auto'));
+  if (chunkMetaFormat !== 'columnar') chunkMetaIterator.enablePreparedRows?.();
   let chunkMetaUseColumnar = chunkMetaFormat === 'columnar';
   let chunkMetaUseJsonl = !chunkMetaUseColumnar && (
     chunkMetaFormat === 'jsonl'
@@ -48,7 +52,7 @@ export const resolveChunkMetaPlan = ({
     let sampledBytes = 0;
     let sampled = 0;
     for (const entry of chunkMetaIterator(0, sampleSize, false)) {
-      sampledBytes += Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1;
+      sampledBytes += readPreparedJsonlRow(entry)?.lineBytes ?? Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1;
       sampled += 1;
     }
     if (sampled) {
@@ -100,11 +104,15 @@ export const resolveChunkMetaPlan = ({
       `${formatBytes(resolvedBinaryColumnarMaxBytes)} while sharded JSONL is required.`
     );
   }
+  const representationPlan = planChunkMetaRepresentations({ primary: chunkMetaUseJsonl ? 'jsonl' : chunkMetaUseColumnar ? 'columnar' : 'json',
+    binaryColumnar: chunkMetaBinaryColumnar, requireBinaryColumnar: chunkMetaBinaryColumnarRequired });
   return {
     chunkMetaCount,
     chunkMetaFormat,
     chunkMetaStreaming: chunkMetaStreaming === true,
-    chunkMetaBinaryColumnar: chunkMetaBinaryColumnar === true,
+    chunkMetaBinaryColumnar: representationPlan.emitBinaryColumnar,
+    chunkMetaBinaryColumnarRequired,
+    representationPlan,
     chunkMetaBinaryColumnarMaxBytes: resolvedBinaryColumnarMaxBytes,
     chunkMetaBinaryColumnarDisabledReason,
     chunkMetaEstimatedJsonlBytes: estimatedJsonlBytes,

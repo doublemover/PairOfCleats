@@ -4,6 +4,8 @@ await guardBootstrapEntry(import.meta.url);
 const {
   ensureArray,
   hashInputs,
+  USR_SOURCE_DIGEST_VERSION,
+  USR_SOURCE_DIGEST_FORMAT,
   parseBenchArgs,
   readJsonFileWithRaw,
   readJsonFromRoot,
@@ -52,12 +54,14 @@ const main = async () => {
       uniqueFailureLayers: failureLayers.size,
       requiredFailureLayers: ensureArray(config.requiredFailureLayers).length
     },
+    sourceDigestVersion: USR_SOURCE_DIGEST_VERSION,
+    sourceDigestFormat: USR_SOURCE_DIGEST_FORMAT,
     sourceDigest: hashInputs([
-      configRaw,
-      languageProfiles.raw,
-      parserRuntimeLock.raw,
-      generatedProvenance.raw,
-      failureInjection.raw
+      {role:'config',path:'docs/config/usr-guardrails/item-40-pipeline-incremental-transforms.json',value:configRaw},
+      {role:'languageProfiles',path:config.inputs.languageProfiles,value:languageProfiles.raw},
+      {role:'parserRuntimeLock',path:config.inputs.parserRuntimeLock,value:parserRuntimeLock.raw},
+      {role:'generatedProvenance',path:config.inputs.generatedProvenance,value:generatedProvenance.raw},
+      {role:'failureInjection',path:config.inputs.failureInjection,value:failureInjection.raw}
     ])
   };
 

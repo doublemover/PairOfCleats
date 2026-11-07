@@ -9,6 +9,7 @@ import path from 'node:path';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveHostTargetTriple, resolveTargetForTriple, readTargetsManifestSync } from '../../tools/tui/targets.js';
 import { runNode } from '../helpers/run-node.js';
+import { createTuiArtifactBytes } from '../helpers/tui/install-artifact.js';
 
 ensureTestingEnv(process.env);
 
@@ -35,13 +36,7 @@ try {
 
   const artifactPath = path.join(distDir, target.artifactName);
 
-  await fsPromises.writeFile(
-    artifactPath,
-    process.platform === 'win32'
-      ? Buffer.from('MZFAKE-TUI-BINARY')
-      : '#!/usr/bin/env node\nconsole.log("fake tui");\n',
-    'utf8'
-  );
+  await fsPromises.writeFile(artifactPath, createTuiArtifactBytes(target));
   if (process.platform !== 'win32') {
     await fsPromises.chmod(artifactPath, 0o755);
   }
@@ -76,14 +71,14 @@ try {
 
   installRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-install-'));
   const runInstaller = () => runNode(
-    [installScript, '--json', '--target', triple, '--install-root', installRoot],
+    [installScript, '--json', '--no-build', '--target', triple, '--install-root', installRoot],
     'tui installer',
     invokeCwd,
     {
       ...process.env,
       PAIROFCLEATS_TUI_DIST_DIR: testDistRel
     },
-    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true, timeoutMs: 10000 }
   );
   const result = runInstaller();
 
@@ -94,7 +89,7 @@ try {
   assert.equal(typeof payload.checksum, 'string');
 
   const metadataPath = path.join(installRoot, triple, 'install-manifest.json');
-  const installedBinary = path.join(installRoot, triple, 'bin', target.artifactName);
+  const installedBinary = path.resolve(root, payload.installedTo);
   const binDir = path.dirname(installedBinary);
   assert.equal(fs.existsSync(metadataPath), true, 'expected install metadata');
   assert.equal(fs.existsSync(installedBinary), true, 'expected installed binary');
@@ -105,11 +100,24 @@ try {
 
   const secondInstall = runInstaller();
   assert.equal(secondInstall.status, 0, secondInstall.stderr || 'second install script exited non-zero');
-  assert.equal(fs.existsSync(staleFile), false, 'expected stale file to be pruned on reinstall');
+  assert.equal(fs.readFileSync(staleFile, 'utf8'), 'stale', 'reinstall must retain an arbitrary sibling it does not own');
+  assert.equal(fs.existsSync(installedBinary), true, 'previous generation remains available after promotion');
 
   const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
   assert.equal(metadata.triple, triple);
   assert.equal(metadata.artifactName, target.artifactName);
+  assert.equal(metadata.schemaVersion, 2);
+  assert.notEqual(metadata.generationId, payload.transaction.generationId);
+  const selectedBefore = fs.readFileSync(metadataPath, 'utf8');
+  const selectedBytes = fs.readFileSync(path.resolve(root, metadata.binary.path));
+  // Original failure: valid unchanged manifest checksum plus corrupted staged
+  // bytes must be rejected before replacing a previously usable install.
+  await fsPromises.writeFile(artifactPath, createTuiArtifactBytes(target, 'corrupt-with-old-digest'));
+  const corrupted = runInstaller();
+  assert.notEqual(corrupted.status, 0);
+  assert.match(corrupted.stderr, /sha256 mismatch|checksum mismatch/);
+  assert.equal(fs.readFileSync(metadataPath, 'utf8'), selectedBefore);
+  assert.deepEqual(fs.readFileSync(path.resolve(root, metadata.binary.path)), selectedBytes);
 
   console.log('tui installer unit test passed');
 } finally {

@@ -29,9 +29,10 @@ function ranking(query,docs,k) {
 function relevanceMetrics(rank, judgments, k) {
   const relevant=Object.entries(judgments).filter(([,grade])=>grade>0);
   if(!relevant.length)return null;
-  const found=rank.filter(id=>judgments[id]>0);
-  const first=rank.findIndex(id=>judgments[id]>0);
-  const dcg=rank.reduce((sum,id,i)=>sum+(2**(judgments[id]??0)-1)/Math.log2(i+2),0);
+  const gradeFor = id => Object.hasOwn(judgments, id) ? judgments[id] : 0;
+  const found=rank.filter(id=>gradeFor(id)>0);
+  const first=rank.findIndex(id=>gradeFor(id)>0);
+  const dcg=rank.reduce((sum,id,i)=>sum+(2**gradeFor(id)-1)/Math.log2(i+2),0);
   const ideal=relevant.map(([,grade])=>grade).sort((a,b)=>b-a).slice(0,k)
     .reduce((sum,grade,i)=>sum+(2**grade-1)/Math.log2(i+2),0);
   return {recallAtK:found.length/relevant.length,mrrAtK:first<0?0:1/(first+1),ndcgAtK:ideal?dcg/ideal:0};
@@ -56,7 +57,8 @@ export function qualifyRetrieval(input) {
   const queryDrift=[...referenceQueries].map(([id,row])=>1-cosine(row.vector,candidateQueries.get(id).vector));
   const rows=[];
   for(const [id,query]of referenceQueries) {
-    const judgments=input.judgments?.[id]??{};
+    const judgments=input.judgments && Object.hasOwn(input.judgments,id) ? input.judgments[id] : {};
+    if (!judgments || typeof judgments !== 'object' || Array.isArray(judgments)) throw new Error('Query judgments must be an own-key object.');
     for(const [docId,grade]of Object.entries(judgments))if(!referenceDocs.has(docId)||!Number.isInteger(grade)||grade<0||grade>4)throw new Error('Judgments require known documents and grades 0..4.');
     const reference=ranking(query,referenceDocs,k),candidate=ranking(candidateQueries.get(id),candidateDocs,k);
     rows.push({id,reference,candidate,overlapAtK:candidate.filter(key=>reference.includes(key)).length/reference.length,

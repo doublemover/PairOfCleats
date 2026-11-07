@@ -1,3 +1,10 @@
+import { createRecordSourceUnion } from './record-source.js';
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
+import { recordsReusePolicy, readReusableRecordChunk } from './records-reuse.js';
+import { createRecordsMarkdownInventory } from './records-inventory.js';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
+import { analyzeLiteralText } from '../../shared/text-analyzer.js';
+import { stableStringify } from '../../shared/stable-json.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getIndexDir, getRepoCacheRoot } from '../../shared/repo-paths.js';
@@ -17,18 +24,22 @@ import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { buildIndexProfileState, INDEX_PROFILE_VECTOR_ONLY } from '../../contracts/index-profile.js';
 import { buildChunkId } from '../../index/chunk-id.js';
+import { buildMetaV2 } from '../../index/metadata-v2.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
-import { toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { log, showProgress } from '../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { setRecordsIncrementalCapability } from '../../storage/sqlite/build/index.js';
 import { promoteRecordFields } from './record-utils.js';
+
+export const recordsLogicalContentHash = ({ text, record, recordMeta, policy, sourceHash = null, recordSource = null }) => sha1(stableStringify({
+  schema: 'records.logical-content.v4', text, sourceHash, recordSource,
+  sidecar: record === null ? { status: 'absent' } : { status: 'present', value: record }, recordMeta, policy
+}));
 
 /**
  * Records service-mode builds enqueue embeddings without materializing dense artifacts.
@@ -95,38 +106,27 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     setRecordsIncrementalCapability(incrementalState.manifest, true);
   }
   const seenFiles = new Set();
-  const recordSources = [];
-  const seenAbs = new Set();
+  const sourceUnion = createRecordSourceUnion({ repoRoot: runtime.root, recordsDir });
   const discoveredEntries = Array.isArray(discovery?.entries) ? discovery.entries : [];
   for (const entry of discoveredEntries) {
     throwIfAborted(abortSignal);
     if (!entry?.abs || entry.skip || !entry.record) continue;
-    if (seenAbs.has(entry.abs)) continue;
-    seenAbs.add(entry.abs);
-    recordSources.push({
-      absPath: entry.abs,
-      relPath: entry.rel || toPosix(path.relative(runtime.root, entry.abs)),
-      recordMeta: entry.record,
-      source: entry.record?.source || 'repo'
-    });
+    sourceUnion.addRepository(entry);
   }
-  const triageFiles = await listMarkdownFiles(recordsDir);
-  triageFiles.sort();
-  for (const absPath of triageFiles) {
+  const inventory = createRecordsMarkdownInventory(recordsDir, { signal: abortSignal });
+  for await (const absPath of inventory.files) {
     throwIfAborted(abortSignal);
-    if (seenAbs.has(absPath)) continue;
-    seenAbs.add(absPath);
-    recordSources.push({
-      absPath,
-      relPath: toPosix(path.relative(recordsDir, absPath)),
-      recordMeta: { source: 'triage', recordType: 'record', reason: 'records-dir' },
-      source: 'triage'
-    });
+    sourceUnion.addTriage(absPath, inventory.publicationForCurrent(absPath));
   }
+  const recordSources = sourceUnion.finish();
+  const triageInputReceipt = inventory.receipt();
 
-  recordSources.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
   log(`→ Found ${recordSources.length} record(s).`);
 
+  const recordsPolicy = { promoteFields: triageConfig.promoteFields, postingsConfig, dictConfig: runtime.dictConfig,
+    dictionary: sha1(stableStringify([...(runtime.dictWords || [])].sort())) };
+  const reusePolicy = recordsReusePolicy({ runtime, policy: recordsPolicy, stop: STOP, synonyms: SYN instanceof Map ? SYN : Object.entries(SYN) });
+  const reuseCounts = { hits: 0, misses: 0, reasons: {} };
   let processed = 0;
   const progressMeta = { stage: 'records', mode: 'records' };
   for (const recordEntry of recordSources) {
@@ -134,29 +134,46 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const started = Date.now();
     const absPath = recordEntry.absPath;
     const relPath = recordEntry.relPath;
-    let text;
-    try {
-      text = await fs.readFile(absPath, 'utf8');
-    } catch {
-      continue;
-    }
-    if (!text) continue;
-    text = text.normalize('NFKD');
-    const fileStat = await fs.stat(absPath).catch(() => null);
-    if (!fileStat) continue;
+    const publication = recordEntry.triagePublication;
+    const sourceOptions = { maxBytes: 32 * 1024 * 1024, signal: abortSignal,
+      ...(publication ? { expectedHash: publication.markdownHash, expectedBytes: publication.markdownBytes } : {}) };
+    const source = await readVerifiedContainedFile(recordEntry.root, absPath, sourceOptions);
+    const sourceHash = sha1(source.buffer), fileStat = source.stat;
+    const sourceText = source.buffer.toString('utf8');
+    if (!sourceText) continue;
 
-    const isTriage = recordEntry.source === 'triage'
-      && recordsDir
-      && isPathUnderDir(recordsDir, absPath);
-    const record = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
+    const isTriage = recordEntry.recordSource.kind === 'triage';
+    const recordSource = { ...recordEntry.recordSource, contentHash: sourceHash };
+    const record = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal, publication) : null;
     const docmeta = buildDocMeta(record, triageConfig, recordEntry.recordMeta);
     const recordName = record?.vuln?.vulnId
       || record?.recordId
       || path.basename(relPath, path.extname(relPath));
 
+    const recordFile = recordSource.storagePath;
+    const logicalHash = recordsLogicalContentHash({ text: sourceText, record, recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash, recordSource });
+    const reused = await readReusableRecordChunk({ incrementalState, repoRoot: runtime.root, file: recordFile,
+      logicalHash, policy: reusePolicy, textLength: sourceText.length, sourceHash, recordSource, signal: abortSignal });
+    if (reused.chunk) {
+      // Admission reads exact current inputs; recheck after asynchronous bundle I/O.
+      const again = await readVerifiedContainedFile(recordEntry.root, absPath, sourceOptions);
+      const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal, publication) : null;
+      if (recordsLogicalContentHash({ text: again.buffer.toString('utf8'), record: currentRecord,
+        recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash: sha1(again.buffer), recordSource }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
+      const chunk = reused.chunk;
+      chunk.id = state.chunks.length; // IDs belong to this build's global ordering.
+      appendChunk(state, chunk, postingsConfig, null, { sparsePostingsEnabled });
+      seenFiles.add(recordFile); state.scannedFiles.push(recordFile);
+      state.scannedFilesTimes.push({ file: recordFile, duration_ms: Date.now() - started, cached: true });
+      reuseCounts.hits++;
+      processed++; showProgress('Records', processed, recordSources.length, progressMeta);
+      continue;
+    }
+    reuseCounts.misses++;
+    reuseCounts.reasons[reused.reason] = (reuseCounts.reasons[reused.reason] || 0) + 1;
     const recordExt = path.extname(absPath) || '.txt';
     const tokenPayload = tokenizeRecord(
-      text,
+      sourceText,
       runtime.dictWords,
       runtime.dictConfig,
       recordExt,
@@ -174,36 +191,44 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       comment: [],
       body: tokenPayload.tokens
     } : null;
-    const embedText = docmeta.doc || text;
+    const embedText = docmeta.doc || sourceText;
     const embedding = await runtime.getChunkEmbedding(embedText);
 
     let minhashSig = [];
+    let minhashHashIdentity = null;
     if (sparsePostingsEnabled) {
       const mh = new SimpleMinHash();
       tokenPayload.tokens.forEach((t) => mh.update(t));
       minhashSig = mh.hashValues;
+      minhashHashIdentity = mh.hashIdentity;
     }
 
-    const lines = text.split(/\r?\n/);
+    const lines = sourceText.split(/\r?\n/);
     const startLine = 1;
     const endLine = lines.length;
 
-    const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
     const recordLang = getLanguageForFile(recordExt, recordFile);
     const effectiveLanguageId = recordLang?.id || 'unknown';
     const chunkPayload = {
       file: recordFile,
+      recordSource,
+      displayPath: recordSource.displayPath,
       ext: recordExt,
       lang: effectiveLanguageId,
       containerLanguageId: recordLang?.id || null,
+      fileHash: sourceHash,
+      fileHashAlgo: 'sha1',
+      fileSize: fileStat.size,
       start: 0,
-      end: text.length,
+      end: sourceText.length,
       startLine,
       endLine,
       kind: 'Record',
       name: recordName,
       tokens: tokenPayload.tokens,
       seq: tokenPayload.seq,
+      phraseTokens: analyzeLiteralText(sourceText, { caseSensitive: true }),
+      phraseTokensCasePreserved: true,
       ngrams: tokenPayload.ngrams,
       chargrams: tokenPayload.chargrams,
       codeRelations: {},
@@ -216,6 +241,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       postContext: [],
       embedding,
       minhashSig,
+      minhashHashIdentity,
       weight: 1,
       externalDocs: [],
       ...(fieldTokens ? { fieldTokens } : {})
@@ -225,19 +251,22 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     chunkPayload.id = chunkId;
     await assignChunkUids({
       chunks: [chunkPayload],
-      fileText: text,
+      fileText: sourceText,
       fileRelPath: recordFile,
-      namespaceKey: 'repo',
+      namespaceKey: `record-source-v1-${recordSource.rootKey}`,
       strict: true,
       log
     });
+    chunkPayload.metaV2 = buildMetaV2({ chunk: chunkPayload, docmeta, toolInfo: runtime.toolInfo,
+      analysisPolicy: runtime.analysisPolicy });
     const manifestEntry = await writeIncrementalBundle({
       enabled: incrementalState.enabled,
       bundleDir: incrementalState.bundleDir,
       manifest: incrementalState.manifest,
       relKey: recordFile,
       fileStat,
-      fileHash: sha1(text),
+      fileHash: logicalHash,
+      dependencySignatures: { recordsProducer: reusePolicy.key },
       fileChunks: [{ ...chunkPayload }],
       fileRelations: null,
       vfsManifestRows: null,
@@ -248,7 +277,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       fileEncodingConfidence: 1
     });
     if (manifestEntry) {
-      incrementalState.manifest.files[recordFile] = manifestEntry;
+      incrementalState.manifest.files[recordFile] = { ...manifestEntry, recordSource };
     }
     seenFiles.add(recordFile);
 
@@ -271,6 +300,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   showProgress('Records', recordSources.length, recordSources.length, progressMeta);
   throwIfAborted(abortSignal);
 
+  log(`[records-reuse] hits=${reuseCounts.hits} misses=${reuseCounts.misses} reasons=${JSON.stringify(reuseCounts.reasons)}`);
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
   throwIfAborted(abortSignal);
@@ -301,6 +331,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   });
   const indexState = {
     generatedAt: new Date().toISOString(),
+    extensions: { recordsInventory: { schemaVersion: 1, complete: true, selected: recordSources.length, triage: triageInputReceipt } },
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     profile,
     compatibilityKey: runtime.compatibilityKey || null,
@@ -362,34 +393,24 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   });
 }
 
-async function listMarkdownFiles(rootDir) {
-  try {
-    const entries = await fs.readdir(rootDir, { withFileTypes: true });
-    const files = [];
-    for (const entry of entries) {
-      const fullPath = path.join(rootDir, entry.name);
-      if (entry.isDirectory()) {
-        const nested = await listMarkdownFiles(fullPath);
-        files.push(...nested);
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        files.push(fullPath);
-      }
-    }
-    return files;
-  } catch {
-    return [];
-  }
-}
-
-async function loadRecordJson(recordsDir, mdPath) {
+async function loadRecordJson(recordsDir, mdPath, signal = null, publication = null) {
   const base = path.basename(mdPath, '.md');
   const dir = path.dirname(mdPath);
   const jsonPath = path.join(dir, `${base}.json`);
   try {
-    const raw = await fs.readFile(jsonPath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    if (publication && (publication.markdownPath !== mdPath || publication.jsonPath !== jsonPath)) throw new Error('Record publication input differs from its selected immutable generation.');
+    const source = await readVerifiedContainedFile(recordsDir, jsonPath, { maxBytes: 16 * 1024 * 1024, signal,
+      ...(publication ? { expectedHash: publication.jsonHash, expectedBytes: publication.jsonBytes } : {}) });
+    const raw = source.buffer.toString('utf8');
+    const record = JSON.parse(raw);
+    if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error(`Invalid canonical record sidecar: ${jsonPath}`);
+    if (publication && record.recordId !== publication.recordId) throw new Error('Record publication ID differs from its selected generation.');
+    return record;
+  } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'record-sidecar-source' });
+    if (diagnostic.code === 'ENOENT' && !publication) return null;
+    if (error?.name === 'AbortError') throw error;
+    throw new Error(`Cannot establish record sidecar identity: ${jsonPath}`, { cause: error });
   }
 }
 
@@ -471,8 +492,8 @@ function tokenizeRecord(
 }
 
 function buildRecordSeq(text, dictWords, dictConfig, ext) {
-  let tokens = splitId(text);
-  tokens = tokens.map((t) => t.normalize('NFKD'));
+  const scoringText = text.normalize('NFKD');
+  let tokens = splitId(scoringText);
 
   if (ext !== '.md') {
     tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));

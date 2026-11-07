@@ -1,4 +1,4 @@
-import { lineHasAnyInsensitive, shouldScanLine, stripInlineCommentAware } from './utils.js';
+import { addBudgetedCollectorImport, createCollectorBudgetContext, stripInlineCommentAware } from './utils.js';
 
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
 const MAKEFILE_OPTION_TOKEN_RX = /^\/{1,2}[A-Z][A-Z0-9_-]*(?::|$)/;
@@ -46,36 +46,55 @@ const isMakefilePseudoDependencyToken = (token) => {
   return false;
 };
 
-export const collectMakefileImports = (text) => {
-  const imports = new Set();
-  const lines = String(text || '').split('\n');
-  const precheck = (value) => lineHasAnyInsensitive(value, ['include', ':']);
-  const addImport = (value, { fromDependency = false } = {}) => {
-    const token = normalizeToken(value);
-    if (!token) return;
-    if (fromDependency && isMakefilePseudoDependencyToken(token)) return;
-    imports.add(token);
-  };
-  for (const line of lines) {
-    if (!shouldScanLine(line, precheck)) continue;
-    const trimmed = stripInlineCommentAware(line, { markers: ['#'] }).trim();
-    if (!trimmed) continue;
-    const includeMatch = trimmed.match(/^\s*(?:-?include|sinclude)\s+(.+)$/i);
-    if (includeMatch) {
-      const includeExpr = includeMatch[1];
-      const wildcard = includeExpr.match(/\$\(wildcard\s+([^)]+)\)/i);
-      if (wildcard?.[1]) {
-        for (const part of wildcard[1].split(/\s+/).filter(Boolean)) addImport(part);
-      } else {
-        for (const part of includeExpr.split(/\s+/).filter(Boolean)) addImport(part);
-      }
-    }
-    const depMatch = trimmed.match(/^[A-Za-z0-9_./%-]+(?:\s+[A-Za-z0-9_./%-]+)*\s*:\s*([^=].*)$/);
-    if (!depMatch) continue;
-    const deps = depMatch[1].split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
-    for (const dep of deps) {
-      addImport(dep, { fromDependency: true });
-    }
+const splitMakeWords = source => {
+  const words = [];let word = '';
+  for (let index = 0;index < source.length;index++) {
+    const char = source[index];
+    if (char === '\\' && index+1 < source.length) {word += source[++index];continue;}
+    if (/\s/u.test(char)) {if(word) words.push(word);word='';}
+    else word+=char;
   }
-  return Array.from(imports);
+  if(word) words.push(word);return words;
+};
+export const collectMakefileImports = (text,options = {}) => {
+  const imports = new Set();
+  const context = createCollectorBudgetContext({text,options,collectorId:'imports:makefile',
+    defaults:{maxChars:524288,maxLines:8192,maxMatches:2048,maxTokens:4096,maxMs:30}});
+  let recipePrefix = '\t', pending = '', recipe = false;
+  const add = value => {
+    const token = normalizeToken(value);
+    if (token && !isMakefilePseudoDependencyToken(token) && !/[=$%]/u.test(token))
+      addBudgetedCollectorImport(imports,token,context.scanBudget,{literal:true});
+  };
+  try {
+    for (const raw of context.source.split(/\r\n|\n|\r/u)) {
+      if (!context.scanBudget.consumeLine() || !context.scanBudget.consumeTime()) break;
+      if (!pending) recipe = raw.startsWith(recipePrefix);
+      const continuation = /(?<!\\)(?:\\\\)*\\$/u.test(raw);
+      pending += (pending ? ' ' : '') + (continuation ? raw.slice(0,-1) : raw);
+      if(continuation) continue;
+      const record = pending;pending='';
+      if(recipe) continue;
+      const line = stripInlineCommentAware(record,{markers:['#']}).trim();
+      if(!line) continue;
+      const prefix = line.match(/^\.RECIPEPREFIX\s*[:?+]?=\s*(.)?/u);
+      if(prefix) {recipePrefix=prefix[1] || '\t';continue;}
+      const include = line.match(/^(?:-?include|sinclude)\s+(.+)$/u);
+      if(include) {
+        const wildcard = include[1].match(/^\$\(wildcard\s+([^)]+)\)$/u);
+        for(const part of splitMakeWords(wildcard?.[1] || include[1])) add(part);
+        continue;
+      }
+      const rule = line.match(/^([^:=]+)::?\s*(.*)$/u);
+      if(!rule || /\$|=/u.test(rule[1])) continue;
+      let dependencies = rule[2];
+      if(/^(?:(?:override|private|export)\s+)*[A-Za-z_][A-Za-z0-9_.-]*\s*[:+?!]?=/u.test(dependencies)) continue;
+      let semicolon = -1;
+      for(let i=0;i<dependencies.length;i++) {if(dependencies[i] === '\\') i++;else if(dependencies[i] === ';'){semicolon=i;break;}}
+      if(semicolon>=0) dependencies=dependencies.slice(0,semicolon);
+      if(!context.scanBudget.consumeMatch()) break;
+      for(const part of splitMakeWords(dependencies)) add(part);
+    }
+    return [...imports];
+  } finally {context.finalize();}
 };

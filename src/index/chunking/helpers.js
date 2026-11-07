@@ -1,5 +1,12 @@
 import { buildLineIndex } from '../../shared/lines.js';
 
+/** Retain a source prefix without changing declaration/heading metadata ranges. */
+export const preserveChunkPreamble = (text, chunks, { kind = 'Section', format = null } = {}) => {
+  if (!Array.isArray(chunks) || !chunks.length || !(chunks[0].start > 0)) return chunks;
+  return [{ start: 0, end: Math.min(text.length, chunks[0].start), name: 'preamble', kind,
+    meta: { title: 'preamble', preamble: true, ...(format ? { format } : {}) } }, ...chunks];
+};
+
 /**
  * Build a zero-allocation-friendly line-start index when lines are already split.
  * @param {string[]} lines
@@ -43,7 +50,7 @@ export const buildChunksFromLineHeadings = (text, headings, lineIndex = null) =>
       meta: { title }
     });
   }
-  return chunks;
+  return preserveChunkPreamble(text, chunks);
 };
 
 /**
@@ -81,5 +88,5 @@ export const buildChunksFromMatches = (text, matches, titleTransform) => {
       meta: { title }
     });
   }
-  return chunks.length ? chunks : null;
+  return chunks.length ? preserveChunkPreamble(text, chunks) : null;
 };

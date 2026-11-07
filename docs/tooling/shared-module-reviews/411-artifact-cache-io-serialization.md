@@ -139,3 +139,17 @@ Highest-priority follow-ups:
 | `src/shared/artifact-io/optional-fallback.js` | `keep`, `document`, `test` | Own optional-artifact error classification plus sync and async fallback wrappers under the artifact IO family. |
 | `src/shared/provenance.js` | `keep`, `document`, `test` | Keep as the provenance metadata contract. |
 | `src/shared/stable-json.js` | `keep`, `document`, `test` | Keep as the canonical deterministic JSON primitive. |
+
+## October 18 ownership inventory reconciliation
+
+The JSON companion now includes 4 later-added active modules. Static consumer evidence supports retaining these owners; it does not replace behavioral or platform qualification. The original review remains dated 2026-03-26. See the [deep audit](../../archived/deep-test-audit-2026-10-18.md) for current failures and acceptance limits.
+
+- `src/shared/cache/fifo-budget.js`: 1 direct consumers; retain and document the owner.
+- `src/shared/cache/repo-access.js`: 5 direct consumers; retain and document the owner.
+- `src/shared/cache/repo-access-reader.js`: 2 direct production consumers; retain the lightweight reader admission and process-lifetime lease owner, with cache authority and lifecycle coverage.
+- `src/shared/json-stream/buffer-transfer.js`: 2 direct consumers; retain and document the owner.
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (114 files). 15 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

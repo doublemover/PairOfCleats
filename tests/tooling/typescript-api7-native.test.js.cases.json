@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["finite-strings-and-overloads", "configured-dependency-authority", "host-fallback-refused", "original-snapshot-isolation", "cancellation", "invalid-config", "retained-template-parity"]
+}

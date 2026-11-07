@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { createRetainedPipeBuffer } from '../../src/map/isometric/client/rendering/retained-pipe-buffer.js';
+
+const rows=Array.from({length:1000},(_,id)=>({id}));
+const positionsFor=(row,ordinal)=>Array.from({length:42},(_,index)=>ordinal*100+index);
+const owner=createRetainedPipeBuffer({THREE,rows,positionsFor});
+assert.equal(owner.metrics.geometryAllocations,0,'inactive tier owns no vertex geometry');
+let published;const publish=geometry=>{published=geometry;};
+owner.select([rows[900]],{publish});assert.equal(owner.metrics.routeRowsComputed,1);assert.equal(owner.metrics.geometryAllocations,1);
+assert.equal(published.attributes.position.array[0],90000,'selected subset retains original full-level lane ordinal');
+const first=published;owner.select([rows[900]],{publish});assert.strictEqual(published,first);assert.equal(owner.metrics.routeRowsComputed,1);
+owner.select([rows[901]],{publish});assert.strictEqual(published,first);assert.equal(owner.metrics.routeRowsComputed,2);assert.equal(owner.metrics.geometryAllocations,1);
+assert.equal(first.attributes.position.updateRanges.length,1,'pending writes merge while the renderer is suspended');
+const subsetBytes=owner.metrics.requestedUploadBytes;assert.equal(subsetBytes,42*4*2);
+owner.select(rows,{publish});const full=published;assert.notStrictEqual(full,first);assert.equal(owner.metrics.geometryAllocations,2);
+owner.select(rows,{publish});assert.strictEqual(published,full);assert.equal(owner.metrics.geometryAllocations,2);
+owner.select([rows[902]],{publish});assert.strictEqual(published,first,'one latest neighborhood buffer is reused across historical selections');
+let disposals=0;full.addEventListener('dispose',()=>disposals++);first.addEventListener('dispose',()=>disposals++);
+owner.dispose();owner.dispose();assert.equal(disposals,2);assert.equal(owner.metrics.attributeCapacityBytes,0);
+assert.throws(()=>owner.select(rows),/retired/);
+const invalid=createRetainedPipeBuffer({THREE,rows:rows.slice(0,2),positionsFor:(row,ordinal)=>row.id===1?[NaN]:positionsFor(row,ordinal)});
+invalid.select([rows[0]]);const accepted=Array.from(invalid.geometry.attributes.position.array);
+assert.throws(()=>invalid.select([rows[1]]),/invalid bounded vertex data/);
+assert.deepEqual(Array.from(invalid.geometry.attributes.position.array),accepted,'route validation precedes mutation of the accepted neighborhood');
+invalid.dispose();
+console.log('Lazy pipe tiers, stable lane addresses, retained neighborhood ranges and exact retirement authored.');

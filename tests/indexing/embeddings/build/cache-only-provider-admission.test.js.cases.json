@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["cache-only", "missing-coverage", "unknown-width", "tokenizer-change", "provider-fallback"]
+}

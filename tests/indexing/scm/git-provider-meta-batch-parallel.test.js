@@ -20,14 +20,8 @@ let progressEvents = [];
 let partialBatchMeta = false;
 let restoreProgressHandlers = () => {};
 
-const buildBatchStdout = (files) => {
-  const rows = [];
-  for (const file of files) {
-    rows.push('__POC_GIT_META__aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00002026-02-22T00:00:00Z\u0000Batch Author');
-    rows.push(file);
-  }
-  return rows.join('\n');
-};
+const buildBatchStdout = files => files.map(file => '\0\0__POC_GIT_META__aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0'
+  + '2026-02-22T00:00:00Z\0Batch Author\0\n' + file + '\0').join('');
 
 try {
   restoreProgressHandlers = setProgressHandlers({

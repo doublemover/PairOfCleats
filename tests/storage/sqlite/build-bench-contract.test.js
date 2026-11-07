@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
-import { setupSqliteBuildFixture } from './helpers/build-fixture.js';
+import { setupSqliteBuildFixture, SQLITE_BUILD_FIXTURE_DEFAULT_TOKENS } from './helpers/build-fixture.js';
 
 const root = process.cwd();
 const env = applyTestEnv({ syncProcess: false });
@@ -11,7 +11,10 @@ const fixture = await setupSqliteBuildFixture({
   tempLabel: 'sqlite-build-bench-contract',
   chunkCount: 50,
   fileCount: 3,
-  mode: 'code'
+  mode: 'code',
+  // This benchmark independently checks every chunk token against persisted
+  // postings. Publish both tokens, rather than the helper's one-token subset.
+  tokenVocab: [...SQLITE_BUILD_FIXTURE_DEFAULT_TOKENS]
 });
 
 const benchScript = path.join(root, 'tools', 'bench', 'sqlite', 'build-from-artifacts.js');

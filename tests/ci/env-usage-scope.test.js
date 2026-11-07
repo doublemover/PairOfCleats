@@ -7,7 +7,8 @@ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-env-usage-'));
 try {
   const access = 'process.env.' + 'PAIROFCLEATS_TESTING';
   for (const file of ['src/shared/env.js', 'src/invalid.js', 'tools/invalid.js',
-    'temp/old-checkout/src/invalid.js', '.testLogs/probe.js', 'node_modules/pkg/index.js']) {
+    'temp/old-checkout/src/invalid.js', '.tmp/old-checkout/src/invalid.js',
+    '.testLogs/probe.js', 'node_modules/pkg/index.js']) {
     await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
     await fs.writeFile(path.join(root, file), access);
   }

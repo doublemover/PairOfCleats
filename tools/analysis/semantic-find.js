@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SEMANTIC_FIND_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { once } from 'node:events';
@@ -11,10 +12,7 @@ import { assertSemanticFind } from '../../src/contracts/validators/semantic-find
 /** Stream bounded JSONL pages within one process; opaque cursors expire with the process. */
 export const runSemanticFindCli = async (argv = process.argv, { output = process.stdout } = {}) => {
   const args = createCli({ argv, scriptName: 'pairofcleats semantic find',
-    usage: '$0 --request request.json [--all]', options: {
-      request: { type: 'string', demandOption: true, description: 'Semantic find request JSON file (at most 1 MiB).' },
-      all: { type: 'boolean', default: false, description: 'Stream every bounded page as JSONL in this process.' }
-    } }).strictOptions().parse();
+    usage: '$0 --request request.json [--all]', options: SEMANTIC_FIND_OPTIONS }).strictOptions().parse();
   if ((await fs.stat(args.request)).size > 1048576) throw new Error('Semantic request file exceeds allowance.');
   const request = assertSemanticFind('request', JSON.parse(await fs.readFile(args.request, 'utf8')));
   let cursor = request.cursor || null;

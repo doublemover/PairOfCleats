@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { BENCH_RUNNER_REPORT_VERSION } from '../../../../tools/bench/runner-contract.js';
 
 import {
   consoleLogFixtureSource,
@@ -9,7 +10,7 @@ import {
 const benchFixture = await createBenchRunnerFixture('bench-runner-contract');
 const runFixture = async (name, lines) => {
   const report = await benchFixture.runFixture(name, consoleLogFixtureSource(lines));
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, BENCH_RUNNER_REPORT_VERSION);
   assert.equal(typeof report?.runner?.configHash, 'string', 'expected configHash reproducibility metadata');
   assert.ok(report?.runner?.storagePath, 'expected storagePath reproducibility metadata');
   assert.ok(report?.runner?.storageTier, 'expected storageTier reproducibility metadata');
@@ -87,7 +88,8 @@ for (const testCase of cases) {
   const noisyReport = await runFixture(`${testCase.name}-noisy`, noisyLines);
   const noisyEntry = noisyReport.results[0];
   assert.deepEqual(noisyEntry.parsed, canonicalEntry.parsed);
-  assert.equal(typeof canonicalReport.summary.perCoreUtilization.avgPct, 'number');
+  assert.equal(canonicalReport.summary.perCoreUtilization.avgPct, null, 'absent utilization is not a measured zero');
+  assert.equal(canonicalReport.summary.perCoreUtilization.scope, 'unavailable');
   assert.equal(typeof canonicalReport.summary.stageOverlap.avgPct, 'number');
 }
 

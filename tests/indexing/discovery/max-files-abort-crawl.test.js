@@ -26,8 +26,11 @@ const skipped = [];
 
 const originalLstat = fsPromises.lstat;
 let lstatCount = 0;
+let directoryLstatCount = 0;
 fsPromises.lstat = async (...args) => {
-  if (String(args[0]).startsWith(tempRoot)) lstatCount += 1;
+  const target = String(args[0]);
+  if (target.startsWith(tempRoot) && /file-\d+\.js$/.test(target)) lstatCount += 1;
+  else if (target.startsWith(tempRoot)) directoryLstatCount += 1;
   return originalLstat(...args);
 };
 
@@ -54,8 +57,10 @@ assert.ok(
   'expected deterministic max_files_reached reason'
 );
 assert.ok(
-  lstatCount <= 2,
+  lstatCount <= 1,
   `expected early abort to stop lstat traversal quickly (observed=${lstatCount})`
 );
+
+assert.ok(directoryLstatCount <= 4, 'root and visited child each have bounded before/after directory authority checks');
 
 console.log('discover maxFiles abort crawl test passed');

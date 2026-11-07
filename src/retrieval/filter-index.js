@@ -2,6 +2,7 @@ import { tri } from '../shared/tokenize.js';
 import { normalizeFilePath } from '../shared/path-normalize.js';
 import { toArray } from '../shared/iterables.js';
 import { buildBitmapIndex } from './bitmap.js';
+import { FILTER_FACTS_VERSION, resolveFilterExtension, resolveFilterLanguage, resolveFilterVisibility } from './effective-filter-facts.js';
 
 /**
  * Build lookup maps for common search filters.
@@ -15,6 +16,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     : 3;
   const includeBitmaps = options.includeBitmaps !== false;
   const index = {
+    factsVersion: FILTER_FACTS_VERSION,
     byExt: new Map(),
     byLang: new Map(),
     byKind: new Map(),
@@ -60,55 +62,6 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     return [];
   };
 
-  const normalizeLang = (value) => {
-    if (typeof value !== 'string') return null;
-    const normalized = value.trim().toLowerCase();
-    return normalized || null;
-  };
-  const resolveEffectiveLang = (chunk) => {
-    let normalized = normalizeLang(chunk?.metaV2?.lang);
-    if (normalized) return normalized;
-    normalized = normalizeLang(chunk?.metaV2?.effective?.languageId);
-    if (normalized) return normalized;
-    normalized = normalizeLang(chunk?.lang);
-    if (normalized) return normalized;
-    return 'unknown';
-  };
-
-  const resolveVisibilityFromModifiers = (modifiers) => {
-    if (!modifiers) return null;
-    if (Array.isArray(modifiers)) {
-      for (const entry of modifiers) {
-        const token = String(entry || '').trim().toLowerCase();
-        if (!token) continue;
-        if (token.startsWith('visibility:')) {
-          const value = token.split(':').slice(1).join(':').trim();
-          if (value) return value;
-        }
-        if (token === 'public' || token === 'private' || token === 'protected' || token === 'internal') {
-          return token;
-        }
-      }
-      return null;
-    }
-    if (typeof modifiers === 'object') {
-      if (typeof modifiers.visibility === 'string') return modifiers.visibility;
-    }
-    return null;
-  };
-
-  const resolveVisibility = (chunk) => {
-    const docmeta = (chunk?.docmeta && typeof chunk.docmeta === 'object') ? chunk.docmeta : null;
-    const metaV2 = (chunk?.metaV2 && typeof chunk.metaV2 === 'object') ? chunk.metaV2 : null;
-    const docmetaVisibility = typeof docmeta?.visibility === 'string' ? docmeta.visibility : null;
-    if (docmetaVisibility) return docmetaVisibility;
-    const docmetaModifierVisibility = resolveVisibilityFromModifiers(docmeta?.modifiers);
-    if (docmetaModifierVisibility) return docmetaModifierVisibility;
-    const metaV2Visibility = typeof metaV2?.visibility === 'string' ? metaV2.visibility : null;
-    if (metaV2Visibility) return metaV2Visibility;
-    return resolveVisibilityFromModifiers(metaV2?.modifiers);
-  };
-
   const normalizeFilePathKey = (value) => normalizeFilePath(value, { lower: true });
   const addFileChargrams = (fileId, fileValue) => {
     const grams = new Set(tri(fileValue, fileChargramN));
@@ -140,12 +93,12 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     const id = chunk.id;
     if (!Number.isFinite(id)) continue;
     addFile(chunk.file, id);
-    add(index.byExt, chunk.ext, id);
-    const effectiveLang = resolveEffectiveLang(chunk);
+    add(index.byExt, resolveFilterExtension(chunk), id);
+    const effectiveLang = resolveFilterLanguage(chunk);
     add(index.byLang, effectiveLang, id);
     add(index.byKind, chunk.kind, id);
     add(index.byAuthor, chunk.last_author, id);
-    const visibility = resolveVisibility(chunk);
+    const visibility = resolveFilterVisibility(chunk);
     add(index.byVisibility, visibility, id);
     const chunkAuthors = resolveChunkAuthorsForIndex(chunk);
     for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);
@@ -194,6 +147,7 @@ const hydrateMap = (value) => {
 export function serializeFilterIndex(index) {
   if (!index) return null;
   return {
+    factsVersion: FILTER_FACTS_VERSION,
     fileChargramN: index.fileChargramN || 3,
     byExt: serializeMap(index.byExt),
     byLang: serializeMap(index.byLang),
@@ -229,6 +183,7 @@ export function releaseFilterIndexMemory(index) {
 
 export function hydrateFilterIndex(raw) {
   if (!raw || typeof raw !== 'object') return null;
+  if (raw.factsVersion !== FILTER_FACTS_VERSION) return null;
   const fileById = Array.isArray(raw.fileById) ? raw.fileById : [];
   const fileIdByPath = new Map(fileById.map((value, idx) => [value, idx]));     
   const index = {

@@ -1,5 +1,11 @@
 # `@vscode/ripgrep`
 
+> DEPRECATED proposed integration — 2026-10-27, PR #572. This unused direct root
+> was retired. [Current ownership](../../../guides/dependency-ownership.md)
+> uses PATH rg with a filesystem walk fallback for dictionary discovery.
+> No rgPath or bundled text-search fallback consumer was implemented; the
+> historical `critical-deps.json` claim is superseded. Original proposals remain below.
+
 **Area:** Fast text search integration
 
 ## Why this matters for PairOfCleats

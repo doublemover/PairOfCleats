@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "e5-author-512-boundaries-v1",
+  "revision": "c9e87c786ffac96aeaeb42863276930883923ecb",
+  "tokenizerSha256": "f59925fcb90c92b894cb93e51bb9b4a6105c5c249fe54ce1c704420ac39b81af",
+  "provenance": "Independently authored ASCII probes and Unigram vocabulary-score dynamic programming over immutable metadata; expected IDs were not recorded from the production tokenizer. ASCII letters, colon and whitespace need no non-ASCII normalization inference.",
+  "queryPrefix": "Instruct: Given a code search query, retrieve relevant source code or documentation passages that answer the query\nQuery: ",
+  "queryPrefixTokenIds": [
+    360,
+    36716,
+    12,
+    77878,
+    19,
+    10,
+    18151,
+    33938,
+    41,
+    1294,
+    4,
+    456,
+    3996,
+    3134,
+    29191,
+    31344,
+    18151,
+    707,
+    209806,
+    46692,
+    7,
+    450,
+    35166,
+    70,
+    41,
+    1294,
+    58836,
+    53,
+    12
+  ],
+  "bos": 0,
+  "eos": 2,
+  "pad": 1,
+  "repeat": {
+    "text": "a",
+    "tokenId": 10
+  },
+  "tail": {
+    "text": "b",
+    "tokenId": 876
+  },
+  "maximumLength": 512,
+  "passagePayloadCapacity": 510,
+  "queryPayloadCapacity": 481,
+  "cases": [
+    {
+      "id": "below",
+      "capacityOffset": -1,
+      "tail": false,
+      "tokensBeforeTruncation": 511,
+      "expectedTokens": 511
+    },
+    {
+      "id": "at",
+      "capacityOffset": 0,
+      "tail": false,
+      "tokensBeforeTruncation": 512,
+      "expectedTokens": 512
+    },
+    {
+      "id": "beyond-discarded-tail",
+      "capacityOffset": 0,
+      "tail": true,
+      "tokensBeforeTruncation": 513,
+      "expectedTokens": 512
+    },
+    {
+      "id": "at-admitted-tail",
+      "capacityOffset": -1,
+      "tail": true,
+      "tokensBeforeTruncation": 512,
+      "expectedTokens": 512
+    }
+  ]
+}

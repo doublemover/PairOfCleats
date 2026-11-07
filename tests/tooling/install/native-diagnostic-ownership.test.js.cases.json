@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact-bytes-and-tails", "attempt-history-and-concurrency", "original-log-failures", "bounded-admission-and-output", "unknown-close-retains-owner", "original-structured-output", "structured-output-fences", "first-byte-observation", "unknown-write-retains-owner", "handled-live-child-retains-root", "original-io-provider-capture", "checkout-wide-storage-budget", "checkout-wide-attempt-budget", "checkout-wide-short-write-accounting", "whole-publication-scope-drain"]
+}

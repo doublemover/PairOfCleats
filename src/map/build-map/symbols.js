@@ -1,5 +1,5 @@
 import { sha1 } from '../../shared/hash.js';
-import { normalizePath, sortBy } from '../utils.js';
+import { normalizePath } from '../utils.js';
 
 const ANON_NAMES = new Set(['(anonymous)', '<anonymous>', 'anonymous']);
 
@@ -100,10 +100,9 @@ export const resolveMemberByName = (memberIndex, name, fileHint) => {
   const list = memberIndex.get(name) || [];
   if (!list.length) return null;
   if (fileHint) {
-    const match = list.find((entry) => entry.file === fileHint);
-    if (match) return match;
+    const matches = list.filter((entry) => entry.file === fileHint);
+    if (matches.length) return matches.length === 1 ? matches[0] : null;
   }
   if (list.length === 1) return list[0];
-  const sorted = sortBy(list, (entry) => `${entry.file || ''}:${entry.range?.startLine || 0}`);
-  return sorted[0];
+  return null;
 };

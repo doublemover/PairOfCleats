@@ -97,20 +97,23 @@ try {
 
   assert.equal(packageResult.workspaceKind, 'package_managed_workspace');
   assert.equal(packageResult.dependencyState, 'not_needed');
-  assert.equal(packageResult.preflightState, 'ready');
+  assert.equal(packageResult.state, 'blocked');
+  assert.equal(packageResult.reasonCode, 'sourcekit_workspace_operation_plan_required');
 
   assert.equal(xcodeResult.workspaceKind, 'xcode_workspace');
   assert.equal(xcodeResult.dependencyState, 'not_applicable');
-  assert.equal(xcodeResult.preflightState, 'ready');
+  assert.equal(xcodeResult.state, 'blocked');
+  assert.equal(xcodeResult.reasonCode, 'sourcekit_workspace_operation_plan_required');
 
   assert.equal(mixedResult.workspaceKind, 'mixed_workspace');
   assert.equal(mixedResult.dependencyState, 'not_needed');
-  assert.equal(mixedResult.preflightState, 'ready');
+  assert.equal(mixedResult.state, 'blocked');
 
   assert.equal(mixedDependenciesResult.workspaceKind, 'mixed_workspace');
   assert.equal(mixedDependenciesResult.dependencyState, 'optional');
-  assert.equal(mixedDependenciesResult.preflightState, 'ready');
-  assert.equal(mixedDependenciesResult.reasonCode, 'sourcekit_mixed_workspace_dependencies_optional');
+  assert.equal(mixedDependenciesResult.state, 'blocked');
+  assert.equal(mixedDependenciesResult.reasonCode, 'sourcekit_workspace_operation_plan_required');
+  await assert.rejects(fs.access(path.join(packageRoot, '.build')), { code: 'ENOENT' }, 'passive classification does not write package cache state');
 
   console.log('sourcekit workspace classification test passed');
 } finally {

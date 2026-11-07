@@ -1,6 +1,7 @@
-import { assertSqliteIndexFormat } from '../../index-format.js';
+import { probeSqlite } from './sqlite-probes.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import fsSync from 'node:fs';
-import os from 'node:os';
+import { resolveBundleProducerBudget } from '../bundle-budget.js';
 import path from 'node:path';
 import { resolveSqliteIngestPlan } from '../index.js';
 import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
@@ -11,12 +12,13 @@ const readPragmaSimple = (db, name) => {
   if (!db || !name) return null;
   try {
     return db.pragma(name, { simple: true });
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'sqlite-runtime-pragma' }).requireSettled();
     return null;
   }
 };
 
-export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.cwd() }) => {
+export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.cwd(), userConfig = null }) => {
   const runtime = {
     pageSize: SQLITE_DEFAULT_PAGE_SIZE,
     journalMode: null,
@@ -37,10 +39,9 @@ export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.
     runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'missing-db';
     return runtime;
   }
-  let probeDb = null;
-  try {
-    probeDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-    assertSqliteIndexFormat({ db: probeDb, repoRoot, indexPath: dbPath, operation: 'probe' });
+  runtime.walEnabled = runtime.walBytes > 0;
+  runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
+  return probeSqlite({ Database, dbPath, repoRoot, userConfig }, probeDb => {
     const pageSize = Number(readPragmaSimple(probeDb, 'page_size'));
     if (Number.isFinite(pageSize) && pageSize > 0) {
       runtime.pageSize = Math.max(512, Math.floor(pageSize));
@@ -51,16 +52,8 @@ export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.
       : null;
     runtime.walEnabled = runtime.journalMode === 'wal' || runtime.walBytes > 0;
     runtime.source = 'pragma';
-  } catch (error) {
-    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
-    runtime.walEnabled = runtime.walBytes > 0;
-    runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
-  } finally {
-    try {
-      probeDb?.close();
-    } catch {}
-  }
-  return runtime;
+    return runtime;
+  }, runtime);
 };
 
 const normalizeAdaptiveBatchConfig = ({
@@ -177,13 +170,8 @@ export const resolveBundleWorkerAutotune = ({
 }) => {
   const explicitBundleThreads = Number(envConfig?.bundleThreads);
   const concurrencyFloor = 1;
-  const cpuHint = Number.isFinite(Number(threadLimits?.fileConcurrency))
-    ? Math.max(1, Math.floor(Number(threadLimits.fileConcurrency)))
-    : 1;
-  const hostCpu = typeof os.availableParallelism === 'function'
-    ? os.availableParallelism()
-    : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
-  const upperBound = Math.max(1, Math.min(16, Math.max(cpuHint, hostCpu)));
+  const budget = resolveBundleProducerBudget(threadLimits);
+  const upperBound = budget.limit;
   const bundleCount = manifestFiles && typeof manifestFiles === 'object'
     ? Object.keys(manifestFiles).length
     : 0;
@@ -191,6 +179,8 @@ export const resolveBundleWorkerAutotune = ({
     return {
       threads: Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(explicitBundleThreads))),
       reason: 'explicit-env',
+      requestedThreads: Math.floor(explicitBundleThreads), recommendedThreads: null,
+      budget,
       bundleCount,
       avgBundleBytes: estimateBundleAverageBytes(bundleDir, manifestFiles)
     };
@@ -213,7 +203,7 @@ export const resolveBundleWorkerAutotune = ({
   const priorMode = profile?.modes && typeof profile.modes === 'object'
     ? profile.modes[mode]
     : null;
-  const priorThreads = Number(priorMode?.threads);
+  const priorThreads = priorMode?.resourceIdentity === budget.resourceIdentity ? Number(priorMode.threads) : NaN;
   // Rapid-convergence guard: move by at most one worker per run.
   if (Number.isFinite(priorThreads) && priorThreads > 0) {
     const clampedPrior = Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(priorThreads)));
@@ -223,6 +213,7 @@ export const resolveBundleWorkerAutotune = ({
   return {
     threads: Math.max(concurrencyFloor, Math.min(upperBound, desired)),
     reason: 'autotune',
+    requestedThreads: null, recommendedThreads: desired, budget,
     bundleCount,
     avgBundleBytes
   };

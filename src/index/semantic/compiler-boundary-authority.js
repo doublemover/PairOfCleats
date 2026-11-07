@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 const hash = text => createHash('sha256').update(text, 'utf8').digest('hex');
 const declarationNames = declaration => {
   const result = [];
@@ -10,6 +11,25 @@ const declarationNames = declaration => {
 /** Authority comes from checker declarations and Program libraries, never callee spelling. */
 export const createCompilerBoundaryAuthority = group => {
   const cache = new WeakMap(), sourceHashes = new WeakMap(), packageMetadata = new Map();
+  const readPackageMetadata = packageRoot => Promise.resolve(group.compilerReadFile
+    ? group.compilerReadFile(path.join(packageRoot, 'package.json'))
+    : fs.readFile(path.join(packageRoot, 'package.json'), 'utf8')).then(text => {
+    if (typeof text !== 'string') return null;
+    const value = JSON.parse(text.replace(/^\uFEFF/, ''));
+    return value.name === '@types/node' && typeof value.version === 'string'
+      ? { ...value, metadataHash: hash(text) } : null;
+  }).catch(error => {
+    const observation = observeStorageResource(error, { phase: 'compiler-boundary-package-metadata' });
+    observation.requireSettled();
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    // Inspecting an arbitrary diagnostic field can change the captured original
+    // observation. A replacement callback cannot grant settlement of that work.
+    observation.requireSettled();
+    if (code === 'ENOENT' || code === 'ENOTDIR') return null;
+    throw error;
+  });
   const declaration = async node => {
     if (!node) return null;
     if (cache.has(node)) return cache.get(node);
@@ -21,7 +41,7 @@ export const createCompilerBoundaryAuthority = group => {
       const marker = '/node_modules/@types/node/', index = filename.lastIndexOf(marker);
       if (index >= 0) {
         const packageRoot = filename.slice(0, index + marker.length - 1);
-        if (!packageMetadata.has(packageRoot)) packageMetadata.set(packageRoot, Promise.resolve(group.compilerReadFile ? group.compilerReadFile(path.join(packageRoot, 'package.json')) : fs.readFile(path.join(packageRoot, 'package.json'), 'utf8')).then(text => { if (typeof text !== 'string') return null; const value = JSON.parse(text.replace(/^\uFEFF/, '')); return value.name === '@types/node' && typeof value.version === 'string' ? { ...value, metadataHash: hash(text) } : null; }).catch(error => { if (['ENOENT', 'ENOTDIR'].includes(error.code)) return null; throw error; }));
+        if (!packageMetadata.has(packageRoot)) packageMetadata.set(packageRoot, readPackageMetadata(packageRoot));
         const metadata = await packageMetadata.get(packageRoot);
         const moduleName = names.find(name => ['child_process', 'node:child_process', 'events', 'node:events', 'timers', 'node:timers', 'module', 'node:module', 'process', 'node:process', 'url', 'node:url', 'fs', 'node:fs', 'fs/promises', 'node:fs/promises', 'worker_threads', 'node:worker_threads'].includes(name)) || null;
         if (metadata) authority = { family: 'node-type-package', library: filename.slice(index + marker.length), names, moduleName, packageName: metadata.name, packageVersion: metadata.version, packageMetadataHash: metadata.metadataHash };

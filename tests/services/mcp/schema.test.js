@@ -7,6 +7,7 @@ import { stableStringify } from '../../../src/shared/stable-json.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
+import { snapshotMcpToolShape } from '../../helpers/mcp-tool-schema-shape.js';
 
 applyTestEnv();
 const root = process.cwd();
@@ -76,13 +77,7 @@ const shapeValue = (value) => {
   return `<${typeof value}>`;
 };
 
-const toolSchemaSnapshot = getToolDefs(DEFAULT_MODEL_ID).map((tool) => ({
-  name: tool.name,
-  required: Array.isArray(tool.inputSchema?.required)
-    ? [...tool.inputSchema.required].sort()
-    : [],
-  properties: Object.keys(tool.inputSchema?.properties || {}).sort()
-}));
+const toolSchemaSnapshot = getToolDefs(DEFAULT_MODEL_ID).map(snapshotMcpToolShape);
 const riskExplainTool = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'risk_explain');
 if (!riskExplainTool) {
   throw new Error('risk_explain tool missing from MCP tool defs.');

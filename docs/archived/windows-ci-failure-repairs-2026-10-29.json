@@ -1,0 +1,1709 @@
+{
+  "originalCatalog": {
+    "ids": [
+      "context-pack/risk-truncation-contract/partial-count",
+      "indexing/registry-borrowed-lock-capability",
+      "indexing/scm/git-provider-parse",
+      "indexing/scm/jj-changed-files-normalization",
+      "indexing/semantic/native-flow-pull-writer",
+      "indexing/state/patch-queue-contract-matrix",
+      "indexing/tree-sitter/scheduler-native-language-contract",
+      "indexing/tree-sitter/scheduler-native-smoke",
+      "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+      "indexing/workers/process-pool-lifecycle",
+      "map/workspace/dom-interaction",
+      "map/workspace/projection",
+      "perf/bench/embedding-bakeoff-phase-lifecycle",
+      "perf/bench/sampled-operation-accounting",
+      "perf/bench/vfs-cold-start-process-phases",
+      "perf/tooling/bench/ab-sweep-artifact-owner",
+      "perf/tooling/bench/search-micro-runner",
+      "retrieval/context-expansion/context-expansion-contract-matrix",
+      "retrieval/graph/context-pack-streaming-artifact-failures",
+      "retrieval/ranking/dense-ranking-contract-matrix",
+      "security/tooling-cache-storage",
+      "services/mcp/sdk-diagnostic-lane",
+      "services/snapshot-core-contract-matrix",
+      "shared/artifact-io/jsonl-shard-failure-drain",
+      "storage/vector-extension/contract-matrix",
+      "tooling/api-contracts/export-identity-cli/js-fail",
+      "tooling/api-contracts/export-identity-cli/js-report",
+      "tooling/api-contracts/export-identity-cli/ts-fail",
+      "tooling/api-contracts/export-identity-cli/ts-report",
+      "tooling/api-contracts/zero-warning-cap-cli/clean",
+      "tooling/api-contracts/zero-warning-cap-cli/markdown",
+      "tooling/api-contracts/zero-warning-cap-cli/violation",
+      "tooling/cache/gc-contract-matrix",
+      "tooling/doctor/command-profile-contract-matrix",
+      "tooling/install/bootstrap-preflight",
+      "tooling/lsp/dart-provider-process-reuse",
+      "tooling/lsp/metrics-contract-matrix",
+      "tooling/providers/provider-catalog-execution",
+      "tooling/reports/compare-models-partial-ranks/opposite-orders",
+      "tooling/reports/map-cache-isolation",
+      "tooling/reports/map-selected-index-identity",
+      "tooling/reports/parity-matrix-execution",
+      "tooling/shared-module-performance",
+      "tooling/sublime/behavior-contract-matrix",
+      "tooling/triage/ingest-fallback-identity",
+      "tooling/vfs/materialization-content-and-root",
+      "tui/operator-artifacts",
+      "tui/operator-search-file-authority",
+      "tui/supervisor-artifact-generation-cleanup"
+    ],
+    "artifactSha256": "a2dcd02490d57d771186797831560eda3dece588ed9ea64a09ea71d61fa04f16",
+    "total": 49,
+    "head": "5366b344d8c4a06a847ebbcf604c07ba93afae6e",
+    "locallySelected": 48,
+    "artifactId": 12880128543
+  },
+  "limits": {
+    "retries": 0,
+    "threads": 1,
+    "jobs": 1,
+    "nativeStatusRedo": false,
+    "timeoutMs": 30000
+  },
+  "sourceParent": "e9704cc61730ec71b4f5ef13819134d5ec67b273",
+  "date": "2026-10-29",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "schemaVersion": 1,
+  "candidateStatus": "affected controls and all eight publication checks passed; hosted acceptance pending",
+  "sourceSnapshotHashes": {
+    "iteration1": "6ac34ac5adab1ddbdef53aab00c388702d20769e01cdd86b72437e017aa863a8",
+    "iteration2": "2dbfbb4a990d7a94821b47e56c8d669dbf6d40444fcfb58fa70131e46b633a20"
+  },
+  "physicalAuthority": {
+    "repair": "publish the actual fixture generation; original physical source/editor redirection negatives retained",
+    "testId": "tui/operator-search-file-authority",
+    "status": "pending hosted capable Windows authority run",
+    "localExecution": "not selected; no skip counted"
+  },
+  "checks": [
+    {
+      "summary": {
+        "durationMs": 242849,
+        "failed": 15,
+        "passed": 33,
+        "skipped": 0,
+        "total": 48
+      },
+      "tests": [
+        {
+          "id": "context-pack/risk-truncation-contract/partial-count",
+          "status": "passed",
+          "durationMs": 13581,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/registry-borrowed-lock-capability",
+          "status": "passed",
+          "durationMs": 364,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/scm/git-provider-parse",
+          "status": "passed",
+          "durationMs": 354,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/scm/jj-changed-files-normalization",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/semantic/native-flow-pull-writer",
+          "status": "failed",
+          "durationMs": 745,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/state/patch-queue-contract-matrix",
+          "status": "passed",
+          "durationMs": 212,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/tree-sitter/scheduler-native-language-contract",
+          "status": "passed",
+          "durationMs": 8464,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/tree-sitter/scheduler-native-smoke",
+          "status": "passed",
+          "durationMs": 7304,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+          "status": "passed",
+          "durationMs": 424,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/workers/process-pool-lifecycle",
+          "status": "passed",
+          "durationMs": 4615,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "map/workspace/dom-interaction",
+          "status": "failed",
+          "durationMs": 567,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "map/workspace/projection",
+          "status": "failed",
+          "durationMs": 505,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/embedding-bakeoff-phase-lifecycle",
+          "status": "passed",
+          "durationMs": 1385,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/sampled-operation-accounting",
+          "status": "passed",
+          "durationMs": 141,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/vfs-cold-start-process-phases",
+          "status": "failed",
+          "durationMs": 5362,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/tooling/bench/ab-sweep-artifact-owner",
+          "status": "failed",
+          "durationMs": 1107,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/tooling/bench/search-micro-runner",
+          "status": "failed",
+          "durationMs": 11203,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/context-expansion/context-expansion-contract-matrix",
+          "status": "passed",
+          "durationMs": 78,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/graph/context-pack-streaming-artifact-failures",
+          "status": "failed",
+          "durationMs": 422,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/ranking/dense-ranking-contract-matrix",
+          "status": "passed",
+          "durationMs": 79,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "security/tooling-cache-storage",
+          "status": "passed",
+          "durationMs": 3223,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "services/mcp/sdk-diagnostic-lane",
+          "status": "passed",
+          "durationMs": 2877,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "services/snapshot-core-contract-matrix",
+          "status": "failed",
+          "durationMs": 621,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "shared/artifact-io/jsonl-shard-failure-drain",
+          "status": "passed",
+          "durationMs": 166,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "storage/vector-extension/contract-matrix",
+          "status": "passed",
+          "durationMs": 450,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "status": "failed",
+          "durationMs": 12707,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "status": "failed",
+          "durationMs": 13433,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "status": "failed",
+          "durationMs": 12769,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "status": "failed",
+          "durationMs": 12757,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/zero-warning-cap-cli/clean",
+          "status": "passed",
+          "durationMs": 11761,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
+          "status": "passed",
+          "durationMs": 11045,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/zero-warning-cap-cli/violation",
+          "status": "passed",
+          "durationMs": 13751,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/cache/gc-contract-matrix",
+          "status": "failed",
+          "durationMs": 1861,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/doctor/command-profile-contract-matrix",
+          "status": "passed",
+          "durationMs": 3128,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-preflight",
+          "status": "passed",
+          "durationMs": 308,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/lsp/dart-provider-process-reuse",
+          "status": "passed",
+          "durationMs": 5651,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/lsp/metrics-contract-matrix",
+          "status": "passed",
+          "durationMs": 18230,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/providers/provider-catalog-execution",
+          "status": "passed",
+          "durationMs": 784,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
+          "status": "passed",
+          "durationMs": 6546,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/reports/map-cache-isolation",
+          "status": "passed",
+          "durationMs": 17744,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/reports/map-selected-index-identity",
+          "status": "passed",
+          "durationMs": 13762,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/reports/parity-matrix-execution",
+          "status": "passed",
+          "durationMs": 8900,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/shared-module-performance",
+          "status": "passed",
+          "durationMs": 2462,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/sublime/behavior-contract-matrix",
+          "status": "passed",
+          "durationMs": 5859,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/triage/ingest-fallback-identity",
+          "status": "passed",
+          "durationMs": 3123,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/vfs/materialization-content-and-root",
+          "status": "failed",
+          "durationMs": 824,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-artifacts",
+          "status": "failed",
+          "durationMs": 517,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-artifact-generation-cleanup",
+          "status": "passed",
+          "durationMs": 525,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-focused",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-focused.json"
+    },
+    {
+      "summary": {
+        "durationMs": 116145,
+        "failed": 6,
+        "passed": 12,
+        "skipped": 0,
+        "total": 18
+      },
+      "tests": [
+        {
+          "id": "indexing/semantic/native-flow-pull-writer",
+          "status": "passed",
+          "durationMs": 798,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "map/workspace/dom-interaction",
+          "status": "passed",
+          "durationMs": 1080,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "map/workspace/projection",
+          "status": "passed",
+          "durationMs": 499,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/vfs-cold-start-process-phases",
+          "status": "failed",
+          "durationMs": 1401,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/tooling/bench/ab-sweep-artifact-owner",
+          "status": "passed",
+          "durationMs": 3132,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "perf/tooling/bench/search-micro-runner",
+          "status": "passed",
+          "durationMs": 13891,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/graph/context-pack-streaming-artifact-failures",
+          "status": "failed",
+          "durationMs": 430,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "services/snapshot-core-contract-matrix",
+          "status": "passed",
+          "durationMs": 1296,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "status": "failed",
+          "durationMs": 12772,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "status": "failed",
+          "durationMs": 12903,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "status": "failed",
+          "durationMs": 12816,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "status": "failed",
+          "durationMs": 12724,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/zero-warning-cap-cli/clean",
+          "status": "passed",
+          "durationMs": 10731,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
+          "status": "passed",
+          "durationMs": 10538,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/zero-warning-cap-cli/violation",
+          "status": "passed",
+          "durationMs": 13178,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/cache/gc-contract-matrix",
+          "status": "passed",
+          "durationMs": 6483,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/vfs/materialization-content-and-root",
+          "status": "passed",
+          "durationMs": 755,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-artifacts",
+          "status": "passed",
+          "durationMs": 683,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-recheck2",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-recheck2.json"
+    },
+    {
+      "summary": {
+        "durationMs": 112155,
+        "failed": 6,
+        "passed": 6,
+        "skipped": 0,
+        "total": 12
+      },
+      "tests": [
+        {
+          "id": "perf/bench/vfs-cold-start-process-phases",
+          "status": "passed",
+          "durationMs": 5686,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/graph/context-pack-streaming-artifact-failures",
+          "status": "passed",
+          "durationMs": 395,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-anonymous",
+          "status": "failed",
+          "durationMs": 9795,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-arrow",
+          "status": "failed",
+          "durationMs": 9970,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-class",
+          "status": "failed",
+          "durationMs": 10081,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "status": "passed",
+          "durationMs": 9898,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "status": "passed",
+          "durationMs": 10042,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-default-anonymous",
+          "status": "failed",
+          "durationMs": 10327,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-default-arrow",
+          "status": "failed",
+          "durationMs": 14260,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-default-class",
+          "status": "failed",
+          "durationMs": 10231,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "status": "passed",
+          "durationMs": 10597,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "status": "passed",
+          "durationMs": 10841,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-recheck3",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-recheck3.json"
+    },
+    {
+      "summary": {
+        "durationMs": 67070,
+        "failed": 0,
+        "passed": 8,
+        "skipped": 0,
+        "total": 8
+      },
+      "tests": [
+        {
+          "id": "indexing/artifacts/call-sites-manifest",
+          "status": "passed",
+          "durationMs": 424,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/artifacts/call-sites-spill-preservation",
+          "status": "passed",
+          "durationMs": 2018,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-anonymous",
+          "status": "passed",
+          "durationMs": 10336,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-arrow",
+          "status": "passed",
+          "durationMs": 10146,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-class",
+          "status": "passed",
+          "durationMs": 10372,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-default-anonymous",
+          "status": "passed",
+          "durationMs": 10775,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-default-arrow",
+          "status": "passed",
+          "durationMs": 11075,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-default-class",
+          "status": "passed",
+          "durationMs": 11912,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-recheck4",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-recheck4.json"
+    },
+    {
+      "summary": {
+        "durationMs": 1993,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "shared/storage/write-admission-inventory-resource",
+          "status": "passed",
+          "durationMs": 993,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "shared/storage/write-admission-retains-pending",
+          "status": "passed",
+          "durationMs": 480,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "shared/storage/write-admission-settlement-contention",
+          "status": "passed",
+          "durationMs": 511,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-storage-controls",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-storage-controls.json"
+    },
+    {
+      "summary": {
+        "durationMs": 301,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "shared/storage/write-admission-settlement-contention",
+          "status": "failed",
+          "durationMs": 294,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-storage-before-control",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-storage-before-control.json"
+    },
+    {
+      "summary": {
+        "durationMs": 2351,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "id": "retrieval/ann/utility-contract-matrix",
+          "status": "passed",
+          "durationMs": 481,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/cache/prewarm-once-per-generation",
+          "status": "passed",
+          "durationMs": 165,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/federation/repo-generation-context-forwarding",
+          "status": "passed",
+          "durationMs": 733,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "retrieval/output/unicode-and-source-generation",
+          "status": "passed",
+          "durationMs": 132,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "shared/subprocess/signal-forwarding-retains-event-loop",
+          "status": "passed",
+          "durationMs": 834,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "mac49-owner-controls",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\mac49-owner-controls.json"
+    },
+    {
+      "summary": {
+        "durationMs": 22705,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "tui/native-index-workflows/snapshot-create",
+          "status": "passed",
+          "durationMs": 22701,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ],
+      "name": "e970-native-snapshot-repair",
+      "historicalAuthorReceipt": ".tmp\\tasks\\ci-and-p1-20261028\\e970-native-snapshot-repair.json"
+    },
+    {
+      "summary": {
+        "durationMs": 51675,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "total": 5
+      },
+      "historicalAuthorReceipt": ".tmp/tasks/ci-and-p1-20261028/mac49-api-final.json",
+      "name": "mac49-api-final",
+      "tests": [
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-default-anonymous",
+          "status": "passed",
+          "durationMs": 12320,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "status": "passed",
+          "durationMs": 9915,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "status": "passed",
+          "durationMs": 9855,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "status": "passed",
+          "durationMs": 9785,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "status": "passed",
+          "durationMs": 9792,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null
+        }
+      ]
+    }
+  ],
+  "interpretation": "Iteration reports retain original failures. Only final affected checks and source hashes qualify the final owner changes; these do not constitute a full-suite final-tree pass.",
+  "focusedLatestObservations": {
+    "failed": 0,
+    "scope": "Latest passing observations by selected ID across documented source-bound iterations; no full-suite final-tree acceptance claim.",
+    "total": 65,
+    "passed": 65
+  },
+  "publicationGate": [
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-final-format.log",
+      "name": "format",
+      "command": "npm run format",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-config-budget.log",
+      "durationMs": 1915.7207,
+      "name": "config-budget",
+      "command": "npm.cmd run config:budget",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-env-check.log",
+      "durationMs": 1125.0639,
+      "name": "env-check",
+      "command": "npm.cmd run env:check",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-freshness.log",
+      "durationMs": 10137.132,
+      "name": "freshness",
+      "command": "node tools/docs/generated-surfaces.js --check-freshness",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-command-surface.log",
+      "durationMs": 2378.4291,
+      "name": "command-surface",
+      "command": "node tools/ci/check-command-surface.js",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-workflow-contract.log",
+      "durationMs": 209.3942,
+      "name": "workflow-contract",
+      "command": "node tests/ci/workflow-contract.test.js",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-gate.log",
+      "durationMs": 19655.6739,
+      "name": "gate",
+      "command": "node tests/run.js --lane gate --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .tmp/tasks/ci-and-p1-20261028/mac49-gate.json --log-dir .testLogs/mac49-gate",
+      "exitCode": 0
+    },
+    {
+      "log": ".tmp/tasks/ci-and-p1-20261028/mac49-front-diff-check.log",
+      "durationMs": 118.594,
+      "name": "diff-check",
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "gateSummary": {
+    "durationMs": 19013,
+    "failed": 0,
+    "passed": 40,
+    "skipped": 0,
+    "total": 40
+  },
+  "remainingHostedFailures": [
+    "retrieval/pipeline/ann-lazy-import",
+    "tooling/sublime/api-authentication"
+  ],
+  "closedIssue": {
+    "readBackVerified": true,
+    "number": 1315,
+    "state": "closed",
+    "stateReason": "completed",
+    "receipt": "crash-log-posix-qualification-2026-10-29.json"
+  },
+  "sourceFiles": [
+    {
+      "path": "src/index/build/artifacts-write/index.js",
+      "bytes": 94861,
+      "sha256": "f2474a6180f2afe85466f378dc8dfc041c8c144103b86adea84915dac8e50ab8"
+    },
+    {
+      "path": "src/index/build/workers/process-pool.js",
+      "bytes": 20892,
+      "sha256": "ce7937b4bc240e9a94c7385c514a0abf2a2431522cc126fd80ac3abf6b5cd26e"
+    },
+    {
+      "path": "src/index/registry-lock.js",
+      "bytes": 3809,
+      "sha256": "67a3c9ee37cdbfe18820fdbc84045f20b38d4f81029f8594ed8ddf05290de85b"
+    },
+    {
+      "path": "src/index/semantic/analysis-versions.js",
+      "bytes": 2558,
+      "sha256": "c1fcca87657c2223015bfca5b2fbed4bb9a0b8748d9762a433a30c4e27626413"
+    },
+    {
+      "path": "src/map/workspace/app.js",
+      "bytes": 21563,
+      "sha256": "0829887166be2243f8ad1da23b6bd32decf281641ad2e74ca595c0409b4ac4a4"
+    },
+    {
+      "path": "src/map/workspace/reladraw.js",
+      "bytes": 9022,
+      "sha256": "2b11d60585e2bdaa9c2d1c641f1e4d6a524416a5340e18813e077ed4020cca61"
+    },
+    {
+      "path": "src/retrieval/cli-index.js",
+      "bytes": 15980,
+      "sha256": "6b9faeb2367f56ab1d42ea048342eceead5be102cc16d3964903b7b3db248985"
+    },
+    {
+      "path": "src/shared/cli/display.js",
+      "bytes": 10919,
+      "sha256": "6efa76b6d3d89d9c14281bcb5a52ae16228b2d9e2bd71f0055df2a8a8f6a2ade"
+    },
+    {
+      "path": "src/shared/storage/admission.js",
+      "bytes": 20314,
+      "sha256": "a5e685a8a5c485073e366e4081f9ce91110ef2c34d5a99fe04423f0938e11d13"
+    },
+    {
+      "path": "src/shared/subprocess/exit-semantics.js",
+      "bytes": 859,
+      "sha256": "f29f63ae5a7458835f144612e0c856a9d38e01d50cb19572e7e802e03d8fac92"
+    },
+    {
+      "path": "src/shared/subprocess/signal-dispatch.js",
+      "bytes": 128,
+      "sha256": "6705835c88b23a3fe33baa8f7ad2c366173f7ea906095ff7399f335dca9d1487"
+    },
+    {
+      "path": "src/shared/subprocess/signals.js",
+      "bytes": 5642,
+      "sha256": "b9096bc1fec6a8c91bf4be76ad4e7c59366777dc4e481b19e9f736a41790340e"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.manifest.json",
+      "bytes": 248094,
+      "sha256": "57841967802af4d17aa8926a1f62c572a986fa38f865cd5f09ee27d31fad9f34"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "bytes": 57425,
+      "sha256": "a8707e4875ae81b63ee25c892308461c43a4795a40bb7c5c69ef598d7faae122"
+    },
+    {
+      "path": "tests/helpers/analysis-surface-parity.js",
+      "bytes": 2704,
+      "sha256": "ae7366f488920b4d2db8da5eb21f7b5a0540d43ff73c261d5f18d273cd6254e5"
+    },
+    {
+      "path": "tests/helpers/index-compatibility-fixture.js",
+      "bytes": 5313,
+      "sha256": "2fbcd6bd277b70cc745bb2f4ab448dd17f9ffe8f7f31ef5b879880cf1b93f58a"
+    },
+    {
+      "path": "tests/helpers/sublime/results_behavior.py",
+      "bytes": 6623,
+      "sha256": "8f06aa8387b35a67da958f9a1291c2c23d518a270f79dd3d7114cfac184e595b"
+    },
+    {
+      "path": "tests/indexing/registry-borrowed-lock-capability.test.js",
+      "bytes": 2475,
+      "sha256": "07a67634ef895137caa8f6969077239d7c566703327d35cffc7d7cd6c9847a65"
+    },
+    {
+      "path": "tests/indexing/scm/git-provider-parse.test.js",
+      "bytes": 2623,
+      "sha256": "3c3ffe2f5b5e092d16deb1ea7846f6621f182b50b3445a121a975b1dbeba0fc7"
+    },
+    {
+      "path": "tests/indexing/scm/jj-changed-files-normalization.test.js",
+      "bytes": 888,
+      "sha256": "c6d09f165fae741327655d657e05c43e635832a9a8d31d8047864abfd1f697da"
+    },
+    {
+      "path": "tests/indexing/semantic/native-flow-pull-writer.test.js",
+      "bytes": 9620,
+      "sha256": "b190f30a48e4204c381d3bb4ccd27ac24d2b7f995f2a4b22d0f5a30c0e892d76"
+    },
+    {
+      "path": "tests/indexing/state/patch-queue-contract-matrix.test.js",
+      "bytes": 11212,
+      "sha256": "ab4aec1b0df8610ec246c958eb780d23eed065a344f7a66ccc1746dd7e8be274"
+    },
+    {
+      "path": "tests/indexing/tree-sitter/native-language-contract-suite.js",
+      "bytes": 11996,
+      "sha256": "d088564b8cf1cbe26558878709a55171b70f32bf830fccc3c74d79ac5c6d4a7c"
+    },
+    {
+      "path": "tests/indexing/type-inference/providers/type-inference-clangd-provider-no-clangd.test.js",
+      "bytes": 2831,
+      "sha256": "0e582c8e7b907184f757895a985e2f6558661bcb137d49a63fdb2361decfb16c"
+    },
+    {
+      "path": "tests/indexing/workers/process-pool-controlled-child.js",
+      "bytes": 1818,
+      "sha256": "dc66638defd26db9ada39fae48d4fa818b0a7172b1af3b73e679da2fb0a641d3"
+    },
+    {
+      "path": "tests/indexing/workers/process-pool-lifecycle.test.js",
+      "bytes": 7102,
+      "sha256": "87b5a0aad85497c32b70726773f11c7ec980a5f012ccf1d54766e958a876759d"
+    },
+    {
+      "path": "tests/perf/bench/sampled-operation-accounting.test.js",
+      "bytes": 5211,
+      "sha256": "72d22748b1df6f4e7a0c6b2ca7cb9c2e0c73603da2e01ab000886e0306de728a"
+    },
+    {
+      "path": "tests/perf/bench/vfs-cold-start-process-phases.test.js",
+      "bytes": 3442,
+      "sha256": "0a6cdc26d8728dbc75dff07954575f9f2e8ea2cd744a23e686987d6be94318e2"
+    },
+    {
+      "path": "tests/perf/tooling/bench/ab-sweep-artifact-owner.test.js",
+      "bytes": 4804,
+      "sha256": "faab080f25733fb853db2973860520dc071f78949a291fb4404d2dde134d48dc"
+    },
+    {
+      "path": "tests/perf/tooling/bench/search-micro-runner.test.js",
+      "bytes": 5586,
+      "sha256": "9a61824c9bc96a7f25acb108419cd3cc1c651671dd06d5aa64d612da8c495c9e"
+    },
+    {
+      "path": "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js",
+      "bytes": 5893,
+      "sha256": "35c0544bc833f01d1dd5792f1bc6806939e607f93fba7322c0f1afab8701e6de"
+    },
+    {
+      "path": "tests/retrieval/graph/context-pack-streaming-artifact-failures.test.js",
+      "bytes": 6234,
+      "sha256": "f6fce8acf427c3e393ab299b323c1e9cc69efa6cdce5fce8e942be9395c6a244"
+    },
+    {
+      "path": "tests/retrieval/ranking/dense-ranking-contract-matrix.test.js",
+      "bytes": 1854,
+      "sha256": "428863836b2636a879e81231dd8752c941000a388ea0624825909ab6af20884f"
+    },
+    {
+      "path": "tests/security/tooling-cache-storage.test.js",
+      "bytes": 13848,
+      "sha256": "4b0d56611d3336c2f549cc88e5f9e6826acdd86b4423ef54f30151c32f74d40f"
+    },
+    {
+      "path": "tests/services/mcp/sdk-diagnostic-lane.test.js",
+      "bytes": 8432,
+      "sha256": "1ca76e6a74532e5466585c416030132d7abc833693fa46f37b6ad598e5485533"
+    },
+    {
+      "path": "tests/services/snapshot-core-contract-matrix.test.js",
+      "bytes": 31485,
+      "sha256": "f5e896cdc653f9b0d58627ea262ceee73bdfb8bc3cf8114527f4827ac1132b12"
+    },
+    {
+      "path": "tests/shared/artifact-io/jsonl-shard-failure-drain.test.js",
+      "bytes": 5582,
+      "sha256": "a68533070d8eca89fc79ce82632bcdc47505c00e75432a9e6880844cffa74030"
+    },
+    {
+      "path": "tests/shared/storage/write-admission-settlement-contention.test.js",
+      "bytes": 2753,
+      "sha256": "112edd923344796d084998d8560629c7aa9eb0bb0a90eb4d82ebfde841a9fa45"
+    },
+    {
+      "path": "tests/storage/vector-extension/contract-matrix.test.js",
+      "bytes": 5813,
+      "sha256": "30566a0acfd51faa5f087b52db8c9081ce039a06e7563bc32591ee2d62746820"
+    },
+    {
+      "path": "tests/tooling/api-contracts/export-identity-cli.test.js",
+      "bytes": 8495,
+      "sha256": "6fc29a5f5a71eae24f4dd298dd6c8012f1790e8d624503cf9719edc24cfffd20"
+    },
+    {
+      "path": "tests/tooling/api-contracts/export-identity-cli.test.js.cases.json",
+      "bytes": 218,
+      "sha256": "583d8785c10d224a444fbd093acdebf418f25a6dea816354740c8f343662ae9d"
+    },
+    {
+      "path": "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
+      "bytes": 6596,
+      "sha256": "5945ed77ab485a4a2f928c81c7828f83636ea87910ed6a3295a6575a9d38b90d"
+    },
+    {
+      "path": "tests/tooling/cache/gc-contract-matrix.test.js",
+      "bytes": 11276,
+      "sha256": "444d63d829695db371effa7e33b886680f465048faf57cd2d5b700799b394011"
+    },
+    {
+      "path": "tests/tooling/doctor/command-profile-contract-matrix.test.js",
+      "bytes": 25809,
+      "sha256": "1138cc59903733a9cbdd30e4a7047c41fc47f0e9d7d1e6897f1b6df723f916c4"
+    },
+    {
+      "path": "tests/tooling/install/bootstrap-preflight.test.js",
+      "bytes": 10271,
+      "sha256": "aced30934e854ce41674139c276d2aeea1d186b8e30bedbba32f77044a4be042"
+    },
+    {
+      "path": "tests/tooling/lsp/dart-provider-process-reuse.test.js",
+      "bytes": 5875,
+      "sha256": "aad3c98146c31776935fe30140203893549638f42c9121ba73f9902265846842"
+    },
+    {
+      "path": "tests/tooling/lsp/metrics-contract-matrix.test.js",
+      "bytes": 17363,
+      "sha256": "8d2653f380165b40b06c04c6443a618cee48efd0ec2ab85572866e9e2c804046"
+    },
+    {
+      "path": "tests/tooling/providers/provider-catalog-execution.test.js",
+      "bytes": 5475,
+      "sha256": "2dd3c2acc0ece0680dc0344725cd5a16b4edb1a788204a46aebb9d5cd6a0a865"
+    },
+    {
+      "path": "tests/tooling/reports/compare-models-partial-ranks.test.js",
+      "bytes": 5166,
+      "sha256": "57088e94f1d3bf35707a3759ec40bfdd0bd84046bfc143e5c0dfe817c78c3523"
+    },
+    {
+      "path": "tests/tooling/reports/map-cache-isolation.test.js",
+      "bytes": 4471,
+      "sha256": "b022c4b27446cdb1e92742f1bf8bfd8efb7ef1bf515a0a174c47f8ecc8a6d76f"
+    },
+    {
+      "path": "tests/tooling/reports/map-selected-index-identity.test.js",
+      "bytes": 5468,
+      "sha256": "09e459e3c1187851d43e863771ae4dc556ef8c51059702a208a244ef00550c8e"
+    },
+    {
+      "path": "tests/tooling/reports/parity-matrix-execution.test.js",
+      "bytes": 9702,
+      "sha256": "909a020ea516fc6914d45bbdd75f8ad30bdaf83324bddfe00f5fff6fb9220809"
+    },
+    {
+      "path": "tests/tooling/triage/ingest-fallback-identity.test.js",
+      "bytes": 5347,
+      "sha256": "da43dd98187d20a18ea2521467127a7f5b5cdd4247174e51a16b0865c0ce6f9a"
+    },
+    {
+      "path": "tests/tooling/vfs/materialization-content-and-root.test.js",
+      "bytes": 8056,
+      "sha256": "392b7332c972cffdc08d179688299c19053dd0c45ca5b334f5d37207bb4d5b4d"
+    },
+    {
+      "path": "tests/tui/native-index-workflows.test.js",
+      "bytes": 28834,
+      "sha256": "e81712295974dffde6ddb752a882502dcd9a57ea5bcf7a80c7ffd994d7553af3"
+    },
+    {
+      "path": "tests/tui/operator-artifacts.test.js",
+      "bytes": 8169,
+      "sha256": "4163fdf6d25a4f4ce25c9e991da043df7aa46ff635471f378a3c076feec99d2f"
+    },
+    {
+      "path": "tests/tui/operator-search-file-authority.test.js",
+      "bytes": 4663,
+      "sha256": "e446fefa4bab75e927177606aae0367837c4bae6e8466b887cead594d572eb33"
+    },
+    {
+      "path": "tests/tui/supervisor-artifact-generation-cleanup.test.js",
+      "bytes": 2807,
+      "sha256": "f9bf7c2e2f23914d00049be94b8c166e6b156e2e5c1a5432d825d3f68d992ae4"
+    },
+    {
+      "path": "tools/bench/micro/tinybench.js",
+      "bytes": 15385,
+      "sha256": "63b318bebf8c9cdcd77b1c17cb19fc6de12a16205a1fb0e7c8fd4986ee140f46"
+    },
+    {
+      "path": "tools/bench/micro/utils.js",
+      "bytes": 5502,
+      "sha256": "21c74018a671a8eee6e610c2bfe912f0506cbf0588febf44fad43d068fc5b6fd"
+    },
+    {
+      "path": "tools/bench/vfs/cold-start-cache.js",
+      "bytes": 9774,
+      "sha256": "82c4b1fa1de228eaab90f8415114cf06d89f8a8214115d07117572fa1ee74083"
+    },
+    {
+      "path": "tools/sqlite/vector-extension.js",
+      "bytes": 20155,
+      "sha256": "49dc7dcfc76ca93ee328fd7f3bbb0283088a2413962f363542513ff7c9751b5d"
+    }
+  ],
+  "node": "26.13.0",
+  "implementationHead": "9ba91003835df0465c42e09f54bface8f332eaa8",
+  "publicationSourceFilesVerified": true
+}

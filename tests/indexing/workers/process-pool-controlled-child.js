@@ -16,6 +16,7 @@ process.on('message', async message => {
   }
   const payload = deserialize(message.payload);
   if (payload.crash) { process.exit(3); return; }
+  if (payload.disconnect) { setInterval(() => {}, 1000); process.disconnect(); return; }
   if (payload.retainUntilExit) {
     process.on('SIGTERM', () => {});
     setInterval(() => { if (!payload.bytes?.length) throw new Error('Lost retained input.'); }, 1000);

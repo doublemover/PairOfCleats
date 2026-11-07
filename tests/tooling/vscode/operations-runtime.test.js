@@ -19,8 +19,8 @@ const repoRoot = createVsCodeRuntimeTempRepo({
 const harness = createVsCodeRuntimeHarness({
   repoRoot,
   activeFile: path.join(repoRoot, 'src', 'app.ts'),
-  configValues: {
-    cliPath: './bin/pairofcleats.js',
+  globalConfigValues: {
+    cliPath: path.join(repoRoot, 'bin', 'pairofcleats.js'),
     cliArgs: ['--trace']
   }
 });
@@ -61,7 +61,10 @@ try {
     harness.spawnCalls,
     0,
     [
-      path.join(repoRoot, 'tools', 'index', 'validate.js'),
+      path.join(repoRoot, 'bin', 'pairofcleats.js'),
+      '--trace',
+      'index',
+      'validate',
       '--json',
       '--repo',
       repoRoot
@@ -85,14 +88,14 @@ try {
       '--repo',
       repoRoot,
       '--progress',
-      'log'
+      'jsonl'
     ]
   );
   assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /\[stdout\] \[build\] done/i.test(event.line)));
 
   harness.queuedResults.push({ persistent: true, stdout: '[watch] started\n', killCode: 0 });
   await harness.runCommand('pairofcleats.indexWatchStart');
-  assert.equal(harness.infoMessages.shift(), 'PairOfCleats: Index Watch started. Use PairOfCleats: Stop Index Watch to stop it.');
+  assert.match(harness.infoMessages.shift(), /Index Watch is starting.*Readiness has not been observed/);
   assertSpawnArgs(
     harness.spawnCalls,
     2,
@@ -104,7 +107,7 @@ try {
       '--repo',
       repoRoot,
       '--progress',
-      'log'
+      'jsonl'
     ]
   );
   await harness.runCommand('pairofcleats.indexWatchStop');
@@ -112,13 +115,14 @@ try {
 
   harness.queuedResults.push({ persistent: true, stdout: '[api] listening\n', killCode: 0 });
   await harness.runCommand('pairofcleats.serviceApiStart');
-  assert.equal(harness.infoMessages.shift(), 'PairOfCleats: Service API started. Use PairOfCleats: Stop Service API to stop it.');
+  assert.match(harness.infoMessages.shift(), /Service API is starting.*Readiness has not been observed/);
+  assert.equal(harness.infoMessages.some(message => /ready at/.test(message)), false, 'plain listening prose is not authoritative readiness');
   await harness.runCommand('pairofcleats.serviceApiStop');
   assert.equal(harness.infoMessages.shift(), 'PairOfCleats: Service API stopped.');
 
   harness.queuedResults.push({ persistent: true, stdout: '[indexer] watching\n', killCode: 0 });
   await harness.runCommand('pairofcleats.serviceIndexerStart');
-  assert.equal(harness.infoMessages.shift(), 'PairOfCleats: Service Indexer started. Use PairOfCleats: Stop Service Indexer to stop it.');
+  assert.match(harness.infoMessages.shift(), /Service Indexer is starting.*Readiness has not been observed/);
   await harness.runCommand('pairofcleats.serviceIndexerStop');
   assert.equal(harness.infoMessages.shift(), 'PairOfCleats: Service Indexer stopped.');
 

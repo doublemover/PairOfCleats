@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["canonical-prebuilt-closure", "original-verification-observation", "managed-publication-and-reuse", "runtime-host-and-assembly-identity", "external-host-does-not-adopt-managed-sdk", "sync-probe-and-workspace-trust", "external-host-requires-own-command-trust", "framed-initialize-and-original-generation-lease"]
+}

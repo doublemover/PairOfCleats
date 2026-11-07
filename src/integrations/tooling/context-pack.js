@@ -1,4 +1,5 @@
 import { buildSemanticContextSection } from '../../context-pack/semantic.js';
+import { enforceContextPackResponseBudget } from '../../context-pack/response-budget.js';
 import { attachSemanticContextSection } from '../../context-pack/assemble/finalize.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
@@ -22,9 +23,25 @@ import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadWorkspaceConfig } from '../../workspace/config.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { resolveContextTaskPolicy } from '../../context-pack/task-policy.js';
+import { resolveRenderedTokenBudget } from '../../context-pack/token-budget-policy.js';
+import { aggregateRiskMemberStatus, createRiskMemberAttestation } from '../../context-pack/federated-risk.js';
+import { CONTEXT_PACK_RISK_FIELD_SCOPES, CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT } from '../../contracts/context-pack-risk-contract.js';
 
 const DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS = 4;
-const MAX_FEDERATED_CONTEXT_PACK_REPOS = 16;
+const MAX_FEDERATED_CONTEXT_PACK_REPOS = CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT;
+const selectedCounts = new WeakMap();
+const requestStarts = new WeakMap();
+const evidenceComparisonSink = Symbol('evidenceControlComparison');
+
+const remainingTokenDeadline = (input, context) => {
+  const remaining = Number.isFinite(input.maxWallClockMs)
+    ? input.maxWallClockMs - (performance.now() - requestStarts.get(context)) : 10000;
+  if (remaining <= 0) throw createContextPackRequestError('ERR_CONTEXT_PACK_TOKENIZER_UNAVAILABLE',
+    'Exact token accounting has no remaining deadline.', 422);
+  return remaining;
+};
 
 const createContextPackRequestError = (code, message, status = 400) => {
   const error = new Error(message);
@@ -289,6 +306,9 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
     maxRepos,
     includePaths
   });
+  federation.attestations = repoResults.map(entry => entry.attestation);
+  federation.fieldScopes = { ...CONTEXT_PACK_RISK_FIELD_SCOPES };
+  const analysisStatus = aggregateRiskMemberStatus(federation.attestations, skippedRepos.length > 0);
   const mergedFlows = rerankFederatedFlows(repoResults.flatMap((entry) => entry.payload.risk?.flows || []));
   const mergedPartialFlows = rerankFederatedPartialFlows(repoResults.flatMap((entry) => entry.payload.risk?.partialFlows || []));
   const mergedWarnings = Array.from(new Set(
@@ -297,15 +317,16 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
   const mergedTruncation = Array.from(new Set(
     repoResults.flatMap((entry) => Array.isArray(entry.payload?.risk?.truncation) ? entry.payload.risk.truncation.map((item) => JSON.stringify(item)) : [])
   )).map((entry) => JSON.parse(entry));
-  const degraded = repoResults.some((entry) => entry.payload?.risk?.degraded === true);
+  const degraded = analysisStatus.degraded;
   return {
     ...basePayload,
     warnings: mergedWarnings.length ? mergedWarnings : basePayload.warnings,
     risk: {
       ...basePayload.risk,
-      status: degraded ? 'degraded' : basePayload.risk.status,
+      status: analysisStatus.status,
       degraded: degraded || basePayload.risk.degraded === true,
-      reason: degraded ? 'federated-partial-artifacts' : basePayload.risk.reason,
+      reason: analysisStatus.reason,
+      provenance: null, support: null, stats: null, caps: null, analysisStatus,
       flows: mergedFlows,
       partialFlows: mergedPartialFlows,
       truncation: mergedTruncation.length ? mergedTruncation : basePayload.risk.truncation,
@@ -314,7 +335,8 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
   };
 };
 
-async function buildSingleRepoCompositeContextPackPayload(input = {}) {
+async function buildSingleRepoCompositeContextPackPayload(input = {}, context = {}) {
+  throwIfAborted(context.signal);
   const repoRoot = getRepoRoot(input.repoRoot || null, process.cwd());
   if (!input.seed) {
     throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Missing seed.', 400);
@@ -345,7 +367,8 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     repoRoot,
     indexDir,
     strict: true,
-    includeChunkMeta: true
+    includeChunkMeta: true,
+    signal: context.signal
   });
   const chunkMeta = graphInputs.chunkMeta;
   const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
@@ -373,7 +396,9 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     selection: graphList,
     strict: true,
     graphInputs,
-    includeGraphIndex: input.includeGraph !== false
+    includeGraphIndex: input.includeGraph !== false,
+    cacheEnabled: input.taskPolicy?.task !== 'edit-safe',
+    signal: context.signal
   });
 
   let payload = assembleCompositeContextPack({
@@ -388,11 +413,14 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     includeRiskPartialFlows: input.includeRiskPartialFlows === true,
     riskStrict: input.strictRisk === true,
     strictEvidence: input.strictEvidence === true,
+    taskPolicy: input.taskPolicy,
+    signal: context.signal,
     riskFilters,
     includeImports: input.includeImports !== false,
     includeUsages: input.includeUsages !== false,
     includeCallersCallees: input.includeCallersCallees !== false,
     includePaths: input.includePaths === true,
+    pathSemantics: input.pathSemantics,
     depth: Math.max(0, Math.floor(Number(input.hops))),
     maxBytes: normalizeOptionalNumber(input.maxBytes),
     maxTokens: normalizeOptionalNumber(input.maxTokens),
@@ -405,7 +433,19 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
   });
 
   if (input.includeSemantic === true) payload = attachSemanticContextSection(payload,
-    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig }));
+    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig, signal: context.signal }));
+
+  if (input.evidenceSelection) {
+    payload = enforceContextPackResponseBudget(payload, input);
+    if (!payload.graph) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+      'Evidence selection requires retained graph candidates.');
+    const { applyContextEvidenceSelection } = await import('../../context-pack/evidence-selection.js');
+    const counted = await applyContextEvidenceSelection({ payload, chunkIndex, repoRoot, taskPolicy: input.taskPolicy,
+      policy: input.evidenceSelection, tokenPolicy: input.renderedTokenBudget, signal: context.signal,
+      timeoutMs: remainingTokenDeadline(input, context), compareControls: typeof context[evidenceComparisonSink] === 'function' });
+    selectedCounts.set(context, counted);
+    payload = counted.payload;
+  }
 
   const validation = validateCompositeContextPack(payload);
   if (!validation.ok) {
@@ -420,6 +460,10 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
 }
 
 export async function buildFederatedCompositeContextPackPayload(input = {}, context = {}) {
+  if (input.evidenceSelection !== undefined) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+    'Evidence selection currently requires a single repository.');
+  input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy) };
+  context = { ...context };
   const workspaceConfig = resolveWorkspaceConfigForContextPack(input, context);
   if (input.workspaceId && input.workspaceId !== workspaceConfig.repoSetId) {
     throw createContextPackRequestError(
@@ -465,9 +509,12 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
     const repoPayload = await buildSingleRepoCompositeContextPackPayload({
       ...input,
       repoRoot: repo.repoRootCanonical
-    });
+    }, context);
+    const attestation = createRiskMemberAttestation(repoPayload.risk, repo.repoId);
+    repoInfo.attestationId = attestation.attestationId;
     repoResults.push({
       repo,
+      attestation,
       payload: {
         ...repoPayload,
         risk: annotateFederatedRisk(repoPayload.risk, repoInfo)
@@ -525,10 +572,12 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   hops:number,
  *   includeGraph?:boolean,
  *   includeTypes?:boolean,
+ *   includeSemantic?:boolean,
  *   includeRisk?:boolean,
  *   includeRiskPartialFlows?:boolean,
  *   strictRisk?:boolean,
  *   strictEvidence?:boolean,
+ *   taskPolicy?:{schemaVersion:1,task:'edit-safe'|'exploration',granularity:'file'|'function'|'excerpt',wholeFileFallback?:boolean},
  *   riskFilters?:object|null,
  *   includeImports?:boolean,
  *   includeUsages?:boolean,
@@ -546,14 +595,63 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   maxWorkUnits?:number|null,
  *   maxWallClockMs?:number|null
  * }} [input]
- * @param {{trustedWorkspaceConfig?:boolean}} [context]
+ * @param {{trustedWorkspaceConfig?:boolean, signal?:AbortSignal}} [context]
  * @returns {Promise<object>}
  */
 export async function buildCompositeContextPackPayload(input = {}, context = {}) {
-  if (shouldUseFederatedContextPack(input)) {
-    return await buildFederatedCompositeContextPackPayload(input, context);
+  context = { ...context };
+  throwIfAborted(context.signal);
+  const started = performance.now();
+  requestStarts.set(context, started);
+  input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy),
+    renderedTokenBudget: resolveRenderedTokenBudget(input.renderedTokenBudget) };
+  if (input.renderedTokenBudget && !input.repoRoot) {
+    throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Exact token accounting requires an explicit repository for local profile authority.');
   }
-  return await buildSingleRepoCompositeContextPackPayload(input);
+  if (input.evidenceSelection !== undefined) {
+    const { resolveEvidenceSelectionPolicy } = await import('../../context-pack/evidence-selection-policy.js');
+    input.evidenceSelection = resolveEvidenceSelectionPolicy(input.evidenceSelection);
+    if (input.taskPolicy?.task !== 'edit-safe' || !input.renderedTokenBudget || input.includeGraph === false
+      || shouldUseFederatedContextPack(input)) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+      'Evidence selection requires one explicit repository, edit-safe task policy, graph candidates and exact renderedTokenBudget.');
+  }
+  const payload = shouldUseFederatedContextPack(input)
+    ? await buildFederatedCompositeContextPackPayload(input, context)
+    : await buildSingleRepoCompositeContextPackPayload(input, context);
+  if (input.strictRisk === true && payload.risk?.analysisStatus?.strictFailure === true) {
+    const error = Object.assign(new Error('Federated risk analysis is incomplete.'), { code: 'ERR_CONTEXT_PACK_RISK_STRICT' });
+    error.risk = { status: payload.risk.status, code: payload.risk.analysisStatus.code, reason: payload.risk.reason };
+    throw error;
+  }
+  throwIfAborted(context.signal);
+  const selected = selectedCounts.get(context);
+  const bounded = selected ? payload : enforceContextPackResponseBudget(payload, input);
+  let counted = selected || { payload: bounded, publish: () => {} };
+  if (input.renderedTokenBudget && !selected) {
+    const remaining = remainingTokenDeadline(input, context);
+    const { applyRenderedTokenBudget } = await import('../../context-pack/rendered-token-budget.js');
+    counted = await applyRenderedTokenBudget(bounded, input.renderedTokenBudget, { repoRoot: input.repoRoot,
+      taskPolicy: input.taskPolicy, signal: context.signal, timeoutMs: remaining });
+  }
+  const validation = validateCompositeContextPack(counted.payload);
+  if (!validation.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', validation.errors.join('; '), 500);
+  if (counted.comparison) for (const row of counted.comparison) {
+    const checked = validateCompositeContextPack(row.payload);
+    if (!checked.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', checked.errors.join('; '), 500);
+  }
+  throwIfAborted(context.signal); counted.publish();
+  if (counted.comparison) context[evidenceComparisonSink](counted.comparison);
+  return counted.payload;
+}
+
+/** Internal evaluation entry point: one source-qualified frozen pool and local
+ * tokenizer invocation, four independent bounded controls. No new CLI/API knob. */
+export async function buildContextEvidenceControlComparison(input = {}, context = {}) {
+  if (!input.evidenceSelection) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+    'Evidence control comparison requires an explicit selection policy.');
+  let comparison;
+  await buildCompositeContextPackPayload(input, { ...context, [evidenceComparisonSink]: value => { comparison = value; } });
+  return comparison;
 }
 
 /**
@@ -577,15 +675,14 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
   const format = resolveFormat(argv);
 
   try {
-    const payload = await buildCompositeContextPackPayload(
-      buildCliContextPackRequestInput(argv, { repoRoot })
-    );
+    const request = buildCliContextPackRequestInput(argv, { repoRoot });
+    const payload = await buildCompositeContextPackPayload(request);
 
     return emitCliOutput({
       format,
       payload,
       renderMarkdown: renderCompositeContextPack,
-      renderJson: renderCompositeContextPackJson
+      renderJson: value => renderCompositeContextPackJson(value, request)
     });
   } catch (err) {
     const message = err?.message || String(err);

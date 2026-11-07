@@ -234,6 +234,121 @@
       "matrixStrategy": "shared-atomic-persistence-failure-matrix",
       "processIsolationRequired": false,
       "notes": "Higher-level bundle checksum and json-stream atomic directory hero tests remain standalone."
+    },
+    {
+      "id": "cli/search/non-result-surfaces",
+      "replacementIds": [
+        "cli/search/missing-value-flags-1",
+        "cli/search/missing-value-flags-2",
+        "cli/search/missing-value-flags-3",
+        "cli/search/missing-value-flags-4"
+      ],
+      "coverageOwner": "Search CLI non-result behavior and all value-flag missing-value errors.",
+      "notes": "Every SEARCH_VALUE_FLAGS member belongs to exactly one modulo partition; the parent retains help/version/error/index checks. All four children remain in the ordered CI lane.",
+      "suiteCategory": "hero",
+      "overlapPolicy": "parent-retained-with-bounded-partitions",
+      "matrixStrategy": "separate-process-boundaries",
+      "processIsolationRequired": true
+    },
+    {
+      "id": "cli/general/unknown-workflow-options",
+      "replacementIds": [
+        "cli/general/bench-runtime-boundary",
+        "cli/general/ingest-report-option-rejections",
+        "cli/general/lifecycle-workflow-option-rejections"
+      ],
+      "coverageOwner": "Workflow option rejection before execution, benchmark import boundary and strict-dispatch/setup contracts.",
+      "notes": "All command cases and no-output/no-event assertions are retained; children remain in ci-lite with the parent.",
+      "suiteCategory": "hero",
+      "overlapPolicy": "parent-retained-with-bounded-partitions",
+      "matrixStrategy": "separate-process-boundaries",
+      "processIsolationRequired": true
+    },
+    {
+      "id": "cli/general/canonical-workflows",
+      "replacementIds": [
+        "cli/general/canonical-workflow-help"
+      ],
+      "coverageOwner": "Canonical workflow routing, config operations and tooling detection/install dry run.",
+      "notes": "Help routing and workflow execution have separate 30-second fixture budgets.",
+      "suiteCategory": "hero",
+      "overlapPolicy": "parent-retained-with-bounded-partitions",
+      "matrixStrategy": "separate-process-boundaries",
+      "processIsolationRequired": true
+    }
+  ],
+  "consumerWitnesses": [
+    {
+      "contractId": "coverage-physical-source-identity",
+      "consumerId": "coverage-policy-changed-path-join",
+      "caseId": "runner/harness/coverage-physical-source-identity/physical-consumer",
+      "sourcePaths": [
+        "tools/testing/coverage/source-identity.js",
+        "tools/testing/coverage/index.js",
+        "tools/testing/coverage/policy.js"
+      ],
+      "requiredScope": [
+        "Distinct physical source labels remain distinct through collector, merge and changed-path policy.",
+        "Observed ranges cannot qualify an unobserved changed physical source."
+      ],
+      "expectedOracleKind": "physical-identity",
+      "negativeCaseIds": [
+        "runner/harness/coverage-physical-source-identity/identity-adapter",
+        "runner/harness/coverage-physical-source-identity/physical-consumer"
+      ]
+    },
+    {
+      "contractId": "fractional-percentile-semantics",
+      "consumerId": "scheduler-latency-histogram",
+      "caseId": "shared/perf/percentiles-and-histogram",
+      "sourcePaths": [
+        "src/shared/perf/percentiles.js",
+        "src/shared/perf/histogram.js",
+        "src/shared/concurrency/scheduler-core-stats.js"
+      ],
+      "requiredScope": [
+        "Default sample normalization preserves fractional values.",
+        "Nearest-rank, interpolated, empty and explicit-rounding policies have independent expected values.",
+        "Actual scheduler run-latency projection retains fractional samples."
+      ],
+      "expectedOracleKind": "independent-values",
+      "negativeCaseIds": [
+        "shared/perf/percentiles-and-histogram"
+      ]
+    },
+    {
+      "contractId": "falsey-failure-resource-settlement",
+      "consumerId": "semantic-enrichment-drain",
+      "caseId": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
+      "sourcePaths": [
+        "src/integrations/tooling/semantic-enrichment.js",
+        "src/shared/storage/failure-observation.js"
+      ],
+      "requiredScope": [
+        "Falsey rejection remains a failed operation and journal state.",
+        "Original native control handles close; published generation and pointer remain unchanged."
+      ],
+      "expectedOracleKind": "original-resource-settlement",
+      "negativeCaseIds": [
+        "indexing/semantic/drain-falsey-failure-ownership/builder-null"
+      ]
+    },
+    {
+      "contractId": "falsey-failure-resource-settlement",
+      "consumerId": "semantic-enrichment-drain",
+      "caseId": "indexing/semantic/drain-falsey-failure-ownership/release-null",
+      "sourcePaths": [
+        "src/integrations/tooling/semantic-enrichment.js",
+        "src/shared/storage/failure-observation.js"
+      ],
+      "requiredScope": [
+        "Falsey rejection remains a failed operation and journal state.",
+        "Original native control handles close; published generation and pointer remain unchanged."
+      ],
+      "expectedOracleKind": "original-resource-settlement",
+      "negativeCaseIds": [
+        "indexing/semantic/drain-falsey-failure-ownership/release-null"
+      ]
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { zstdCompress, zstdDecompress } from 'node:zlib';
 import { promisify } from 'node:util';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../embedding-quantization-spec.js';
 
 const zstdCompressAsync = promisify(zstdCompress);
 const zstdDecompressAsync = promisify(zstdDecompress);
@@ -8,6 +9,8 @@ const CACHE_MAGIC = Buffer.from('PCEB', 'ascii');
 const CACHE_VERSION = 1;
 const CACHE_ENTRY_SUFFIX = '.embcache.zst';
 const HEADER_BYTES = 12;
+const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
+const MAX_VECTOR_ROWS = 32768;
 
 const isVectorLike = (value) => (
   Array.isArray(value)
@@ -17,10 +20,17 @@ const isVectorLike = (value) => (
 const toUint8 = (vec) => {
   if (!isVectorLike(vec) || !vec.length) return new Uint8Array(0);
   if (vec instanceof Uint8Array) return vec;
-  if (ArrayBuffer.isView(vec)) {
-    return new Uint8Array(vec.buffer, vec.byteOffset, vec.byteLength);
-  }
   return Uint8Array.from(vec);
+};
+
+const validateVectorSections = (sections, cacheMeta) => {
+  const identity = cacheMeta?.identity;
+  const spec = resolveEmbeddingQuantizationSpec(identity?.quantization || cacheMeta?.quantization);
+  const dims = Number.isSafeInteger(identity?.dims) && identity.dims > 0 ? identity.dims : null;
+  for (const rows of sections) for (const row of rows) {
+    if (row == null) continue;
+    assertQuantizedEmbeddingRow(row, { spec, dims });
+  }
 };
 
 const normalizeVectors = (vectors, count) => {
@@ -135,6 +145,8 @@ export async function encodeEmbeddingsCache(payload, options = {}) {
   const docVectors = Array.isArray(payload?.docVectors) ? payload.docVectors : [];
   const mergedVectors = Array.isArray(payload?.mergedVectors) ? payload.mergedVectors : [];
   const count = Math.max(codeVectors.length, docVectors.length, mergedVectors.length);
+  if (count > MAX_VECTOR_ROWS) throw new RangeError('[embeddings] Cache vector row count exceeds its bounded entry.');
+  validateVectorSections([codeVectors, docVectors, mergedVectors], payload?.cacheMeta);
   const code = normalizeVectors(codeVectors, count);
   const doc = normalizeVectors(docVectors, count);
   const merged = normalizeVectors(mergedVectors, count);
@@ -149,6 +161,7 @@ export async function encodeEmbeddingsCache(payload, options = {}) {
     hash: payload?.hash || null,
     chunkSignature: payload?.chunkSignature || null,
     chunkHashes: Array.isArray(payload?.chunkHashes) ? payload.chunkHashes : null,
+    chunkReferences: payload?.chunkReferences || null,
     cacheMeta: payload?.cacheMeta || null,
     vectors: {
       count,
@@ -163,6 +176,10 @@ export async function encodeEmbeddingsCache(payload, options = {}) {
   };
   const headerJson = JSON.stringify(header);
   const headerBuffer = Buffer.from(headerJson, 'utf8');
+  const projectedSize = HEADER_BYTES + headerBuffer.length
+    + [[code, codeEncoding], [doc, docEncoding], [merged, mergedEncoding]].reduce((sum, [rows, encoding]) => sum
+      + rows.length * (encoding === 'u32' ? 4 : 2) + rows.reduce((bytes, row) => bytes + row.length, 0), 0);
+  if (!Number.isSafeInteger(projectedSize) || projectedSize > MAX_ENTRY_BYTES) throw new RangeError('[embeddings] Cache entry exceeds its decoded byte allowance.');
 
   const codeSection = encodeVectorSection(code, codeEncoding);
   const docSection = encodeVectorSection(doc, docEncoding);
@@ -208,11 +225,13 @@ export async function encodeEmbeddingsCache(payload, options = {}) {
  * @param {Buffer} buffer
  * @returns {Promise<{key?:string,file?:string,hash?:string,chunkSignature?:string,cacheMeta?:object,codeVectors:any[],docVectors:any[],mergedVectors:any[]}>}
  */
-export async function decodeEmbeddingsCache(buffer) {
+export async function decodeEmbeddingsCache(buffer, { maxBytes = MAX_ENTRY_BYTES } = {}) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < HEADER_BYTES || maxBytes > MAX_ENTRY_BYTES) throw new TypeError('[embeddings] Invalid decoded cache byte allowance.');
   if (!buffer || !buffer.length) {
     throw new Error('[embeddings] Cache buffer is empty.');
   }
-  const raw = await zstdDecompressAsync(buffer);
+  if (buffer.length > maxBytes) throw new RangeError('[embeddings] Encoded cache entry exceeds its byte allowance.');
+  const raw = await zstdDecompressAsync(buffer, { maxOutputLength: maxBytes });
   if (raw.length < HEADER_BYTES) {
     throw new Error('[embeddings] Cache buffer too small.');
   }
@@ -232,7 +251,12 @@ export async function decodeEmbeddingsCache(buffer) {
   }
   const header = JSON.parse(raw.subarray(headerStart, headerEnd).toString('utf8'));
   const vectors = header?.vectors || {};
-  const count = Number.isFinite(Number(vectors.count)) ? Math.max(0, Math.floor(Number(vectors.count))) : 0;
+  const count = vectors.count;
+  if (header.version !== CACHE_VERSION || !Number.isSafeInteger(count) || count < 0 || count > MAX_VECTOR_ROWS
+    || vectors.encoding !== 'uint8' || JSON.stringify(vectors.order) !== '["code","doc","merged"]'
+    || ['code', 'doc', 'merged'].some(channel => !['u16', 'u32'].includes(vectors.lengths?.[channel]))) {
+    throw new Error('[embeddings] Cache vector section contract is invalid.');
+  }
   const lengths = vectors.lengths || {};
   const codeEncoding = lengths.code === 'u32' ? 'u32' : 'u16';
   const docEncoding = lengths.doc === 'u32' ? 'u32' : 'u16';
@@ -244,6 +268,8 @@ export async function decodeEmbeddingsCache(buffer) {
   const docSection = decodeVectorSection(raw, offset, count, docEncoding);
   offset += docSection.bytes;
   const mergedSection = decodeVectorSection(raw, offset, count, mergedEncoding);
+  if (offset + mergedSection.bytes !== raw.length) throw new Error('[embeddings] Cache entry has unowned trailing bytes.');
+  validateVectorSections([codeSection.vectors, docSection.vectors, mergedSection.vectors], header?.cacheMeta);
 
   return {
     key: header?.key || null,
@@ -251,6 +277,7 @@ export async function decodeEmbeddingsCache(buffer) {
     hash: header?.hash || null,
     chunkSignature: header?.chunkSignature || null,
     chunkHashes: Array.isArray(header?.chunkHashes) ? header.chunkHashes : null,
+    chunkReferences: header?.chunkReferences || null,
     cacheMeta: header?.cacheMeta || null,
     codeVectors: codeSection.vectors,
     docVectors: docSection.vectors,

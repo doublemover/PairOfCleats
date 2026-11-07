@@ -1,5 +1,8 @@
 import path from 'node:path';
 import { applyManagedGoEnvironment, isGoToolchainServer } from './managed-go.js';
+import { applyManagedRubyEnvironment } from './managed-ruby.js';
+import { planManagedChildStorage } from './storage/child-environment.js';
+import { resolveStorageLayout } from './storage/layout.js';
 
 const GRADLE_DAEMON_FLAG = '-Dorg.gradle.daemon=false';
 const GRADLE_DAEMON_PATTERN = /-Dorg\.gradle\.daemon\s*=\s*\S+/i;
@@ -8,14 +11,10 @@ const normalizeEnv = (value) => (
   value && typeof value === 'object' ? { ...value } : {}
 );
 
-const resolveBeamCrashDumpPath = (env, cwd = null) => {
+const resolveBeamCrashDumpPath = (env) => {
   const explicit = String(env?.ERL_CRASH_DUMP || '').trim();
   if (explicit) return explicit;
-  const cacheRoot = String(env?.PAIROFCLEATS_CACHE_ROOT || '').trim();
-  if (cacheRoot) return path.join(cacheRoot, 'erl_crash.dump');
-  const workingDir = String(cwd || '').trim();
-  if (workingDir) return path.join(workingDir, 'erl_crash.dump');
-  return '';
+  return path.join(resolveStorageLayout({ env }).descriptors.tmp.path, 'toolchain', 'beam', 'erl_crash.dump');
 };
 
 const appendGradleDaemonFlag = (value) => {
@@ -38,14 +37,34 @@ const appendGradleDaemonFlag = (value) => {
  * @returns {NodeJS.ProcessEnv}
  */
 export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
-  const next = normalizeEnv(baseEnv);
+  const effectiveOptions = { ...options, command: options.command ?? options.managedStorage?.command };
+  const storagePlan = options.managedStorage
+    ? planManagedChildStorage({ ...options.managedStorage, baseEnv: normalizeEnv(baseEnv), command: effectiveOptions.command,
+      cwd: options.cwd || options.managedStorage.cwd || process.cwd() })
+    : null;
+  const next = applyManagedRubyEnvironment(storagePlan?.env || normalizeEnv(baseEnv), effectiveOptions);
   next.ORG_GRADLE_DAEMON = 'false';
   next.GRADLE_OPTS = appendGradleDaemonFlag(next.GRADLE_OPTS);
-  const beamCrashDumpPath = resolveBeamCrashDumpPath(next, options?.cwd || null);
-  if (beamCrashDumpPath) {
-    next.ERL_CRASH_DUMP = beamCrashDumpPath;
+  // A selected storage profile already declares its exact BEAM dump, if any.
+  // Do not invent a second, unreserved dump route for another child family or
+  // for a deliberately external/global executable.
+  if (!storagePlan) {
+    const beamCrashDumpPath = resolveBeamCrashDumpPath(next);
+    if (beamCrashDumpPath) next.ERL_CRASH_DUMP = beamCrashDumpPath;
   }
-  return isGoToolchainServer(options)
+  return isGoToolchainServer(effectiveOptions)
     ? applyManagedGoEnvironment(next, { toolingRoot: options?.toolingRoot || next.PAIROFCLEATS_TOOLING_DIR })
     : next;
+};
+
+/** Version and handshake probes must never provision a toolchain implicitly. */
+export const resolveNoProvisionToolingEnvironment = (baseEnv, options = {}) => {
+  const next = applyToolchainDaemonPolicyEnv(baseEnv, options);
+  next.RUSTUP_AUTO_INSTALL = '0';
+  const go = String(next.GOTOOLCHAIN || '').trim();
+  if (!go || go === 'auto') next.GOTOOLCHAIN = 'path';
+  else if (go === 'local+auto') next.GOTOOLCHAIN = 'local+path';
+  else if (/^go[0-9][0-9A-Za-z.]*\+auto$/u.test(go)) next.GOTOOLCHAIN = go.replace(/\+auto$/u, '+path');
+  else if (/^go[0-9][0-9A-Za-z.]*$/u.test(go)) next.GOTOOLCHAIN = `${go}+path`;
+  return next;
 };

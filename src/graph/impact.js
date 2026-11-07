@@ -1,3 +1,4 @@
+import { normalizeCrossFileCoverage, crossFileCoverageWarning } from '../index/cross-file-fidelity.js';
 import { compareStrings } from '../shared/sort.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { resolveProvenance } from '../shared/provenance.js';
@@ -5,14 +6,11 @@ import { toArray } from '../shared/iterables.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import { compareGraphNodes, compareWitnessPaths, nodeKey } from './ordering.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
+import { attachGraphPathCapability } from './path-capability.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { resolveImpactDirection } from './impact-direction.js';
 
 export const IMPACT_EMPTY_CHANGED_SET_CODE = 'ERR_EMPTY_CHANGED_SET';
-
-const normalizeDirection = (value) => {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'upstream' || raw === 'downstream' || raw === 'both') return raw;
-  return 'downstream';
-};
 
 const normalizePaths = (paths) => {
   if (!paths) return [];
@@ -129,6 +127,8 @@ export const buildImpactAnalysis = ({
   depth = 1,
   edgeFilters = null,
   caps = {},
+  pathSemantics = undefined,
+  signal = null,
   provenance = null,
   indexSignature = null,
   indexCompatKey = null,
@@ -136,8 +136,17 @@ export const buildImpactAnalysis = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  throwIfAborted(signal);
+  const directionPolicy = resolveImpactDirection(direction, edgeFilters);
+  const directionMode = directionPolicy.requested, traversalDirection = directionPolicy.traversal;
+  const declare = (payload, traversalDirection) => attachGraphPathCapability(payload, { pathSemantics,
+    operation: 'graph_impact', graphIndex, graphRelations, edgeFilters, caps, direction: traversalDirection,
+    depth: normalizeDepth(depth, 1), includePaths: true, signal });
   const truncation = createTruncationRecorder({ scope: 'impact' });
   const warnings = { list: [], seen: new Set() };
+  const upstreamCoverage = normalizeCrossFileCoverage((graphRelations || graphIndex?.graphRelations)?.upstreamCoverage);
+  const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
+  if (upstreamWarning) mergeWarnings(warnings, [upstreamWarning]);
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const resolvedSeeds = resolveSeeds({
@@ -147,10 +156,11 @@ export const buildImpactAnalysis = ({
     recordTruncation
   });
   if (!resolvedSeeds.seedRef) {
-    return {
+    return declare({
       version: '1.0.0',
+      upstreamCoverage,
       seed: seed && typeof seed === 'object' ? seed : { v: 1, status: 'unresolved', candidates: [], resolved: null },
-      direction: normalizeDirection(direction),
+      direction: directionMode,
       depth: normalizeDepth(depth, 1),
       impacted: [],
       truncation: truncation.list.length ? truncation.list : null,
@@ -166,20 +176,17 @@ export const buildImpactAnalysis = ({
         label: 'GraphImpact'
       }),
       stats: {
+        directionPolicy,
         counts: {
           impacted: 0,
           workUnitsUsed: 0
         }
       }
-    };
+    }, traversalDirection);
   }
 
   const seedRef = resolvedSeeds.seedRef;
   const seeds = resolvedSeeds.seeds;
-  const directionMode = normalizeDirection(direction);
-  const traversalDirection = directionMode === 'upstream'
-    ? 'in'
-    : (directionMode === 'both' ? 'both' : 'out');
   const effectiveDepth = normalizeDepth(depth, 1);
 
   const neighborhood = buildGraphNeighborhood({
@@ -241,9 +248,14 @@ export const buildImpactAnalysis = ({
   }
 
   const capsUsed = { graph: { ...caps } };
+  if (!impacted.length) mergeWarnings(warnings, [{
+    code: 'NO_RECORDED_IMPACT',
+    message: 'No related node was found within the selected graph direction and depth. This does not prove the change has no impact; unresolved or unindexed dependencies are outside this result.'
+  }]);
 
-  return {
+  return declare({
     version: '1.0.0',
+    upstreamCoverage,
     seed: seedRef,
     direction: directionMode,
     depth: effectiveDepth,
@@ -261,6 +273,7 @@ export const buildImpactAnalysis = ({
       label: 'GraphImpact'
     }),
     stats: {
+      directionPolicy,
       artifactsUsed: {
         graphRelations: artifactsUsed.graphRelations,
         symbolEdges: artifactsUsed.symbolEdges,
@@ -276,5 +289,5 @@ export const buildImpactAnalysis = ({
       timing: neighborhood?.stats?.timing || null,
       memory: neighborhood?.stats?.memory || null
     }
-  };
+  }, traversalDirection);
 };

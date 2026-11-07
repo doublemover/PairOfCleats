@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "bounded-pages",
+    "snapshot-inserts",
+    "interrupted-selector",
+    "missing-corrupt",
+    "uncataloged-cutover",
+    "initial-header-recovery",
+    "cancellation-budget",
+    "writer-authority"
+  ]
+}

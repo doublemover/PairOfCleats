@@ -63,3 +63,8 @@ This shared surface is mostly healthy and already acts as the repo's canonical c
 | `src/shared/runtime-capability-manifest.js` | `keep`, `document`, `test` | Keep as the public manifest API over static specs, builder helpers, and `runtime-capability/surfaces.js`. |
 | `src/shared/runtime-capability/surfaces.js` | `keep`, `document`, `test` | Keep as the runtime-capability owner for flag-set projection and API/MCP/TUI/editor surface assembly. |
 | `src/shared/tooling-bin-dirs.js` | `keep`, `document`, `test` | Keep as the canonical platform-aware tooling-bin search helper. |
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (33 files). 2 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

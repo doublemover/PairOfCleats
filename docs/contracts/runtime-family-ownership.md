@@ -14,6 +14,56 @@ refuses new work without deleting pinned families. Promotion relinquishes exclus
 ownership of an immutable family. Cancellation or pointer failure cleans only
 owned staging and keeps promoted bytes charged and available to pinned readers.
 
+Exact repeat publication verifies an existing immutable family before allocating
+duplicate projection/index staging. Import first rechecks saved-input authority,
+raw checksums and current pinned semantic qualification. A bounded internal
+`.recipes/<recipe-hash>.json` locator binds the effective capture, raw inventory,
+parser/adapter/schema/index versions and qualified source results. The locator is
+not proof: its candidate must pass full contained manifest/member/raw integrity,
+SQLite row/reference parity, capture identity and current operation-target checks.
+Missing/stale locators or wholly missing families use the existing bounded rebuild;
+corrupt referenced members fail. A locator is stored before immutable promotion,
+so cancellation after promotion can recover the same family without another copy.
+
+Claims still verify every supporting citation and current retained raw authority.
+Their exact manifest identity is available before staging, so existing manifest,
+claim and offset bytes can be verified directly. Unchanged convenience pointers
+are not rewritten. Missing/older pointers need only a bounded charged replacement;
+the original writer lease, admission cap, free-space reserve, physical close and
+immutable-family ownership remain in force. Control replacements charge overlapping
+old/new files until the destination inventory confirms remaining physical bytes;
+replacing one name cannot release an inode retained by another hardlink. No retained family is deleted to
+make a retry fit, and no allocated staging bytes are hidden from the account.
+
+Internal `publicationMetrics` instrumentation records reused/rebuilt families,
+pointer-only repairs, projected rows, native SQLite builds, member/raw verification
+bytes and peak additional reservation above retained bytes. `fileWriteBytes` counts
+completed FileHandle payload writes and writer/control files; `sqliteImageBytes`
+separately records the completed native backing image. Neither measures device
+write amplification. Independent fixture probes observe original staging creation,
+row writes, SQLite image finalization, evidence reads and unchanged immutable file
+identities. These counters are diagnostic input, never admission/authority. There
+is no public CLI/configuration change or relaxation of saved artifact contracts;
+parser4, observation2 and lookup2 meanings and identities remain unchanged.
+
+Saved comparison and standalone claim persistence each establish one absolute
+operation deadline before writer admission. Comparison passes that same private
+budget through lock/account waits, citation verification and publication; nested
+owners cannot renew it. Lock waiting receives only the remaining allowance.
+Mutation admission rechecks the budget after asynchronous boundaries, including
+immediately before family and pointer promotion. Caller cancellation remains
+`ABORT_ERR`; internal expiry is `ERR_RUNTIME_QUERY_BUDGET`. Cleanup joins actual
+opened handles and both independent staging removals even after expiry, preserving
+original and secondary failures before writer ownership settles.
+
+A rename can win a cancellation race. A producer-authenticated passive
+`runtimeClaimPublication` error receipt then reports the claim generation,
+manifest hash, family promotion state and pointer commit state. HTTP errors and
+MCP domain details preserve this bounded receipt. `commit-unconfirmed` requires
+reconciliation of the pointer; `committed` records observed rename completion.
+The receipt grants no mutation or cleanup authority. Serialized error lookalikes
+are not authenticated receipts, and failure never rolls back an immutable family.
+
 An import can receive `semanticContext: { repoRoot, store, manifest }` for an exact
 published source generation. Record targets require partition membership, record
 existence, source ownership/hash and supported source coordinates. Direct UTF-16
@@ -38,7 +88,7 @@ metadata; their numeric values do not establish live performance measurements.
 Derived claims use the same bounded merge for warnings from their supporting
 observations, preserving those labels in standalone persisted claim exports.
 
-The runtime parser is version 3, observation projection is version 2, and lookup
+The runtime parser is version 4, observation projection is version 2, and lookup
 index format is version 2. Incompatible saved families reject explicitly and must
 be reimported from retained raw inputs; there is no compatibility migration.
 
@@ -54,3 +104,29 @@ Streaming verification rechecks the shared opened-descriptor containment guard
 before committing its result. Native database and file resource cleanup attempts
 every close even if another fails. An open/query error remains the primary cause
 when cleanup also fails, and failed closes remain explicit errors.
+
+## Original read failures and advisory content
+
+The CPU-profile adapter finishes its bounded, contained, size/hash-qualified read
+before decoding content. Only confirmed UTF-8/JSON content failures yield malformed
+coverage. Read/integrity failures and original unconfirmed descriptors propagate
+through family/staging/destination cleanup with their original observations and
+close-only recovery session. Recovery does not parse, yield, recreate output or
+publish a pointer. Streaming code-log read failures also bypass content catches.
+Offline parser identity advances to version 4; raw interchange formats stay at 1.
+
+Native authority discovery and its build-frontier consumer observe settlement
+before cancellation/diagnostic classification. A pending read cannot become an
+ordinary unsupported/deferred authority. Settled unsupported native inputs retain
+that policy. The original repair advanced lspBindings48; current producer identity
+is owned by `analysis-versions.js`. Platform sealing and runtime launch authority
+are unchanged. Portable error-boundary fixtures intercept
+executable resolution; they do not qualify ELF or actual native tools on Windows.
+
+Runtime independent resource, staging and destination cleanup preserves explicit
+failure presence, including null/undefined/false values and frozen originals.
+Inventory reconciliation cannot prevent an independent lock-release attempt;
+neither can it replace the original descriptor failure. Runtime family, actual
+FileHandle, import/pointer and independent cleanup qualification is recorded in
+the [source-bound reuse receipt](../archived/runtime-family-reuse-closeout-2026-11-05.md).
+Native authority discovery/frontier qualification retains its separate owners.

@@ -15,3 +15,16 @@ export const formatSpawnFailureReason = (result) => {
   }
   return 'exit unknown';
 };
+
+/** Keep compiler failures distinct from work never admitted after that failure. */
+export const summarizeNativeBuildResults = (rows) => {
+  const counts = { required: { failed: 0, cancelled: 0, blocked: 0 },
+    optional: { failed: 0, cancelled: 0, blocked: 0 } };
+  for (const row of rows) {
+    if (row.status === 'succeeded') continue;
+    const group = row.required === false ? counts.optional : counts.required;
+    const state = ['cancelled', 'blocked'].includes(row.status) ? row.status : 'failed';
+    group[state]++;
+  }
+  return counts;
+};

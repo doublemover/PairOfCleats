@@ -14,6 +14,7 @@ assert.ok(Array.isArray(names) && names.length >= 1);
 
 const preferred = names[0];
 await fsPromises.writeFile(path.join(binDir, preferred), 'echo test\n', 'utf8');
+if (process.platform !== 'win32') await fsPromises.chmod(path.join(binDir, preferred), 0o755);
 
 const fromDirs = findBinaryInDirs('my-tool', [binDir]);
 assert.equal(fromDirs, path.join(binDir, preferred));

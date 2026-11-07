@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["initial-write", "stale-before-state", "stale-before-manifest", "native-change", "wrong-session", "wrong-directory", "pending-result", "observed-extent", "null-sealed-bytes", "invalid-sealed-bytes", "pending-stat", "pending-hash", "sealed-state-refresh", "request-snapshot", "reuse-hash-pending", "registry-null", "registry-invalid"]
+}

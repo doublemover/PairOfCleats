@@ -11,19 +11,25 @@ const coerceKind = (kind) => (isValidKind(kind) ? kind : null);
 
 function flattenDocumentSymbols(symbols, parentName = '') {
   const out = [];
-  for (const symbol of symbols || []) {
+  const frames=[{symbols,index:0,parentName}],active=new Set([symbols]);
+  while (frames.length) {
+    const frame=frames[frames.length-1];
+    if (frame.index>=frame.symbols.length) { active.delete(frame.symbols);frames.pop();continue; }
+    const symbol=frame.symbols[frame.index++];
     if (!symbol || !symbol.name || !symbol.range) continue;
-    const fullName = parentName ? `${parentName}.${symbol.name}` : symbol.name;
+    const fullName = frame.parentName ? `${frame.parentName}.${symbol.name}` : symbol.name;
     out.push({
       name: symbol.name,
       fullName,
       kind: coerceKind(symbol.kind),
       range: symbol.range,
-      selectionRange: symbol.selectionRange || symbol.range,
-      detail: symbol.detail || null
+      selectionRange: symbol.selectionRange || null,
+      detail: symbol.detail || null,
+      protocolShape: 'DocumentSymbol'
     });
     if (Array.isArray(symbol.children) && symbol.children.length) {
-      out.push(...flattenDocumentSymbols(symbol.children, fullName));
+      if (active.has(symbol.children)) throw new TypeError('Cyclic LSP document symbols are not protocol data.');
+      active.add(symbol.children);frames.push({symbols:symbol.children,index:0,parentName:fullName});
     }
   }
   return out;
@@ -42,7 +48,9 @@ function flattenSymbolInformation(symbols) {
       range: symbol.location.range,
       selectionRange: symbol.location.range,
       detail: symbol.detail || null,
-      containerName: container || null
+      containerName: container || null,
+      uri: symbol.location.uri || null,
+      protocolShape: 'SymbolInformation'
     });
   }
   return out;

@@ -86,6 +86,10 @@ assert.ok(
   unsupportedResult.errors.some((entry) => entry.includes(CONTEXT_PACK_RISK_CONTRACT_VERSION)),
   'expected unsupported contract version failure to mention accepted version'
 );
+const priorContractVersion = structuredClone(pack);
+priorContractVersion.risk.contractVersion = '1.0.0';
+assert.equal(validateCompositeContextPack(priorContractVersion).ok, false,
+  'the prior unqualified federation contract cannot pass the new exact-version gate');
 
 const oldArtifactSurface = structuredClone(pack);
 oldArtifactSurface.risk.provenance.artifactSurfaceVersion = '0.0.1';

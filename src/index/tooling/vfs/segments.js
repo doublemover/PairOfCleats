@@ -62,6 +62,7 @@ const buildSegmentDescriptor = ({
     segmentType: segment.type || 'embedded',
     start: segment.start,
     end: segment.end,
+    contentView: segment.contentView || null,
     languageId,
     effectiveExt
   };
@@ -150,6 +151,7 @@ export const buildCoalescedSegmentMap = (chunks) => {
         continue;
       }
       const canMerge = seg.start === current.end
+        && !seg.contentView && !current.segments.some(entry => entry.contentView)
         && seg.languageId === current.languageId
         && seg.effectiveExt === current.effectiveExt
         && seg.segmentType === current.segmentType;

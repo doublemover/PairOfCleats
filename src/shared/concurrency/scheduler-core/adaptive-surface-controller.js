@@ -12,6 +12,7 @@ export function createAdaptiveSurfaceController({
     const snapshots = buildAdaptiveSurfaceSnapshots(at);
     const signals = readSystemSignals(at);
     state.lastSystemSignals = signals;
+    state.lastSystemSignalsAt = at;
     for (const [surfaceName, surfaceState] of config.adaptiveSurfaceStates.entries()) {
       const snapshot = snapshots[surfaceName];
       if (!snapshot) continue;
@@ -21,11 +22,13 @@ export function createAdaptiveSurfaceController({
         queueLifecycle.countSurfaceRunning(surfaceName)
       );
       const backlogPerSlot = Math.max(0, Number(snapshot.backlogPerSlot) || 0);
-      const oldestWaitMs = Math.max(0, Number(snapshot.oldestWaitMs) || 0);
+      const oldestWaitMs = Math.max(0, Number(snapshot.oldestDemandWaitMs) || 0);
       const fdPressureScore = Math.max(0, Number(signals?.fd?.pressureScore) || 0);
+      const ioAdmissionPressureScore = snapshot.ioPressureScore !== null && Number.isFinite(snapshot.ioPressureScore)
+        ? Math.max(0, snapshot.ioPressureScore) : null;
       const ioPressureScore = Math.max(
         0,
-        Number(snapshot.ioPressureScore) || 0,
+        ioAdmissionPressureScore ?? 0,
         fdPressureScore
       );
       const cpuUtilization = Math.max(
@@ -35,16 +38,14 @@ export function createAdaptiveSurfaceController({
       );
       const memoryPressure = Math.max(0, Number(signals?.memory?.pressureScore) || 0);
       const gcPressure = Math.max(0, Number(signals?.memory?.gcPressureScore) || 0);
-      const ioPressureThreshold = Math.min(
-        surfaceState.ioPressureThreshold,
-        surfaceState.fdPressureThreshold ?? surfaceState.ioPressureThreshold
-      );
+      const ioAdmissionHigh = ioAdmissionPressureScore !== null && ioAdmissionPressureScore >= surfaceState.ioPressureThreshold;
+      const fdHigh = fdPressureScore >= (surfaceState.fdPressureThreshold ?? surfaceState.ioPressureThreshold);
       let action = 'hold';
       let reason = 'steady';
       if (
         memoryPressure >= surfaceState.memoryPressureThreshold
         || gcPressure >= surfaceState.gcPressureThreshold
-        || ioPressureScore >= ioPressureThreshold
+        || ioAdmissionHigh || fdHigh
       ) {
         action = 'down';
         reason = memoryPressure >= surfaceState.memoryPressureThreshold
@@ -53,7 +54,7 @@ export function createAdaptiveSurfaceController({
             gcPressure >= surfaceState.gcPressureThreshold
               ? 'gc-pressure'
               : (
-                ioPressureScore >= (surfaceState.fdPressureThreshold ?? Number.POSITIVE_INFINITY)
+                fdHigh
                   ? 'fd-pressure'
                   : 'io-pressure'
               )
@@ -63,8 +64,8 @@ export function createAdaptiveSurfaceController({
         && oldestWaitMs >= surfaceState.upWaitMs
         && cpuUtilization <= Math.max(1, surfaceState.targetUtilization + 0.15)
       ) {
-        action = 'up';
-        reason = 'backlog';
+        action = signals?.cpu?.externalLoadAvailable === false ? 'hold' : 'up';
+        reason = action === 'hold' ? 'external-cpu-pressure-unavailable' : 'backlog';
       } else if (
         backlogPerSlot <= surfaceState.downBacklogPerSlot
         && oldestWaitMs <= surfaceState.downWaitMs
@@ -76,7 +77,7 @@ export function createAdaptiveSurfaceController({
       let nextConcurrency = surfaceState.currentConcurrency;
       if (action === 'up') {
         const inUpCooldown = (at - surfaceState.lastScaleUpAt) < surfaceState.upCooldownMs;
-        const inOscillationGuard = surfaceState.lastAction === 'down'
+        const inOscillationGuard = (surfaceState.lastScaleDirection || surfaceState.lastAction) === 'down'
           && (at - surfaceState.lastScaleDownAt) < surfaceState.oscillationGuardMs;
         if (
           surfaceState.currentConcurrency < surfaceState.maxConcurrency
@@ -90,7 +91,7 @@ export function createAdaptiveSurfaceController({
         }
       } else if (action === 'down') {
         const inDownCooldown = (at - surfaceState.lastScaleDownAt) < surfaceState.downCooldownMs;
-        const inOscillationGuard = surfaceState.lastAction === 'up'
+        const inOscillationGuard = (surfaceState.lastScaleDirection || surfaceState.lastAction) === 'up'
           && (at - surfaceState.lastScaleUpAt) < surfaceState.oscillationGuardMs;
         if (
           surfaceState.currentConcurrency > surfaceState.minConcurrency
@@ -104,6 +105,7 @@ export function createAdaptiveSurfaceController({
         }
       }
       if (nextConcurrency !== surfaceState.currentConcurrency) {
+        surfaceState.lastScaleDirection = nextConcurrency > surfaceState.currentConcurrency ? 'up' : 'down';
         if (nextConcurrency > surfaceState.currentConcurrency) {
           surfaceState.lastScaleUpAt = at;
         } else {
@@ -125,6 +127,8 @@ export function createAdaptiveSurfaceController({
         backlogPerSlot,
         oldestWaitMs,
         ioPressureScore,
+        ioAdmissionPressureScore,
+        ioAdmissionEvidence: snapshot.ioWaitEvidence,
         cpuUtilization,
         memoryPressure,
         gcPressure
@@ -142,7 +146,16 @@ export function createAdaptiveSurfaceController({
           running,
           backlogPerSlot,
           oldestWaitMs,
-          ioPressureScore
+          ioPressureScore,
+          ioAdmissionPressureScore,
+          ioAdmissionEvidence: snapshot.ioWaitEvidence,
+          ioBlockedPending: snapshot.ioBlockedPending,
+          writeBackpressureBlocked: snapshot.writeBackpressureBlocked,
+          blockedBy: { ...snapshot.blockedBy },
+          retainedRunning: snapshot.retainedRunning,
+          suspendedCpu: snapshot.suspendedCpu,
+          cpuReservedTokens: snapshot.cpuReservedTokens,
+          ioReservedTokens: snapshot.ioReservedTokens
         },
         signals: {
           cpu: signals?.cpu && typeof signals.cpu === 'object' ? { ...signals.cpu } : null,

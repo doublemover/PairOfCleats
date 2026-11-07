@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "fields": ["repoPath", "query", "mode", "backend", "top", "snapshot", "asOf", "cursor", "filters"],
+  "actions": ["edit-repository", "edit-query", "retry", "refresh-status", "diagnostics", "inspect-index", "inspect-setup", "inspect-tooling"],
+  "reasons": {
+    "invalid-repository": { "outcome": "query-failed", "message": "The selected repository could not be used. Correct the repository selection.", "actions": ["edit-repository", "diagnostics"] },
+    "invalid-request": { "outcome": "query-failed", "message": "A search field or filter is invalid. Correct the request before retrying.", "actions": ["edit-query", "diagnostics"] },
+    "missing-index": { "outcome": "query-failed", "message": "No usable index was found for this request. Inspect the selected index before changing it.", "actions": ["inspect-index", "edit-repository", "retry"] },
+    "missing-capability": { "outcome": "query-failed", "message": "A requested capability is unavailable. Inspect setup or tooling readiness.", "actions": ["inspect-tooling", "inspect-setup", "edit-query"] },
+    "unsupported-format": { "outcome": "query-failed", "message": "The selected index format is unsupported. Inspect its health and compatibility.", "actions": ["inspect-index", "edit-repository", "diagnostics"] },
+    "timeout": { "outcome": "timed-out", "message": "The search did not finish within its deadline. Narrow the request or retry explicitly.", "actions": ["edit-query", "retry", "diagnostics"] },
+    "cancelled": { "outcome": "cancelled", "message": "The request was cancelled. No successful search response was admitted.", "actions": ["edit-query", "retry"] },
+    "resource-pending": { "outcome": "resource-settlement-pending", "message": "Original resources have not finished cleanup. Check their status before retrying.", "actions": ["refresh-status", "diagnostics"] },
+    "stale-request": { "outcome": "query-failed", "message": "The request or its selected scope changed. Review it and submit a new request.", "actions": ["edit-query", "retry"] },
+    "incomplete-response": { "outcome": "query-failed", "message": "The search returned an incomplete or unsupported response. No new response page was admitted.", "actions": ["retry", "diagnostics", "inspect-index"] },
+    "permission-denied": { "outcome": "query-failed", "message": "The selected resource could not be accessed. Review the repository and access configuration.", "actions": ["edit-repository", "diagnostics"] },
+    "resource-missing": { "outcome": "query-failed", "message": "A requested repository or indexed resource was not found. Review the selection.", "actions": ["edit-repository", "inspect-index"] },
+    "native-failure": { "outcome": "query-failed", "message": "The search process ended unexpectedly. Keep the diagnostic identifier and inspect readiness.", "actions": ["diagnostics", "inspect-index", "inspect-setup"] },
+    "unknown": { "outcome": "query-failed", "message": "The search could not complete. Use the diagnostic identifier without exposing private request details.", "actions": ["diagnostics", "edit-query", "retry"] }
+  },
+  "codes": {
+    "INTERNAL": "unknown", "SUBPROCESS_FAILED": "unknown", "ERR_TUI_OPERATION_FAILED": "unknown",
+    "INVALID_REQUEST": "invalid-request", "ERR_TUI_SEARCH_REQUEST": "invalid-request", "ERR_TUI_SEARCH_CURSOR": "invalid-request",
+    "ERR_TUI_SCOPE_INVALID": "invalid-repository", "ERR_TUI_SCOPE_CHANGED": "stale-request", "ERR_TUI_SEARCH_STALE": "stale-request",
+    "ERR_TUI_SEARCH_LIMIT": "invalid-request", "ERR_TUI_SEARCH_BUSY": "invalid-request", "ERR_TUI_SEARCH_HIT": "invalid-request",
+    "ERR_FILE_INTEGRITY": "stale-request", "ERR_FILE_CHANGED": "stale-request",
+    "ERR_UNSAFE_FILE_PATH": "permission-denied", "ERR_TUI_EDITOR_UNTRUSTED": "permission-denied",
+    "NO_INDEX": "missing-index", "CAPABILITY_MISSING": "missing-capability", "ERR_INDEX_FORMAT_UNSUPPORTED": "unsupported-format",
+    "TOOL_TIMEOUT": "timeout", "ERR_TUI_OPERATION_TIMEOUT": "timeout", "SUBPROCESS_TIMEOUT": "timeout",
+    "CANCELLED": "cancelled", "ABORT_ERR": "cancelled", "ERR_TUI_RESOURCE_PENDING": "resource-pending",
+    "ERR_TUI_SEARCH_OUTPUT": "incomplete-response", "ERR_TUI_OPERATION_OUTPUT": "incomplete-response",
+    "EACCES": "permission-denied", "EPERM": "permission-denied", "FORBIDDEN": "permission-denied",
+    "NOT_FOUND": "resource-missing", "ENOENT": "resource-missing"
+  }
+}

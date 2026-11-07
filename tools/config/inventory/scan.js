@@ -4,7 +4,8 @@ import { fdir } from 'fdir';
 import { toPosix } from '../../../src/shared/file-paths.js';
 
 export const listSourceFiles = async (scanRoot) => {
-  const files = await new fdir().withFullPaths().crawl(scanRoot).withPromise();
+  const files = await new fdir().withFullPaths()
+    .exclude(name => name === '.tmp').crawl(scanRoot).withPromise();
   return files.filter((filePath) => {
     if (!filePath.endsWith('.js')) return false;
     const normalized = '/' + toPosix(path.relative(scanRoot, filePath));
@@ -16,6 +17,7 @@ export const listSourceFiles = async (scanRoot) => {
     if (normalized.includes('/.venv/')) return false;
     if (normalized.includes('/.diagnostics/')) return false;
     if (normalized.includes('/temp/')) return false;
+    if (normalized.includes('/.tmp/')) return false;
     if (normalized.includes('/node_modules/')) return false;
     if (normalized.includes('/.git/')) return false;
     if (normalized.includes('/worktrees/')) return false;

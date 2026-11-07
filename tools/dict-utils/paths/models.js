@@ -8,12 +8,12 @@ import { getModelsDir } from './cache.js';
  * @param {object|null} userConfig
  * @returns {{id:string,dir:string}}
  */
-export function getModelConfig(repoRoot, userConfig = null) {
-  const cfg = userConfig || loadUserConfig(repoRoot);
+export function getModelConfig(repoRoot, userConfig = null, { env = process.env } = {}) {
+  const cfg = userConfig || loadUserConfig(repoRoot, { env });
   const models = cfg.models || {};
   const id = cfg.indexing?.embeddings?.model || models.id || DEFAULT_MODEL_ID;
   return {
     id,
-    dir: getModelsDir(repoRoot, cfg)
+    dir: getModelsDir(repoRoot, cfg, { env })
   };
 }

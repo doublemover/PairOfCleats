@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact-scope-and-original-receipts", "offline-adapter-and-versioned-state"]
+}

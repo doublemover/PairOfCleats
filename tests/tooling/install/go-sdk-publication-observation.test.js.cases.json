@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["root-capability-revocation", "nested-capability-revocation", "post-verification-file-read", "function-failure-retirement"]
+}

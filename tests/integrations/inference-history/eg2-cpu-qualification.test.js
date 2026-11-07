@@ -27,7 +27,7 @@ assert.throws(()=>inspectOnnx(model(2),{patchAccuracyLevel:true}),/W4\/W8/);
 for(const malformed of [Buffer.from([0]),Buffer.from([10,5,1]),Buffer.from([9,1]),Buffer.alloc(11,128)])assert.throws(()=>decodeFields(malformed));
 assert.throws(()=>inspectOnnx(f(1,0,2)),/exactly one/);
 
-const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR??path.resolve('temp/tasks/eg2-cpu-qualification-tests');
+const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR??path.resolve('.tmp/tasks/eg2-cpu-qualification-tests');
 await fs.mkdir(base,{recursive:true});
 const root=await fs.realpath(await fs.mkdtemp(path.join(base,'qualification-')));
 const source=path.join(root,'model_quantized.onnx'),destination=path.join(root,'model_w8a8.onnx');

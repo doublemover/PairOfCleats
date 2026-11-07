@@ -23,9 +23,11 @@ applyTestEnv({ cacheRoot });
 resetAtomicWriteRuntimeMetricsForTests();
 const exdevPath = path.join(cacheRoot, 'durability.txt');
 const originalRename = fsPromises.rename;
+let crossDeviceSource = null;
 fsPromises.rename = async (...args) => {
-  const [, targetPath] = args;
-  if (String(targetPath || '').includes('durability.txt')) {
+  const [sourcePath, targetPath] = args;
+  if (String(targetPath) === exdevPath && (crossDeviceSource === null || sourcePath === crossDeviceSource)) {
+    crossDeviceSource = sourcePath;
     const err = new Error('cross-device link not permitted');
     err.code = 'EXDEV';
     throw err;

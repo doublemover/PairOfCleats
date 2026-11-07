@@ -67,4 +67,18 @@ const lanceSource = resolveVectorsSource(path.join(testRoot, 'dense_vectors_lanc
 });
 assert.equal(lanceSource, null);
 
+await writePiecesManifest(testRoot, []);
+await writeJson(path.join(testRoot, 'dense_vectors_uint8.json'), { vectors: [[1, 2, 3]] });
+assert.equal(resolveVectorsSource(path.join(testRoot, 'dense_vectors_uint8'), {
+  includeCanonicalBase: true, requireManifestDeclaration: true, tryCandidateJson: true
+}), null, 'an empty required manifest cannot authorize undeclared shard metadata');
+await writeJson(path.join(testRoot, 'pieces', 'manifest.json'), { artifactSurfaceVersion: 'superseded', pieces: [] });
+assert.throws(() => resolveVectorsSource(path.join(testRoot, 'dense_vectors_uint8'), {
+  includeCanonicalBase: true, requireManifestDeclaration: true, tryCandidateJson: true
+}), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' }, 'unsupported manifest cannot authorize raw JSON fallback');
+await fs.rm(path.join(testRoot, 'pieces', 'manifest.json'));
+assert.throws(() => resolveVectorsSource(path.join(testRoot, 'dense_vectors_uint8'), {
+  includeCanonicalBase: true, requireManifestDeclaration: true
+}), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' }, 'required manifest failures cannot become an implicit raw-file fallback');
+
 console.log('embedding vector source test passed');

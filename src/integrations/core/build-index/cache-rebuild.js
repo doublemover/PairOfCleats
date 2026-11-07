@@ -37,6 +37,7 @@ export const rebuildRepoCache = async ({ root, userConfig, argv = {}, log = () =
   throwIfAborted(abortSignal);
   const lock = await acquireIndexLock({
     repoCacheRoot,
+    storageContext: { repoRoot: root, userConfig },
     metadata: { owner: 'build-index', operation: 'cache-rebuild' },
     log
   });

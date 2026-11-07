@@ -6,13 +6,14 @@ import { fileURLToPath } from 'node:url';
 import { listSourceFiles } from '../../../tools/config/inventory/scan.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const suiteRoot = path.join(root, 'temp', 'tasks', 'config-inventory-root-scan');
+const suiteRoot = path.join(root, '.tmp', 'tasks', 'config-inventory-root-scan');
 await fs.mkdir(suiteRoot, { recursive: true });
 const runRoot = await fs.mkdtemp(path.join(suiteRoot, 'fixture-'));
 const scanRoot = path.join(runRoot, 'temp', 'worktrees', 'repository');
 const retained = ['main.js', 'src/main.js', 'tools/scan.js'];
 const excluded = [
-  'temp/skip.js', '.testCache/skip.js', '.testLogs/skip.js', 'tests/.cache/skip.js',
+  'temp/skip.js', '.tmp/skip.js', 'nested/.tmp/skip.js',
+  '.testCache/skip.js', '.testLogs/skip.js', 'tests/.cache/skip.js',
   '.cache/skip.js', '.logs/skip.js', '.venv/skip.js', '.diagnostics/skip.js',
   'node_modules/skip.js', '.git/skip.js', 'worktrees/skip.js', '.worktrees/skip.js',
   'benchmarks/repos/skip.js', 'benchmarks/cache/skip.js', 'benchmarks/results/skip.js',

@@ -7,7 +7,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeWindow, install_fake_modules
+from runtime_harness import FakeWindow, install_fake_modules, isolated_temp_directory
 
 
 class SettingsBehaviorTests(unittest.TestCase):
@@ -20,6 +20,10 @@ class SettingsBehaviorTests(unittest.TestCase):
     def setUp(self):
         self.sublime.reset()
         self.window = FakeWindow()
+        temporary = isolated_temp_directory()
+        self.repo = temporary.__enter__()
+        self.addCleanup(temporary.__exit__, None, None, None)
+        self.window.set_folders([self.repo])
         self.sublime.set_active_window(self.window)
         settings = self.sublime.load_settings(self.config.SETTINGS_FILE)
         settings.set('search_limit', 33)
@@ -271,7 +275,8 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertIn('progress_watchdog_ms = 20000 [project]', text)
         self.assertIn('map_stream_output = true [project]', text)
         self.assertIn('Ignored project keys (use User Settings): api_execution_mode, api_server_url, env', text)
-        self.assertIn('env = {"BASE_ONLY": "1", "SHARED": "base"} [base]', text)
+        self.assertIn('env = "[redacted]" [base]', text)
+        self.assertNotIn('BASE_ONLY', text)
         self.assertNotIn('shallow-merged', text)
         self.assertNotIn('http://127.0.0.1:7464', text)
         self.assertNotIn('Project env override keys:', text)

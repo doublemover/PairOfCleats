@@ -2,6 +2,67 @@
 
 This document defines the operational surfaces for the LSP runtime, replay artifacts, and CI gates.
 
+## Explicit pool drain failures
+
+The explicit pool drain reports `ok`, `failed` or `timed_out` and retains the
+exact original rejection values in `failures`, including frozen errors and
+falsey thrown values. This array is drawn from the original bounded disposal
+wait. A timeout retains its original deadline error and any synchronous hard-kill
+failure; it still does not establish child exit or resource settlement. Warning
+callbacks cannot replace these causes. Same-key pending-disposal barriers remain
+owned by the original session.
+
+The partial-LSP benchmark consumes that receipt through its shared drain-result
+assertion. It preserves original causes with the existing storage error-composition
+owner and retains the fixture on unconfirmed closure. Error counts alone are not
+a replacement for the original cleanup failure or a deletion capability.
+
+## Clangd compilation context
+
+Clangd admits a compilation database as bounded, read-only data. Missing,
+wrong-kind, unreadable, malformed, over-budget, empty, partially valid and usable
+inputs have separate diagnostics. An invalid selected database blocks native
+dispatch; it cannot silently select another ambient database. Explicit
+`compileCommandsDir` and command-line database flags must agree. Custom launch
+arguments retain the admitted database selection.
+
+Admission reads at most 8 MiB and 16,384 command entries. Direct response-file
+dependencies are contained and bounded to 64 files, 1 MiB per file and 4 MiB in
+total. Nested/opaque response expansion stays unknown. No recorded command,
+compiler or build is executed by admission. Source/directory checks admit at
+most 2,048 physical paths; a reached bound is diagnostic and cannot promote
+remaining documents to exact context.
+
+Each requested document records exact, ambiguous, fallback or unknown command
+coverage. Identical entries deduplicate; different variants remain ambiguous.
+Embedded documents cannot acquire exact context from their container's command.
+`requireCompilationDatabase` requires one or more exact selected documents,
+rather than a filesystem entry named `compile_commands.json`. Doctor distinguishes
+database command entries from the selected-document coverage checked at launch.
+
+The existing weak-context document cap applies only to weak documents; exact
+documents remain eligible before the ordinary runtime/path budgets. Hover is
+enabled for exact context and disabled for weak context unless the existing
+`disableHoverWithoutCompileCommands=false` override allows it. The weak per-file
+hover cap remains eight unless explicitly configured, with the runtime budget
+still taking precedence. Include-root inference remains explicitly inferred.
+
+Preflight captures the database/response hashes, physical source identities,
+document map and launch/configuration binding. Run revalidates those bytes and
+identities before planning and dispatch; changes require a new plan. Exact
+commands use admitted physical source URIs with LSP text overlays, without
+rewriting source files; weak/embedded documents retain their VFS route. Request
+cache identity includes admitted context, and unknown/ambiguous context receives
+an invocation-specific identity. The LSP semantic producer version changes with
+this meaning.
+
+`clangd_compilation_context` reports database and per-document source coverage;
+`clangd_compile_context_request_plan` reports actual provider selection and hover
+policy. Neither is a server timeout or proof that a file has no symbols. Native
+toolchain/SDK/variant closure and real timeout-storm qualification remain separate
+from this application planner. This implementation's authored regression and
+fixture-server checks await execution in the current development wave.
+
 ## CI Gates
 
 - `tools/ci/tooling-lsp-slo-gate.js`

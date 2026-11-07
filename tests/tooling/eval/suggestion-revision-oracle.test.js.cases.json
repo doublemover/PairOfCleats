@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "duplicate-retraction", "negative-reactivation", "cycle-shortcut", "node-and-test-replacement", "seeded-imports",
+    "independent-seeded-defects", "stale-negative-and-retracted-witness", "closed-preconditions-and-original-supports",
+    "passive-and-bounded-inputs", "unknown-and-cancellation", "original-handles-and-independent-reference"
+  ]
+}

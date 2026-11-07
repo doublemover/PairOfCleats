@@ -1,6 +1,6 @@
+import { buildTokenSequence } from './tokenization/sequence.js';
+export { buildTokenSequence, countTokenSequence } from './tokenization/sequence.js';
 import { SimpleMinHash } from '../minhash.js';
-import { STOP } from '../constants.js';
-import { extractPunctuationTokens, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { hashTokenId } from '../../shared/token-id.js';
 import { buildChargramHashSet } from '../../shared/chargram-hash.js';
 import {
@@ -19,37 +19,6 @@ import {
   createFileLineTokenStreamInternal,
   sliceFileLineTokenStreamInternal
 } from './tokenization/stream-helpers.js';
-
-const normalizeToken = (value) => {
-  for (let i = 0; i < value.length; i += 1) {
-    if (value.charCodeAt(i) > 127) return value.normalize('NFKD');
-  }
-  return value;
-};
-
-const PROSE_DICT_SPLIT_BYPASS_EXTS = new Set([
-  '.html',
-  '.htm',
-  '.js',
-  '.mjs',
-  '.cjs',
-  '.jsx',
-  '.ts',
-  '.tsx',
-  '.css',
-  '.scss',
-  '.less',
-  '.map',
-  '.json',
-  '.jsonc',
-  '.yml',
-  '.yaml',
-  '.toml',
-  '.ini',
-  '.cfg',
-  '.conf',
-  '.xml'
-]);
 
 export const createTokenClassificationRuntime = createTokenClassificationRuntimeInternal;
 
@@ -151,79 +120,6 @@ export const createFileLineTokenStream = (input) => createFileLineTokenStreamInt
 export const sliceFileLineTokenStream = (input) => sliceFileLineTokenStreamInternal(input);
 
 /**
- * Build tokens and optional synonym-expanded sequence for indexing.
- * @param {{text:string,mode:'code'|'prose',ext?:string,dictWords:Set<string>|{size:number,has:function},dictConfig:object,buffers?:object,includeSeq?:boolean}} input
- * @returns {{tokens:string[],seq:string[]}}
- */
-export function buildTokenSequence({
-  text,
-  mode,
-  ext,
-  dictWords,
-  dictConfig,
-  buffers = null,
-  includeCodePunctuation = true,
-  includeSeq = true
-}) {
-  const useBuffers = !!buffers;
-  const tokensOut = useBuffers ? buffers.tokens : [];
-  const seqOut = includeSeq ? (useBuffers ? buffers.seq : []) : null;
-  const scratch = useBuffers ? buffers.scratch : [];
-  const scratch2 = useBuffers ? buffers.scratch2 : [];
-  if (useBuffers) {
-    tokensOut.length = 0;
-    if (buffers.seq) buffers.seq.length = 0;
-    scratch.length = 0;
-    scratch2.length = 0;
-  }
-
-  const baseTokens = splitId(text);
-  for (const token of baseTokens) {
-    scratch.push(normalizeToken(token));
-  }
-  if (mode === 'code' && includeCodePunctuation) {
-    const punctuation = extractPunctuationTokens(text);
-    for (const token of punctuation) scratch.push(token);
-  }
-
-  let working = scratch;
-  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  const skipDictSegmentation = mode === 'prose'
-    && (normalizedExt === '.md' || PROSE_DICT_SPLIT_BYPASS_EXTS.has(normalizedExt));
-  if (!skipDictSegmentation) {
-    for (const token of working) {
-      const parts = splitWordsWithDict(token, dictWords, dictConfig);
-      if (Array.isArray(parts) && parts.length) {
-        for (const part of parts) scratch2.push(part);
-      }
-    }
-    working = scratch2;
-  }
-
-  if (mode === 'prose') {
-    for (const token of working) {
-      if (STOP.has(token)) continue;
-      tokensOut.push(token);
-      tokensOut.push(stem(token));
-    }
-  } else {
-    for (const token of working) tokensOut.push(token);
-  }
-
-  // When buffers are supplied we still return cloned output arrays so callers
-  // can retain per-chunk token lists without being mutated by the next chunk.
-  const tokens = useBuffers ? tokensOut.slice() : tokensOut;
-  if (!includeSeq) {
-    return { tokens, seq: [] };
-  }
-  const seq = buildSequenceFromTokens(tokens, seqOut);
-  return {
-    tokens,
-    seq
-  };
-}
-
-/**
  * Build hashed chargrams from tokens with configurable n-gram limits.
  * @param {string[]} tokens
  * @param {{chargramMinN:number,chargramMaxN:number,chargramMaxTokenLength?:number}} options
@@ -242,12 +138,7 @@ export function buildChargramsFromTokens(tokens, options, buffers = null) {
   return out;
 }
 
-const computeTokenStats = (tokens) => {
-  const freq = Object.create(null);
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    freq[token] = (freq[token] || 0) + 1;
-  }
+const computeTokenStats = (freq) => {
   const counts = Object.values(freq);
   const unique = counts.length;
   let sum = 0;
@@ -272,17 +163,18 @@ const computeTokenStats = (tokens) => {
  * @returns {{tokens:string[],seq:string[],minhashSig:number[],stats:object}}
  */
 export function tokenizeChunkText(input) {
-  const { text, mode, ext, context, buffers = null, languageId = null, pretokenized = null } = input;
+  const { text, mode, ext, context, buffers = null, languageId = null, pretokenized = null, nativeClassificationLeaves = null } = input;
   const dictConfig = context?.dictConfig || {};
   const dictWords = resolveTokenDictWords({ context, mode, languageId });
   const providedTokens = Array.isArray(pretokenized?.tokens) ? pretokenized.tokens : null;
   const providedSeq = Array.isArray(pretokenized?.seq) ? pretokenized.seq : null;
-  const { tokens, seq } = providedTokens
+  const { tokens, seq, punctuation } = providedTokens
     ? {
       tokens: providedTokens.slice(),
       seq: providedSeq && providedSeq.length
         ? providedSeq.slice()
-        : buildSequenceFromTokens(providedTokens)
+        : buildSequenceFromTokens(providedTokens),
+      punctuation: pretokenized.punctuation || null
     }
     : buildTokenSequence({
       text,
@@ -295,8 +187,13 @@ export function tokenizeChunkText(input) {
 
   const tokenIdsOut = buffers?.tokenIds || [];
   if (buffers?.tokenIds) tokenIdsOut.length = 0;
+  const frequencies = Object.create(null);
+  const tokenIdentity = new Map();
   for (let i = 0; i < tokens.length; i += 1) {
-    tokenIdsOut.push(hashTokenId(tokens[i]));
+    const token = tokens[i];
+    frequencies[token] = (frequencies[token] || 0) + 1;
+    if (!tokenIdentity.has(token)) tokenIdentity.set(token, hashTokenId(token));
+    tokenIdsOut.push(tokenIdentity.get(token));
   }
   const tokenIds = buffers?.tokenIds ? tokenIdsOut.slice() : tokenIdsOut;
 
@@ -309,7 +206,8 @@ export function tokenizeChunkText(input) {
       ext,
       dictWords,
       dictConfig,
-      context
+      context,
+      nativeClassificationLeaves
     })
     : null;
 
@@ -318,16 +216,15 @@ export function tokenizeChunkText(input) {
 
   const mh = buffers?.minhash || new SimpleMinHash();
   if (buffers?.minhash) mh.reset();
-  for (let i = 0; i < tokens.length; i += 1) {
-    mh.update(tokens[i]);
-  }
+  for (const token of tokenIdentity.keys()) mh.update(token);
 
   return {
     tokens,
     seq,
     tokenIds,
     minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
-    stats: computeTokenStats(tokens),
+    minhashHashIdentity: mh.hashIdentity,
+    stats: { ...computeTokenStats(frequencies), ...(punctuation ? { punctuation } : {}) },
     ...(classification ? {
       identifierTokens: classification.identifierTokens,
       keywordTokens: classification.keywordTokens,

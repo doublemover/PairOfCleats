@@ -1,4 +1,9 @@
+import { createIntervalIndex } from '../../../shared/interval-index.js';
+
+const STRUCTURAL_INDEX = Symbol('structural-match-index');
+
 export const getStructuralMatchesForChunk = (matches, startLine, endLine, totalLines) => {
+  if (matches?.[STRUCTURAL_INDEX]) return matches.find(startLine, endLine);
   if (!matches || !matches.length) return null;
   const start = Number.isFinite(startLine) ? startLine : 1;
   const end = Number.isFinite(endLine) ? endLine : start;
@@ -11,6 +16,28 @@ export const getStructuralMatchesForChunk = (matches, startLine, endLine, totalL
     selected.push(match);
   }
   return selected.length ? selected : null;
+};
+
+export const prepareStructuralMatches = (matches, totalLines) => {
+  if (!Array.isArray(matches) || !matches.length) return matches;
+  const fixedEnd = Number.isFinite(totalLines) && totalLines > 0 ? totalLines : null;
+  const index = createIntervalIndex(matches,
+    match => Number.isFinite(match.startLine) ? match.startLine : 1,
+    match => Number.isFinite(match.endLine) ? match.endLine : fixedEnd ?? Infinity);
+  return Object.freeze({
+    [STRUCTURAL_INDEX]: true,
+    find(startLine, endLine) {
+      const start = Number.isFinite(startLine) ? startLine : 1;
+      const end = Number.isFinite(endLine) ? endLine : start;
+      const fileEnd = fixedEnd ?? end;
+      const selected = index.find(start, end).filter(match => {
+        const matchStart = Number.isFinite(match.startLine) ? match.startLine : 1;
+        const matchEnd = Number.isFinite(match.endLine) ? match.endLine : fileEnd;
+        return !(matchEnd < start || matchStart > end);
+      });
+      return selected.length ? selected : null;
+    }
+  });
 };
 
 export const assignCommentsToChunks = (comments, chunks) => {
@@ -46,10 +73,11 @@ export const applyStructuralMatchesToChunks = (chunks, matches) => {
     const endLine = Number(chunk?.endLine) || 0;
     return endLine > max ? endLine : max;
   }, 0) || 1;
+  const prepared = prepareStructuralMatches(matches, totalLines);
   for (const chunk of chunks) {
     if (!chunk) continue;
     const structural = getStructuralMatchesForChunk(
-      matches,
+      prepared,
       chunk.startLine,
       chunk.endLine,
       totalLines

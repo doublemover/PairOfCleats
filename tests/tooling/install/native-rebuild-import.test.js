@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
+import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv();
+const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-rebuild-import/')[1];
+assert.ok(['inert-and-help', 'strict-admission-and-cancellation', 'captured-mode-and-context', 'original-input-generation', 'locked-dependency-admission'].includes(mode));
+const originalSessionMode = ['captured-mode-and-context', 'original-input-generation', 'locked-dependency-admission'].includes(mode);
+const owner = new URL('../../../tools/setup/rebuild-native.js', import.meta.url).href;
+const guarded = new Map([
+  ['./preflight.js', ['runSetupPreflight']], ['./windows-capability.js', ['verifyWindowsCompilerCapability']],
+  ['./apply-patches.js', ['applyPatchesAsync']], ['../../src/shared/native-package-probe.js', ['probeNodeRealmLifecycle']],
+  ['../../src/shared/bootstrap-readiness.js', ['captureBootstrapInputs', 'captureBootstrapVerification', 'recordBootstrapReadiness']],
+  ['../../src/shared/subprocess/command-invocation.js', ['spawnResolvedSubprocess']],
+  ['./bootstrap-tasks.js', ['resolveBootstrapBudget', 'runBootstrapTasks']]
+]);
+if (mode === 'locked-dependency-admission') guarded.set('./checkout-recovery.js', ['inspectCheckoutRecovery']);
+const hooks = registerHooks({
+  resolve(specifier, context, next) {
+    if (originalSessionMode && context.parentURL?.split('?')[0] === owner && specifier === './checkout-stage-journal.js') return {
+      url: 'native-original-session-fixture:journal', shortCircuit: true
+    };
+    if (originalSessionMode && [owner, new URL('../../../tools/setup/summary-output.js', import.meta.url).href].includes(context.parentURL?.split('?')[0])
+      && specifier === './checkout-mutation.js') return {
+      url: 'native-original-session-fixture:owner', shortCircuit: true
+    };
+    if (context.parentURL?.split('?')[0] === owner && guarded.has(specifier)) return { url: 'native-inert:' + encodeURIComponent(specifier), shortCircuit: true };
+    return next(specifier, context);
+  },
+  load(url, context, next) {
+    if (url === 'native-original-session-fixture:journal') return { format: 'module', source: `
+      export const withCheckoutStageJournal = async (root, session, plan, operation) => {
+        if(session!==globalThis.nativeAdmissionFixture.session) throw new Error('Lost original journal session');
+        return operation({runStage: (id, action) => action()}, true);
+      };`, shortCircuit: true };
+    if (url === 'native-original-session-fixture:owner') return { format: 'module', source: `
+      export const withCheckoutMutation = async (root, operation, options) => {
+        const fixture=globalThis.nativeAdmissionFixture; fixture.options=options; fixture.root=root;
+        fixture.entered.resolve(); await fixture.release.promise; return operation(fixture.session);
+      };
+      export const requireCheckoutMutationSession = (root, session) => {
+        if(session!==globalThis.nativeAdmissionFixture.session) throw new Error('Lost original session');
+      };`, shortCircuit: true };
+    if (!url.startsWith('native-inert:')) return next(url, context);
+    const specifier = decodeURIComponent(url.slice('native-inert:'.length));
+    const target = JSON.stringify(new URL(specifier, owner).href);
+    return { format: 'module', source: `export * from ${target};\n` + guarded.get(specifier).map(name =>
+      name === 'captureBootstrapInputs' ? `export const captureBootstrapInputs = () => [['fixture-setup-input',globalThis.nativeAdmissionFixture.inputId]];`
+        : mode === 'locked-dependency-admission' && name === 'resolveBootstrapBudget' ? `export const resolveBootstrapBudget = () => ({});`
+          : name === 'inspectCheckoutRecovery' ? `export const inspectCheckoutRecovery = () => {globalThis.nativeAdmissionFixture.recoveryCalls++;return globalThis.nativeAdmissionFixture.recovery;};`
+            : `export const ${name} = () => {throw new Error('Unexpected native work before admission: ${name}');};`).join('\n'), shortCircuit: true };
+  }
+});
+const previousExit = process.exit;
+process.exit = () => { throw new Error('Imported native owner must never exit the host'); };
+try {
+  const { runNativeRebuild } = await import(owner + '?inert-import=' + mode);
+  assert.equal(typeof runNativeRebuild, 'function');
+  if (mode === 'inert-and-help') {
+    const result = await runNativeRebuild(['--help'], { root: 'must-not-be-inspected-for-help' });
+    assert.equal(result.exitCode, 0); assert.match(result.help, /--verify/); assert.match(result.help, /--repair/);
+  } else if (mode === 'strict-admission-and-cancellation') {
+    for (const args of [['--unknown'], ['--verify', '--repair'], ['--help', '--unknown']]) {
+      await assert.rejects(runNativeRebuild(args), { code: 'ERR_CHECKOUT_BOOTSTRAP_ARGUMENTS' });
+    }
+    const controller = new AbortController(); controller.abort();
+    await assert.rejects(runNativeRebuild([], { signal: controller.signal }), { name: 'AbortError' });
+  } else if (mode === 'locked-dependency-admission') {
+    const fixture = { entered: Promise.withResolvers(), release: Promise.withResolvers(), session: Object.freeze({ original: true }),
+      inputId: 'locked-input', recovery: null, recoveryCalls: 0 };
+    globalThis.nativeAdmissionFixture = fixture; fixture.release.resolve();
+    for (const action of ['install', 'wait', 'select-runtime']) {
+      fixture.recovery = { action, reason: 'explicit fixture dependency blocker' };
+      await assert.rejects(runNativeRebuild(['--verify'], { root: 'original-declared-root' }), error =>
+        error.code === 'ERR_NATIVE_SETUP_DEPENDENCIES' && error.recovery === fixture.recovery);
+    }
+    assert.equal(fixture.recoveryCalls, 3, 'all dependency blockers stop before a build, activation capture or child probe');
+  } else {
+    const fixture = { entered: Promise.withResolvers(), release: Promise.withResolvers(), session: Object.freeze({ original: true }), inputId: 'original-input' };
+    globalThis.nativeAdmissionFixture = fixture;
+    const controller = new AbortController(), parent = Object.freeze({ parent: true });
+    const args = ['--verify'], options = { root: 'original-declared-root', signal: controller.signal, session: parent };
+    const pending = runNativeRebuild(args, options);
+    await fixture.entered.promise;
+    args.splice(0); const unrelated = new AbortController(); unrelated.abort(new Error('changed invocation context'));
+    options.signal = unrelated.signal; options.session = {}; options.root = 'changed-root';
+    if (mode === 'original-input-generation') fixture.inputId = 'changed-before-native-admission';
+    fixture.release.resolve();
+    if (mode === 'original-input-generation') await assert.rejects(pending, { code: 'ERR_NATIVE_SETUP_INPUT_CHANGED' },
+      'an input snapshot taken after admission could wrongly attest a changed generation');
+    else await assert.rejects(pending, /Unexpected native work before admission: resolveBootstrapBudget/,
+      'the original verify mode still skips mutating preflight despite changed caller containers');
+    assert.equal(fixture.options.signal, controller.signal); assert.equal(fixture.options.session, parent);
+    assert.equal(fixture.root, path.resolve('original-declared-root'));
+  }
+} finally { process.exit = previousExit; hooks.deregister(); delete globalThis.nativeAdmissionFixture; }
+console.log('Native rebuild imports are inert and use the same strictly admitted operation without exiting its caller');

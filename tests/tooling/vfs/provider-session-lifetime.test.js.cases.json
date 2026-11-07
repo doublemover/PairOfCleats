@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["idle", "single", "cancelled", "unconfirmed", "shared-consumers", "external-mutation", "pending-publication", "pending-cache-owner"]
+}

@@ -42,7 +42,7 @@ export const createShapeGeometry = (shape) => {
 export const computeLayout = () => {
   if ((state.layout.style || state.layoutDefaults.style) === 'stacks') {
     const scale=state.scaleFactor || 1,caps=state.performance?.drawCaps || {};
-    const model=buildStackModel(state.files,state.edges,{scale,groupDepth:Math.max(0,Math.floor(state.layout.groupDepth || 0)),maxFiles:caps.files,maxMembers:caps.members,maxEdges:caps.edges});
+    const model=buildStackModel(state.residentFiles||state.files,state.residentEdges||state.edges,{scale,groupDepth:Math.max(0,Math.floor(state.layout.groupDepth || 0)),maxFiles:caps.files,maxMembers:caps.members,maxEdges:caps.edges,fileByMember:state.residentFiles?state.sourceIndex?.fileByMember:null});
     Object.assign(state,{stackModel:model,layoutStyle:'stacks',allFiles:model.files,groups:model.groups,bounds:model.bounds,
       layoutMetrics:{baseSize:4*scale,edgePlane:-0.5*scale,routingPadding:scale,routingStep:scale,labelOffset:0.1*scale,memberCell:2.5*scale,memberGap:0.2*scale},
       groupKeyByFile:new Map(model.files.map(file=>[file.key,file.group])),edgeWeights:defaultEdgeWeights});

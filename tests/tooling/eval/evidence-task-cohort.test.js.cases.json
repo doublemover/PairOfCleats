@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["shared-corpus-and-fixed-controls", "failed-and-unknown-denominators", "capture-cancellation-and-budgets"]
+}

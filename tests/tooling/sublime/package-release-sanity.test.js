@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import AdmZip from 'adm-zip';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -21,30 +22,41 @@ if (run.status !== 0) {
   process.exit(run.status ?? 1);
 }
 
-const manifestPath = path.join(outDir, 'pairofcleats.sublime-package.manifest.json');
+const manifestPath = path.join(outDir, 'PairOfCleats.sublime-package.manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const shippedPaths = new Set(
   Array.isArray(manifest.entries) ? manifest.entries.map((entry) => entry.path) : []
 );
 
 const requiredShippedPaths = [
-  'PairOfCleats/plugin.py',
-  'PairOfCleats/README.md',
-  'PairOfCleats/Default.sublime-commands',
-  'PairOfCleats/Default (Windows).sublime-keymap',
-  'PairOfCleats/Default (Linux).sublime-keymap',
-  'PairOfCleats/Default (OSX).sublime-keymap',
-  'PairOfCleats/Context.sublime-menu',
-  'PairOfCleats/Main.sublime-menu',
-  'PairOfCleats/PairOfCleats.sublime-settings',
-  'PairOfCleats/commands/search.py',
-  'PairOfCleats/commands/index.py',
-  'PairOfCleats/commands/map.py',
-  'PairOfCleats/commands/operator.py',
-  'PairOfCleats/commands/runtime.py',
-  'PairOfCleats/commands/analysis.py',
-  'PairOfCleats/commands/settings.py',
-  'PairOfCleats/commands/validate.py',
+  '__init__.py',
+  'plugin.py',
+  'editor-config-contract.json',
+  'README.md',
+  'Default.sublime-commands',
+  'Default (Windows).sublime-keymap',
+  'Default (Linux).sublime-keymap',
+  'Default (OSX).sublime-keymap',
+  'keybindings/Windows.json',
+  'keybindings/Linux.json',
+  'keybindings/OSX.json',
+  'Context.sublime-menu',
+  'Main.sublime-menu',
+  'PairOfCleats.sublime-settings',
+  'commands/search.py',
+  'commands/index.py',
+  'commands/map.py',
+  'commands/operator.py',
+  'commands/runtime.py',
+  'commands/analysis.py',
+  'commands/settings.py',
+  'commands/validate.py',
+  'commands/semantic.py',
+  'commands/evidence.py',
+  'lib/operations.py',
+  'lib/api_client.py',
+  'lib/publication.py',
+  'lib/prompts.py',
 ];
 for (const entry of requiredShippedPaths) {
   if (!shippedPaths.has(entry)) {
@@ -56,18 +68,12 @@ for (const entry of requiredShippedPaths) {
 const commandPalettePath = path.join(root, 'sublime', 'PairOfCleats', 'Default.sublime-commands');
 const menuPath = path.join(root, 'sublime', 'PairOfCleats', 'Main.sublime-menu');
 const contextMenuPath = path.join(root, 'sublime', 'PairOfCleats', 'Context.sublime-menu');
-const keymapPaths = [
-  path.join(root, 'sublime', 'PairOfCleats', 'Default (Windows).sublime-keymap'),
-  path.join(root, 'sublime', 'PairOfCleats', 'Default (Linux).sublime-keymap'),
-  path.join(root, 'sublime', 'PairOfCleats', 'Default (OSX).sublime-keymap'),
-];
 const settingsPath = path.join(root, 'sublime', 'PairOfCleats', 'PairOfCleats.sublime-settings');
 const pluginPath = path.join(root, 'sublime', 'PairOfCleats', 'plugin.py');
 
 const commandEntries = JSON.parse(fs.readFileSync(commandPalettePath, 'utf8'));
 const menuEntries = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
 const contextMenuEntries = JSON.parse(fs.readFileSync(contextMenuPath, 'utf8'));
-const keymapEntries = keymapPaths.flatMap((keymapPath) => JSON.parse(fs.readFileSync(keymapPath, 'utf8')));
 const settingsText = fs.readFileSync(settingsPath, 'utf8');
 const pluginText = fs.readFileSync(pluginPath, 'utf8');
 
@@ -138,9 +144,6 @@ const contextCommands = new Set(
     ? contextMenuEntries[0].children.map((entry) => entry.command).filter(Boolean)
     : []
 );
-const keymapCommands = new Set(
-  keymapEntries.map((entry) => entry.command).filter(Boolean)
-);
 const requiredPreferenceCommands = [
   'pair_of_cleats_open_settings',
   'pair_of_cleats_open_project_settings',
@@ -197,10 +200,35 @@ const requiredKeymapCommands = [
   'pair_of_cleats_find_references',
   'pair_of_cleats_show_progress',
 ];
-for (const command of requiredKeymapCommands) {
-  if (!keymapCommands.has(command)) {
-    console.error(`package-release-sanity test failed: missing keybinding command ${command}`);
-    process.exit(1);
+const archive = new AdmZip(path.join(outDir, 'PairOfCleats.sublime-package'));
+const readPackagedJson = (relativePath) => {
+  const bytes = archive.readFile(relativePath);
+  if (!bytes) throw new Error(`Missing packaged keyboard contract: ${relativePath}`);
+  return JSON.parse(bytes.toString('utf8'));
+};
+// Inspect the actual universal archive, including all three platform variants.
+const automaticKeymaps = archive.getEntries().filter((entry) => entry.entryName.endsWith('.sublime-keymap'));
+if (automaticKeymaps.length !== 4) throw new Error('Expected the generic and three platform keymaps');
+for (const entry of automaticKeymaps) {
+  const bindings = readPackagedJson(entry.entryName);
+  if (!Array.isArray(bindings) || bindings.length !== 0) {
+    throw new Error(`Installation must not intercept keys: ${entry.entryName}`);
+  }
+}
+for (const platform of ['Windows', 'Linux', 'OSX']) {
+  const bindings = readPackagedJson(`keybindings/${platform}.json`);
+  if (!Array.isArray(bindings) || bindings.length !== requiredKeymapCommands.length) {
+    throw new Error(`Expected exactly five opt-in examples for ${platform}`);
+  }
+  const expectedPrefix = platform === 'OSX' ? 'super+alt+p' : 'ctrl+alt+p';
+  const expectedSecondKeys = ['s', 'q', 'd', 'r', 'p'];
+  for (const [index, command] of requiredKeymapCommands.entries()) {
+    const binding = bindings[index];
+    if (binding?.command !== command
+      || JSON.stringify(binding.keys) !== JSON.stringify([expectedPrefix, expectedSecondKeys[index]])
+      || !uniqueCommandNames.has(command)) {
+      throw new Error(`Invalid opt-in shortcut ${platform}/${command}`);
+    }
   }
 }
 

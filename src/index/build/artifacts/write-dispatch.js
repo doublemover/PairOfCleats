@@ -330,6 +330,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
       let eligibleIndex = normalizedAvoidFamily
         ? findEligibleIndex((entry) => resolveEntryFamily(entry) !== normalizedAvoidFamily)
         : -1;
+      const hasPreferredFamily = eligibleIndex >= 0;
       if (eligibleIndex < 0) {
         eligibleIndex = findEligibleIndex();
       }
@@ -338,15 +339,11 @@ export const dispatchArtifactWrites = async (input = {}) => {
         const batch = selectMicroWriteBatch(queue, {
           maxEntries: writeFsStrategy.microBatchMaxCount,
           maxBytes: writeFsStrategy.microBatchMaxBytes,
-          maxEntryBytes: ultraLightWriteThresholdBytes
+          maxEntryBytes: ultraLightWriteThresholdBytes,
+          canSelect: entry => canDispatchEntryUnderHugeWritePolicy(entry)
+            && (!hasPreferredFamily || resolveEntryFamily(entry) !== normalizedAvoidFamily)
         });
-        return Array.isArray(batch?.entries)
-          ? batch.entries.filter((entry) => (
-            entry
-            && canDispatchEntryUnderHugeWritePolicy(entry)
-            && (!normalizedAvoidFamily || resolveEntryFamily(entry) !== normalizedAvoidFamily)
-          ))
-          : [];
+        return batch.entries;
       }
       const removed = queue.splice(eligibleIndex, 1);
       return removed[0] ? [removed[0]] : [];

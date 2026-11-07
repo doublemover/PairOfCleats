@@ -15,6 +15,8 @@ import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { isAbsolutePathNative, toPosix } from '../shared/file-paths.js';
 import { log } from '../shared/progress-runtime.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
+import { isAbortError, throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 let gitMetaCache = createLruCache({
   name: 'gitMeta',
@@ -204,6 +206,7 @@ export function configureGitMetaCache(cacheConfig, reporter = null) {
  * @returns {Promise<string[]|null>}
  */
 export async function getGitLineAuthorsForFile(file, options = {}) {
+  throwIfAborted(options.signal);
   const baseDir = options.baseDir
     ? path.resolve(options.baseDir)
     : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
@@ -214,6 +217,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
   const timeoutLadderMs = resolveBlameTimeoutLadder(timeoutMs);
   const signal = options.signal || null;
   const commitId = normalizeCommitId(options.commitId);
+  if (options.commitId != null && !commitId) return null;
   const blameKey = buildLocalCacheKey({
     namespace: 'git-blame',
     payload: {
@@ -225,7 +229,9 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
 
   if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.BLAME)) return null;
 
-  const cached = gitBlameCache.get(blameKey);
+  // Current-working-tree blame has no immutable revision identity, including
+  // dirty/untracked changes. Only explicitly pinned commits are cacheable.
+  const cached = commitId ? gitBlameCache.get(blameKey) : null;
   if (cached) return cached;
 
   try {
@@ -235,7 +241,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
       try {
         let blame = null;
         if (attemptTimeoutMs || signal) {
-          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
+          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', ...(commitId ? [commitId] : []), '--', fileArg], {
             outputMode: 'string',
             captureStdout: true,
             captureStderr: true,
@@ -250,11 +256,14 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
           blame = result.stdout;
         } else {
           const git = simpleGit({ baseDir });
-          blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+          blame = await git.raw(['blame', '--line-porcelain', ...(commitId ? [commitId] : []), '--', fileArg]);
         }
         lineAuthors = parseLineAuthors(blame);
         break;
       } catch (err) {
+        observeStorageResource(err, { phase: 'git-line-authors-attempt' }).requireSettled();
+        if (isAbortError(err)) throw err;
+        throwIfAborted(signal);
         const canRetry = i < timeoutLadderMs.length - 1
           && isTimeoutLikeError(err)
           && !signal?.aborted;
@@ -263,10 +272,13 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
         }
       }
     }
-    if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
+    if (lineAuthors && commitId) gitBlameCache.set(blameKey, lineAuthors);
     clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.BLAME);
     return lineAuthors || null;
   } catch (err) {
+    observeStorageResource(err, { phase: 'git-line-authors' }).requireSettled();
+    if (isAbortError(err)) throw err;
+    throwIfAborted(signal);
     recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.BLAME);
     warnGitUnavailable(baseDir, formatGitUnavailableMessage({
       scope: GIT_FAILURE_SCOPE.BLAME,

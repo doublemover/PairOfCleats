@@ -10,20 +10,26 @@ applyTestEnv({ testing: '1' });
 
 const tempRoot = await makeTempDir('pairofcleats-vfs-offset-reader-close-timeout-');
 const manifestPath = path.join(tempRoot, 'vfs_manifest.jsonl');
+const rowText = `${JSON.stringify({ virtualPath: '.poc-vfs/src/a.ts#seg:a', chunks: [] })}\n`;
 await fs.writeFile(
   manifestPath,
-  `${JSON.stringify({ virtualPath: '.poc-vfs/src/a.ts#seg:a', chunks: [] })}\n`,
+  rowText,
   'utf8'
 );
 
 const originalOpen = fs.open;
+const closeGates = [];
 try {
   fs.open = async (...args) => {
     const handle = await originalOpen(...args);
+    const originalClose = handle.close.bind(handle);
+    let finish, fail;
+    const closed = new Promise((resolve, reject) => { finish = resolve; fail = reject; });
+    closeGates.push(() => originalClose().then(finish, fail));
     return new Proxy(handle, {
       get(target, prop, receiver) {
         if (prop === 'close') {
-          return async () => new Promise(() => {});
+          return () => closed;
         }
         const value = Reflect.get(target, prop, receiver);
         return typeof value === 'function' ? value.bind(target) : value;
@@ -37,7 +43,7 @@ try {
     closeTimeoutMs: 25,
     log: (line) => logs.push(String(line))
   });
-  await reader.readAtOffset({ offset: 0, bytes: 256 });
+  await reader.readAtOffset({ offset: 0, bytes: Buffer.byteLength(rowText) });
   const closeStartedAtMs = Date.now();
   await reader.close();
   const closeElapsedMs = Date.now() - closeStartedAtMs;
@@ -57,6 +63,7 @@ try {
   );
 } finally {
   fs.open = originalOpen;
+  await Promise.all(closeGates.map(release => release()));
   await rmDirRecursive(tempRoot);
 }
 

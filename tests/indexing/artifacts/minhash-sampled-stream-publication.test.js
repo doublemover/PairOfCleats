@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
@@ -22,7 +23,7 @@ const chunks = Array.from({ length: 5 }, (_, id) => ({
   id, chunkUid: `ck64:v1:repo:src/${id}.js:${String(id).padStart(16, '0')}`,
   chunkId: `chunk_${id}`, virtualPath: `src/${id}.js`, file: `src/${id}.js`, name: `item${id}`,
   kind: 'FunctionDeclaration', start: 0, end: 1, startLine: 1, endLine: 1,
-  text: 'x', tokens: [], tokenCount: 0, minhashSig: [...hash.hashValues]
+  text: 'x', tokens: [], tokenCount: 0, minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [...hash.hashValues]
 }));
 const sampled = resolveMinhashSampledPlan({ totalDocs: chunks.length, maxDocs: 2, signatureLength: 128 });
 const legacyRows = chunks.map((chunk) => minifyMinhashSignature(chunk.minhashSig, sampled));
@@ -30,7 +31,7 @@ const packedLegacy = packMinhashSignatures({ signatures: legacyRows });
 
 // The streaming plan must not read/materialize one signature per document.
 let signatureReads = 0;
-const counted = chunks.map((chunk) => ({ get minhashSig() { signatureReads += 1; return chunk.minhashSig; } }));
+const counted = chunks.map((chunk) => ({ minhashHashIdentity: MINHASH_HASH_IDENTITY, get minhashSig() { signatureReads += 1; return chunk.minhashSig; } }));
 const resolved = resolveMinhashOutputs({ sparseEnabled: true, minhashMaxDocs: 2, minhashStream: true, chunks: counted });
 assert.deepEqual(resolved.minhashSigs, []);
 assert.ok(signatureReads < counted.length, 'planning must not inspect every signature to materialize sampled rows');

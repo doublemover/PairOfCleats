@@ -1,6 +1,38 @@
 # USR New Language Onboarding Guide
 
-Last updated: 2026-02-13T09:58:25Z
+Current contributor journey reconciled on 2026-10-22. Qualification is per route,
+runtime/platform/head; this guide does not promote unrun integrations.
+
+## Add the runtime route before claiming capability
+
+1. Declare admission and routing in `src/index/language-registry/registry-data.js`,
+   descriptors/special-file owners and segment/fence mappings. Keep container and
+   effective language identities distinct.
+2. Use the existing native-only Tree-sitter registry, binding and scheduler for a
+   grammar route. There is no indexing WASM fallback. Add a bounded activation
+   sample and actual chunk/relation fixtures under `tests/fixtures/languages/src/`.
+3. Add imports/simple relations through the existing language-registry collectors
+   and chunk/metadata owners. Report unsupported/partial extraction explicitly.
+4. Add compiler/LSP enrichment through its provider/profile owner. Keep
+   installation, protocol capability and project semantics separate; respect
+   trust before repository-local compiler/tool resolution and build context.
+5. Update the catalog/matrix declarations below only for implemented consumers.
+   Record supported, partial and unsupported routes, source identity and omission
+   evidence. Resource tuning is not permission to assert semantic completeness.
+
+Use actual discovered IDs from the canonical runner, for example:
+
+```sh
+node tests/run.js --lane all --match indexing/tree-sitter/scheduler-native-language-contract --list
+node tests/run.js --lane all --match indexing/tree-sitter/scheduler-native-language-contract --jobs 1 --timeout-ms 30000 --retries 0
+```
+
+Add/run the affected language/provider/consumer fixtures rather than treating a
+single native sample as qualification. See [contributing](contributing.md) for
+the once-per-batch front gate and [user capability guidance](language-capabilities.md)
+for the distinction between route coverage and dated acceptance history. The
+[retired playbook](../language/onboarding-playbook.md) retains its replacement
+pointer; it is not a competing WASM or test-runner workflow.
 
 ## Purpose
 

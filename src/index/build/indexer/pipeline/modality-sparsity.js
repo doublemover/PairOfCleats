@@ -137,5 +137,5 @@ export const writeModalitySparsityEntry = async ({
  * @returns {boolean}
  */
 export const shouldElideModalityProcessingStage = ({ fileCount, chunkCount }) => (
-  Number(fileCount) === 0 && Number(chunkCount) === 0
+  typeof fileCount === 'number' && fileCount === 0 && typeof chunkCount === 'number' && chunkCount === 0
 );

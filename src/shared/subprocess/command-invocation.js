@@ -4,21 +4,21 @@ import {
   resolveWindowsCmdShimPath
 } from './windows-cmd.js';
 
-export const shouldUseCommandShimShell = (command, env = process.env) => (
-  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(command, env))
+export const shouldUseCommandShimShell = (command, env = process.env, options = {}) => (
+  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(command, env, options))
 );
 
-export const resolveCommandInvocation = (command, args = [], env = process.env) => {
+export const resolveCommandInvocation = (command, args = [], env = process.env, options = {}) => {
   const resolvedCommand = String(command || '').trim();
   const resolvedArgs = Array.isArray(args) ? args : [];
-  if (!shouldUseCommandShimShell(resolvedCommand, env)) {
+  if (!shouldUseCommandShimShell(resolvedCommand, env, options)) {
     return {
       command: resolvedCommand,
       args: resolvedArgs,
       env: null
     };
   }
-  return resolveWindowsCmdInvocation(resolvedCommand, resolvedArgs, env);
+  return resolveWindowsCmdInvocation(resolvedCommand, resolvedArgs, env, options);
 };
 
 const mergeInvocationEnv = (baseEnv, invocationEnv) => (
@@ -27,7 +27,7 @@ const mergeInvocationEnv = (baseEnv, invocationEnv) => (
 
 export const spawnResolvedSubprocess = (command, args = [], options = {}) => {
   const effectiveEnv = options.env || process.env;
-  const invocation = resolveCommandInvocation(command, args, effectiveEnv);
+  const invocation = resolveCommandInvocation(command, args, effectiveEnv, { cwd: options.cwd });
   return spawnSubprocess(invocation.command, invocation.args, {
     ...options,
     windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? options.windowsVerbatimArguments,
@@ -37,7 +37,7 @@ export const spawnResolvedSubprocess = (command, args = [], options = {}) => {
 
 export const spawnResolvedSubprocessSync = (command, args = [], options = {}) => {
   const effectiveEnv = options.env || process.env;
-  const invocation = resolveCommandInvocation(command, args, effectiveEnv);
+  const invocation = resolveCommandInvocation(command, args, effectiveEnv, { cwd: options.cwd });
   return spawnSubprocessSync(invocation.command, invocation.args, {
     ...options,
     windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? options.windowsVerbatimArguments,

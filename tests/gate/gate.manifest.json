@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 35,
+    "hero": 36,
     "matrix": 2,
-    "meta": 2,
+    "meta": 6,
     "soak": 0,
     "heavy-runtime": 0
   },
@@ -247,6 +247,36 @@
     {
       "id": "indexing/contracts/index-format-cutover",
       "order": 39,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/windows-authority-cohort",
+      "order": 40,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "ci/ordered-lane-discovery",
+      "order": 41,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "ci/gate-policy",
+      "order": 42,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/ci/run-suite-api-plan",
+      "order": 43,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tui/operator-command-dispositions",
+      "order": 44,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

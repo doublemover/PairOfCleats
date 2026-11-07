@@ -10,17 +10,18 @@ const texts = Array.from({ length: 32 }, (_, i) => `${i}:` + 'x'.repeat(i % 2 ? 
 const estimates = texts.map((_, i) => i % 2 ? 256 : 4);
 const groups = texts.map((_, i) => ({ groupId: `file-${i >> 2}`, chunkId: i, kind: i % 2 ? 'doc' : 'code' }));
 const measure = async (grouped) => {
-  let padded = 0, calls = 0;
+  let padded = 0, calls = 0, sourceOrderPadded = null;
   const out = await runBatched({ texts, tokenEstimates: estimates, groups: grouped ? groups : null,
     batchSize: 8, embed: async (batch) => { calls++; return batch.map((text) => [Number(text.split(':')[0])]); },
-    onBatch: (batch) => { padded += batch.paddedTokens; }
+    onBatch: (batch) => { padded += batch.paddedTokens; sourceOrderPadded = batch.baselinePaddedTokens; }
   });
   assert.deepEqual(out, texts.map((_, i) => [i]));
-  return { padded, calls };
+  return { padded, calls, sourceOrderPadded };
 };
 const baseline = await measure(false), grouped = await measure(true);
 assert.equal(grouped.calls, baseline.calls);
-assert.ok(grouped.padded < baseline.padded);
+assert.ok(grouped.padded <= baseline.padded, 'both grouped and ungrouped windows now use the packing owner');
+assert.ok(grouped.padded < grouped.sourceOrderPadded, 'packing still strictly improves the source-order control');
 console.log(JSON.stringify({ baseline, grouped }));
 // The measured tail regression: ascending buckets previously cost 2304 padded
 // tokens versus source-order's 2080, despite the same two provider calls.
@@ -29,7 +30,7 @@ const tailGroups = tailEstimates.map((_, index) => ({ groupId: `file-${Math.floo
 const tailPlan = planEmbeddingBatches({ estimates: tailEstimates, groups: tailGroups, maxItems: 16, tokenBudget: 2048 });
 assert.equal(tailPlan.baselinePaddedTokens, 2080);
 assert.equal(tailPlan.paddedTokens, 2064);
-assert.equal(tailPlan.strategy, 'length-descending');
+assert.equal(tailPlan.strategy, 'bucket-length-descending');
 assert.equal(tailPlan.batches.length, 2);
 const tailOutput = await runBatched({ texts: tailEstimates.map((_, index) => String(index)),
   tokenEstimates: tailEstimates, groups: tailGroups, batchSize: 16, maxBatchTokens: 2048,

@@ -2,15 +2,16 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/cache-roots.js';
-import { resolveEnvPath } from '../../../shared/env-path.js';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
 import { writeToolingCacheJson } from '../cache-storage.js';
-import { throwIfAborted } from '../../../shared/abort.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { spawnResolvedSubprocess } from '../../../shared/subprocess/command-invocation.js';
-import { resolveToolingCommandProfile } from '../command-resolver.js';
-import { splitPathEntries } from '../binary-utils.js';
+import { verifySourcekitOperationPlan } from './sourcekit-operation-plan.js';
+import { runWithManagedCommandInstallation } from '../managed-command-lifetime.js';
+import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
 
-const SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION = 2;
+const SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION = 3;
 const SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_FILENAME = 'sourcekit-package-preflight.json';
 const SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS = 90 * 1000;
 const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS = 90 * 1000;
@@ -49,9 +50,10 @@ const asFiniteInteger = (value) => {
   return Number.isFinite(parsed) ? Math.floor(parsed) : null;
 };
 
-const readUtf8IfExists = async (targetPath) => {
+const readUtf8IfExists = async (repoRoot, targetPath, signal) => {
+  throwIfAborted(signal);
   try {
-    return await fs.readFile(targetPath, 'utf8');
+    return (await readVerifiedContainedFile(repoRoot, targetPath, { maxBytes: 2 * 1024 * 1024, signal })).buffer.toString('utf8');
   } catch (err) {
     if (err?.code === 'ENOENT') return null;
     throw err;
@@ -75,70 +77,6 @@ const readStatSignature = async (filePath) => {
     if (error?.code === 'ENOENT') return `${filePath}:missing`;
     return `${filePath}:error`;
   }
-};
-
-const canRunCommand = (cmd, args = ['--help']) => {
-  try {
-    const profile = resolveToolingCommandProfile({
-      providerId: 'sourcekit',
-      cmd,
-      args: Array.isArray(args) ? args : [],
-      repoRoot: process.cwd(),
-      toolingConfig: {}
-    });
-    return profile?.probe?.ok === true;
-  } catch {
-    return false;
-  }
-};
-
-const resolveCommandCandidates = (cmd) => {
-  const output = [];
-  const seen = new Set();
-  const add = (candidate) => {
-    const normalized = String(candidate || '').trim();
-    if (!normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    output.push(normalized);
-  };
-
-  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
-  const lowered = String(cmd || '').toLowerCase();
-  const hasExt = /\.(exe|cmd|bat)$/i.test(lowered);
-
-  if (path.isAbsolute(cmd)) {
-    add(cmd);
-    if (process.platform === 'win32' && !hasExt) {
-      for (const ext of ['.exe', '.cmd', '.bat']) {
-        add(`${cmd}${ext}`);
-      }
-    }
-  } else if (process.platform === 'win32' && hasExt) {
-    for (const dir of pathEntries) {
-      add(path.join(dir, cmd));
-    }
-  } else if (process.platform === 'win32') {
-    for (const dir of pathEntries) {
-      for (const ext of ['.exe', '.cmd', '.bat']) {
-        add(path.join(dir, `${cmd}${ext}`));
-      }
-    }
-  } else {
-    for (const dir of pathEntries) {
-      add(path.join(dir, cmd));
-    }
-  }
-
-  add(cmd);
-  return output;
-};
-
-const resolveCommand = (cmd) => {
-  const candidates = resolveCommandCandidates(cmd);
-  for (const candidate of candidates) {
-    if (canRunCommand(candidate, ['--version'])) return candidate;
-  }
-  return cmd;
 };
 
 const acquireHostSourcekitLock = async ({
@@ -174,11 +112,14 @@ const acquireHostSourcekitLock = async ({
  *   fingerprint:string|null
  * }>}
  */
-const classifySourcekitWorkspace = async ({ repoRoot }) => {
+const classifySourcekitWorkspace = async ({ repoRoot, signal = null }) => {
+  throwIfAborted(signal);
   const startedAt = Date.now();
   const packageManifestPath = path.join(repoRoot, 'Package.swift');
   const packageResolvedPath = path.join(repoRoot, 'Package.resolved');
   const rootEntries = await fs.readdir(repoRoot, { withFileTypes: true }).catch(() => []);
+  throwIfAborted(signal);
+  const hasWorkspaceHooks = rootEntries.some(entry => ['.sourcekit-lsp', '.bsp'].includes(entry.name));
   const xcodeMarkers = rootEntries
     .filter((entry) => (
       entry?.isDirectory?.()
@@ -192,8 +133,9 @@ const classifySourcekitWorkspace = async ({ repoRoot }) => {
   let packageManifest = null;
   let manifestReadError = null;
   try {
-    packageManifest = await readUtf8IfExists(packageManifestPath);
+    packageManifest = await readUtf8IfExists(repoRoot, packageManifestPath, signal);
   } catch (error) {
+    if (isAbortError(error)) throw error;
     manifestReadError = error;
   }
   if (manifestReadError) {
@@ -226,6 +168,7 @@ const classifySourcekitWorkspace = async ({ repoRoot }) => {
       .digest('hex');
     return {
       workspaceKind,
+      requiresOperationPlan: workspaceKind !== SOURCEKIT_WORKSPACE_KIND.NONPACKAGE || hasWorkspaceHooks,
       dependencyResolutionRequired: false,
       dependencyState: 'not_applicable',
       preflightState: SOURCEKIT_PREFLIGHT_STATE.READY,
@@ -241,7 +184,8 @@ const classifySourcekitWorkspace = async ({ repoRoot }) => {
     };
   }
   const hasPackageDependencies = /\.package\s*\(/u.test(packageManifest);
-  const packageResolved = await readUtf8IfExists(packageResolvedPath);
+  const packageResolved = await readUtf8IfExists(repoRoot, packageResolvedPath, signal);
+  throwIfAborted(signal);
   const workspaceKind = xcodeMarkers.length > 0
     ? SOURCEKIT_WORKSPACE_KIND.MIXED
     : SOURCEKIT_WORKSPACE_KIND.PACKAGE_MANAGED;
@@ -274,6 +218,24 @@ const classifySourcekitWorkspace = async ({ repoRoot }) => {
   };
 };
 
+/** Final launch admission re-reads current bounded workspace metadata. This
+ * closes the gap between a cached preflight and newly added package/BSP hooks. */
+export const assertSourcekitWorkspaceLaunch = async ({ repoRoot, resolutionPlan = null, signal = null }) => {
+  const assertTrust = () => {
+    const denied = resolveProviderWorkspaceExecutionAuthority({ repoRoot, providerId: 'sourcekit', requiresWorkspaceExecution: true });
+    if (denied) throw Object.assign(new Error(denied.message), { code: 'ERR_SOURCEKIT_OPERATION_PLAN' });
+  };
+  assertTrust();
+  const workspace = await classifySourcekitWorkspace({ repoRoot, signal });
+  throwIfAborted(signal);
+  if (workspace.preflightState !== SOURCEKIT_PREFLIGHT_STATE.READY) throw Object.assign(new Error(workspace.message), { code: 'ERR_SOURCEKIT_OPERATION_PLAN' });
+  if (workspace.workspaceKind !== SOURCEKIT_WORKSPACE_KIND.NONPACKAGE || workspace.requiresOperationPlan) {
+    await verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal });
+  }
+  assertTrust();
+  return workspace;
+};
+
 /**
  * Build a repo-scoped sourcekit lock path with stable hashing.
  *
@@ -301,6 +263,8 @@ const readSourcekitPreflightMarker = async (markerPath) => {
   });
   if (!parsed || typeof parsed !== 'object') return null;
   if (parsed.schemaVersion !== SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION) return null;
+  const age = Date.now() - Date.parse(parsed.completedAt);
+  if (!Number.isFinite(age) || age < 0 || age > (parsed.preflightState === SOURCEKIT_PREFLIGHT_STATE.READY ? 300_000 : 15_000)) return null;
   return parsed;
 };
 
@@ -322,6 +286,7 @@ const buildSourcekitPreflightMarkerRecord = ({
     schemaVersion: SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION,
     completedAt: new Date().toISOString(),
     fingerprint: workspace.fingerprint,
+    operationPlanIdentity: workspace.operationPlanIdentity || null,
     swiftCmd: String(swiftCmd || ''),
     durationMs: normalizedDurationMs,
     classificationDurationMs: workspace.classificationDurationMs,
@@ -335,11 +300,14 @@ const buildSourcekitPreflightMarkerRecord = ({
   };
 };
 
-const writeSourcekitPreflightMarkerRecord = async (markerPath, record) => {
+const writeSourcekitPreflightMarkerRecord = async (markerPath, record, signal) => {
+  throwIfAborted(signal);
   await writeToolingCacheJson(markerPath, record, {
     spaces: 0,
-    newline: false
+    newline: false,
+    signal
   });
+  throwIfAborted(signal);
 };
 
 const buildSourcekitPreflightResult = ({
@@ -397,14 +365,18 @@ const runSourcekitPackagePreflight = async ({
   repoRoot,
   swiftCmd,
   timeoutMs,
+  operation,
+  resolutionPlan,
   signal = null
 }) => {
   const startedAt = Date.now();
   try {
-    const result = await spawnResolvedSubprocess(swiftCmd, ['package', 'resolve'], {
+    await verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal });
+    const result = await runWithManagedCommandInstallation({ command: swiftCmd, signal,
+      beforeSpawn: () => verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal }) }, ({ onSpawn }) => spawnResolvedSubprocess(swiftCmd, operation.args, {
       cwd: repoRoot,
       env: {
-        ...process.env,
+        ...operation.environment,
         GIT_TERMINAL_PROMPT: process.env.GIT_TERMINAL_PROMPT || '0'
       },
       timeoutMs,
@@ -416,8 +388,10 @@ const runSourcekitPackagePreflight = async ({
       maxOutputBytes: 48 * 1024,
       rejectOnNonZeroExit: false,
       signal,
+      ...(onSpawn ? { onSpawn } : {}),
       name: 'sourcekit-package-resolve'
-    });
+    }));
+    throwIfAborted(signal);
     const durationMs = Date.now() - startedAt;
     if (result.exitCode === 0) {
       return {
@@ -435,7 +409,8 @@ const runSourcekitPackagePreflight = async ({
       message: summary || `swift package resolve failed with exit code ${result.exitCode ?? 'unknown'}`
     };
   } catch (err) {
-    if (err?.code === 'ABORT_ERR') throw err;
+    if (isAbortError(err) || err?.cacheOwnershipPending === true || err?.code === 'ERR_SOURCEKIT_OPERATION_PLAN') throw err;
+    throwIfAborted(signal);
     const durationMs = Date.now() - startedAt;
     const timeout = err?.code === 'SUBPROCESS_TIMEOUT';
     const summary = summarizeSubprocessOutput(
@@ -505,8 +480,9 @@ const buildPreflightCheck = ({
 });
 
 /**
- * Ensure SwiftPM dependency resolution side effects are completed before
- * sourcekit begins LSP work for Swift repos.
+ * Observe workspace readiness. SwiftPM mutation/workspace hooks require an
+ * explicit in-process host operation plan; ordinary passive indexing never
+ * creates one and never converts dependency presence into permission to resolve.
  *
  * @param {{
  *   repoRoot:string,
@@ -515,6 +491,7 @@ const buildPreflightCheck = ({
  *   sourcekitConfig?:Record<string,unknown>,
  *   cacheRoot?:string|null,
  *   timeoutMs?:number|null
+ *   resolutionPlan?:object|null
  * }} input
  * @returns {Promise<{blockSourcekit:boolean,check:object|null}>}
  */
@@ -524,19 +501,41 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
   signal = null,
   sourcekitConfig = {},
   cacheRoot = null,
-  timeoutMs = null
+  timeoutMs = null,
+  resolutionPlan = null
 }) => {
   const failClosed = sourcekitConfig?.preflightFailOpen !== true;
   try {
     throwIfAborted(signal);
-    const workspace = await classifySourcekitWorkspace({ repoRoot });
+    const workspace = await classifySourcekitWorkspace({ repoRoot, signal });
+    throwIfAborted(signal);
     const markerPath = resolveSourcekitPreflightMarkerPath({
       repoRoot,
       cacheRoot
     });
+    let operation = null;
+    if ((workspace.workspaceKind !== SOURCEKIT_WORKSPACE_KIND.NONPACKAGE || workspace.requiresOperationPlan)
+      && workspace.preflightState === SOURCEKIT_PREFLIGHT_STATE.READY) {
+      try { operation = await verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal }); }
+      catch (error) {
+        if (isAbortError(error)) throw error;
+        const reasonCode = resolutionPlan ? 'sourcekit_operation_plan_invalid'
+          : workspace.dependencyResolutionRequired ? 'sourcekit_package_resolution_required' : 'sourcekit_workspace_operation_plan_required';
+        const message = resolutionPlan ? `SourceKit operation plan is no longer current: ${error.message}`
+          : 'SourceKit workspace loading/package resolution needs an explicitly authorized host operation plan. Prepare dependencies outside passive indexing, review workspace hooks, then select a trusted operational flow; no package/workspace changes were made.';
+        return buildSourcekitPreflightResult({ blockSourcekit: true, state: 'blocked', reasonCode, message,
+          markerPath, workspace, preflightState: SOURCEKIT_PREFLIGHT_STATE.BLOCKED_DEPENDENCY,
+          check: buildPreflightCheck({ name: reasonCode, message, reasonCode,
+            workspaceKind: workspace.workspaceKind, preflightState: SOURCEKIT_PREFLIGHT_STATE.BLOCKED_DEPENDENCY }) });
+      }
+    }
+    workspace.operationPlanIdentity = operation?.identity || null;
     const marker = await readSourcekitPreflightMarker(markerPath);
-    if (marker?.fingerprint === workspace.fingerprint) {
+    throwIfAborted(signal);
+    if (marker?.fingerprint === workspace.fingerprint && marker.operationPlanIdentity === workspace.operationPlanIdentity) {
       log('[tooling] sourcekit package preflight cache hit.');
+      throwIfAborted(signal);
+      if (operation) await verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal });
       const cachedBlocked = marker?.preflightState && marker.preflightState !== SOURCEKIT_PREFLIGHT_STATE.READY;
       const cachedReasonCode = String(marker?.reasonCode || workspace.reasonCode || '').trim() || null;
       return {
@@ -576,10 +575,10 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
         message,
         timeout: false
       });
-      await writeSourcekitPreflightMarkerRecord(markerPath, record);
+      if (operation) await writeSourcekitPreflightMarkerRecord(markerPath, record, signal);
       return buildSourcekitPreflightResult({
-        blockSourcekit: failClosed,
-        state: failClosed ? 'blocked' : 'degraded',
+        blockSourcekit: !operation || failClosed,
+        state: !operation || failClosed ? 'blocked' : 'degraded',
         reasonCode,
         message,
         markerPath,
@@ -612,31 +611,7 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
       };
     }
 
-    const resolvedSwiftCmd = resolveCommand('swift');
-    if (!canRunCommand(resolvedSwiftCmd, ['--version'])) {
-      const message = 'sourcekit package preflight skipped because `swift` command is unavailable.';
-      const preflightState = SOURCEKIT_PREFLIGHT_STATE.BLOCKED_DEPENDENCY;
-      const reasonCode = 'sourcekit_blocked_dependency_unavailable';
-      return {
-        blockSourcekit: failClosed,
-        state: failClosed ? 'blocked' : 'degraded',
-        reasonCode,
-        message,
-        markerPath,
-        workspaceKind: workspace.workspaceKind,
-        dependencyState: workspace.dependencyState,
-        preflightState,
-        classificationDurationMs: workspace.classificationDurationMs,
-        resolveDurationMs: 0,
-        check: buildPreflightCheck({
-          name: 'sourcekit_package_preflight_unavailable',
-          message,
-          reasonCode,
-          workspaceKind: workspace.workspaceKind,
-          preflightState
-        })
-      };
-    }
+    const resolvedSwiftCmd = operation.command;
 
     const preflightLockPath = resolveSourcekitPreflightLockPath(repoRoot);
     const resolvedTimeoutMs = Math.max(
@@ -695,17 +670,24 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
         };
       }
       throwIfAborted(signal);
+      await verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal });
       log('[tooling] sourcekit package preflight: running `swift package resolve`.');
       const preflight = await runSourcekitPackagePreflight({
         repoRoot,
         swiftCmd: resolvedSwiftCmd,
         timeoutMs: resolvedTimeoutMs,
+        operation,
+        resolutionPlan,
         signal
       });
       throwIfAborted(signal);
+      await verifySourcekitOperationPlan(resolutionPlan, { repoRoot, signal });
       if (preflight.ok) {
         try {
           throwIfAborted(signal);
+          const refreshed = await classifySourcekitWorkspace({ repoRoot, signal });
+          if (refreshed.preflightState !== SOURCEKIT_PREFLIGHT_STATE.READY) throw Object.assign(new Error(refreshed.message), { code: 'ERR_SOURCEKIT_OPERATION_PLAN' });
+          Object.assign(workspace, refreshed, { operationPlanIdentity: operation.identity });
           const record = buildSourcekitPreflightMarkerRecord({
             workspace,
             swiftCmd: resolvedSwiftCmd,
@@ -715,8 +697,8 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
             message: '',
             timeout: false
           });
-          await writeSourcekitPreflightMarkerRecord(markerPath, record);
-        } catch {}
+          await writeSourcekitPreflightMarkerRecord(markerPath, record, signal);
+        } catch (error) { if (isAbortError(error) || error?.cacheOwnershipPending === true || error?.code === 'ERR_SOURCEKIT_OPERATION_PLAN') throw error; }
         log(`[tooling] sourcekit package preflight completed in ${preflight.durationMs}ms.`);
         return buildSourcekitPreflightResult({
           blockSourcekit: false,
@@ -742,7 +724,7 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
         message,
         timeout: preflight.timeout === true
       });
-      await writeSourcekitPreflightMarkerRecord(markerPath, failureRecord);
+      await writeSourcekitPreflightMarkerRecord(markerPath, failureRecord, signal);
       return buildSourcekitPreflightResult({
         blockSourcekit: failClosed,
         state: failClosed ? 'blocked' : 'degraded',
@@ -768,13 +750,14 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
       }
     }
   } catch (err) {
-    if (err?.code === 'ABORT_ERR') throw err;
+    if (isAbortError(err) || err?.cacheOwnershipPending === true) throw err;
+    throwIfAborted(signal);
     const message = summarizeSubprocessOutput(err?.message || err, 200) || 'unknown preflight error';
     const preflightState = SOURCEKIT_PREFLIGHT_STATE.BLOCKED_DEPENDENCY;
     const reasonCode = 'sourcekit_preflight_error';
     return {
-      blockSourcekit: failClosed,
-      state: failClosed ? 'blocked' : 'degraded',
+      blockSourcekit: err?.code === 'ERR_SOURCEKIT_OPERATION_PLAN' || failClosed,
+      state: err?.code === 'ERR_SOURCEKIT_OPERATION_PLAN' || failClosed ? 'blocked' : 'degraded',
       reasonCode,
       message: `sourcekit package preflight error: ${message}`,
       check: buildPreflightCheck({

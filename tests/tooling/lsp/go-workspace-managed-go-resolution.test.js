@@ -75,7 +75,9 @@ if (process.platform === 'win32') {
 
 await withTemporaryEnv({
   PATH: path.dirname(process.execPath),
-  Path: path.dirname(process.execPath)
+  Path: path.dirname(process.execPath),
+  PAIROFCLEATS_TRUSTED_CONFIG: null,
+  PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([tempRoot])
 }, async () => {
   const result = await resolveGoWorkspaceModulePreflight({
     ctx: {

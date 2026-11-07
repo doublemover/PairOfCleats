@@ -23,7 +23,9 @@ applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    sqlite: { use: true },
     indexing: {
+      scm: { provider: 'none' },
       embeddings: { enabled: false }
     }
   }
@@ -53,6 +55,10 @@ currentBefore.buildRootsByMode = {
   ...(currentBefore.buildRootsByMode || {}),
   code: '.'
 };
+await fsPromises.writeFile(currentPath, `${JSON.stringify(currentBefore, null, 2)}\n`, 'utf8');
+await assert.rejects(buildIndex(repoRoot, { mode: 'code', stage: 'stage4', 'stub-embeddings': true }),
+  /Missing current build for SQLite stage/);
+currentBefore.buildRootsByMode.code = expectedBuildRoot;
 await fsPromises.writeFile(currentPath, `${JSON.stringify(currentBefore, null, 2)}\n`, 'utf8');
 
 await runBuild(

@@ -1,5 +1,12 @@
 # Native validation checklist
 
+> Historical October 6 plan, superseded on 2026-10-18 at `ab00d918d` (PR #572)
+> by the [October 14 closeout](../archived/product-closeout-2026-10-14.md)
+> and [current roadmap](../roadmap.md). The bounded Windows cold-build/cleanup
+> scenario is closed in that receipt; the original machine state was not
+> reproduced. Current work requires [Node 26 and verified bootstrap](node-runtime.md).
+> The Node 24 instructions and pending diagnosis below preserve the original plan.
+
 This is an execution checklist for the grouped hardware validation session.
 The [roadmap](../roadmap.md) owns priorities and completion status. Windows
 command diagnosis is deliberately deferred until that session; a Linux check

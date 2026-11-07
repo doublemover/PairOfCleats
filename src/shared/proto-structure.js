@@ -245,6 +245,7 @@ export const createProtoStructureParser = ({ loadParser = () => require('protobu
       return fallback(error instanceof StructureBoundaryError ? error.message : 'parse-failed', elapsed());
     }
   };
+  parse.limits = Object.freeze({ maxChars: MAX_CHARS, maxLines: MAX_LINES, maxTokens: MAX_TOKENS, maxTokenChars: MAX_TOKEN_CHARS, maxNodes: MAX_NODES, maxDepth: MAX_DEPTH, maxMs: MAX_PARSE_MS });
   parse.initialize = () => loader.initialize();
   return parse;
 };

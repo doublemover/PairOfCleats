@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveManagedGoSdk } from './managed-go.js';
 import { resolveManagedClangd } from './managed-clangd.js';
+import { resolveManagedLuaLanguageServer } from './managed-lua.js';
 
 const dedupePaths = (entries) => {
   const seen = new Set();
@@ -90,6 +91,7 @@ export const resolveGlobalGemBinDirs = () => {
 export const resolveLocalToolingBinDirs = (toolingRoot) => {
   const absoluteToolingRoot = path.resolve(String(toolingRoot || '.'));
   return dedupePaths([
+    resolveManagedLuaLanguageServer(absoluteToolingRoot)?.binDir || '',
     path.join(absoluteToolingRoot, 'bin'),
     path.join(absoluteToolingRoot, 'node', 'node_modules', '.bin'),
     path.join(absoluteToolingRoot, 'dotnet'),

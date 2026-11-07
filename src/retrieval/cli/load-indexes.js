@@ -36,8 +36,10 @@ export async function loadSearchIndexes({
   useLmdb,
   emitOutput,
   exitOnError,
+  jsonOutput = false,
   annActive,
   filtersActive,
+  relationFilters = null,
   chunkAuthorFilterActive = false,
   contextExpansionEnabled,
   graphRankingEnabled,
@@ -64,6 +66,7 @@ export async function loadSearchIndexes({
   explicitRef = false
 }) {
   const metadata = await resolveSearchIndexMetadata({
+    filterOnly,
     rootDir,
     userConfig,
     searchMode,
@@ -75,6 +78,7 @@ export async function loadSearchIndexes({
     useSqlite,
     emitOutput,
     exitOnError,
+    jsonOutput,
     strict,
     allowUnsafeMix,
     indexMetaByMode,
@@ -109,6 +113,7 @@ export async function loadSearchIndexes({
     emitOutput,
     annActive,
     filtersActive,
+    relationFilters,
     contextExpansionEnabled,
     graphRankingEnabled,
     sqliteFtsRequested,
@@ -203,6 +208,7 @@ export async function loadSearchIndexes({
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
   await hydrateLoadedIndexes({
+    relationFilters,
     rootDir,
     userConfig,
     useSqlite,
@@ -229,7 +235,7 @@ export async function loadSearchIndexes({
     resolveOptions
   });
 
-  await hydrateChunkAuthorIndexes({
+  const chunkAuthorCoverage = await hydrateChunkAuthorIndexes({
     idxCode,
     idxProse,
     idxExtractedProse,
@@ -243,7 +249,8 @@ export async function loadSearchIndexes({
     fileChargramN,
     filtersActive,
     chunkAuthorFilterActive,
-    emitOutput
+    emitOutput,
+    signal
   });
 
   await attachAnnAndGraphArtifacts({
@@ -350,6 +357,7 @@ export async function loadSearchIndexes({
   });
 
   return {
+    chunkAuthorCoverage,
     idxProse,
     idxExtractedProse,
     idxCode,

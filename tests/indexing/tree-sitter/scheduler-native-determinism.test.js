@@ -69,31 +69,35 @@ const snapshotRun = async (tag) => {
     log: () => {}
   });
 
-  assert.ok(scheduler?.plan, 'expected scheduler plan');
-  const paths = resolveTreeSitterSchedulerPaths(outDir);
-  const artifacts = {};
-  for (const grammarKey of scheduler.plan.grammarKeys || []) {
-    artifacts[grammarKey] = {
-      jobs: await fs.readFile(paths.jobPathForGrammarKey(grammarKey), 'utf8'),
-      results: await fs.readFile(paths.resultsPathForGrammarKey(grammarKey), 'utf8'),
-      index: await fs.readFile(paths.resultsIndexPathForGrammarKey(grammarKey), 'utf8'),
-      meta: await fs.readFile(paths.resultsMetaPathForGrammarKey(grammarKey), 'utf8')
-    };
-  }
-  const sortedIndexRows = Array.from(scheduler.index.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([virtualPath, row]) => ({
-      virtualPath,
-      grammarKey: row.grammarKey,
-      offset: row.offset,
-      bytes: row.bytes
-    }));
+  try {
+    assert.ok(scheduler?.plan, 'expected scheduler plan');
+    const paths = resolveTreeSitterSchedulerPaths(outDir);
+    const artifacts = {};
+    for (const grammarKey of scheduler.plan.grammarKeys || []) {
+      artifacts[grammarKey] = {
+        jobs: await fs.readFile(paths.jobPathForGrammarKey(grammarKey), 'utf8'),
+        results: await fs.readFile(paths.resultsPathForGrammarKey(grammarKey), 'utf8'),
+        index: await fs.readFile(paths.resultsIndexPathForGrammarKey(grammarKey), 'utf8'),
+        meta: await fs.readFile(paths.resultsMetaPathForGrammarKey(grammarKey), 'utf8')
+      };
+    }
+    const sortedIndexRows = Array.from(scheduler.index.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([virtualPath, row]) => ({
+        virtualPath,
+        grammarKey: row.grammarKey,
+        offset: row.offset,
+        bytes: row.bytes
+      }));
 
-  return {
-    plan: normalizePlan(scheduler.plan),
-    artifacts,
-    sortedIndexRows
-  };
+    return {
+      plan: normalizePlan(scheduler.plan),
+      artifacts,
+      sortedIndexRows
+    };
+  } finally {
+    await scheduler?.close();
+  }
 };
 
 const runA = await snapshotRun('run-a');

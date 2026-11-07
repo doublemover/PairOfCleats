@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { collectDartImports } from '../../../src/index/language-registry/import-collectors/dart.js';
+import { collectScalaImports } from '../../../src/index/language-registry/import-collectors/scala.js';
+import { collectGroovyImports } from '../../../src/index/language-registry/import-collectors/groovy.js';
+import { collectNixImports } from '../../../src/index/language-registry/import-collectors/nix.js';
+import { collectRazorImports } from '../../../src/index/language-registry/import-collectors/razor.js';
+import { resolveRelativeImportCandidates } from '../../../src/index/shared/import-candidates.js';
+assert.deepEqual(collectDartImports('/*\nimport "fake.dart";\n*/\nimport "real.dart";'),['real.dart']);
+for(const collect of [collectScalaImports,collectGroovyImports])assert.deepEqual(collect('/*\nimport fake.module\n*/\nimport real.module'),['real.module']);
+assert.deepEqual(collectScalaImports('/* outer /* inner */\nimport fake.module\n*/\nimport real.module'),['real.module']);
+assert.deepEqual(collectNixImports('/* import ./fake.nix */\nimport ./real.nix'),['./real.nix']);
+assert.deepEqual(collectRazorImports('@* note\n@using Fake.Namespace\n*@\n@using Real.Namespace'),['Real.Namespace']);
+assert.deepEqual(resolveRelativeImportCandidates('pkg.v2/',['.js']),['pkg.v2/index.js']);
+console.log('comment-aware import collectors and directory hints passed');

@@ -121,8 +121,10 @@ export const createBitmapFromIds = (values, options = {}) => {
 
 export const unionBitmaps = (bitmaps) => {
   if (!Array.isArray(bitmaps) || !bitmaps.length) return null;
-  let acc = cloneBitmap(bitmaps[0]);
-  for (let i = 1; i < bitmaps.length; i += 1) {
+  const first = bitmaps.findIndex(Boolean);
+  if (first < 0) return null;
+  let acc = cloneBitmap(bitmaps[first]);
+  for (let i = first + 1; i < bitmaps.length; i += 1) {
     const next = bitmaps[i];
     if (!next || !acc) continue;
     if (typeof acc.orInPlace === 'function') {

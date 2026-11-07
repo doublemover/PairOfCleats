@@ -1,0 +1,111 @@
+# Recorded benchmark measurement sources
+
+Historical reconstruction uses the saved report's observations. It does not load
+current user configuration, `metrics/index-*.json`, mutable feature metrics or a
+current build pointer to fill absent historical timings. Embedded native ledgers
+remain preferred. Embedded scan-profile modes, throughput and indexing summaries
+remain available without access to the original repository.
+
+The shared pure ledger/timing builders accept explicitly supplied observations;
+they no longer resolve mutable repository files themselves. Each modality selects
+one counter-and-clock family. Known counts with unknown duration retain a null
+rate. Missing/null/string values do not become observed zero. Timing derivations
+identify observed and unavailable stages; an entirely absent profile stays null.
+An already observed embedding stage is not counted again from a summary duration.
+
+Diagnostic derivation version **3** records the original source digest, recorded
+timestamp, per-mode sources and optional attempt evidence. Materialization retains
+that derivation in the ledger and section provenance. A later read preserves its
+fallback classification. Older fallback ledgers lacking source qualification are
+reconstructed from saved observations; they are never promoted to native simply
+because they occupy the ledger slot. Explicit materialization preserves genuine
+native ledgers. Unchanged source observations produce stable derived content.
+Version 3 also invalidates older derived numeric summaries so null/zero and
+matched-subset coverage repairs cannot reuse their earlier meaning. The
+[numeric observation contract](throughput-numeric-observations.md) defines those
+states without claiming workload or independent-attempt qualification.
+
+An optional internal `artifacts.measurementSnapshot` receipt can fill absent
+historical facts. Its version-1 fields are `schemaVersion`, `attemptId`, `path`,
+`bytes` and lowercase hexadecimal `sha256`. The attempt must equal the saved
+report's explicit `run.attemptId`. The referenced UTF-8 JSON envelope contains the
+same version/attempt and `metricsByMode` and/or `featureMetrics`. A declared ID or
+filename alone is insufficient: exact extent and digest must match.
+
+Only a canonical relative path beneath the actually read report's directory is
+admitted. That directory is supplied by the report reader, not by the receipt.
+The existing contained reader rejects link/escape authority and limits the source
+to 8 MiB before allocation and during verification. Missing, malformed, changed,
+out-of-bounds, mismatched-attempt and unqualified sources remain unavailable.
+Original pending I/O ownership is propagated rather than converted to absence.
+No mutable mtime cache, public enrichment knob or alternate index format is added.
+
+The same source resolver serves the language aggregate, throughput renderer and
+explicit materializer. Their default read paths retain their no-write contract.
+The obsolete mutable feature-metrics inspection/cache layer is removed. Repository
+reference review found only three fixture callers after product aggregation and
+materialization moved to recorded sources. Those original fixture IDs now retain
+their A/B-root, changed-source and malformed-config controls through actual
+attempt/hash/extent-qualified reads. No live-metrics compatibility API remains.
+This contract qualifies recorded measurement reconstruction. It does not qualify
+real-model performance, historical environment equivalence or live structural
+build-state analysis as an immutable attempt snapshot.
+
+Live structural analysis keeps its recorded materialization provenance on later
+reads. Explicit refresh reconstructs before comparing all semantic fields.
+Reconstruction producer version 2 binds the corrected bounded kind counter;
+native analysis format remains version 1 under the shared contract constants.
+An older/missing derived producer identity requires regeneration. If its source
+is unavailable, the reader returns unavailable and explicit materialization
+fails without rewriting those stale stored bytes. Persisted derivation always
+keeps fallback provenance, even if section metadata is removed or says native.
+Only this analysis producer's invocation-dependent `generatedAt` is excluded
+from that comparison; equal content retains the original object and timestamp,
+including its key order. Changed content receives a new reconstruction time.
+Measurement/source timestamps are never normalized. An unavailable refresh of
+previously derived analysis preserves the stored evidence, returns
+`analysis-reconstruction-unavailable`, and makes the materializer exit nonzero.
+It is not a successful no-op and does not promote the old analysis to native.
+
+Small fixtures retain a saved A report while mutating/removing current B metrics
+and configuration. They exercise actual aggregate and ledger callers, qualified
+snapshot admission, counter/clock pairing, native priority, unknown duration,
+invalid source authority and materialization round trips. No corpus indexing or
+model execution is required.
+
+Throughput input admission version 2 includes the original results-root inventory.
+Both rendering and materialization await the same owned incremental directory
+reader. Across root and folder discovery, at most 65,536 entries are examined
+before filename filtering and at most 1,024 folders are admitted. Root/folder
+metadata uses the existing shared allowance; original file/read/retention limits
+remain. The fixed limits now live with the authoritative input contract, which
+checks their bounds and observed counters before accepting a report.
+
+A selected folder remains pending until its original inventory runs. Duplicate
+or out-of-cohort folder requests fail; linked root folders, cancellation and
+incomplete discovery cannot become a complete empty report. Missing/old root
+receipts require report regeneration. Four unrun cases retain actual ordinary
+root/file positives, filtered-entry limits and explicit directory/link owner
+models. They create no symlinks or native-release qualification. The old two
+synchronous discovery wrappers are removed after both CLI callers moved; no
+public command or filter option changed.
+
+Optional live repo-map kind counts observe a fresh opened descriptor on every
+call. File timestamp/size keys and a caller-mutable global count cache no longer
+authorize reuse. Compact `"kind":"..."` marker recognition spans native read
+and UTF-8 boundaries; it remains a literal-marker tally rather than a whole-JSON
+or source-analysis validator. A private Map admits names such as `constructor`
+without prototype inheritance, then returns caller-owned count data.
+
+The scan captures at most 256 MiB, retains at most 4,096 kinds of 4,096 UTF-16
+units each and uses a 64 KiB input buffer with a five-second cooperative work
+allowance. Bounds, malformed UTF-8, incomplete kind values, short reads or changed
+descriptor metadata make that optional breakdown unavailable. None establishes
+an immutable attempt snapshot or measured peak memory/latency.
+
+The existing contained-file resource owner retains original synchronous
+read/stat/close operations. Unconfirmed read/close failure propagates before it
+can become missing optional analysis; an unknown sync close is never retried by
+fd number. Three authored unrun cases add boundary, same-stamp/owned-result,
+prototype-name and original descriptor controls. Existing streaming and refresh
+assertions remain unchanged.

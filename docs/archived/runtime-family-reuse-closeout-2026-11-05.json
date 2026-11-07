@@ -1,0 +1,3071 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "issue": 1634,
+  "sourceParent": "840649796c092d46442470ae93b0f3f08a9c9a51",
+  "candidateIdentity": "Containing commit and exact source hashes. Affected rechecks supersede only affected observations; no new full-suite/final-head hosted acceptance is claimed.",
+  "runtime": {
+    "node": "26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "bounds": {
+    "jobs": 1,
+    "threads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "semantics": {
+    "offlineParser": "4",
+    "observation": "2",
+    "queryIndex": "2",
+    "meaning": "unchanged; optimized publication/verification work only",
+    "recipe": "private version1 candidate locator, not proof",
+    "publicSurface": "No CLI, configuration, API schema or stored family format relaxation."
+  },
+  "before": {
+    "nearCap": {
+      "report": ".tmp/tasks/ci-lite-1104/runtime-reuse-before.json",
+      "passed": 0,
+      "failed": 2,
+      "cause": "Original import and claim producers reserve duplicate staging and fail at retained bytes plus1KiB cap."
+    },
+    "comfortableCap": {
+      "report": ".tmp/tasks/ci-lite-1104/runtime-reuse-work-before.json",
+      "passed": 0,
+      "failed": 2,
+      "work": [
+        {
+          "id": "storage_semantic_runtime-claims-reuse_repeat",
+          "mode": "repeat",
+          "control": "comfortable-cap",
+          "metrics": {},
+          "witness": {
+            "staging": [
+              "claims/.pending-uAydGU"
+            ],
+            "writes": [
+              {
+                "path": ".writer.lock",
+                "bytes": 220
+              },
+              {
+                "path": "claims/.pending-uAydGU/claims.jsonl",
+                "bytes": 2774
+              },
+              {
+                "path": "claims/.pending-uAydGU/claims.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "claims/.pending-uAydGU/manifest.json",
+                "bytes": 1597
+              },
+              {
+                "path": "claims/.current-.pending-uAydGU",
+                "bytes": 186
+              }
+            ],
+            "sqliteFinalizations": 0,
+            "evidenceReadOpens": 2,
+            "evidenceReadBytes": 2966
+          }
+        },
+        {
+          "id": "storage_semantic_runtime-import-reuse_repeat",
+          "mode": "repeat",
+          "control": "comfortable-cap",
+          "metrics": {},
+          "witness": {
+            "staging": [
+              "generations/.pending-Nd6mNI"
+            ],
+            "writes": [
+              {
+                "path": ".writer.lock",
+                "bytes": 220
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1283
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1435
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1409
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1305
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1437
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1187
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.jsonl",
+                "bytes": 1305
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/evidence.offsets",
+                "bytes": 8
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/capture.json",
+                "bytes": 2404
+              },
+              {
+                "path": "generations/.pending-Nd6mNI/manifest.json",
+                "bytes": 1494
+              }
+            ],
+            "sqliteFinalizations": 1,
+            "evidenceReadOpens": 3,
+            "evidenceReadBytes": 46805
+          }
+        }
+      ]
+    },
+    "sourceRestoration": "Each of four producer files was restored byte-for-byte after controlled original-source probes.",
+    "intermediate": {
+      "recipeHash": "Four recorded claim setup failures due to undefined optional target fields; stopped owned incomplete run30012 and its two descendants; normalized optional recipe fields only.",
+      "incompleteLogRoot": ".testLogs/run-1793919109840-z8hn1r",
+      "observer": "Numeric contained-open flags were missed by the first read probe; corrected actual-file instrumentation. Original run retained at runtime-reuse-repeat-after.json.",
+      "controlCredits": {
+        "sha256": "a5af354801755806cf4721de6f82e3703fff8ec495b562d7924a6e8af31465df",
+        "report": ".tmp/tasks/ci-lite-1104/runtime-control-before.json",
+        "passed": 1,
+        "failed": 1,
+        "note": "An unpublished repair iteration credited an old hardlinked control on rename. The demonstrated regression now defers credits to the existing final physical inventory."
+      },
+      "selectionRejection": "The runner rejected one unsupported negative-lookahead selector before launching tests; replaced with positive scope and exact new-family exclusion."
+    }
+  },
+  "results": {
+    "reports": [
+      {
+        "path": ".tmp/tasks/ci-lite-1104/runtime-reuse-complete.json",
+        "summary": {
+          "durationMs": 266098,
+          "failed": 0,
+          "passed": 29,
+          "skipped": 0,
+          "total": 29
+        },
+        "tests": [
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-evidence",
+            "status": "passed",
+            "durationMs": 14695,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-manifest",
+            "status": "passed",
+            "durationMs": 15743,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-offsets",
+            "status": "passed",
+            "durationMs": 15620,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-support",
+            "status": "passed",
+            "durationMs": 15999,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/interrupted",
+            "status": "passed",
+            "durationMs": 20627,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/new-content",
+            "status": "passed",
+            "durationMs": 19439,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/pointer-missing",
+            "status": "passed",
+            "durationMs": 16935,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+            "status": "passed",
+            "durationMs": 19149,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/repeat",
+            "status": "passed",
+            "durationMs": 16971,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/adapter-change",
+            "status": "passed",
+            "durationMs": 4402,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-evidence",
+            "status": "passed",
+            "durationMs": 4856,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-manifest",
+            "status": "passed",
+            "durationMs": 4562,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-offsets",
+            "status": "passed",
+            "durationMs": 3815,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-query-index",
+            "status": "passed",
+            "durationMs": 3925,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-raw",
+            "status": "passed",
+            "durationMs": 8176,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-receipt",
+            "status": "passed",
+            "durationMs": 8711,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+            "status": "passed",
+            "durationMs": 14722,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/interrupted",
+            "status": "passed",
+            "durationMs": 4230,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/invalid-authority",
+            "status": "passed",
+            "durationMs": 3933,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/missing-family",
+            "status": "passed",
+            "durationMs": 3797,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/parser-change",
+            "status": "passed",
+            "durationMs": 4100,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/pointer-missing",
+            "status": "passed",
+            "durationMs": 3809,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/pointer-older",
+            "status": "passed",
+            "durationMs": 3848,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/raw-change",
+            "status": "passed",
+            "durationMs": 3803,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/receipt-missing",
+            "status": "passed",
+            "durationMs": 4071,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+            "status": "passed",
+            "durationMs": 4093,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repeat",
+            "status": "passed",
+            "durationMs": 3821,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repointed-receipt",
+            "status": "passed",
+            "durationMs": 4080,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/source-qualification",
+            "status": "passed",
+            "durationMs": 14127,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/runtime-reuse-final-additions.json",
+        "summary": {
+          "durationMs": 33173,
+          "failed": 0,
+          "passed": 3,
+          "skipped": 0,
+          "total": 3
+        },
+        "tests": [
+          {
+            "id": "storage/semantic/runtime-claims-reuse/repeat",
+            "status": "passed",
+            "durationMs": 15206,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repeat",
+            "status": "passed",
+            "durationMs": 3800,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repointed-qualification",
+            "status": "passed",
+            "durationMs": 14158,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/runtime-reuse-adjacent.json",
+        "summary": {
+          "durationMs": 252216,
+          "failed": 4,
+          "passed": 20,
+          "skipped": 0,
+          "total": 24
+        },
+        "tests": [
+          {
+            "id": "indexing/semantic/runtime-claim-citation-closure",
+            "status": "passed",
+            "durationMs": 16442,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-claims-comparison",
+            "status": "passed",
+            "durationMs": 16853,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-offline-adapters",
+            "status": "passed",
+            "durationMs": 1372,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-offline-adversity",
+            "status": "passed",
+            "durationMs": 1330,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-offline-cli",
+            "status": "passed",
+            "durationMs": 3951,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-query-pagination",
+            "status": "passed",
+            "durationMs": 2305,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-query-selection",
+            "status": "passed",
+            "durationMs": 2323,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/semantic/runtime-source-family-qualification",
+            "status": "passed",
+            "durationMs": 2522,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-adapter-read-ownership",
+            "status": "failed",
+            "durationMs": 1236,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-deadline-ownership",
+            "status": "passed",
+            "durationMs": 16772,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-recovery",
+            "status": "passed",
+            "durationMs": 15070,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-verification-budget",
+            "status": "passed",
+            "durationMs": 15491,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-cleanup-original-failures",
+            "status": "passed",
+            "durationMs": 483,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-destination-ownership",
+            "status": "passed",
+            "durationMs": 1540,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-publication",
+            "status": "passed",
+            "durationMs": 4603,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-opened-byte-integrity",
+            "status": "passed",
+            "durationMs": 2197,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-query-close-ownership",
+            "status": "passed",
+            "durationMs": 1632,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-query-index-hash-close",
+            "status": "passed",
+            "durationMs": 1492,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-query-integrity",
+            "status": "passed",
+            "durationMs": 2460,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-pin",
+            "status": "failed",
+            "durationMs": 30342,
+            "attempts": 1,
+            "timedOut": true,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+            "status": "passed",
+            "durationMs": 24813,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+            "status": "passed",
+            "durationMs": 26218,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+            "status": "failed",
+            "durationMs": 30369,
+            "attempts": 1,
+            "timedOut": true,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-foreign-generation",
+            "status": "failed",
+            "durationMs": 30351,
+            "attempts": 1,
+            "timedOut": true,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/runtime-reuse-repairs.json",
+        "summary": {
+          "durationMs": 196596,
+          "failed": 1,
+          "passed": 10,
+          "skipped": 0,
+          "total": 11
+        },
+        "tests": [
+          {
+            "id": "storage/semantic/runtime-adapter-read-ownership",
+            "status": "passed",
+            "durationMs": 1075,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/fresh-process",
+            "status": "passed",
+            "durationMs": 17290,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/fresh-process",
+            "status": "passed",
+            "durationMs": 4901,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-generation-only",
+            "status": "passed",
+            "durationMs": 20270,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-pin",
+            "status": "passed",
+            "durationMs": 20271,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-repo-only",
+            "status": "passed",
+            "durationMs": 20253,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-stale",
+            "status": "passed",
+            "durationMs": 22027,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+            "status": "passed",
+            "durationMs": 19665,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+            "status": "passed",
+            "durationMs": 19233,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+            "status": "passed",
+            "durationMs": 21224,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-foreign-generation",
+            "status": "failed",
+            "durationMs": 30361,
+            "attempts": 1,
+            "timedOut": true,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/runtime-reuse-final-controls.json",
+        "summary": {
+          "durationMs": 54034,
+          "failed": 0,
+          "passed": 3,
+          "skipped": 0,
+          "total": 3
+        },
+        "tests": [
+          {
+            "id": "indexing/semantic/compiler-single-cpu-lifecycle",
+            "status": "passed",
+            "durationMs": 22088,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-foreign-generation",
+            "status": "passed",
+            "durationMs": 28746,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/shared-module-performance",
+            "status": "passed",
+            "durationMs": 3192,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/runtime-control-final.json",
+        "summary": {
+          "durationMs": 64662,
+          "failed": 0,
+          "passed": 11,
+          "skipped": 0,
+          "total": 11
+        },
+        "tests": [
+          {
+            "id": "storage/semantic/runtime-claims-recovery",
+            "status": "passed",
+            "durationMs": 15342,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/interrupted",
+            "status": "passed",
+            "durationMs": 15474,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+            "status": "passed",
+            "durationMs": 15119,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-control-replacement-accounting/hardlinked",
+            "status": "passed",
+            "durationMs": 817,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-control-replacement-accounting/unique",
+            "status": "passed",
+            "durationMs": 798,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-destination-ownership",
+            "status": "passed",
+            "durationMs": 1501,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-publication",
+            "status": "passed",
+            "durationMs": 1429,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/interrupted",
+            "status": "passed",
+            "durationMs": 3597,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/pointer-older",
+            "status": "passed",
+            "durationMs": 3815,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+            "status": "passed",
+            "durationMs": 3689,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/shared-module-performance",
+            "status": "passed",
+            "durationMs": 3060,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      }
+    ],
+    "latestDistinct": {
+      "total": 63,
+      "passed": 63
+    },
+    "rawSamples": [
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_corrupt-evidence.attempt-1.log",
+        "mode": "corrupt-evidence",
+        "familyBytes": 4379,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89607,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_corrupt-manifest.attempt-1.log",
+        "mode": "corrupt-manifest",
+        "familyBytes": 4379,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 86833,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_corrupt-offsets.attempt-1.log",
+        "mode": "corrupt-offsets",
+        "familyBytes": 4379,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_corrupt-support.attempt-1.log",
+        "mode": "corrupt-support",
+        "familyBytes": 4379,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 42790,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 1483
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_interrupted.attempt-1.log",
+        "mode": "interrupted",
+        "familyBytes": 4460,
+        "admitted": {
+          "retained": 115772,
+          "limit": 116796,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89696,
+          "fileWriteBytes": 405,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 405
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 219
+            },
+            {
+              "path": "claims/.current-b1e11b6d-b503-4a91-9f5d-12e010982fbb",
+              "bytes": 186
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_new-content.attempt-1.log",
+        "mode": "new-content",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 111312,
+          "limit": 112336,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 85236,
+          "fileWriteBytes": 4866,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 5704
+        },
+        "witness": {
+          "staging": [
+            "claims/.pending-uy9uR0"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "claims/.pending-uy9uR0/claims.jsonl",
+              "bytes": 2831
+            },
+            {
+              "path": "claims/.pending-uy9uR0/claims.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "claims/.pending-uy9uR0/manifest.json",
+              "bytes": 1621
+            },
+            {
+              "path": "claims/.current-.pending-uy9uR0",
+              "bytes": 186
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_pointer-missing.attempt-1.log",
+        "mode": "pointer-missing",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 111126,
+          "limit": 112150,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 405,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 405
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 219
+            },
+            {
+              "path": "claims/.current-6ac1257e-df0b-4d87-9d01-4372a6d072ef",
+              "bytes": 186
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_pointer-older.attempt-1.log",
+        "mode": "pointer-older",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 115772,
+          "limit": 116796,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 405,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 405
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 219
+            },
+            {
+              "path": "claims/.current-00cce1b8-8e94-4f29-a8ac-7fa5069bd69a",
+              "bytes": 186
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-claims-reuse_repeat.attempt-1.log",
+        "mode": "repeat",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 111312,
+          "limit": 112336,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_adapter-change.attempt-1.log",
+        "mode": "adapter-change",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 5,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 56583,
+          "fileWriteBytes": 11899,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 271724
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-qjCmJg"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-qjCmJg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-qjCmJg/capture.json",
+              "bytes": 2451
+            },
+            {
+              "path": "generations/.pending-qjCmJg/manifest.json",
+              "bytes": 1533
+            },
+            {
+              "path": ".recipes/.current-b79661f4-1604-4874-a6a9-ba03b18238d6",
+              "bytes": 446
+            },
+            {
+              "path": ".current-be0d443e-9957-407b-a100-729aad11f142",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 20607
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_corrupt-evidence.attempt-1.log",
+        "mode": "corrupt-evidence",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 58949,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 9361
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_corrupt-manifest.attempt-1.log",
+        "mode": "corrupt-manifest",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 7378,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_corrupt-offsets.attempt-1.log",
+        "mode": "corrupt-offsets",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 9361
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_corrupt-query-index.attempt-1.log",
+        "mode": "corrupt-query-index",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 49588,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_corrupt-raw.attempt-1.log",
+        "mode": "corrupt-raw",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 688,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_corrupt-receipt.attempt-1.log",
+        "mode": "corrupt-receipt",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 5884,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_foreign-generation.attempt-1.log",
+        "mode": "foreign-generation",
+        "metrics": {},
+        "witness": {
+          "staging": [],
+          "writes": [],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_interrupted.attempt-1.log",
+        "mode": "interrupted",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 53620,
+          "limit": 54644,
+          "headroom": 1024
+        },
+        "coldMetrics": {},
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 560,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 560
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": ".current-f8bb0a99-429d-4847-b109-af6ea8a93910",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_invalid-authority.attempt-1.log",
+        "mode": "invalid-authority",
+        "metrics": {},
+        "witness": {
+          "staging": [],
+          "writes": [],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_missing-family.attempt-1.log",
+        "mode": "missing-family",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 13535,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 274185
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-MOU2Yk"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1187
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/capture.json",
+              "bytes": 2404
+            },
+            {
+              "path": "generations/.pending-MOU2Yk/manifest.json",
+              "bytes": 1494
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 28083
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_parser-change.attempt-1.log",
+        "mode": "parser-change",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59053,
+          "fileWriteBytes": 14369,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 274233
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-TGJMVx"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1187
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-TGJMVx/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-TGJMVx/capture.json",
+              "bytes": 2452
+            },
+            {
+              "path": "generations/.pending-TGJMVx/manifest.json",
+              "bytes": 1494
+            },
+            {
+              "path": ".recipes/.current-b24b4960-c6f1-48aa-b616-c18890e643aa",
+              "bytes": 446
+            },
+            {
+              "path": ".current-56eec540-7010-4b4b-afdc-f735c4bc77af",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 28083
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_pointer-missing.attempt-1.log",
+        "mode": "pointer-missing",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 53620,
+          "limit": 54644,
+          "headroom": 1024
+        },
+        "coldMetrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 17316,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 277180
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 560,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 560
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": ".current-35c4bde9-8eb2-4e28-88e3-d5a745e68d56",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_pointer-older.attempt-1.log",
+        "mode": "pointer-older",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 104596,
+          "limit": 105620,
+          "headroom": 1024
+        },
+        "coldMetrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 17316,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 277180
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 560,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 560
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": ".current-a902a1f2-444b-4273-bded-870f15adeea8",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_raw-change.attempt-1.log",
+        "mode": "raw-change",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59019,
+          "fileWriteBytes": 14671,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 274535
+        },
+        "witness": {
+          "staging": [
+            "raw/.pending-THHKEn",
+            "generations/.pending-rUxBWg"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "raw/.pending-THHKEn/bytes",
+              "bytes": 348
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1189
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-rUxBWg/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-rUxBWg/capture.json",
+              "bytes": 2404
+            },
+            {
+              "path": "generations/.pending-rUxBWg/manifest.json",
+              "bytes": 1494
+            },
+            {
+              "path": ".recipes/.current-95995296-ae52-4780-b5df-58e4b5bfb1d9",
+              "bytes": 446
+            },
+            {
+              "path": ".current-9d7b1a4a-727d-4a7a-8acd-27d62c077a1e",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 28089
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_receipt-missing.attempt-1.log",
+        "mode": "receipt-missing",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 13981,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 274185
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-kTGV3I"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1187
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-kTGV3I/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-kTGV3I/capture.json",
+              "bytes": 2404
+            },
+            {
+              "path": "generations/.pending-kTGV3I/manifest.json",
+              "bytes": 1494
+            },
+            {
+              "path": ".recipes/.current-3bfcdbb2-f97a-4fd3-b22e-47b6c7ca9687",
+              "bytes": 446
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 28083
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_receipt-stale.attempt-1.log",
+        "mode": "receipt-stale",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 13980,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 274184
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-Mp1NpE"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 219
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1187
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/capture.json",
+              "bytes": 2404
+            },
+            {
+              "path": "generations/.pending-Mp1NpE/manifest.json",
+              "bytes": 1494
+            },
+            {
+              "path": ".recipes/.current-b3c03df1-82dd-4ba9-83a1-1e45c145ce70",
+              "bytes": 446
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 28083
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_repeat.attempt-1.log",
+        "mode": "repeat",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 53960,
+          "limit": 54984,
+          "headroom": 1024
+        },
+        "coldMetrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 17316,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 277180
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_repointed-receipt.attempt-1.log",
+        "mode": "repointed-receipt",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 9793,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 0,
+          "evidenceReadBytes": 0
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919239259-wn89ag/storage_semantic_runtime-import-reuse_source-qualification.attempt-1.log",
+        "mode": "source-qualification",
+        "familyBytes": 51260,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59941,
+          "fileWriteBytes": 15310,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 275123
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-mu4s1m"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": ".storage-budget.json.tmp-25696-5640ecb04720-0000008f-65cf2abbb8d4",
+              "bytes": 53
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1396
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1548
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1522
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1418
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1550
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1300
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.jsonl",
+              "bytes": 1418
+            },
+            {
+              "path": "generations/.pending-mu4s1m/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-mu4s1m/capture.json",
+              "bytes": 2548
+            },
+            {
+              "path": "generations/.pending-mu4s1m/manifest.json",
+              "bytes": 1495
+            },
+            {
+              "path": ".recipes/.current-f2634fe2-b63d-45a1-9743-559e775c84c4",
+              "bytes": 446
+            },
+            {
+              "path": ".current-626e7e8a-8e91-4512-b5ea-edaea56861a7",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 30456
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919632625-mkp7dx/storage_semantic_runtime-claims-reuse_repeat.attempt-1.log",
+        "mode": "repeat",
+        "control": "comfortable-cap",
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919632625-mkp7dx/storage_semantic_runtime-claims-reuse_repeat.attempt-1.log",
+        "mode": "repeat",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 111312,
+          "limit": 112336,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919632625-mkp7dx/storage_semantic_runtime-import-reuse_repeat.attempt-1.log",
+        "mode": "repeat",
+        "control": "comfortable-cap",
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919632625-mkp7dx/storage_semantic_runtime-import-reuse_repeat.attempt-1.log",
+        "mode": "repeat",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 53960,
+          "limit": 54984,
+          "headroom": 1024
+        },
+        "coldMetrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 17316,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 277180
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793919632625-mkp7dx/storage_semantic_runtime-import-reuse_repointed-qualification.attempt-1.log",
+        "mode": "repointed-qualification",
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59941,
+          "fileWriteBytes": 220,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 220
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 20304
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920073740-uo6vbx/storage_semantic_runtime-claims-reuse_fresh-process.attempt-1.log",
+        "mode": "fresh-process",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 111312,
+          "limit": 112336,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 219,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 219
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 219
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920073740-uo6vbx/storage_semantic_runtime-import-reuse_fresh-process.attempt-1.log",
+        "mode": "fresh-process",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 53960,
+          "limit": 54984,
+          "headroom": 1024
+        },
+        "coldMetrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 17316,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 277180
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 219,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 219
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 219
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-claims-reuse_interrupted.attempt-1.log",
+        "mode": "interrupted",
+        "familyBytes": 4460,
+        "admitted": {
+          "retained": 115772,
+          "limit": 116796,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89696,
+          "fileWriteBytes": 406,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 406
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "claims/.current-52cc9855-69c1-4631-bcdf-715143d82fa0",
+              "bytes": 186
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-claims-reuse_pointer-older.attempt-1.log",
+        "mode": "pointer-older",
+        "familyBytes": 4379,
+        "admitted": {
+          "retained": 115772,
+          "limit": 116796,
+          "headroom": 1024
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 89615,
+          "fileWriteBytes": 406,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 406
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "claims/.current-3804f9ca-89f3-45be-8ce6-cd4d33acd297",
+              "bytes": 186
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 2966
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-control-replacement-accounting_hardlinked.attempt-1.log",
+        "mode": "hardlinked",
+        "beforeBytes": 543,
+        "replacementBytes": 642,
+        "retainedBytes": 1234,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 0,
+          "fileWriteBytes": 974,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 974
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-control-replacement-accounting_unique.attempt-1.log",
+        "mode": "unique",
+        "beforeBytes": 543,
+        "replacementBytes": 642,
+        "retainedBytes": 691,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 0,
+          "fileWriteBytes": 974,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 974
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-import-reuse_interrupted.attempt-1.log",
+        "mode": "interrupted",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 53620,
+          "limit": 54644,
+          "headroom": 1024
+        },
+        "coldMetrics": {},
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 560,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 560
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": ".current-f4aaea5a-f11e-402e-939d-4a8b6194d43c",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-import-reuse_pointer-older.attempt-1.log",
+        "mode": "pointer-older",
+        "familyBytes": 50179,
+        "admitted": {
+          "retained": 104596,
+          "limit": 105620,
+          "headroom": 1024
+        },
+        "coldMetrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 17316,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 277180
+        },
+        "metrics": {
+          "reusedFamilies": 1,
+          "rebuiltFamilies": 0,
+          "pointerOnlyRepairs": 1,
+          "projectionRows": 0,
+          "sqliteBuilds": 0,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 560,
+          "sqliteImageBytes": 0,
+          "peakAdditionalReservation": 560
+        },
+        "witness": {
+          "staging": [],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": ".current-d2f18a6a-dcc7-47ba-b2e0-82d9d5b7687b",
+              "bytes": 340
+            }
+          ],
+          "sqliteFinalizations": 0,
+          "evidenceReadOpens": 1,
+          "evidenceReadBytes": 18722
+        }
+      },
+      {
+        "log": ".testLogs/run-1793920627523-ho7c9b/storage_semantic_runtime-import-reuse_receipt-stale.attempt-1.log",
+        "mode": "receipt-stale",
+        "familyBytes": 50179,
+        "metrics": {
+          "reusedFamilies": 0,
+          "rebuiltFamilies": 1,
+          "pointerOnlyRepairs": 0,
+          "projectionRows": 7,
+          "sqliteBuilds": 1,
+          "verifiedBytes": 59005,
+          "fileWriteBytes": 13981,
+          "sqliteImageBytes": 36864,
+          "peakAdditionalReservation": 274185
+        },
+        "witness": {
+          "staging": [
+            "generations/.pending-Tc6wZL"
+          ],
+          "writes": [
+            {
+              "path": ".writer.lock",
+              "bytes": 220
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1283
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1435
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1409
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1437
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1187
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.jsonl",
+              "bytes": 1305
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/evidence.offsets",
+              "bytes": 8
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/capture.json",
+              "bytes": 2404
+            },
+            {
+              "path": "generations/.pending-Tc6wZL/manifest.json",
+              "bytes": 1494
+            },
+            {
+              "path": ".recipes/.current-169063ad-448b-451c-8b13-acf9bfc354a3",
+              "bytes": 446
+            }
+          ],
+          "sqliteFinalizations": 1,
+          "evidenceReadOpens": 2,
+          "evidenceReadBytes": 28083
+        }
+      }
+    ],
+    "documentation": {
+      "report": ".tmp/tasks/ci-lite-1104/runtime-reuse-documentation-ci.json",
+      "summary": {
+        "durationMs": 3340,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3
+      }
+    },
+    "frontGate": {
+      "initialReport": ".tmp/tasks/ci-lite-1104/runtime-reuse-gate.json",
+      "initialSummary": {
+        "durationMs": 34962,
+        "failed": 1,
+        "passed": 42,
+        "skipped": 0,
+        "total": 43
+      },
+      "intermediateFailedRecheck": ".tmp/tasks/ci-lite-1104/runtime-reuse-gate-recheck.json",
+      "finalAffectedRecheck": ".tmp/tasks/ci-lite-1104/runtime-reuse-gate-final.json",
+      "latest": {
+        "total": 43,
+        "passed": 43
+      },
+      "repair": "CI plan ordered comparison was extended to the new serial cohort; its second assertion exposed the existing foreign-generation fixture missing from ordered CI. Added that real negative to ci-lite and regenerated inventories. All original assertions retained.",
+      "checks": [
+        {
+          "command": "npm run format",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run config:budget",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run env:check",
+          "exitCode": 0
+        },
+        {
+          "command": "node tools/docs/generated-surfaces.js --check-freshness",
+          "exitCode": 0
+        },
+        {
+          "command": "node tools/ci/check-command-surface.js",
+          "exitCode": 0
+        },
+        {
+          "command": "node tests/ci/workflow-contract.test.js",
+          "exitCode": 0
+        },
+        {
+          "command": "gate43 cases with affected recheck",
+          "exitCode": 0
+        },
+        {
+          "command": "git diff --check",
+          "exitCode": 0
+        }
+      ]
+    },
+    "latestDistinctWithDocumentation": 66,
+    "finalDocumentationRecheck": {
+      "report": ".tmp/tasks/ci-lite-1104/runtime-reuse-docs-final.json",
+      "summary": {
+        "durationMs": 1247,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2
+      }
+    }
+  },
+  "coverage": {
+    "newReuseCases": 34,
+    "newCliCases": 3,
+    "orderedCiLiteExpected": 2201,
+    "serialRuntimeExpected": 76,
+    "serialCorrectnessExpected": 33,
+    "script": "tests/storage/semantic/runtime-source-reference-authority.test.js",
+    "cliBoundaryMapping": [
+      {
+        "original": "cli-generation-pin positive",
+        "replacement": "cli-generation-pin"
+      },
+      {
+        "original": "cli-generation-pin missing --generation",
+        "replacement": "cli-generation-repo-only"
+      },
+      {
+        "original": "cli-generation-pin missing --repo",
+        "replacement": "cli-generation-generation-only"
+      },
+      {
+        "original": "cli-generation-pin stale pinned generation",
+        "replacement": "cli-generation-stale"
+      }
+    ],
+    "preserved": "Each split case retains the same actual source/publication setup, common content/identity/coordinate/warning assertions and original10s child bound; all seven and the foreign-generation case run under the existing serial correctness owner.",
+    "sourceSetup": "Source-only witnesses retain real eager compiler bindings and source/operation assertions, deferring unused local/cross-file flow and excluding unqueried indexed config metadata. The foreign-generation control replaces the unasserted Buffer/worker template with a small actual cross-source compiler program and two real publications. Helper defaults remain rich/eager; the real single-CPU compiler control passes.",
+    "restoredOrderedCases": [
+      "storage/semantic/runtime-source-reference-foreign-generation"
+    ]
+  },
+  "hostedPriorHead": {
+    "head": "840649796c092d46442470ae93b0f3f08a9c9a51",
+    "run": 42122962500,
+    "passedJobs": [
+      "gate",
+      "native-inspection Ubuntu",
+      "native-inspection Windows",
+      "native-inspection macOS",
+      "Windows native-index21",
+      "Windows authority41",
+      "Rust"
+    ],
+    "nativeValidatePublishedMs": 24600,
+    "note": "Observed pass after prior CI repairs, without attributing the intermittent earlier30s aggregate timeout; not acceptance of this changed source."
+  },
+  "remaining": [
+    "Changed-head hosted/platform acceptance is separate.",
+    "No editor, Tantivy, optional-backend or release qualification.",
+    "All .tmp/.testLogs paths are historical author-workspace provenance, not promised clean-checkout artifacts."
+  ],
+  "sources": [
+    {
+      "path": "src/index/semantic/runtime/import.js",
+      "sha256": "4a3da9a5f2c31f82ea7fe3d9646b2fb4d6544b6b33789616d0966c63cada4013",
+      "normalizedTextSha256": "4a3da9a5f2c31f82ea7fe3d9646b2fb4d6544b6b33789616d0966c63cada4013"
+    },
+    {
+      "path": "src/index/semantic/runtime/claims.js",
+      "sha256": "e302f46a8a30622284e88aa2afd03179e40b98f37fe44a76de65836b20c29cc6",
+      "normalizedTextSha256": "6483dd9276c703a538412b9a1c574a3d82689762c7599e62120a1c28951c7540"
+    },
+    {
+      "path": "src/index/semantic/runtime/ownership.js",
+      "sha256": "5fe9ec106c2483b78e1b240ec964c36763826adbf5fceb4e8374c168a22a057d",
+      "normalizedTextSha256": "6b2ecaaca3c1181d91b7353dd810278891ff9bec213225e3d68c75ade77076bb"
+    },
+    {
+      "path": "src/index/semantic/runtime/raw-store.js",
+      "sha256": "d331439e7fcb514d8471742283f6c809ee599d319eaea10b4bb6db442c2ef94c",
+      "normalizedTextSha256": "9f536fefabf6e5f320142ded5e9ca73784376459541158507e6d83eaf942b295"
+    },
+    {
+      "path": "src/index/semantic/runtime/publication-reuse.js",
+      "sha256": "d5d1325d99ca3d6b6475b208713b0f850bebf0c53a124e060795782dffaa82e6",
+      "normalizedTextSha256": "d5d1325d99ca3d6b6475b208713b0f850bebf0c53a124e060795782dffaa82e6"
+    },
+    {
+      "path": "tests/helpers/published-semantic-witness.js",
+      "sha256": "700f3f50642a2c7f90ca9b6fa726ca837a89ff1668e3da1778213cef605aa89f",
+      "normalizedTextSha256": "6fd455085d142f36e3d44bcd18d2fd5f5fe8ca23cb8902a863f7f2d187e0a2a8"
+    },
+    {
+      "path": "tests/helpers/runtime-publication-work.js",
+      "sha256": "cd3d6e418c17a6767c8de9482405afb9e1a6d9d10ca73200442a2c897a4ddfe4",
+      "normalizedTextSha256": "cd3d6e418c17a6767c8de9482405afb9e1a6d9d10ca73200442a2c897a4ddfe4"
+    },
+    {
+      "path": "tests/fixtures/runtime/publication-reuse-child.js",
+      "sha256": "c986efb277c90746b2648c6a862b0c75bc9976229773b6413bd62f65731a4d65",
+      "normalizedTextSha256": "c986efb277c90746b2648c6a862b0c75bc9976229773b6413bd62f65731a4d65"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-import-reuse.test.js",
+      "sha256": "7ab6cd39587b6b3178ea332360a1a02f98063c6d0c1eb3d936b9c7a09bebd860",
+      "normalizedTextSha256": "7ab6cd39587b6b3178ea332360a1a02f98063c6d0c1eb3d936b9c7a09bebd860"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-import-reuse.test.js.cases.json",
+      "sha256": "810e2d22d50bee8b45a6b495abab918e8c6349b43d0ecdf158cf8317e0307cfb",
+      "normalizedTextSha256": "810e2d22d50bee8b45a6b495abab918e8c6349b43d0ecdf158cf8317e0307cfb"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-claims-reuse.test.js",
+      "sha256": "20eef9411d6716dab8de004621bf8b1275b5e72143f0c087c4ef916105d0e300",
+      "normalizedTextSha256": "20eef9411d6716dab8de004621bf8b1275b5e72143f0c087c4ef916105d0e300"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-claims-reuse.test.js.cases.json",
+      "sha256": "0183376f03041fe176a973ad28249b3e79e4c8227a8ca24e95b454c904b01f52",
+      "normalizedTextSha256": "0183376f03041fe176a973ad28249b3e79e4c8227a8ca24e95b454c904b01f52"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-control-replacement-accounting.test.js",
+      "sha256": "25eccc505e72b6a1c94c47385b9388c198fe00d487c09834056c5680f00524cc",
+      "normalizedTextSha256": "25eccc505e72b6a1c94c47385b9388c198fe00d487c09834056c5680f00524cc"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-control-replacement-accounting.test.js.cases.json",
+      "sha256": "73391ccb6f81a044267d8612619eb743eb341dad26f7f48ccf19b5cd9c154b5f",
+      "normalizedTextSha256": "73391ccb6f81a044267d8612619eb743eb341dad26f7f48ccf19b5cd9c154b5f"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-adapter-read-ownership.test.js",
+      "sha256": "44095c197b6ddf6005b1c3124baaf1c528129304540febd3f66bd10ac88d6dc7",
+      "normalizedTextSha256": "44095c197b6ddf6005b1c3124baaf1c528129304540febd3f66bd10ac88d6dc7"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-source-reference-authority.test.js",
+      "sha256": "e3670c9030e539bd5055c06f4af516b214150dd5a534b005dbca8898043635a7",
+      "normalizedTextSha256": "b344bc8f295cd2152963e79049fd1b83c5d28ea97d16396508b4591b35ba36ff"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json",
+      "sha256": "cc70199c8ff785a0e1b210592b6e162522b80b50225d261f44265154c28a4482",
+      "normalizedTextSha256": "cc70199c8ff785a0e1b210592b6e162522b80b50225d261f44265154c28a4482"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js",
+      "sha256": "baac5ae2619e22fb06eca385fa9da76826f5bacc9fe21c11d7639be0d1a516d6",
+      "normalizedTextSha256": "baac5ae2619e22fb06eca385fa9da76826f5bacc9fe21c11d7639be0d1a516d6"
+    },
+    {
+      "path": "tests/tooling/ci/run-suite-api-plan.test.js",
+      "sha256": "0d2d7870cbff4274124df56438124a11a031e48a6722f9cbcd3cc8f6d850a01e",
+      "normalizedTextSha256": "0d2d7870cbff4274124df56438124a11a031e48a6722f9cbcd3cc8f6d850a01e"
+    },
+    {
+      "path": "tools/ci/run-suite.js",
+      "sha256": "3baa7d9548b8833bbfd50c87da8ffacd0113f3570344278f51488b0a35f486b0",
+      "normalizedTextSha256": "3baa7d9548b8833bbfd50c87da8ffacd0113f3570344278f51488b0a35f486b0"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "sha256": "703acd7478b892289954ac2c96562fca7f3660869f59d96e435e2e0e3d3cf956",
+      "normalizedTextSha256": "703acd7478b892289954ac2c96562fca7f3660869f59d96e435e2e0e3d3cf956"
+    },
+    {
+      "path": "docs/contracts/runtime-family-ownership.md",
+      "sha256": "12e0fee6749edaff0938cbef0bc89ed593823263e339449a9ecda902d845f2fa",
+      "normalizedTextSha256": "da501a51797894493a8c96e4be5eba2342e4bb974ecf1ae6018775014994e438"
+    }
+  ],
+  "githubClosure": {
+    "issue": 1634,
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-11-05T23:29:31Z",
+    "url": "https://github.com/doublemover/PairOfCleats/issues/1634",
+    "publishedSourceHead": "fa91a3d49b1469c8b7661d4baab167262b2339d3",
+    "liveOpenCount": 358
+  }
+}

@@ -1,8 +1,7 @@
 import path from 'node:path';
-import { readJsoncFile } from '../../../../../shared/jsonc.js';
 import { createFsMemo } from '../../fs-meta.js';
 import { normalizeImportSpecifier, resolveWithinRoot, sortStrings } from '../../path-utils.js';
-import { resolveTsConfigExtends } from '../../tsconfig-resolution.js';
+import { loadTsConfigCompilerOptions } from '../../tsconfig-resolution.js';
 import { toSpecifierCandidatePaths } from '../../candidate-paths.js';
 import { IMPORT_REASON_CODES } from '../../reason-codes.js';
 
@@ -78,44 +77,17 @@ const loadTsConfigEmitProfile = ({
   const cacheKey = `${tsconfigAbs}\u0000${Number(stat.mtimeMs) || 0}\u0000${Number(stat.size) || 0}`;
   if (cache.has(cacheKey)) return cache.get(cacheKey);
 
-  stack.add(tsconfigAbs);
-  let parsed = null;
-  try {
-    parsed = readJsoncFile(tsconfigAbs);
-  } catch {}
-  const baseDir = path.dirname(tsconfigAbs);
-  const extendsPath = resolveTsConfigExtends(baseDir, parsed?.extends);
-  const inherited = extendsPath
-    ? loadTsConfigEmitProfile({
-      tsconfigAbs: extendsPath,
-      rootAbs,
-      fsMemo,
-      cache,
-      stack
-    })
-    : null;
-  stack.delete(tsconfigAbs);
-
-  const compilerOptions = parsed?.compilerOptions && typeof parsed.compilerOptions === 'object'
-    ? parsed.compilerOptions
-    : {};
-  const inheritedCompiler = inherited?.compilerOptions || {};
-  const mergedCompiler = { ...inheritedCompiler, ...compilerOptions };
-  const rootDirRaw = typeof mergedCompiler.rootDir === 'string' ? mergedCompiler.rootDir.trim() : '';
-  const outDirRaw = typeof mergedCompiler.outDir === 'string' ? mergedCompiler.outDir.trim() : '';
-  const declarationDirRaw = typeof mergedCompiler.declarationDir === 'string'
-    ? mergedCompiler.declarationDir.trim()
-    : '';
-
-  const sourceRootAbs = path.resolve(baseDir, rootDirRaw || '.');
-  const sourceRootRel = resolveWithinRoot(rootAbs, sourceRootAbs);
-  const outDirRel = outDirRaw
-    ? resolveWithinRoot(rootAbs, path.resolve(baseDir, outDirRaw))
-    : (inherited?.outDirRel || null);
-  const declarationDirRel = declarationDirRaw
-    ? resolveWithinRoot(rootAbs, path.resolve(baseDir, declarationDirRaw))
-    : (inherited?.declarationDirRel || null);
-  const tsconfigRel = resolveWithinRoot(rootAbs, tsconfigAbs);
+  const loaded=loadTsConfigCompilerOptions(tsconfigAbs);
+  if(!loaded)return null;
+  const mergedCompiler=loaded.compilerOptions;
+  const baseDir=path.dirname(tsconfigAbs);
+  const sourceRootAbs=mergedCompiler.rootDir||baseDir;
+  const sourceRootRel=path.resolve(rootAbs)===path.resolve(sourceRootAbs)
+    ? '' : resolveWithinRoot(rootAbs,sourceRootAbs);
+  if (sourceRootRel == null) return null;
+  const outDirRel=mergedCompiler.outDir?resolveWithinRoot(rootAbs,mergedCompiler.outDir):null;
+  const declarationDirRel=mergedCompiler.declarationDir?resolveWithinRoot(rootAbs,mergedCompiler.declarationDir):null;
+  const tsconfigRel=resolveWithinRoot(rootAbs,tsconfigAbs);
 
   const profile = {
     tsconfigRel: tsconfigRel || null,
@@ -160,7 +132,6 @@ const collectMappings = ({ entries, rootAbs, fsMemo }) => {
     });
     if (!profile) continue;
     if (!profile.outDirRel && !profile.declarationDirRel) continue;
-    if (!profile.sourceRootRel) continue;
     profiles.push(profile);
   }
 
