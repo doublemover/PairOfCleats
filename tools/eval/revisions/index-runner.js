@@ -60,6 +60,17 @@ const checkRun = run => {
   throwIfAborted(run.signal);
   if (performance.now() >= run.deadline) throw sourceScenarioError('Published-index revision execution reached its work deadline.');
 };
+// This owner's refusal describes work already tracked in this run. Recording
+// its guard as an external prerequisite would make that same work wait on
+// itself. Brand only the original refusal; foreign resource failures still
+// contribute their captured observations and independent context inspections.
+const pendingRunOperation = (run, message, code, released) => {
+  const failure = Object.assign(new Error(message), {
+    code, cacheOwnershipPending: true, cacheOwnershipReleased: released
+  });
+  run.ownFailures.add(failure);
+  return failure;
+};
 const retainRunFailure = (run, handle, error) => {
   run.observation.remember(error);
   let failure = addStorageFailureContext(error, {}, run.firstFailure, { secondaryPresent: run.failurePresent,
@@ -275,12 +286,11 @@ export const recheckIndexRevisionRun = (handle, index) => {
 };
 export const retireIndexRevisionRun = async handle => {
   const run = get(handle);
-  if (run.minimizing) throw Object.assign(new Error('Original revision minimization remains active.'), { code: 'ERR_REVISION_INDEX_MINIMIZATION_PENDING',
-    cacheOwnershipPending: true, cacheOwnershipReleased: () => !run.minimizing });
+  if (run.minimizing) throw pendingRunOperation(run, 'Original revision minimization remains active.',
+    'ERR_REVISION_INDEX_MINIMIZATION_PENDING', () => !run.minimizing);
   if (!run.releasing) run.releasing = (async () => {
-    if (run.activeReads.size) throw Object.assign(new Error('Original index rechecks remain active.'), {
-      code: 'ERR_REVISION_INDEX_RECHECKS_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: () => run.activeReads.size === 0
-    });
+    if (run.activeReads.size) throw pendingRunOperation(run, 'Original index rechecks remain active.',
+      'ERR_REVISION_INDEX_RECHECKS_PENDING', () => run.activeReads.size === 0);
     for (const [session, prerequisite] of run.readers) {
       prerequisite?.requireSettled();
       if (await session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false }) !== true) {
