@@ -3,7 +3,7 @@
 The explicit `typescript-api7-request-snapshot-v1` offline adapter exposes
 `prepare` and `run`. It implements independently owned SDK/native execution, a
 full supplied filesystem, one fresh snapshot and versioned structured answers.
-Implementation and authored fixtures are locally unrun. Preparation establishes
+The Windows x64 request and disposal cases pass. Preparation establishes
 activation only; the existing compiler bridge and native LSP remain separate
 consumers until their domain-specific promotion gates pass.
 
@@ -120,8 +120,14 @@ configuration closure, altered receipts and the compiler capability inventory.
 They do not claim vendor execution. Seven Windows vendor cases separately cover
 real symbols/overloads, configuration/dependency closure, physical host-file
 refusal, fresh snapshot isolation, cancellation after both children start,
-invalid configuration and retained template parity. All are authored and locally
-unrun in this implementation batch.
+invalid configuration and retained template parity. All seven pass on Windows
+x64 with the pinned SDK/native pair; see the
+[November 7 validation receipt](../archived/windows-issue-validation-2026-11-07.md).
+The first vendor run exposed config-style strings passed to the API's numeric
+compiler-option decoder. Root programs now use the pinned SDK's own enums;
+producer2 invalidates derived meaning from the earlier adapter. Configured
+projects retain normal JSON config parsing. The native fixture checks the
+effective target/module/resolution values as well as semantic output.
 
 The Windows native-index CI job prepares the exact pair using
 `node tools/ci/typescript-api7-qualification.js`, then runs only the seven native

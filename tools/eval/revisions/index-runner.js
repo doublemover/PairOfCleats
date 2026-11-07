@@ -25,6 +25,7 @@ import { STORAGE_CATEGORIES } from '../../../src/shared/storage/layout.js';
 import { isCanonicalChunkUid } from '../../../src/shared/identity.js';
 import { INDEX_REVISION_PROFILE, INDEX_REVISION_RECEIPT_SCHEMA } from '../../../src/contracts/schemas/revision-index.js';
 import { createAjv, compileSchema } from '../../../src/shared/validation/ajv-factory.js';
+import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 
 export { INDEX_REVISION_PROFILE };
 const validateReceipt = compileSchema(createAjv({ strict: true, allErrors: true }), INDEX_REVISION_RECEIPT_SCHEMA);
@@ -44,8 +45,8 @@ const childEnvironment = (home, repo) => {
   for (const category of Object.values(STORAGE_CATEGORIES)) if (category.env) delete env[category.env];
   return { ...env, PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([repo]) };
 };
-const configFor = cacheRoot => ({ cache: { root: cacheRoot }, sqlite: { use: false },
-  indexing: { scm: { provider: 'none' }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false,
+const configFor = cacheRoot => ({ cache: { root: cacheRoot },
+  indexing: { scm: { provider: 'none' }, semantic: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false,
     javascript: { parser: 'babel', flow: 'off' },
     embeddings: { enabled: false, mode: 'off', hnsw: { enabled: false }, lancedb: { enabled: false } } },
   tooling: { autoEnableOnDetect: false, autoInstallOnDetect: false, lsp: { enabled: false } } });
@@ -154,7 +155,7 @@ const inspectPublished = async (run, repo, config, files, expectedPointerHash = 
 const build = async (run, repo, cacheRoot, files, ordinal, incremental) => {
   checkRun(run); const config = configFor(cacheRoot), configText = JSON.stringify(config);
   await atomicWriteText(path.join(repo, '.pairofcleats.json'), configText, { signal: run.signal, beforeCommit: () => checkRun(run) });
-  const args = [path.join(TOOL_ROOT, 'build_index.js'), '--repo', repo, '--mode', 'code', '--stage', 'stage2', '--threads', '1', '--no-sqlite', '--progress', 'off'];
+  const args = [path.join(TOOL_ROOT, 'bin', 'pairofcleats.js'), 'index', 'build', '--repo', repo, '--mode', 'code', '--stage', 'stage2', '--threads', '1', '--no-sqlite', '--progress', 'jsonl'];
   if (incremental) args.push('--incremental');
   const logPrefix = path.join(run.root, 'logs', String(ordinal));
   await atomicWriteText(logPrefix + '.command.json', JSON.stringify({ command: process.execPath, args, cwd: repo,
@@ -172,6 +173,15 @@ const build = async (run, repo, cacheRoot, files, ordinal, incremental) => {
   if (result.exitCode !== 0 || result.signal) throw Object.assign(new Error('The original index build failed; its status and logs are retained.', { cause: result }), {
     code: 'ERR_REVISION_INDEX_BUILD_FAILED', command: process.execPath, args, cwd: repo, logPrefix
   });
+  for (const stream of ['stdout', 'stderr']) for (const line of result[stream].split('\n')) {
+    if (!line.trim()) continue;
+    const event = parseProgressEventLine(line);
+    if (!event || ['warn', 'error'].includes(event.level) || ['failed', 'error', 'cancelled', 'aborted'].includes(event.status)) {
+      throw Object.assign(new Error('Index qualification requires complete structured progress without warnings or errors.', { cause: result }), {
+        code: 'ERR_REVISION_INDEX_DIAGNOSTICS', stream, line: line.slice(0, 1024), logPrefix
+      });
+    }
+  }
   const published = await inspectPublished(run, repo, config, files);
   return { ...published, execution: { executionId: randomUUID(), command: process.execPath, args, cwd: repo,
     configHash: sourceBytesHash(Buffer.from(configText)), exitCode: result.exitCode, signal: result.signal ?? null, elapsedMs: performance.now() - began,

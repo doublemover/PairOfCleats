@@ -18,7 +18,8 @@
     1204,
     1252,
     1242,
-    1212
+    1212,
+    131
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -38,8 +39,8 @@
       "title": "Context-pack: add deterministic flow ranking, truncation, and budgeting policy",
       "batch": "context-risk-and-evidence",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Hydrated full/partial risk envelopes, emitted byte/token accounting and rejected-source-read controls pass11 affected cases plus44 gate cases; publishedc5958def0, GitHub closure/readback verified.",
       "owners": [
         "src/context-pack/assemble/budgets.js",
         "src/context-pack/assemble/risk-slice.js",
@@ -5442,9 +5443,9 @@
     }
   ],
   "liveReconciliation": {
-    "date": "2026-11-05",
-    "openCount": 353,
-    "closedAfterCapture": 14,
-    "method": "Fresh357-ID four-page census minus verified completed closures/readbacks #1204,#1252,#1242,#1212. Latest source-qualified closure5f0e2cca7. No subsequent full census is claimed."
+    "date": "2026-11-07",
+    "openCount": 352,
+    "closedAfterCapture": 15,
+    "method": "Fresh complete353-ID census, followed by source-qualified#131 closure and GitHub state/body readback; fresh complete352-ID post-closure census confirms its removal."
   }
 }

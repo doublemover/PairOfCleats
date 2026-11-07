@@ -10,6 +10,7 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { INDEX_REVISION_RECEIPT_SCHEMA } from '../../../src/contracts/schemas/revision-index.js';
 import { createAjv, compileSchema } from '../../../src/shared/validation/ajv-factory.js';
+import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/published-index-revision-oracle/')[1];
 assert.ok(['closed-preflight', 'edit-only', 'delete-file', 'edit-delete-rename', 'restore-file', 'original-world-rechecks', 'pending-reader-retirement'].includes(mode));
@@ -20,6 +21,8 @@ const open = fs.open, originalHome = process.env.PAIROFCLEATS_HOME;
 let handle, recovery, primary, denyClose = false, fileSession = null;
 try {
   if (mode === 'closed-preflight') {
+    await assert.rejects(getOfflineEvaluationAdapter('published-javascript-chunk-index-revisions-v1'),
+      { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
     const before = await fs.readdir(parent), controller = new AbortController(); controller.abort(null);
     await assert.rejects(adapter.run(scenario, { parent, signal: controller.signal }), error => error.name === 'AbortError' && error.cause === null);
     for (const options of [{ parent, checkpoints: [1] }, { parent, checkpoints: [0, 0] }, { parent, checkpoints: [0, 17] },
@@ -34,11 +37,18 @@ try {
       { path: 'comment.js', prefix: 'unicode-crlf', declarations: [] }, { path: 'bom.js', prefix: 'bom', declarations: [] }]);
     assert.deepEqual(reference.output.map(row => row.path), ['comment.js', 'bom.js']);
     assert.ok(reference.output.every(row => row.chunks[0].startLine === 1 && row.chunks[0].endLine === 1));
+    const exported = referencePublishedSourceRevision([{ path: 'exported.js', prefix: 'plain',
+      declarations: [{ name: 'fn_api', value: 3, exported: true }] }]);
+    assert.deepEqual(exported.output[0].chunks, [{ name: 'fn_api', kind: 'FunctionDeclaration', start: 7, end: 38,
+      startLine: 1, endLine: 1, text: 'function fn_api() { return 3; }' }]);
     assert.deepEqual(await fs.readdir(parent), before, 'invalid intent performs no source/cache/log writes or builds');
   } else {
     try { handle = await adapter.run(scenario, { parent, checkpoints: revisionCheckpoint ? [0, revisionCheckpoint] : [0] }); }
     catch (error) { recovery = error.sourceIndexRevisionSession; throw error; }
     const receipt = adapter.inspect(handle), workspace = receipt.workspace;
+    const diagnostics = path.resolve('.diagnostics', 'published-index-revisions');
+    await fs.mkdir(diagnostics, { recursive: true });
+    await fs.writeFile(path.join(diagnostics, mode + '.json'), JSON.stringify(receipt, null, 2) + '\n');
     assert.equal(receipt.outcome, 'pass'); assert.equal(receipt.profile, INDEX_REVISION_PROFILE);
     await assert.rejects(adapter.minimize(handle, { checkpointId: receipt.checkpoints.at(-1).checkpointId }), /no matching independent published-index failure/);
     const validate = compileSchema(createAjv({ strict: true, allErrors: true }), INDEX_REVISION_RECEIPT_SCHEMA);
@@ -58,8 +68,15 @@ try {
       assert.notEqual(checkpoint.candidate.indexRoot, checkpoint.rebuild.indexRoot);
       assert.notEqual(checkpoint.candidate.execution.cwd, checkpoint.rebuild.execution.cwd);
       for (const execution of [checkpoint.candidate.execution, checkpoint.rebuild.execution]) {
-        assert.equal(execution.exitCode, 0); assert.equal(execution.signal, null); assert.equal(execution.stderrBytes, 0);
+        assert.equal(execution.exitCode, 0); assert.equal(execution.signal, null);
         assert.equal((await fs.stat(execution.logPrefix + '.stdout.log')).size, execution.stdoutBytes);
+        assert.equal((await fs.stat(execution.logPrefix + '.stderr.log')).size, execution.stderrBytes);
+        for (const stream of ['stdout', 'stderr']) for (const line of (await fs.readFile(execution.logPrefix + '.' + stream + '.log', 'utf8')).split('\n')) {
+          if (!line.trim()) continue;
+          const event = parseProgressEventLine(line); assert.ok(event, line);
+          assert.ok(!['warn', 'error'].includes(event.level));
+          assert.ok(!['failed', 'error', 'cancelled', 'aborted'].includes(event.status));
+        }
         assert.ok(!execution.args.includes('--stub-embeddings') && !execution.args.includes('--rebuild'));
       }
     }

@@ -45,6 +45,9 @@ try {
         + 'export function turn(value: "off"): "on";\nexport function turn(value: State): State { return value === "on" ? "off" : "on"; }\n';
       const request = requestFor(text); request.queries.push({ id: 'turn', path: 'main.ts', position: text.indexOf('turn') });
       result = await run(request); members(result.answers[0].type, [['on', true], ['off', true], ['other', false]]);
+      assert.equal(result.projects[0].compilerOptions.target, 99);
+      assert.equal(result.projects[0].compilerOptions.module, 199);
+      assert.equal(result.projects[0].compilerOptions.moduleResolution, 99);
       const answer = result.answers[1]; assert.equal(answer.signatures.length, 2);
       assert.ok(answer.symbol.native.documentation.includes('Toggle state.')); assert.equal(answer.symbol.declarations.length, 3);
       for (const signature of answer.signatures) assert.equal(signature.parameters.length, 1);

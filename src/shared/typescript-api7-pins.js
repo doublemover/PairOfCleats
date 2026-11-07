@@ -1,6 +1,6 @@
 export const TYPESCRIPT_API7_VERSION = '7.1.0-beta';
 export const TYPESCRIPT_API7_PROFILE = 'typescript-api7-request-snapshot-v1';
-export const TYPESCRIPT_API7_PRODUCER_VERSION = '1';
+export const TYPESCRIPT_API7_PRODUCER_VERSION = '2';
 const SDK = Object.freeze({ bytes: 576463,
   sha512: '7235a3640243b26673b0d0b91b01cd956d183cceb98d96b9a11d0ac907185f72925487d3bed06afffbdec084b26ad2a4e0e2e2e60ad98c7848544f5f76bc3551' });
 // Official registry metadata and tarball SHA512, reviewed 2026-11-07. The SDK

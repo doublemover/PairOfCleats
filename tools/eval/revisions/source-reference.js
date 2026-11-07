@@ -40,14 +40,17 @@ export const referenceSourceRevision = (files, { maxReferenceFiles = 8, signal =
   return { output: captureSourceRevisionOutput(output), examined, reason: null };
 };
 /** Index eligibility and resolved fallback lines are distinct from the AST
- * projection above. Derive them from the constructed text, never candidate
- * discovery, line-index or publication helpers. */
+ * projection above. The normal published JS chunk route prefers Tree-sitter,
+ * whose function declarations retain that syntax kind under an export wrapper;
+ * export identity is a separate fact. Derive expectations from the construction,
+ * never candidate discovery, line-index or publication helpers. */
 export const referencePublishedSourceRevision = (files, options = {}) => {
   const reference = referenceSourceRevision(files, options);
   if (reference.output === null) return reference;
   const output = reference.output.filter(row => row.byteLength > 0).map(row => ({ ...row,
     chunks: row.chunks.map(chunk => chunk.kind === 'Module' ? { ...chunk, startLine: 1,
-      endLine: chunk.text.slice(0, Math.max(0, chunk.text.length - 1)).split('\n').length } : chunk) }));
+      endLine: chunk.text.slice(0, Math.max(0, chunk.text.length - 1)).split('\n').length }
+      : { ...chunk, kind: 'FunctionDeclaration' }) }));
   return { ...reference, output: captureSourceRevisionOutput(output) };
 };
 /** Diagnostic comparison cannot manufacture an original execution handle. */

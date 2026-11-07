@@ -7,6 +7,8 @@ import { getContainedFileSession } from '../../../src/shared/contained-file-reso
 import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/import.js';
 import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
 import { installContainedReadFault, containsOriginalFailure } from '../../helpers/contained-read-fault.js';
+import { errorGraphSome } from '../../helpers/error-graph.js';
+import { isFileLockPublicationSession } from '../../../src/shared/locks/file-lock-publication.js';
 
 const fixture = await createRuntimeImportFixture(), installed = [];
 const artifact = fixture.capture.rawArtifacts.find(row => row.format === 'inspector-cpu-profile');
@@ -18,7 +20,7 @@ const collect = async (input = {}) => {
   return { rows, coverage };
 };
 const fault = options => { const result = installContainedReadFault(options); installed.push(result); return result; };
-const recover = async (failure, scope) => {
+const recover = async (failure, scope, destination = null) => {
   const session = getContainedFileSession(failure); assert.ok(session);
   assert.equal(scope.states.length, 1); const state = scope.states[0], reads = state.reads;
   assert.equal(state.closes, 1); assert.equal(failure.cacheOwnershipReleased(), false);
@@ -26,6 +28,20 @@ const recover = async (failure, scope) => {
   assert.equal((await session.releaseAfterClose()).settled, true);
   assert.equal(state.reads, reads, 'close-only recovery cannot resume parsing or reread bytes');
   assert.equal(state.closes, 2); assert.equal(state.handle.fd, -1);
+  if (destination) {
+    const lockPath = path.join(destination, '.writer.lock');
+    assert.equal(failure.cacheOwnershipReleased(), false, 'closing the adapter cannot retire its independent writer lock');
+    assert.ok((await fs.lstat(lockPath)).isFile());
+    let metadata;
+    errorGraphSome(failure, value => {
+      const owner = value && Object.getOwnPropertyDescriptor(Object(value), 'fileLockPublicationSession')?.value;
+      if (!isFileLockPublicationSession(owner)) return false;
+      metadata = owner; return true;
+    });
+    assert.ok(metadata, 'retain the original writer metadata recovery capability');
+    assert.equal((await metadata.releaseAfterClose()).settled, true);
+    await assert.rejects(fs.lstat(lockPath), { code: 'ENOENT' });
+  }
   assert.equal(failure.cacheOwnershipReleased(), true); scope.restore();
 };
 try {
@@ -77,7 +93,7 @@ try {
   catch (error) { failure = error; }
   assert.ok(failure); assert.equal(containsOriginalFailure(failure, original), true);
   assert.deepEqual(await fs.readFile(current), previous);
-  await recover(failure, scope);
+  await recover(failure, scope, fixture.options().destination);
   assert.deepEqual(await fs.readFile(current), previous, 'recovery cannot publish a pointer');
 } finally {
   for (const scope of installed) await scope.cleanup();

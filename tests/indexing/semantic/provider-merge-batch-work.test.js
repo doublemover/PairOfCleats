@@ -20,12 +20,14 @@ const hooks = registerHooks({
       export const createArtifactSemanticStore=options=>{
         const store=create(options),probe=globalThis.providerMergeProbe;probe.stores++;probe.referenceDescriptors+=options.partitions.length;
         return {...store,iterateRows:async function*(...args){probe.memberTraversals++;probe.active++;
-          try{for await(const row of store.iterateRows(...args)){probe.decoded++;if(probe.once){const callback=probe.once;probe.once=null;await callback();}yield row;}}
+          try{for await(const row of store.iterateRows(...args)){probe.decoded++;probe.decodedLogicalJsonBytes+=Buffer.byteLength(JSON.stringify(row));
+            if(probe.once){const callback=probe.once;probe.once=null;await callback();}yield row;}}
           finally{probe.active--;}}};};` };
     return next(url, context);
   }
 });
 const fixture = await createRecoveryFixture('const value = 1;');
+const workSamples = [];
 try {
   const { mergeSemanticProviderOutput } = await import(mergeUrl + '?batch-work');
   const runtime = { root: fixture.root, buildRoot: fixture.root }, contextKey = 'c'.repeat(64);
@@ -58,7 +60,8 @@ try {
       providerId: 'fixture', providerVersion: '1', compilerVersion: null, configHash: 'd'.repeat(64), moduleResolutionHash: 'e'.repeat(64), vfsMappingHash: 'f'.repeat(64) };
     return { state, output: { schemaVersion: 1, contexts: [context], partitions: entries.map(entry => structuredClone(entry.partition)), coverageRef: null, diagnosticsRef: null } };
   };
-  const observe = once => globalThis.providerMergeProbe = { stores: 0, referenceDescriptors: 0, memberTraversals: 0, decoded: 0, active: 0, once };
+  const observe = once => globalThis.providerMergeProbe = { stores: 0, referenceDescriptors: 0, memberTraversals: 0,
+    decoded: 0, decodedLogicalJsonBytes: 0, active: 0, once };
   const unchanged = (state, before, contexts) => {
     assert.deepEqual([...state.semanticFactsByFile.keys()], [...before.keys()]);
     for (const [file, original] of before) assert.equal(state.semanticFactsByFile.get(file), original);
@@ -76,6 +79,10 @@ try {
     assert.equal(probe.stores, groups); assert.equal(probe.referenceDescriptors, entries.length * 2);
     assert.equal(probe.decoded, entries.length * 3, 'source, evidence and coverage rows decode once, without the old second traversal');
     assert.equal(result.work.memberRowsValidated, probe.decoded); assert.equal(probe.active, 0);
+    assert.ok(probe.decodedLogicalJsonBytes > 0);
+    workSamples.push({ sources: entries.length, groups, preparations: result.work.groupPreparations,
+      descriptorVisits: result.work.descriptorVisits, decodedRows: probe.decoded,
+      decodedLogicalJsonBytes: probe.decodedLogicalJsonBytes });
     for (const entry of entries) assert.deepEqual(state.semanticFactsByFile.get(entry.file), createSemanticFactsRef({ source: entry.source,
       syntaxPartitionId: entry.syntax.partitionId, storage: entry.current.storage, partitions: [entry.syntax, entry.partition], coverage: [entry.coverage] }));
     observe(); const again = await mergeSemanticProviderOutput({ output, state, runtime });
@@ -114,4 +121,6 @@ try {
     unchanged(state, before, contexts); assert.equal(globalThis.providerMergeProbe.active, 0);
   }
 } finally { delete globalThis.providerMergeProbe; hooks.deregister(); await fixture.cleanup(); }
+console.log(JSON.stringify({ providerMergeWorkSamples: workSamples,
+  byteUnits: 'UTF8 JSON of decoded row values; excludes framing, heap/RSS and timing claims' }));
 console.log('Provider batches prepare each root/generation/namespace inventory once and validate rows once before all-or-nothing selection.');

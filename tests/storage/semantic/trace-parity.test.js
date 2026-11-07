@@ -189,10 +189,11 @@ try {
   } };
   const observedStore = createSqliteSemanticStore({ db: observedDb, repoRoot: fixture.root, indexPath: ':memory:', generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
   await observedStore.getRelatedPage(refs[0], 'semantic_edges', { limit: 1 });
-  assert.ok(queryPlans.length >= 2);
+  assert.equal(queryPlans.length, 1, 'one endpoint-qualified page and metadata-only lookahead replace count-then-page queries');
   for (const { sql, args } of queryPlans) {
     const plan = db.prepare('EXPLAIN QUERY PLAN ' + sql).all(...args).map(row => row.detail).join(' ');
-    assert.ok(plan.includes('semantic_edges_forward') && plan.includes('semantic_edges_reverse')); assert.ok(!plan.includes('SCAN semantic_edges'), 'only endpoint indexes select neighbor facts');
+    assert.ok(plan.includes('semantic_edges_related_forward') && plan.includes('semantic_edges_related_reverse'), plan);
+    assert.ok(!plan.includes('SCAN semantic_edges'), 'only endpoint indexes select neighbor facts');
   }
   for (const direction of ['upstream', 'downstream']) {
     const drainNeighbors = async store => { const values = []; let offset = 0, done = false; while (!done) { const page = await store.getNeighbors(refs[0], direction, DEFAULT_TRACE_KINDS, { offset, limit: 1 }); values.push(...page.edges); assert.ok(page.offset > offset || page.done); offset = page.offset; done = page.done; } return values; };

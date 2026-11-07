@@ -79,6 +79,12 @@ import { createSchedulerShutdown } from '../../../src/shared/concurrency/schedul
   release?.('ok');
   assert.equal(await running, 'ok', 'expected timed-out shutdown wait to not cancel in-flight work');
   await scheduler.shutdown({ awaitRunning: true, timeoutMs: 1000 });
+  // The public task resolves after its reservations retire, before the dispatch
+  // completion promise and the first waiter's allSettled continuation finish.
+  // An empty second snapshot cannot join that first snapshot's continuation.
+  // Give the original completion observer its turn; do not replace it or infer
+  // retirement from the successful public task alone.
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(timeout.cacheOwnershipReleased(), true);
 }
 

@@ -1,7 +1,7 @@
 import { semanticObject as object, semanticHashSchema as hash, semanticNullable as nullable } from './semantic-envelopes.js';
 import { SOURCE_REVISION_OUTPUT_SCHEMA } from './revision-source.js';
 
-export const INDEX_REVISION_PROFILE = 'published-javascript-chunk-index-revisions-v1';
+export const INDEX_REVISION_PROFILE = 'published-javascript-chunk-index-revisions-v2';
 const list = (items, maxItems) => ({ type: 'array', items, maxItems });
 const text = maximum => ({ type: 'string', minLength: 1, maxLength: maximum });
 const count = maximum => ({ type: 'integer', minimum: 0, maximum });

@@ -135,16 +135,17 @@ time and reference examinations; original bounds are unchanged.
 
 ## Published code-index revision cohorts
 
-The explicit `published-javascript-chunk-index-revisions-v1` adapter materializes
+The explicit `published-javascript-chunk-index-revisions-v2` adapter materializes
 the same inert construction grammar in a fresh task-owned workspace. It invokes
-the real `build_index.js` stage2 code-publication owner in serial fresh children:
+the real `pairofcleats index build` stage2 owner in serial fresh children:
 one persistent incremental candidate and a new repository/cache for each clean
 rebuild. Each checkpoint starts from its exact declared source state. Selecting
 nonadjacent checkpoints models a batch edit; omitted checkpoints are enumerated,
 and `completeScenarioCoverage` stays false. No author cache or fixture-health
 stamp can substitute for a build.
 
-The fixed configuration selects Babel without Flow and disables embeddings,
+The fixed configuration selects Babel syntax without Flow, retains the normal
+Tree-sitter chunk route, and disables embeddings,
 SQLite and semantic enrichment for this chunk-index profile. It keeps the
 production worker backend and uses one indexing thread. Generated files are
 data: no source template, command, project hook or caller executor is admitted.
@@ -158,6 +159,8 @@ checked before/after, and the same bounded current-pointer hash must survive the
 read. The independent grammar compares names, kinds, UTF-16 intervals, lines and
 exact source text. Truly zero-byte files are absent from the indexing universe;
 that explicit eligibility rule is separate from source extraction's root module.
+Published function kinds follow the normal chunk route; export identity is a
+separate semantic fact. The direct AST oracle retains its own export kinds.
 Clean-rebuild parity also compares **exact chunk UIDs and published tokens**.
 `token-flow.js` selects the `repo` namespace, and `identity/chunk-uid.js` binds
 relative virtual paths and source/context bytes: independent repository/cache
@@ -171,6 +174,12 @@ counterexamples. Complete stdout/stderr is retained under the disposable marked
 workspace; truncated or lossy capture refuses qualification. Success does not
 establish semantic closure, SQLite/vector correctness, source execution, native
 backend activation or a general latency improvement.
+The canonical CLI emits structured progress on its normal streams. Every captured
+line must satisfy the current progress protocol, with no warning/error level or
+failed/cancelled task status; informational stderr is retained rather than treated
+as an error or suppressed. Profile v1 is rejected. Current Windows whole-run
+deadline failures remain open under #1528; no larger deadline or backend fallback
+qualifies them.
 
 Private original handles own physical worlds and readers. Joined `recheck`
 callers receive the exact tracked promise, with a three-second operation cap and

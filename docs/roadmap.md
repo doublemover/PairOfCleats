@@ -8,7 +8,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-11-07: the [complete intake](archived/open-issue-batches-2026-11-05.json) captures367 reports and14 verified closures. A fresh complete census confirms the same **353 open IDs**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope. The intake identifies every closure and coverage owner.
+The [complete intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. Fifteen closures are verified, including #131's hydrated-risk budget acceptance. Current reconciliation, 2026-11-07: **352 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
 
 P2/P3: **337 qualified closures**, two editor remainders, one native deferral and six editor exclusions from346 reports. Work continues solo on Windows: implement related repairs, then verify affected controls.
 
@@ -76,7 +76,7 @@ use pinned prebuilt packages and existing admission/leases. Native TypeScript ad
 an explicit source/profile route and bounded pull diagnostics; runtime checks await.
 [Compiler selection](contracts/typescript-compiler-selection.md)
 retains original failures instead of substituting ambient compilers (producer31).
-[TS7.1 API](contracts/typescript-api7-components.md) is implemented; qualification remains.
+[TS7.1 API](contracts/typescript-api7-components.md) passes25 Windows cases; consumer migration remains.
 [Installer inputs](contracts/managed-install-input-ownership.md) seal intent and
 archive/Go bytes; probe/verifier reports retain original observations through
 publication. Runtime checks remain pending.

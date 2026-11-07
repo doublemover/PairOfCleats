@@ -18,7 +18,9 @@ export const runTypeScriptApi7Worker = async ({ input = process.stdin, output = 
   }
   if (!init) throw api7Failure('missing-worker-request');
   const load = relative => import(pathToFileURL(path.join(init.sdkRoot, relative)).href);
-  const [sdk, fs, callbacks] = await Promise.all([load('dist/api/async/api.js'), load('dist/api/fs.js'), load('dist/api/fsCallbacks.js')]);
+  const [sdk, fs, callbacks, ast] = await Promise.all([
+    load('dist/api/async/api.js'), load('dist/api/fs.js'), load('dist/api/fsCallbacks.js'), load('dist/ast/index.js')
+  ]);
   const names = ['readFile', 'fileExists', 'directoryExists', 'getAccessibleEntries', 'realpath', 'stat', 'writeFile', 'removeFile'];
   const configured = callbacks.configureFileSystemCallbacks(Object.fromEntries(names.map(name => [name, fs.serverFS.error])));
   if (configured.callbackNames.length || configured.arguments.join(',') !== TYPESCRIPT_API7_FS_CALLBACKS) throw api7Failure('pinned-filesystem-callback-contract');
@@ -27,7 +29,10 @@ export const runTypeScriptApi7Worker = async ({ input = process.stdin, output = 
     const files = init.request.files.map(file => [init.virtualRoot + '/' + file.path, file.text]);
     const params = { fileSystem: fs.createFileSystem(files) };
     if (init.request.project.kind === 'roots') params.createPrograms = [{ rootFiles: init.request.project.roots.map(file => init.virtualRoot + '/' + file),
-      compilerOptions: { noEmit: true, noLib: true, strict: true, types: [], target: 'esnext', module: 'nodenext', moduleResolution: 'nodenext' } }];
+      // createPrograms takes API enums, unlike compilerOptions in a tsconfig.
+      // Passing config strings reaches the native numeric decoder unchanged.
+      compilerOptions: { noEmit: true, noLib: true, strict: true, types: [], target: ast.ScriptTarget.ESNext,
+        module: sdk.ModuleKind.NodeNext, moduleResolution: sdk.ModuleResolutionKind.NodeNext } }];
     else params.openProjects = init.request.project.configFiles.map(file => init.virtualRoot + '/' + file);
     snapshot = await api.createSnapshot(params);
     result = await projectTypeScriptApi7Snapshot({ sdk, snapshot, request: init.request, virtualRoot: init.virtualRoot, toolIdentity: init.toolIdentity });
