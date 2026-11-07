@@ -155,7 +155,15 @@ try {
     '../shared/dict-utils.js': dictSource,
     '../shared/search-cli-harness.js': searchSource,
     '../../src/shared/artifact-io/chunk-meta-presence.js': 'export const hasChunkMetaArtifactsSync=()=>true;',
-    '../../src/retrieval/corpus-comparison.js': 'export const resolveRetrievalCorpusIdentity=async()=>({comparable:true,digest:"explicit-fixture-corpus"});'
+    // Actual-generation/corpus authority has its own real-artifact controls.
+    // These named response capsules intentionally exercise only report reducers.
+    './compare-model-corpus.js': `export const createComparisonCorpusRegistry=()=>{
+      const rows=[];
+      return {observe:async({generation,mode})=>{
+        const row={ref:rows.length,comparable:true,digest:'explicit-fixture-corpus',
+          policy:'authored-report-reducer-fixture-only',generation,mode};
+        rows.push(row);return row;
+      },snapshot:()=>({schemaVersion:1,policy:'authored-report-reducer-fixture-only',corpusReads:0,rows})};};`
   };
   await fs.writeFile(modelShim, `import {registerHooks} from 'node:module';const sources=${JSON.stringify(sources)};
     registerHooks({resolve(specifier,context,next){if(context.parentURL?.endsWith('/tools/reports/compare-models.js')&&Object.hasOwn(sources,specifier))

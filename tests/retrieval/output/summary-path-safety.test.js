@@ -18,13 +18,17 @@ const localSummary = getBodySummary(repoRoot, { file: 'in-root.txt', start: 0, e
 assert.equal(localSummary, 'alpha beta gamma', 'expected in-root summary extraction to work');
 
 const dotDotPrefixedFile = path.join(repoRoot, '..notes.txt');
-await fs.writeFile(dotDotPrefixedFile, 'inside dotdot prefix file works', 'utf8');
-const dotDotSummary = getBodySummary(repoRoot, { file: '..notes.txt', start: 0, end: 32 }, 4);
+const dotDotText = 'inside dotdot prefix file works';
+await fs.writeFile(dotDotPrefixedFile, dotDotText, 'utf8');
+const dotDotSummary = getBodySummary(repoRoot, { file: '..notes.txt', start: 0, end: dotDotText.length }, 4);
 assert.equal(
   dotDotSummary,
   'inside dotdot prefix file',
   'expected in-root ..-prefixed segment summary extraction to work'
 );
+const incomplete = getBodySummaryResult(repoRoot, { file: '..notes.txt', start: 0, end: dotDotText.length + 1 }, 4);
+assert.equal(incomplete.state, 'truncated', 'a genuinely incomplete selected span remains explicit');
+assert.equal(incomplete.reason, 'selected-span-incomplete');
 
 const outsideFile = path.join(outsideRoot, 'outside.txt');
 await fs.writeFile(outsideFile, 'outside content should never be read', 'utf8');

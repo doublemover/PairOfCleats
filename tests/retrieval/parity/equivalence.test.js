@@ -18,8 +18,13 @@ import { formatParityDuration } from '../../helpers/duration-format.js';
 import { runNode } from '../../helpers/run-node.js';
 import { ensureTestingEnv, syncProcessEnv } from '../../helpers/test-env.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prepareIsolatedTestCacheDir, resolveTestCachePath } from '../../helpers/test-cache.js';
 
+// The runner identifies discovered fixtures without globally enabling test-only
+// overrides. This dual-purpose reporting entry must select its inert fixture
+// before reading defaults, rather than borrowing an author's existing index.
+const isDiscoveredFixture = process.env.PAIROFCLEATS_TEST_ID === 'retrieval/parity/equivalence';
+if (isDiscoveredFixture) ensureTestingEnv(process.env);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 
 const argv = createCli({
@@ -77,8 +82,8 @@ if (queryPlan.source.selection === 'missing-default-fallback') {
 }
 
 const createTestParityRepo = async () => {
-  const repoRoot = path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'repo');
-  await fs.rm(repoRoot, { recursive: true, force: true });
+  const { dir } = await prepareIsolatedTestCacheDir('retrieval-parity');
+  const repoRoot = path.join(dir, 'repo');
   await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
   await fs.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
   await fs.writeFile(
@@ -103,13 +108,14 @@ const createTestParityRepo = async () => {
     ].join('\n'),
     'utf8'
   );
-  return repoRoot;
+  return { repoRoot, cacheRoot: path.join(dir, 'cache') };
 };
+const testFixture = isTestRun && !argv.repo ? await createTestParityRepo() : null;
 const root = argv.repo
   ? path.resolve(argv.repo)
-  : (isTestRun ? await createTestParityRepo() : workspaceRoot);
-const testCacheRoot = path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'cache');
-if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
+  : (testFixture?.repoRoot || workspaceRoot);
+const testCacheRoot = testFixture?.cacheRoot || path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'cache');
+if (testFixture || isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
   syncProcessEnv({ PAIROFCLEATS_CACHE_ROOT: testCacheRoot });
 }
 const userConfig = loadUserConfig(root);
@@ -152,7 +158,7 @@ const parityArtifacts = await ensureParityArtifacts({
   buildIndex: () => {
     const env = { ...parityEnv };
     const runBuildStage = (stage) => runNode(
-      [path.join(scriptRoot, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
+      [path.join(scriptRoot, 'bin', 'pairofcleats.js'), 'index', 'build', '--stage', stage, '--stub-embeddings', '--repo', root],
       `parity build index stage ${stage}`,
       root,
       env,
@@ -376,6 +382,10 @@ if (argv['write-report']) {
 }
 
 if (coverage.invalidResponses) process.exitCode = 1;
+if (isDiscoveredFixture && (coverage.unavailableComparisons > 0 || Object.values(coverage.positiveByMode).some(count => count === 0))) {
+  console.error('The isolated reporting fixture requires valid positive code/prose witnesses from both actual backends.');
+  process.exitCode = 1;
+}
 
 if (argv.enforce) {
   const unavailable = coverage.unavailableComparisons > 0 || Object.values(coverage.positiveByMode).some(count => count === 0)
