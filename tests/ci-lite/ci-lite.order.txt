@@ -3064,3 +3064,12 @@ tooling/typescript-loader-original-failure/sync-pending-original
 tooling/typescript-loader-original-failure/installed-layout-is-not-absence
 tooling/typescript-loader-original-failure/original-falsy-failures
 tooling/typescript-loader-original-failure/absence-trust-and-positive-control
+tooling/install/managed-verifier-original-observation/result-before-settlement
+tooling/install/managed-verifier-original-observation/failure-before-settlement
+tooling/install/managed-verifier-original-observation/nested-original-receipt
+tooling/install/managed-verifier-original-observation/enclosing-between-fields
+tooling/install/managed-verifier-original-observation/ok-revokes-original
+tooling/install/managed-verifier-original-observation/inspection-retains-independent-work
+tooling/install/managed-verifier-original-observation/function-failure-original
+tooling/install/managed-verifier-original-observation/closed-shape-and-control
+tooling/install/managed-verifier-original-observation/callback-inspection-original

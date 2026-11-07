@@ -1,13 +1,16 @@
 import { isStorageSessionReleaseFailure } from '../../src/shared/storage/session.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 
 const verificationFailures = new WeakMap();
 const settledVerificationFailures = new WeakMap();
 const storageVerificationFailures = new WeakMap();
+const verificationResults = new WeakMap();
+const objectLike = value => value !== null && ['object', 'function'].includes(typeof value);
 // Only the actual operational storage owner registers these in-process
 // capabilities. Serialized/lookalike error fields cannot authorize release.
 export const trackManagedVerificationStorageFailure = (error, recovery) => { storageVerificationFailures.set(error, recovery); return error; };
-export const getManagedVerificationStorageRecovery = error => error && typeof error === 'object' ? storageVerificationFailures.get(error) || null : null;
-const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+export const getManagedVerificationStorageRecovery = error => objectLike(error) ? storageVerificationFailures.get(error) || null : null;
+const asError = value => objectLike(value) ? value : new Error(String(value), { cause: value });
 const observePending = error => {
   if (!error) return null;
   try {
@@ -28,7 +31,8 @@ const withPendingContext = (primary, descriptors, secondary = null) => {
     return primary;
   } catch {
     let message = 'Managed resource verification or settlement failed.';
-    try { if (typeof primary.message === 'string') message = primary.message; } catch {}
+    try { const descriptor = Object.getOwnPropertyDescriptor(primary, 'message');
+      if (descriptor && Object.hasOwn(descriptor, 'value') && typeof descriptor.value === 'string') message = descriptor.value; } catch {}
     const failure = new AggregateError([primary, ...(additional ? [additional] : [])], message, { cause: primary });
     const existing = Object.getOwnPropertyDescriptors(primary);
     for (const key of Reflect.ownKeys(existing)) {
@@ -42,8 +46,9 @@ const withPendingContext = (primary, descriptors, secondary = null) => {
 
 export const captureManagedVerificationFailure = (error, resourceId) => {
   const owned = verificationFailures.get(error);
+  const result = verificationResults.get(error);
   return { owned: owned?.resourceId === resourceId,
-    observe: owned?.resourceId === resourceId ? owned.observe : observePending(error) };
+    observe: owned?.resourceId === resourceId ? owned.observe : result?.resourceId === resourceId ? result.observation.isSettled : observePending(error) };
 };
 
 export const retainManagedResourceFailure = (value, { session, released, cleanupError = null, field = 'managedInstallSession',
@@ -61,26 +66,25 @@ export const retainManagedResourceFailure = (value, { session, released, cleanup
  * native/child observers retain their independent authority and exact receiver.
  */
 export const verifyOwnedResource = async (verify, input, resourceId) => {
+  if (typeof resourceId !== 'string' || !resourceId || resourceId.length > 256) throw new TypeError('Managed verification requires its exact bounded invocation resource identity.');
   input.signal?.throwIfAborted();
-  let result;
+  let result, primary = null, failed = false;
   try { result = await verify({ ...input, resourceId }); }
-  catch (value) {
-    const primary = asError(value);
-    let settled = false, receiptError = null;
-    try { settled = exactSettlement(primary.settlement, resourceId); } catch (error) { receiptError = asError(error); }
-    const observations = [observePending(primary), observePending(receiptError)].filter(Boolean);
-    const observe = observations.length ? () => observations.every(check => check()) : null;
-    if (settled && (!observe || observe())) { settledVerificationFailures.set(primary, resourceId); throw primary; }
+  catch (value) { failed = true; primary = asError(value); }
+  const observation = createManagedVerificationObservation();
+  const original = failed ? primary : result; observation.remember(original);
+  let settled = false, inspectionError = null;
+  try { settled = observation.settlement(original, resourceId); }
+  catch (error) { inspectionError = asError(error); observation.remember(inspectionError); }
+  const observe = observation.hasObservedResources() ? observation.isSettled : null;
+  if (failed) {
+    if (settled && !inspectionError && observation.isSettled()) { settledVerificationFailures.set(primary, resourceId); throw primary; }
     const failure = withPendingContext(primary, { cacheOwnershipPending: { value: true, configurable: true },
-      ...(observe ? { cacheOwnershipReleased: { value: () => observe(), configurable: true } } : {}) }, receiptError);
+      ...(observe ? { cacheOwnershipReleased: { value: observe, configurable: true } } : {}) }, inspectionError);
     verificationFailures.set(failure, { resourceId, observe });
     throw failure;
   }
-  let settled = false, inspectionError = null;
-  try { settled = exactSettlement(result?.settlement, resourceId); } catch (value) { inspectionError = asError(value); }
-  const observations = [observePending(result), observePending(inspectionError)].filter(Boolean);
-  const observe = observations.length ? () => observations.every(check => check()) : null;
-  if (!settled || inspectionError || observe && !observe()) {
+  if (!result || typeof result !== 'object' || Array.isArray(result) || !settled || inspectionError || !observation.isSettled()) {
     const pending = Object.assign(new Error('Managed recipe verification did not confirm exact child/resource settlement.', { cause: result }), {
       code: 'ERR_MANAGED_VERIFY_PENDING', cacheOwnershipPending: true
     });
@@ -89,21 +93,23 @@ export const verifyOwnedResource = async (verify, input, resourceId) => {
     verificationFailures.set(failure, { resourceId, observe });
     throw failure;
   }
+  verificationResults.set(result, { resourceId, observation });
   return result;
 };
 
 export const verifyOwnedInstallation = async (verify, input, resourceId) => {
   const result = await verifyOwnedResource(verify, input, resourceId);
+  const { observation } = verificationResults.get(result);
   let ok;
-  try { ok = result.ok === true; }
+  try { ok = observation.read(result, 'ok') === true; }
   catch (value) {
-    const primary = asError(value), original = observePending(primary);
-    const pending = Boolean(original && !original());
+    const primary = asError(value); observation.remember(primary);
+    const pending = !observation.isSettled();
     const failure = withPendingContext(primary, { verificationResult: { value: result, configurable: true },
       settlement: { value: { resourceId, settled: true, pending: false }, configurable: true },
       ...(pending ? { cacheOwnershipPending: { value: true, configurable: true },
-        cacheOwnershipReleased: { value: () => original(), configurable: true } } : {}) });
-    if (pending) verificationFailures.set(failure, { resourceId, observe: original });
+        cacheOwnershipReleased: { value: observation.isSettled, configurable: true } } : {}) }, result);
+    if (pending) verificationFailures.set(failure, { resourceId, observe: observation.isSettled });
     else settledVerificationFailures.set(failure, resourceId);
     throw failure;
   }
@@ -126,12 +132,11 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
   const storageRecoveries = new Set();
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
   const observeFailure = error => {
-    if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
+    if (!objectLike(error) || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
     const storage = getManagedVerificationStorageRecovery(error);
     if (storage) storageRecoveries.add(storage);
-    const owned = verificationFailures.get(error);
-    const observe = owned?.resourceId === resourceId ? owned.observe : observePending(error);
+    const { observe } = captureManagedVerificationFailure(error, resourceId);
     if (observe) {
       if (observers.length < 128) observers.push(observe);
       else observerOverflow = true;

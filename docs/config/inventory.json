@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T08:34:34.444Z",
+  "generatedAt": "2026-11-07T08:51:36.302Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5017,6 +5017,7 @@
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
         "tests/tooling/install/managed-typescript-native.test.js",
+        "tests/tooling/install/managed-verifier-original-observation.test.js",
         "tests/tooling/install/native-diagnostic-ownership.test.js",
         "tests/tooling/install/native-failure-summary.test.js",
         "tests/tooling/install/native-realm-command.test.js",
