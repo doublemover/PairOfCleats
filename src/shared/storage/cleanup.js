@@ -10,6 +10,7 @@ import { inspectStorageAccess, withExclusiveStorageAccess } from './access.js';
 import { decideStorageLifecycle } from './policy.js';
 import { captureStorageAuthority, revalidateStorageAuthority } from './authority.js';
 import { describeStorageFailure } from './failure-observation.js';
+import { STORAGE_CLEANUP_PLAN_VERSION, assertStorageCleanupLimits } from '../../contracts/schemas/storage-cleanup.js';
 
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const errorRecord = error => describeStorageFailure(error, { phase: 'storage-cleanup-report',
@@ -17,22 +18,39 @@ const errorRecord = error => describeStorageFailure(error, { phase: 'storage-cle
 const PROBE_NAME = /^[a-f0-9]{40}\.json$/u;
 const PROBE_RELATIVE_ROOT = path.join('tooling', 'command-probes');
 
-const qualifyProbe = async (cacheRoot, file, expectedIdentity = null) => {
+const cleanupControl = (maxDurationMs, signal) => {
+  const started = Date.now(), stop = new Error('Cleanup admission stopped.'); let reason = null;
+  return { stop,
+    get reason() { return reason; },
+    check() {
+      if (signal?.aborted) reason = 'cancelled';
+      else if (Date.now() - started >= maxDurationMs) reason ||= 'time-budget';
+      if (reason) throw stop;
+    },
+    stopFor(value) { reason = value; throw stop; }
+  };
+};
+const qualifyProbe = async (cacheRoot, file, expectedIdentity = null, { check = () => {}, signal = null } = {}) => {
+  check();
   const target = path.resolve(cacheRoot, PROBE_RELATIVE_ROOT, file);
   if (!PROBE_NAME.test(file)) throw new Error('Unregistered command-probe filename.');
   assertNoSymlinkPath(path.parse(cacheRoot).root, target);
+  check();
   const before = await fs.lstat(target, { bigint: true });
+  check();
   const identity = storageFileIdentity(before);
   if (!before.isFile() || before.nlink !== 1n || (expectedIdentity && !sameStorageFileIdentity(identity, expectedIdentity))) {
     throw new Error('Command-probe file ownership changed or is shared.');
   }
   const { buffer, hash, stat } = await readVerifiedContainedFile(cacheRoot, target, { maxBytes: 8 * 1024 * 1024,
-    expectedFileIdentity: { dev: identity.dev, ino: identity.ino } });
+    expectedFileIdentity: { dev: identity.dev, ino: identity.ino }, signal });
+  check();
   const value = JSON.parse(buffer.toString('utf8'));
   if (!isOwnedCommandProbeCacheEntry(value, file)) {
     throw new Error('Command-probe complete producer/key identity is missing or has protected unknown fields.');
   }
   const after = storageFileIdentity(await fs.lstat(target, { bigint: true }));
+  check();
   if (!sameStorageFileIdentity(identity, after)) throw new Error('Command-probe changed during qualification.');
   return { target, identity, hash, stat };
 };
@@ -40,44 +58,53 @@ const qualifyProbe = async (cacheRoot, file, expectedIdentity = null) => {
 /** The first reviewed adapter deletes only ordinary, producer-marked probes. */
 export const planCacheRootCleanup = async ({ cacheRoot, authorityRoots = [], maxEntries = 10000,
   maxDurationMs = 10000, signal = null } = {}) => {
+  const limits = assertStorageCleanupLimits({ maxEntries, maxDurationMs }), control = cleanupControl(maxDurationMs, signal);
   const root = path.resolve(cacheRoot);
-  const inventory = await inspectStorageInventory({ roots: [{ id: 'command-probes', category: 'command-probes',
-    path: path.join(root, PROBE_RELATIVE_ROOT), retention: 'derived' }], maxEntries, maxDurationMs,
-  includeFiles: true, signal });
-  const lease = await inspectStorageAccess(path.join(root, PROBE_RELATIVE_ROOT));
-  let authorityError = null;
-  let authoritySnapshots = [];
+  let inventory = null, authorityError = null, authoritySnapshots = [];
+  let lease = { complete: false, protected: true, owners: [], coverage: 'not-inspected' };
+  const operations = [], blocked = [];
   try {
-    assertSafeCacheDeletion(path.join(root, PROBE_RELATIVE_ROOT), authorityRoots);
-    authoritySnapshots = await captureStorageAuthority(authorityRoots);
-  }
-  catch (error) { authorityError = errorRecord(error); }
-  const operations = [];
-  const blocked = [];
-  const item = inventory.items[0];
-  for (const file of item.files || []) {
+    control.check();
+    inventory = await inspectStorageInventory({ roots: [{ id: 'command-probes', category: 'command-probes',
+      path: path.join(root, PROBE_RELATIVE_ROOT), retention: 'derived' }], maxEntries, maxDurationMs, includeFiles: true, signal });
+    control.check();
+    if (!inventory.complete) control.stopFor(inventory.stopReason || 'inventory-incomplete');
+    lease = await inspectStorageAccess(path.join(root, PROBE_RELATIVE_ROOT), { check: control.check, signal });
+    control.check();
     try {
-      if (path.basename(file.relativePath) !== file.relativePath) throw new Error('Nested command-probe data is not registered for cleanup.');
-      const qualified = await qualifyProbe(root, file.relativePath, file.identity);
-      const decision = decideStorageLifecycle({ complete: inventory.complete, ownerQualified: !authorityError,
-        retention: 'derived', lease, references: { complete: true, retained: false } });
-      if (!decision.eligible) {
-        blocked.push({ path: qualified.target, reasons: decision.reasons, authorityError });
-        continue;
+      control.check(); assertSafeCacheDeletion(path.join(root, PROBE_RELATIVE_ROOT), authorityRoots);
+      authoritySnapshots = await captureStorageAuthority(authorityRoots, { check: control.check, signal });
+    } catch (error) { if (error === control.stop) throw error; authorityError = errorRecord(error); }
+    control.check();
+    const decision = decideStorageLifecycle({ complete: inventory.complete, ownerQualified: !authorityError,
+      retention: 'derived', lease, references: { complete: true, retained: false } });
+    if (!decision.eligible) blocked.push({ path: path.join(root, PROBE_RELATIVE_ROOT), reasons: decision.reasons, authorityError });
+    else for (const file of inventory.items[0].files || []) {
+      control.check();
+      try {
+        if (path.basename(file.relativePath) !== file.relativePath) throw new Error('Nested command-probe data is not registered for cleanup.');
+        const qualified = await qualifyProbe(root, file.relativePath, file.identity, { check: control.check, signal });
+        control.check();
+        operations.push({ adapter: 'command-probe-v1', root, relativePath: file.relativePath,
+          identity: qualified.identity, sha256: qualified.hash, logicalBytes: file.identity.size,
+          allocatedBytes: file.allocatedBytes, impact: decision.impact, rollback: 'unavailable-after-unlink' });
+      } catch (error) {
+        if (error === control.stop) throw error;
+        blocked.push({ path: path.join(inventory.items[0].path, file.relativePath), reasons: ['unqualified-or-changed-file'], error: errorRecord(error) });
       }
-      operations.push({ adapter: 'command-probe-v1', root, relativePath: file.relativePath,
-        identity: qualified.identity, sha256: qualified.hash, logicalBytes: file.identity.size,
-        allocatedBytes: file.allocatedBytes, impact: decision.impact, rollback: 'unavailable-after-unlink' });
-    } catch (error) { blocked.push({ path: path.join(item.path, file.relativePath), reasons: ['unqualified-or-changed-file'], error: errorRecord(error) }); }
-  }
-  const body = { schemaVersion: 1, kind: 'pairofcleats-storage-cleanup-plan', cacheRoot: root,
+    }
+    control.check();
+  } catch (error) { if (error !== control.stop) throw error; }
+  const complete = inventory?.complete === true && control.reason === null;
+  const body = { schemaVersion: STORAGE_CLEANUP_PLAN_VERSION, kind: 'pairofcleats-storage-cleanup-plan', cacheRoot: root,
     mutationPerformed: false,
-    complete: inventory.complete, applyReady: inventory.complete && !authorityError && !lease.protected,
+    complete, applyReady: complete && !authorityError && lease.complete === true && !lease.protected,
+    limits, stopReason: control.reason,
     authoritySnapshots, operations, blocked,
     preserved: ['repo builds/current pointers', 'snapshots', 'diffs', 'triage', 'models', 'tools',
       'embedding profiles/cache.index.delta/references', 'reports', 'logs', 'recovery', 'unregistered data'],
-    inventory: { startedAt: inventory.startedAt, finishedAt: inventory.finishedAt, complete: inventory.complete,
-      stopReason: inventory.stopReason, errors: inventory.errors },
+    inventory: { startedAt: inventory?.startedAt ?? null, finishedAt: inventory?.finishedAt ?? null, complete: inventory?.complete === true,
+      stopReason: inventory?.stopReason ?? control.reason, errors: inventory?.errors ?? [] },
     authorityError, lease,
     logicalPlannedBytes: operations.reduce((sum, operation) => sum + operation.logicalBytes, 0),
     estimatedReclaimBytes: operations.every(operation => operation.allocatedBytes !== null)
@@ -89,23 +116,32 @@ export const planCacheRootCleanup = async ({ cacheRoot, authorityRoots = [], max
 export const applyStorageCleanupPlan = async (plan, { authorityRoots = [], approvedPlanId, signal = null } = {}) => {
   const { planId, dryRun, ...body } = plan || {};
   void dryRun;
-  if (plan?.kind !== 'pairofcleats-storage-cleanup-plan' || plan.schemaVersion !== 1
-    || !plan.complete || !plan.applyReady || !Array.isArray(plan.operations) || planId !== digest(body) || approvedPlanId !== planId) {
+  if (plan?.kind !== 'pairofcleats-storage-cleanup-plan' || plan.schemaVersion !== STORAGE_CLEANUP_PLAN_VERSION
+    || !Array.isArray(plan.operations) || plan.operations.length > 100000
+    || !plan.complete || !plan.applyReady || planId !== digest(body) || approvedPlanId !== planId) {
     throw Object.assign(new Error('Cleanup requires the exact complete reviewed plan.'), { code: 'ERR_STORAGE_CLEANUP_PLAN' });
   }
-  await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
+  assertStorageCleanupLimits(plan.limits);
+  if (plan.operations.length > plan.limits.maxEntries || plan.stopReason !== null) throw new Error('Cleanup plan is incomplete or exceeds its reviewed limits.');
+  const control = cleanupControl(plan.limits.maxDurationMs, signal), checks = { check: control.check, signal };
+  try { control.check(); await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots, checks); control.check(); }
+  catch (error) { if (error !== control.stop) throw error; }
   const results = [];
   for (const operation of plan.operations) {
-    if (signal?.aborted) { results.push({ ...operation, status: 'skipped', reason: 'cancelled' }); continue; }
     try {
+      control.check();
       if (operation.adapter !== 'command-probe-v1' || operation.root !== plan.cacheRoot) throw new Error('Unregistered cleanup adapter/root.');
       const target = path.join(operation.root, PROBE_RELATIVE_ROOT, operation.relativePath);
       assertSafeCacheDeletion(target, authorityRoots);
+      control.check();
       const excluded = await withExclusiveStorageAccess(path.join(operation.root, PROBE_RELATIVE_ROOT), async () => {
-        await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots);
+        control.check();
+        await revalidateStorageAuthority(plan.authoritySnapshots, authorityRoots, checks);
+        control.check();
         assertSafeCacheDeletion(target, authorityRoots);
-        const qualified = await qualifyProbe(operation.root, operation.relativePath, operation.identity);
+        const qualified = await qualifyProbe(operation.root, operation.relativePath, operation.identity, checks);
         if (qualified.hash !== operation.sha256) throw new Error('Cleanup preview content changed.');
+        control.check();
         const deleted = removeToolingCacheEntry(qualified.target, qualified.stat);
         const blocks = qualified.stat.blocks;
         return { deleted, logicalBytes: qualified.identity.size,
@@ -115,12 +151,16 @@ export const applyStorageCleanupPlan = async (plan, { authorityRoots = [], appro
         reason: excluded.protected ? excluded.reason : excluded.result.deleted ? null : 'identity-changed',
         logicalBytes: excluded.result?.deleted ? excluded.result.logicalBytes : 0,
         estimatedReclaimedBytes: excluded.result?.deleted ? excluded.result.allocatedBytes : 0 });
-    } catch (error) { results.push({ path: operation.relativePath, status: 'failed', error: errorRecord(error) }); }
+    } catch (error) {
+      results.push(error === control.stop ? { path: operation.relativePath, status: 'skipped', reason: control.reason }
+        : { path: operation.relativePath, status: 'failed', error: errorRecord(error) });
+    }
   }
+  try { control.check(); } catch (error) { if (error !== control.stop) throw error; }
   const deleted = results.filter(result => result.status === 'deleted');
-  return { schemaVersion: 1, planId, results,
+  return { schemaVersion: STORAGE_CLEANUP_PLAN_VERSION, planId, results, stopReason: control.reason,
     mutationPerformed: deleted.length > 0,
-    complete: results.every(result => result.status === 'deleted'),
+    complete: control.reason === null && results.every(result => result.status === 'deleted'),
     deletedLogicalBytes: deleted.reduce((sum, result) => sum + result.logicalBytes, 0),
     estimatedReclaimedBytes: deleted.every(result => result.estimatedReclaimedBytes !== null)
       ? deleted.reduce((sum, result) => sum + result.estimatedReclaimedBytes, 0) : null,

@@ -2976,3 +2976,9 @@ indexing/semantic/inner-join-maintenance/dense-and-capacity-fallback
 indexing/semantic/inner-join-maintenance/partial-domain-and-replay
 indexing/semantic/inner-join-maintenance/independent-revision-oracle
 tooling/eval/relational-revision-oracle/maintenance-work-contracts
+shared/storage/cleanup-admission-boundaries/pre-cancelled-plan-and-apply
+shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat
+shared/storage/cleanup-admission-boundaries/deadline-before-probe-read
+shared/storage/cleanup-admission-boundaries/cancel-between-unlinks
+shared/storage/cleanup-admission-boundaries/cancelled-reader-still-closes
+shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply

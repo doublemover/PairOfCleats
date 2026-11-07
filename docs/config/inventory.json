@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T04:23:40.953Z",
+  "generatedAt": "2026-11-07T04:42:22.877Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3748,6 +3748,7 @@
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/contract-matrix.test.js",
         "tests/shared/dictionary-content-completion.test.js",
+        "tests/shared/storage/cleanup-admission-boundaries.test.js",
         "tests/shared/storage/cleanup-failure-observation.test.js",
         "tests/shared/storage/cleanup-result-ownership.test.js",
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
@@ -4877,6 +4878,7 @@
         "tests/shared/io/atomic-write-prebootstrap.test.js",
         "tests/shared/json-stream/sharded-serialization-work.test.js",
         "tests/shared/locks/with-file-lock-result-lifetime.test.js",
+        "tests/shared/storage/cleanup-admission-boundaries.test.js",
         "tests/shared/storage/cleanup-result-ownership.test.js",
         "tests/shared/storage/configured-native-readers.test.js",
         "tests/shared/storage/configured-sqlite-operation.test.js",
@@ -5469,6 +5471,7 @@
         "tests/security/tooling-cache-authority.test.js",
         "tests/services/mcp/build-sqlite-core-ownership.test.js",
         "tests/services/mcp/build-sqlite-selected-generation.test.js",
+        "tests/shared/storage/cleanup-admission-boundaries.test.js",
         "tests/shared/storage/cleanup-result-ownership.test.js",
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/shared/storage/native-command-result-ownership.test.js",

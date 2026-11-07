@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2808,
+    "hero": 2814,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17851,6 +17851,42 @@
     {
       "id": "tooling/eval/relational-revision-oracle/maintenance-work-contracts",
       "order": 2973,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/cleanup-admission-boundaries/pre-cancelled-plan-and-apply",
+      "order": 2974,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
+      "order": 2975,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/cleanup-admission-boundaries/deadline-before-probe-read",
+      "order": 2976,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/cleanup-admission-boundaries/cancel-between-unlinks",
+      "order": 2977,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/cleanup-admission-boundaries/cancelled-reader-still-closes",
+      "order": 2978,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply",
+      "order": 2979,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

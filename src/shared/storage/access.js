@@ -6,6 +6,7 @@ import { inspectRepoCacheDelegation } from '../cache/repo-access-delegation-guar
 import { isKnownRepoAccessOwner, isKnownRepoResourceOwner } from '../cache/repo-access-owner.js';
 import { withStorageDirectory } from './directory.js';
 import { describeStorageFailure } from './failure-observation.js';
+import { throwIfAborted } from '../abort.js';
 
 /** Use the existing admission/exclusion handshake for adopted assets as well. */
 export const retainStorageAssetAccess = (root, options = {}) => retainRepoCacheAccess(root, options);
@@ -13,6 +14,10 @@ export const withExclusiveStorageAccess = (root, action, options = {}) => withEx
 
 /** Diagnosis must not reap stale leases or create a lease directory. */
 export const inspectStorageAccess = async (root, options = {}) => {
+  const { signal = null } = options;
+  const check = options.check ?? (() => throwIfAborted(signal));
+  if (typeof check !== 'function') throw new TypeError('Storage access inspection check must be a function.');
+  check();
   const paths = repoAccessPaths(root, options);
   const owners = [];
   const delegation = inspectRepoCacheDelegation(paths);
@@ -20,8 +25,10 @@ export const inspectStorageAccess = async (root, options = {}) => {
     path: delegation.file, status: delegation.value ? 'owner-settlement-required' : 'unknown-owner' });
   let complete = true;
   const readOwner = async file => {
+    check();
     try {
-      const { buffer } = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 64 * 1024 });
+      const { buffer } = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 64 * 1024, signal });
+      check();
       const value = JSON.parse(buffer.toString('utf8'));
       const resource = file !== paths.lockPath && isKnownRepoResourceOwner(value)
         && path.basename(file) === `${value.lockId}.json`;
@@ -43,12 +50,15 @@ export const inspectStorageAccess = async (root, options = {}) => {
   const cleanup = await readOwner(paths.lockPath);
   if (cleanup) owners.push({ ...cleanup, role: 'cleanup' });
   let enumerationStarted = false;
+  check();
   try {
     await withStorageDirectory(paths.leases, async directory => {
       enumerationStarted = true;
       for (let count = 0; ; count += 1) {
+        check();
         if (count >= 10000) { complete = false; owners.push({ status: 'lease-inventory-budget', protected: true }); break; }
         const entry = await directory.read();
+        check();
         if (!entry) break;
         const owner = await readOwner(path.join(paths.leases, entry.name));
         if (owner) owners.push({ ...owner, role: 'reader-or-writer' });
