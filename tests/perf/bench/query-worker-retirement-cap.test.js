@@ -28,19 +28,22 @@ try {
     });`);
   const plan = await resolveAdaptiveQueryWorkerCount({ requestedConcurrency: 2, backends: ['memory', 'sqlite', 'fts'],
     totalSystemMemoryBytes: 8 * 1024 ** 3, codeArtifactBytes: 0, proseArtifactBytes: 0, sqliteCodeBytes: 0, sqliteProseBytes: 0 });
-  const live = new Set(), started = new Set(), starts = [], results = [];
-  let peak = 0;
+  const live = new Set(), started = new Set(), starts = [], results = [], processes = [];
+  let peak = 0, closedProcesses = 0;
   const observed = await executeBenchQueryPlan({ plan,
     tasks: ['memory', 'sqlite', 'fts', 'memory', 'sqlite', 'fts'].map((backend, index) => ({ backend, index })),
     workerOptions: { workerScriptPath: script, env: applyTestEnv({ syncProcess: false }), onEvent(event) {
-      if (event.type === 'process-start') { live.add(event.pid); peak = Math.max(peak, live.size); }
-      if (event.type === 'process-close') live.delete(event.pid);
+      if (event.type === 'process-start') {
+        assert.equal(live.has(event.pid), false, 'one live generation cannot be counted twice');
+        processes.push(event.pid); live.add(event.pid); peak = Math.max(peak, live.size);
+      }
+      if (event.type === 'process-close') { assert.equal(live.delete(event.pid), true); closedProcesses++; }
       if (event.type === 'run-start') {
         starts.push(event.meta.backend); started.add(event.pid);
         if (started.size >= 2) fsSync.writeFileSync(barrier, 'released');
       }
     } },
-    async runTask(task, pool) { results.push(await pool.run([barrier], task)); }
+    async runTask(task, pool) { results.push({ backend: task.backend, ...await pool.run([barrier], task) }); }
   });
   assert.equal(results.length, 6); assert.equal(observed.completed, 6);
   assert.deepEqual(Object.fromEntries(['memory', 'sqlite', 'fts'].map(backend => [backend, starts.filter(value => value === backend).length])),
@@ -48,7 +51,10 @@ try {
   assert.ok(peak <= 2, 'independently observed live processes must include retiring generations within the global cap');
   assert.equal(observed.peakLiveWorkerProcesses, peak);
   assert.equal(live.size, 0, 'stage close owns every created worker');
-  assert.equal(new Set(results.map(result => result.pid)).size, 5, 'one memory process is reused; four SQLite-class queries retire separately');
+  assert.equal(processes.length, 5, 'five actual launches: one reused memory process and four retiring SQLite-class workers; serial PIDs may recycle');
+  assert.equal(closedProcesses, processes.length);
+  const memory = results.filter(result => result.backend === 'memory');
+  assert.equal(memory.length, 2); assert.equal(memory[0].pid, memory[1].pid, 'the live memory worker is reused');
   assert.ok(observed.peakKnownProcessRssBytes > 0, 'short operations retain real parent/worker RSS samples');
   assert.equal(observed.rssScope, 'sampled-benchmark-parent-and-known-query-workers');
   assert.equal(observed.processTreeRssPeakBytes, null, 'nested descendant memory is explicitly unobserved');

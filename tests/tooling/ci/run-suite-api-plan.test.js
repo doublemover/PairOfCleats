@@ -123,7 +123,7 @@ for (const mode of ['ci', 'nightly']) {
               ...['shared-1', 'shared-4', 'shared-16', 'distinct-1', 'distinct-4', 'distinct-16']
                 .map(id => `storage/semantic/source-retention-partition-work/${id}`),
               'map/member-join-work-consumer/measure',
-              ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
+              ...['render', 'graph-skewed-first-half', 'graph-skewed-second-half', 'graph-skewed-independent-first-half', 'graph-skewed-independent-second-half', 'map-large', 'memory-transient', 'vfs-ascii',
                 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
                 'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
                 'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2']

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "suites": [
     {
+      "id": "perf/bench/representative-workload-consumers",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Representative render, graph, map, transient-memory, VFS and SQLite input/work observations; graph halves conserve every paired trial and cross-shape assertion.",
+      "replacementIds": [],
+      "overlapPolicy": "partitioned-existing-assertions",
+      "matrixStrategy": "bounded-fresh-process-cohorts",
+      "processIsolationRequired": true,
+      "notes": "Only the two graph branches are partitioned. Each original branch has two exact input shapes and six alternating paired trials per shape, for24 fresh children. First-half and second-half capsules retain both original shapes, respectively trials0..2 and3..5, all48 original children across both branches, exact original source/manifest/symbol/omitted-work/cache assertions and every cross-shape comparison. Internal trial offsets preserve arm order; neither CLI knobs nor the30-second limit/retry policy changes. CI-lite and the serial runtime owner replace each original ID in-place with both halves. Other source cases are unchanged. Freshness uses spawned PID plus native process start clock; PIDs can recycle only after prior exit."
+    },
+    {
       "id": "indexing/embeddings/cache-identity",
       "suiteCategory": "matrix",
       "coverageOwner": "Stub embeddings never persist cache indexes/metadata; actual inline publication and standalone width8-to12 transition, with ONNX identity fields.",

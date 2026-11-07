@@ -1682,8 +1682,10 @@ map/member-join-work-consumer/durable
 map/member-join-work-consumer/measure
 map/member-join-work-consumer/mixed
 perf/bench/embedding-bakeoff-observed-resume
-perf/bench/representative-workload-consumers/graph-skewed
-perf/bench/representative-workload-consumers/graph-skewed-independent
+perf/bench/representative-workload-consumers/graph-skewed-first-half
+perf/bench/representative-workload-consumers/graph-skewed-second-half
+perf/bench/representative-workload-consumers/graph-skewed-independent-first-half
+perf/bench/representative-workload-consumers/graph-skewed-independent-second-half
 perf/bench/representative-workload-consumers/map-large
 perf/bench/representative-workload-consumers/memory-transient
 perf/bench/representative-workload-consumers/render
@@ -3218,3 +3220,4 @@ tooling/eval/revision-minimizer-async/falsey-read-and-release-only-failures
 tooling/eval/revision-minimizer-async/cancellation-after-retirement
 tooling/eval/revision-minimizer-async/bounds-and-healthy-preflight
 tooling/eval/revision-minimizer-async/shared-sync-owner-and-failure-graph
+cli/general/lazy-runtime-admission

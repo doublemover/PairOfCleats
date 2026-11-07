@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-11-07T20:00:29.703Z
+Generated: 2026-11-07T20:57:02.972Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-11-07T20:00:29.703Z
 ## Lane Summary
 
 - `gate`: 44 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 3215 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 3218 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 250 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 23 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -32,7 +32,7 @@ Generated: 2026-11-07T20:00:29.703Z
 - `tooling/install`: 315 tests, 8330 ms known duration
 - `indexing/type-inference`: 18 tests, 5700 ms known duration
 - `indexing/imports`: 36 tests, 5550 ms known duration
-- `cli/general`: 9 tests, 5410 ms known duration
+- `cli/general`: 10 tests, 5410 ms known duration
 - `indexing/runtime`: 23 tests, 5040 ms known duration
 - `lang/contracts`: 83 tests, 5030 ms known duration
 - `indexing/language-fixture`: 1 tests, 5030 ms known duration
@@ -46,7 +46,7 @@ Generated: 2026-11-07T20:00:29.703Z
   Index construction, replay, and build-heavy setup overlap.
 - `sqlite-heavy`: 116 tests, 25860 ms known duration
   SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.
-- `cli-cold-start`: 11 tests, 5410 ms known duration
+- `cli-cold-start`: 12 tests, 5410 ms known duration
   CLI process startup and argument-routing overlap.
 - `api-server-boot`: 9 tests, 3400 ms known duration
   HTTP server startup, routing, and streaming harness reuse.

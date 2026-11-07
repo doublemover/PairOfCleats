@@ -29,6 +29,7 @@ try {
   const input = { indexDir, repoRoot, iterations: 2, mode: 'compare' };
   const result = await runGraphStoreBench(input);
   assert.equal(result.state, 'qualified-inputs');
+  assert.equal(result.schemaVersion, 3);
   assert.deepEqual(result.order, ['baseline', 'current', 'current', 'baseline']);
   assert.equal(result.applicationCachePolicy, 'fresh-node-process-per-arm-per-sample');
   assert.match(result.osCachePolicy, /uncontrolled/u);
@@ -39,11 +40,32 @@ try {
     assert.equal(sample.warmStats.cache.index.hits, 1); assert.equal(sample.warmStats.cache.index.builds, 1);
     assert.equal(sample.witness.occurrences, 1); assert.ok(sample.artifactBytes.symbol_edges > 0);
     assert.ok(Number.isSafeInteger(sample.pid));
+    assert.ok(Number.isFinite(sample.processStartedAtMs) && sample.processStartedAtMs > 0);
     if (arm === 'current') assert.deepEqual(sample.artifactsUsed, ['symbol_edges']);
     else assert.deepEqual(sample.artifactsUsed, ['call_sites', 'graph_relations', 'symbol_edges']);
     assert.deepEqual(sample.witness, result.baseline.samples[0].witness);
   }
   const controlled = arm => structuredClone(result[arm].samples[0]);
+  const offset = await runGraphStoreBench({ ...input, iterations: 1 }, { trialOffset: 3, sample: async ({ arm }) => controlled(arm) });
+  assert.equal(offset.trialOffset, 3); assert.deepEqual(offset.order, ['current', 'baseline']);
+  assert.ok([...offset.baseline.samples, ...offset.current.samples].every(sample => sample.trialIndex === 3));
+  for (const trialOffset of [-1, 0.5, Number.MAX_SAFE_INTEGER]) {
+    await assert.rejects(runGraphStoreBench(input, { trialOffset }), RangeError);
+  }
+  let ordinal = 0;
+  const reusedPid = await runGraphStoreBench(input, { sample: async ({ arm }) => ({ ...controlled(arm),
+    pid: 1234, processStartedAtMs: 1700000000000 + ordinal++ }) });
+  assert.equal(reusedPid.state, 'qualified-inputs');
+  assert.equal(reusedPid.order.length, 4, 'PID reuse retains every independent process generation and sample');
+  for (const defect of ['same-generation', 'missing-start', 'invalid-pid']) {
+    await assert.rejects(runGraphStoreBench(input, { sample: async ({ arm }) => {
+      const sample = controlled(arm);
+      if (defect === 'same-generation') { sample.pid = 1234; sample.processStartedAtMs = 1700000000000; }
+      if (defect === 'missing-start') delete sample.processStartedAtMs;
+      if (defect === 'invalid-pid') sample.pid = 0;
+      return sample;
+    } }), /distinct fresh-process generation/);
+  }
   const noOmission = await runGraphStoreBench({ ...input, iterations: 1 }, { sample: async ({ arm }) => {
     const sample = controlled(arm); if (arm === 'baseline') sample.omittedGraphNodes = 0; return sample;
   } });

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T20:00:29.703Z",
+  "generatedAt": "2026-11-07T20:57:02.972Z",
   "summary": {
     "lanes": 5,
-    "tests": 3543,
+    "tests": 3546,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 438,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3469
+      "missingTests": 3472
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 3215,
+      "totalTests": 3218,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 3166
+        "missing": 3169
       }
     },
     {
@@ -146,9 +146,9 @@
     },
     {
       "key": "cli/general",
-      "count": 9,
+      "count": 10,
       "knownDurationMs": 5410,
-      "unknownDurationCount": 7
+      "unknownDurationCount": 8
     },
     {
       "key": "indexing/runtime",
@@ -337,16 +337,16 @@
       "unknownDurationCount": 57
     },
     {
-      "key": "storage/native-publication-cleanup",
+      "key": "perf/bench",
       "count": 57,
       "knownDurationMs": 0,
       "unknownDurationCount": 57
     },
     {
-      "key": "perf/bench",
-      "count": 55,
+      "key": "storage/native-publication-cleanup",
+      "count": 57,
       "knownDurationMs": 0,
-      "unknownDurationCount": 55
+      "unknownDurationCount": 57
     },
     {
       "key": "tooling/api-mcp",
@@ -2742,9 +2742,9 @@
     },
     {
       "key": "cli-cold-start",
-      "count": 11,
+      "count": 12,
       "knownDurationMs": 5410,
-      "unknownDurationCount": 9,
+      "unknownDurationCount": 10,
       "note": "CLI process startup and argument-routing overlap."
     },
     {

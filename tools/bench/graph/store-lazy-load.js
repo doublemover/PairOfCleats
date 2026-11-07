@@ -20,7 +20,11 @@ const runWorker = async input => {
   if (result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated || result.stderr?.trim()) {
     throw new Error('Graph-store sample emitted unexpected/truncated diagnostics.');
   }
-  return { ...JSON.parse(result.stdout), childWallMs: result.durationMs };
+  const observed = JSON.parse(result.stdout);
+  if (observed.state === 'observed' && (observed.pid !== result.pid || observed.pid === process.pid)) {
+    throw new Error('Graph-store sample lacks its original spawned child identity.');
+  }
+  return { ...observed, childWallMs: result.durationMs };
 };
 const summarize = samples => {
   const cold = samples.map(value => value.coldTotalMs), warm = samples.map(value => value.warmHitMs);
@@ -31,17 +35,19 @@ const summarize = samples => {
     warm: { scope: 'one-existing-index-cache-hit', rawSampleDurationsMs: warm, timingMs: summarizeValues(warm) }, samples };
 };
 
-export async function runGraphStoreBench({ indexDir, repoRoot, iterations, mode }, { sample = runWorker } = {}) {
+export async function runGraphStoreBench({ indexDir, repoRoot, iterations, mode }, { sample = runWorker, trialOffset = 0 } = {}) {
   if (!Number.isSafeInteger(iterations) || iterations < 1) throw new RangeError('Positive integral graph-store sample count required.');
+  if (!Number.isSafeInteger(trialOffset) || trialOffset < 0 || !Number.isSafeInteger(trialOffset + iterations)) throw new RangeError('Invalid graph-store trial offset.');
   const normalizedMode = normalizeCompareMode(mode);
-  const samples = { baseline: [], current: [] }, order = [];
+  const samples = { baseline: [], current: [] }, order = [], generations = new Set();
   let identity = null, baselineShape = null;
   for (let index = 0; index < iterations; index++) {
-    const arms = normalizedMode === 'compare' ? index % 2 ? ['current', 'baseline'] : ['baseline', 'current'] : [normalizedMode];
+    const trialIndex = trialOffset + index;
+    const arms = normalizedMode === 'compare' ? trialIndex % 2 ? ['current', 'baseline'] : ['baseline', 'current'] : [normalizedMode];
     for (const arm of arms) {
       const observed = await sample({ indexDir, repoRoot, arm });
       order.push(arm);
-      if (observed.state === 'unavailable') return { schemaVersion: 2, mode: normalizedMode, state: 'unavailable', reason: observed.reason, order, observed };
+      if (observed.state === 'unavailable') return { schemaVersion: 3, mode: normalizedMode, state: 'unavailable', reason: observed.reason, order, observed };
       if (observed.state !== 'observed' || observed.arm !== arm || observed.completedColdOperations !== 1 || observed.completedWarmOperations !== 1
         || observed.indexBuildsObserved !== 1 || !observed.witness?.occurrences || !observed.indexSignature
         || typeof observed.manifestIdentity !== 'string' || !/^[a-f0-9]{64}$/u.test(observed.manifestIdentity)
@@ -52,6 +58,14 @@ export async function runGraphStoreBench({ indexDir, repoRoot, iterations, mode 
         || [observed.setupMs, observed.admissionBuildMs, observed.coldTotalMs, observed.warmHitMs].some(value => !Number.isFinite(value) || value < 0)) {
         throw new Error('Graph-store sample lacks qualified phase/work evidence.');
       }
+      // A PID can be reused after a serial child exits. The native process's
+      // startup clock distinguishes that from repeated work in one warm child.
+      const generation = JSON.stringify([observed.pid, observed.processStartedAtMs]);
+      if (!Number.isSafeInteger(observed.pid) || observed.pid <= 0 || !Number.isFinite(observed.processStartedAtMs)
+        || observed.processStartedAtMs <= 0 || generations.has(generation)) {
+        throw new Error('Graph-store sample lacks a distinct fresh-process generation.');
+      }
+      generations.add(generation);
       const nextIdentity = stableStringify({ source: observed.indexSignature, manifest: observed.manifestIdentity,
         symbolBytes: observed.artifactBytes?.symbol_edges, task: observed.witness });
       if (identity !== null && identity !== nextIdentity) throw new Error('Graph-store samples changed selected source or symbol task.');
@@ -60,19 +74,19 @@ export async function runGraphStoreBench({ indexDir, repoRoot, iterations, mode 
         if (baselineShape !== null && baselineShape !== shape) throw new Error('Graph-store samples changed omitted relation workload.');
         baselineShape = shape;
       }
-      identity = nextIdentity; samples[arm].push(observed);
+      identity = nextIdentity; samples[arm].push({ ...observed, trialIndex });
     }
   }
   if (normalizedMode === 'compare' && !samples.baseline.every(value => value.omittedGraphNodes > 0
     && value.artifactsUsed.includes('graph_relations') && value.artifactBytes.graph_relations > 0)) {
-    return { schemaVersion: 2, mode: normalizedMode, state: 'unavailable', reason: 'no-meaningful-omitted-relation-work', order, samples };
+    return { schemaVersion: 3, mode: normalizedMode, state: 'unavailable', reason: 'no-meaningful-omitted-relation-work', order, samples };
   }
   const results = {};
   for (const arm of ['baseline', 'current']) if (samples[arm].length) results[arm] = summarize(samples[arm]);
-  return { schemaVersion: 2, mode: normalizedMode, state: normalizedMode === 'compare' ? 'qualified-inputs' : 'observed',
+  return { schemaVersion: 3, mode: normalizedMode, state: normalizedMode === 'compare' ? 'qualified-inputs' : 'observed',
     comparison: 'eager-all-artifacts-versus-symbol-edge-only-admission-for-the-same-symbol-task',
     applicationCachePolicy: 'fresh-node-process-per-arm-per-sample', osCachePolicy: 'uncontrolled-shared-filesystem-cache',
-    orderPolicy: 'serial-alternating-arms', order, ...results };
+    orderPolicy: 'serial-alternating-arms', trialOffset, order, ...results };
 }
 
 export async function runGraphStoreBenchCli(rawArgs = process.argv.slice(2)) {

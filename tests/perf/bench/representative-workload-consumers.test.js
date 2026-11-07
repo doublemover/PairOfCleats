@@ -19,7 +19,7 @@ import { addStorageFailureContext } from '../../../src/shared/storage/operation-
 
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('perf/bench/representative-workload-consumers/')[1];
-assert.ok(['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii', 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3', 'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget', 'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2'].includes(selected));
+assert.ok(['render', 'graph-skewed-first-half', 'graph-skewed-second-half', 'graph-skewed-independent-first-half', 'graph-skewed-independent-second-half', 'map-large', 'memory-transient', 'vfs-ascii', 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3', 'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget', 'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`bench-representative-${selected}`);
 let evidence, cleanupAllowed = true;
 try {
@@ -72,7 +72,12 @@ try {
     assert.notEqual(evidence[0].parity.sha256, evidence[1].parity.sha256);
   } else if (selected.startsWith('graph-skewed')) {
     evidence = [];
-    const shapes = selected === 'graph-skewed' ? [[512, 4096, 128], [12000, 128, 3000]] : [[512, 128, 128], [512, 128, 3000]];
+    const independent = selected.startsWith('graph-skewed-independent-');
+    const shapes = !independent ? [[512, 4096, 128], [12000, 128, 3000]] : [[512, 128, 128], [512, 128, 3000]];
+    // Each original family retains both shapes and all six paired trials.
+    // Independent capsules own trials0..2 and3..5, preserving arm order and
+    // every cross-shape comparison without one24-child aggregate deadline.
+    const iterations = 3, trialOffset = selected.endsWith('second-half') ? 3 : 0;
     for (const [nodes, symbols, calls] of shapes) {
       const indexDir = path.join(dir, `graph-${nodes}-${symbols}-${calls}`), repoRoot = path.join(dir, 'repo');
       await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true }); await fs.mkdir(repoRoot, { recursive: true });
@@ -92,9 +97,18 @@ try {
       await fs.writeFile(path.join(indexDir, 'pieces/manifest.json'), JSON.stringify(manifest));
       await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         buildId: `graph-shape-${nodes}-${symbols}`, mode: 'code', compatibilityKey: 'graph-shape' }));
-      const report = await runGraphStoreBench({ indexDir, repoRoot, iterations: 6, mode: 'compare' });
-      assert.equal(report.state, 'qualified-inputs'); assert.equal(report.order.length, 12);
-      assert.equal(new Set([...report.baseline.samples, ...report.current.samples].map(row => row.pid)).size, 12);
+      const report = await runGraphStoreBench({ indexDir, repoRoot, iterations, mode: 'compare' }, { trialOffset });
+      assert.equal(report.state, 'qualified-inputs'); assert.equal(report.order.length, iterations * 2);
+      assert.equal(report.schemaVersion, 3);
+      assert.equal(new Set([...report.baseline.samples, ...report.current.samples]
+        .map(row => JSON.stringify([row.pid, row.processStartedAtMs]))).size, iterations * 2);
+      assert.equal(report.trialOffset, trialOffset);
+      const trials = Array.from({ length: iterations }, (_, index) => trialOffset + index);
+      assert.deepEqual(report.order, trials.flatMap(index => index % 2 ? ['current', 'baseline'] : ['baseline', 'current']));
+      for (const arm of ['baseline', 'current']) {
+        assert.equal(report[arm].completedOperations, iterations);
+        assert.deepEqual(report[arm].samples.map(sample => sample.trialIndex), trials);
+      }
       for (const arm of ['baseline', 'current']) for (const sample of report[arm].samples) {
         assert.equal(sample.witness.occurrences, symbols);
         assert.equal(sample.indexBuildsObserved, 1); assert.equal(sample.warmStats.cache.index.hits, 1);
@@ -106,7 +120,7 @@ try {
       evidence.push(report);
     }
     assert.ok(evidence[1].baseline.samples[0].artifactBytes.call_sites > evidence[0].baseline.samples[0].artifactBytes.call_sites);
-    if (selected === 'graph-skewed') {
+    if (!independent) {
       assert.ok(evidence[1].baseline.samples[0].artifactBytes.graph_relations > evidence[0].baseline.samples[0].artifactBytes.graph_relations);
       assert.ok(evidence[0].current.samples[0].artifactBytes.symbol_edges > evidence[1].current.samples[0].artifactBytes.symbol_edges);
     } else {

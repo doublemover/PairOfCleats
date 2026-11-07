@@ -77,7 +77,8 @@ export const collectGraphStoreSample = async ({ indexDir, repoRoot, arm }) => {
   if (createHash('sha256').update(stableStringify(loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true }))).digest('hex') !== manifestIdentity) {
     fail('Selected graph manifest changed during a sample.');
   }
-  return { state: 'observed', arm, pid: process.pid, indexSignature, manifestIdentity, graphs, includeCsr, artifactsUsed, artifactBytes,
+  return { state: 'observed', arm, pid: process.pid, processStartedAtMs: performance.timeOrigin,
+    indexSignature, manifestIdentity, graphs, includeCsr, artifactsUsed, artifactBytes,
     byteScope: 'observed-on-disk-used-artifact-source-bytes;not-physical-IO', witness,
     setupMs, admissionBuildMs, coldTotalMs: setupMs + admissionBuildMs, warmHitMs,
     completedColdOperations: 1, completedWarmOperations: 1, indexBuildsObserved: coldStats.cache.index.builds,
