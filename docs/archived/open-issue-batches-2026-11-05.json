@@ -26,7 +26,8 @@
     1646,
     1654,
     1657,
-    1699
+    1699,
+    1272
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -2948,15 +2949,16 @@
       "title": "[Setup] Keep help and checkout diagnosis available before bootstrap readiness",
       "batch": "setup-and-tool-providers",
       "scope": "active",
-      "review": "implementation-partial",
-      "recordedDisposition": "Ordinary typed recovery and known-native-failure selection repaired;19 focused cases pass. Actual runtime/npm/concurrent-replacement qualification remains. GitHub OPEN/body readback verified at98be3a04c51b00818a18a2449edf5b2a4e1a7432.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Dependency-free help/diagnosis and original typed gate qualified by19 prior controls, two actual receipt/journal replacement cases and ten installed-runtime/npm cases. Same-ABI minor-version executable drift and separate patch-only field comparisons are explicit. GitHub CLOSED/completed and exact body readback verified.",
       "owners": [
         "tools/setup/preflight.js",
         "src/shared/bootstrap-readiness.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md",
         "tools/setup/checkout-diagnose.js"
-      ]
+      ],
+      "reviewedSource": "92720aec3ad1b4d8ef5678706ccdc048493e1281"
     },
     {
       "number": 1273,
@@ -5458,7 +5460,7 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-07",
-    "openCount": 345,
+    "openCount": 344,
     "closedAfterCapture": [
       1767,
       672,
@@ -5481,9 +5483,10 @@
       1646,
       1654,
       1657,
-      1699
+      1699,
+      1272
     ],
-    "method": "Fresh complete345-issue census before fifth-batch publication. Eight campaign closures remain verified; source-qualified partial updates and exact validation results are recorded in the November7 receipt.",
-    "statusSource": "98be3a04c51b00818a18a2449edf5b2a4e1a7432"
+    "method": "Fresh complete344-issue census after actual bootstrap diagnosis qualification. Nine November7 campaign closures are read-back verified; exact source-bound validation and remaining local failures are in the Windows receipt.",
+    "statusSource": "92720aec3ad1b4d8ef5678706ccdc048493e1281"
   }
 }

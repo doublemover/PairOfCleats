@@ -7,12 +7,12 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Latest observations cover **2,497 distinct cases:2,480 pass,16 fail and one
+Latest observations cover **2,499 distinct cases:2,482 pass,16 fail and one
 Linux-only fixture is excluded on Windows**. Seven failures reach the outer30-second
 limit. Four published-index transition cases and12 native-index cases remain
 unqualified. Original failures and unsuccessful diagnostic controls are retained;
 no retry or relaxed deadline counts as acceptance. Current publication checks are
-recorded with the seventh repair batch below.
+recorded with the eighth qualification batch below.
 
 Node **26.13.0**, Windows x64, ABI147: native verification exits0 with all37
 required probes successful. Eight patched packages,30 target files and81 hunks
@@ -425,8 +425,9 @@ The receipt embeds every sample, source identity and original control command.
 All16 remaining local failures are attempted once after the change: nine fail
 their inner witness/deadline and seven reach the outer30-second limit. No retry,
 deadline increase or disabled backend is used. A separate500ms two-world startup
-abort retires correctly; the deeper TypeError visible in later deadline
-aggregates remains unclassified. Both bounded profiling timeouts are diagnostic
+abort retires correctly. Every later captured TypeError is the explicit
+`ERR_SOURCE_REVISION_SCENARIO` work-deadline refusal from `checkRun`, using the
+existing `sourceScenarioError` constructor. Both bounded profiling timeouts are diagnostic
 failures and do not count as acceptance. The initial worker-overwritten profile
 is explicitly excluded from attribution.
 
@@ -435,3 +436,45 @@ report records and unrelated receipt fields remain unchanged. CI2358 at2c0d05182
 passes22 Windows native-index, all15 native-search and seven actual TS7.1 cases,
 plus gate, Rust, authority and all native-inspection jobs. Its general jobs are
 still running at the recorded observation; it predates this admission change.
+
+## Eighth batch: actual runtime selection and inspection replacement
+
+Two independently bounded regressions replace an actual receipt or journal
+after its initial read. Ordinary startup and explicit JSON diagnosis retain the
+same original reason, identity differences and recovery action: wait, with no
+install command. The ordinary route retains real SQLite/parser probes through
+explicit adapters to this checkout's prepared packages. Both cases pass in
+under two seconds and join the ordered CI-lite lane; all3,218 existing entries
+and their relative order remain intact.
+
+The installed-runtime helper executes ten actual process cases. Node26.12.1 and
+26.13.0 share ABI147; both direct startup and an actual npm11.20.0 script reject
+the changed full Node version. The npm process uses26.13.0 while its script's
+PATH selects26.12.1. Ordinary errors and JSON diagnosis agree on exact paths,
+version mismatch and verify-only recovery. Matching-runtime controls remain
+explicitly metadata-only. Actual26.8.0-alpha.0.0.0 and26.8.1 executables each
+refuse work and select the supported runtime without recommending an install.
+All watched receipt, journal, lock, manifest and package-adapter hashes remain
+unchanged. No runtime is installed, copied or linked; temporary fixtures retire.
+This proves same-ABI **minor-version** drift, not a patch-only executable pair;
+the existing identity comparator independently covers patch-only mismatches.
+
+These are isolated metadata fixtures, never readiness receipts for an application
+installation. Their prepared-package adapters preserve actual probe behavior
+without pretending to qualify a separate dependency tree. The tracked helper
+accepts explicit already-installed executable/npm paths, and the machine receipt
+embeds all ten results, commands, actual runtime identities and binary hashes.
+The ten process controls are separate from the2,499 discovered-case observations.
+
+On exact20b92c986, hosted CI2359 now passes all44 native Windows workflow cases:
+22 indexing,15 search and seven actual TypeScript7.1 requests. Windows authority,
+Windows native inspection, gate and Rust also pass. General jobs remain in
+progress at this snapshot. These hosted observations preserve the sixteen local
+failures and do not turn the local campaign into a final-tree pass.
+
+This batch is source-bound to `92720aec3ad1b4d8ef5678706ccdc048493e1281`.
+Format and the final helper lint pass; configuration/environment, generated
+freshness, command/workflow contracts,44 gate cases and diff checks pass.
+All89 earlier report records are retained unchanged. Issue #1272 is closed as
+completed with exact body/state readback; the fresh census has344 open issues.
+The final process audit finds no project Node or native TUI process running.

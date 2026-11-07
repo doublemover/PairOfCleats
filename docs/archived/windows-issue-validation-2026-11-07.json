@@ -30330,11 +30330,415 @@
           "skipReason": null
         }
       ]
+    },
+    {
+      "id": "inspection-replacement",
+      "sourceState": "20b92c986 parent; exact new fixture/helper and ordered-lane blobs in eighthFollowupQualification",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/inspection-replacement-report.json",
+        "sha256": "5e77a08d958272c49394faf5641cde22ce7b8ecd4c272293aef495d196b40aaf",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 3114,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "id": "tooling/install/checkout-inspection-replacement/journal",
+          "status": "passed",
+          "durationMs": 1594,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-inspection-replacement/receipt",
+          "status": "passed",
+          "durationMs": 1511,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "gate-09",
+      "sourceState": "92720aec3ad1b4d8ef5678706ccdc048493e1281",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/gate-09-report.json",
+        "sha256": "ed6f496856d2e5b65cfe0800d88fc93808a7a6545e9760705b06ea144906b062",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 46511,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "total": 44
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 101,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 91,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 111,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 95,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 98,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 96,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 409,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 96,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 109,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 203,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 2459,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 411,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 315,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 477,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 454,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 449,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 464,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 447,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 438,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 631,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 417,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 862,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 992,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 968,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 917,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 848,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 641,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 1029,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1347,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 98,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1619,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 864,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1391,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 834,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2522,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1410,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 423,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 632,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1600,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 4000,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/ordered-lane-discovery",
+          "status": "passed",
+          "durationMs": 814,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/gate-policy",
+          "status": "passed",
+          "durationMs": 300,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "passed",
+          "durationMs": 13657,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-command-dispositions",
+          "status": "passed",
+          "durationMs": 306,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
     }
   ],
   "latestObserved": {
-    "uniqueCases": 2497,
-    "passed": 2480,
+    "uniqueCases": 2499,
+    "passed": 2482,
     "failed": 16,
     "skipped": 1,
     "timeouts": 7,
@@ -30490,10 +30894,10 @@
     },
     {
       "number": 1272,
-      "status": "Partial; ordinary typed recovery loss and known-native-failure selection repaired and focused controls pass.",
+      "status": "Qualified and closed: dependency-free information, ordinary/JSON recovery parity, actual Node/npm selection and real receipt/journal replacement.",
       "githubBodyReadbackVerified": true,
-      "source": "98be3a04c51b00818a18a2449edf5b2a4e1a7432",
-      "remaining": "Complete actual runtime/npm selection and concurrent replacement matrix against the full issue scope before closure."
+      "source": "92720aec3ad1b4d8ef5678706ccdc048493e1281",
+      "remaining": null
     },
     {
       "number": 1139,
@@ -30599,7 +31003,7 @@
       "remaining": "Typed RST/AsciiDoc reference observations/resolution and canonical persisted navigation, with explicit unsupported/ambiguous/authority/budget states."
     }
   ],
-  "remaining": "Sixteen local failures remain: four revision-operation deadlines and twelve native-index cases, seven at the outer fixture limit. The29 focused file/hash/manifest/publication controls pass. The64-file admission diagnostic improves but does not close full-pipeline timing. CI2358 at2c0d05182 qualifies22 native-index,15 native-search, seven actual TS7.1, authority and native inspection separately; the new IO candidate still requires hosted execution. Full-scope implementation/qualification and editor/Tantivy/sqlite-vec exclusions remain open.",
+  "remaining": "Sixteen local failures remain: four revision-operation deadlines and twelve native-index cases, seven at the outer fixture limit. The29 focused file/hash/manifest/publication controls pass. The64-file admission diagnostic improves but does not close full-pipeline timing. CI2359 at20b92c986 qualifies22 native-index,15 native-search, seven actual TS7.1, Windows authority and Windows native inspection separately. Full-scope implementation/qualification and editor/Tantivy/sqlite-vec exclusions remain open.",
   "publicationGate": {
     "status": "passed",
     "format": 0,
@@ -30635,7 +31039,8 @@
       1646,
       1654,
       1657,
-      1699
+      1699,
+      1272
     ],
     "partialUpdated": [
       1139,
@@ -30644,7 +31049,6 @@
       1187,
       1214,
       1267,
-      1272,
       1516,
       1528,
       1559,
@@ -30655,7 +31059,7 @@
       1707,
       1722
     ],
-    "openCount": 345,
+    "openCount": 344,
     "openIssueIds": [
       147,
       173,
@@ -30842,7 +31246,6 @@
       1269,
       1270,
       1271,
-      1272,
       1273,
       1274,
       1275,
@@ -31004,7 +31407,8 @@
       1768
     ],
     "readbackVerified": true,
-    "source": "cb93ab655cf6532428e90676069506bfc4abb88a"
+    "source": "cb93ab655cf6532428e90676069506bfc4abb88a",
+    "latestPublishedSource": "92720aec3ad1b4d8ef5678706ccdc048493e1281"
   },
   "api7Qualification": {
     "version": "7.1.0-beta",
@@ -37186,7 +37590,18 @@
           },
           "parentRemoved": true
         },
-        "note": "A500ms original two-world startup abort retires correctly. This does not explain the deeper TypeError visible inside later deadline aggregates; that remains unclassified."
+        "note": "The500ms two-world startup abort retires correctly. All captured later TypeErrors have the explicit message Published-index revision execution reached its work deadline, produced by sourceScenarioError in checkRun with ERR_SOURCE_REVISION_SCENARIO. This attributes that error category to the original work deadline."
+      },
+      "deadlineTypeError": {
+        "code": "ERR_SOURCE_REVISION_SCENARIO",
+        "message": "Published-index revision execution reached its work deadline.",
+        "factory": "tools/eval/revisions/source-scenario.js:8",
+        "guard": "tools/eval/revisions/index-runner.js:68",
+        "log": {
+          "path": ".tmp/tasks/validation-20261107/cohort-async-path-original-failures-logs/run-1794089214165-l1g3tx/tooling_eval_published-index-revision-oracle_edit-delete-rename.attempt-1.log",
+          "sha256": "d2dc7df6b451862cf060ad276c8215b15c9fd05dc3286ea092931884740c1613",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
       }
     },
     "publicationGate": {
@@ -37509,6 +37924,1188 @@
       "scope": "Project Node/native TUI only; unrelated applications untouched",
       "count": 0,
       "processes": []
+    }
+  },
+  "eighthFollowupQualification": {
+    "base": "20b92c986317f8effc6e7d2e0273246845158dd8",
+    "files": [
+      {
+        "path": "tests/helpers/bootstrap-diagnosis-fixture.js",
+        "blob": "e1d416a01367d20e7f32cc8bca00f529e77c0d9a",
+        "sha256": "2fb4ce69bdc76e600533b6d57518c91bfd292be61184827ff52eb4033715cbbf"
+      },
+      {
+        "path": "tests/helpers/bootstrap-runtime-selection.js",
+        "blob": "1ba36d0d1f62a174125ceb1bae78de3a4ec12abc",
+        "sha256": "311bcce5ac91d225cf6810eb7a2b50c26ac2ae23fff6f594fb62bad1559087e1"
+      },
+      {
+        "path": "tests/tooling/install/checkout-inspection-replacement.test.js",
+        "blob": "55a17e82228e68134a44b5ad0200e8fd91483cf9",
+        "sha256": "46e3adac407b799c247938159b75cde8c4d1916cd2262390e21e38df7a377468"
+      },
+      {
+        "path": "tests/tooling/install/checkout-inspection-replacement.test.js.cases.json",
+        "blob": "734839c0216fe1c8b1a28cb2ec496924aae56ca2",
+        "sha256": "3e99955373e2e950deb729c2c1c6c4a7a7f31fab3e847a8949a14e578f557c06"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.order.txt",
+        "blob": "4a7e57e47092699c26434398291ca5bb84260fda",
+        "sha256": "26bf1e69c8fd74d624491f24eebbcaf890586b367ff4d52ec6273cc637e453d6"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.manifest.json",
+        "blob": "6bb060307528b529adea6d976a172c346ef40c6f",
+        "sha256": "88f68203c247dd4f1c5075895a4485f1e1c9bfd0e7b6d0fa05edb9de13b952dd"
+      }
+    ],
+    "status": "published-source;21-readiness-observations-and10-actual-runtime-controls-qualified;issue1272-closed-and-read-back",
+    "runtimeSelection": {
+      "path": ".tmp/tasks/validation-20261107/actual-bootstrap-runtime-selection-complete.json",
+      "sha256": "4dd40000e95f2cbd110a9eb80e44feac8bde99e0374b6ab41d2ef008c6d9802a",
+      "schemaVersion": 1,
+      "kind": "actual-bootstrap-runtime-selection",
+      "ok": true,
+      "qualification": "isolated-metadata-diagnosis-not-application-readiness",
+      "current": {
+        "node": "v26.13.0",
+        "abi": "147",
+        "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+        "sha256": "14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5"
+      },
+      "alternate": {
+        "node": "v26.12.1",
+        "abi": "147",
+        "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+        "sha256": "1c63f1417e2e26d83ca9a9ec1d548524ab1305bc7209d90ebca56257ff0d84ed"
+      },
+      "unsupported": [
+        {
+          "node": "v26.8.0-alpha.0.0.0",
+          "abi": "147",
+          "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.0\\node.exe",
+          "sha256": "f75c008f6231c8d77c0bc5277e495e88447b65015fdb63ac966f11cf0e1106e5"
+        },
+        {
+          "node": "v26.8.1",
+          "abi": "147",
+          "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.1\\node.exe",
+          "sha256": "5cba0ea928508c65ddadefc0681d2fb6d95f1f3beea4428f04397631140ee8e5"
+        }
+      ],
+      "npm": {
+        "cli": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+        "sha256": "3ce7cba6f5128dd5f54c98b6a5036b0f850496878cc2e21044b675fe3c594e3e",
+        "version": "11.20.0"
+      },
+      "watched": [
+        [
+          "node_modules/.pairofcleats-bootstrap.json",
+          "ac0453a39134ba9460d048ba63ebc03e03d8abcda87404b1fc4b13f99a6e5a03"
+        ],
+        [
+          ".tmp/checkout-bootstrap/journal-status.json",
+          "6e0b3f8725afa892d77082928cc0de92ab9a8e5413197154297189c285c54c93"
+        ],
+        [
+          "package.json",
+          "cbe1a1696fd9a5d1093ec3b9a85a2cacad24bb0480bf1fec5b4139cbfe55d4ad"
+        ],
+        [
+          "package-lock.json",
+          "1f283ecfcce135770bebd4c6af6fc0343f007c699a60215a22dded62f9e6cf37"
+        ],
+        [
+          "node_modules/tree-sitter/package.json",
+          "a08ccc9731637c19779e5fb78e7a49ea0a68d36357383fdd4e6d8989bfd19b03"
+        ],
+        [
+          "node_modules/tree-sitter/index.cjs",
+          "bcee073ffa717fefc122b9364b624ed950fc1db4b04c858e375f294795803ce8"
+        ],
+        [
+          "node_modules/better-sqlite3/package.json",
+          "1b7079a76d8cd12a84b334b1c2d32ad4cdfa4f6646df9ad47c8927a971c59ac7"
+        ],
+        [
+          "node_modules/better-sqlite3/index.cjs",
+          "6bd43839430c6f20c6b9cff1b8ab76e672966b80c5aa2d32eb9c41f78c2383c1"
+        ],
+        [
+          "node_modules/tree-sitter-javascript/package.json",
+          "327f5e4a046d4b1a18f4c70dff2f50ec4031f5e39e84aaa32d9388244f7a1a44"
+        ],
+        [
+          "node_modules/tree-sitter-javascript/index.cjs",
+          "961e9da0aa9fb80fb904feb38bd98ecde41ac719cec905d253532ebfb2aca4f2"
+        ]
+      ],
+      "cases": [
+        {
+          "name": "selected-runtime-metadata-control",
+          "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "selection": {
+            "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\.codex\\tmp\\arg0-windows\\codex-arg0dvOIy8;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\;C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;C:\\tools\\ruby34\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python313\\Scripts;C:\\Python313;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\dotnet;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Windows MIDI Services\\Tools;C:\\Program Files\\Windows MIDI Services\\Tools\\Console;C:\\Program Files\\GitHub CLI;C:\\Users\\sneak\\AppData\\Local\\nvm;C:\\nvm4w\\nodejs;C:\\Users\\sneak\\AppData\\Local\\Muse Hub;C:\\Program Files\\LLVM\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\dotnet\\;C:\\ProgramData\\ComposerSetup\\bin;C:\\Program Files\\CMake\\bin;C:\\Program Files\\WezTerm;C:\\Program Files\\Go\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\PowerShell\\7\\;C:\\Tools\\Sysinternals;C:\\Users\\sneak\\Tools\\RadeonDeveloperToolSuite-2026-02-02-1757;C:\\vcpkg\\installed\\x64-windows\\bin;C:\\vcpkg;C:\\Program Files\\AMD\\ROCm\\7.1\\bin;C:\\Users\\sneak\\Tools\\LLVM\\llvm-22.1.6-msvc\\bin;C:\\Users\\sneak\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Links;c:\\users\\sneak\\.local\\bin;c:\\users\\sneak\\appdata\\roaming\\python\\python313\\scripts;C:\\Users\\sneak\\go\\bin;C:\\Users\\sneak\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\sneak\\.bun\\bin;C:\\Users\\sneak\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin;C:\\Users\\sneak\\.cache\\lm-studio\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Ccache.Ccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\ccache-4.14.1-windows-x86_64;C:\\Users\\sneak\\Development\\PairOfCleats\\temp\\tasks\\windows-deep-repairs-20261018\\batch45-dotnet-qualification\\cli-home\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1103.4239.0_x64__2p2nqsd0c76g0\\app\\resources",
+            "npmNodeExecutable": null
+          },
+          "exitCode": 0,
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"checkout-diagnosis\",\n  \"root\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk\",\n  \"runtime\": {\n    \"required\": \">=26.12.1 <27\",\n    \"actual\": \"v26.13.0\",\n    \"abi\": \"147\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\",\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"npmNodeExecutable\": null,\n    \"npmExecutable\": null\n  },\n  \"bootstrap\": {\n    \"schemaVersion\": 1,\n    \"state\": \"ready\",\n    \"ready\": true,\n    \"exitCode\": 0,\n    \"requiredIds\": [\n      \"bootstrap\"\n    ],\n    \"blockedIds\": [],\n    \"omittedIds\": [],\n    \"items\": [\n      {\n        \"id\": \"bootstrap\",\n        \"required\": true,\n        \"state\": \"available-and-verified\",\n        \"reason\": null,\n        \"verificationLevel\": \"setup-inputs-artifact-metadata-with-explicit-capabilities\"\n      }\n    ],\n    \"reason\": null,\n    \"code\": null,\n    \"mismatches\": [],\n    \"nativeProbes\": \"not-run\"\n  },\n  \"recovery\": {\n    \"schemaVersion\": 1,\n    \"kind\": \"checkout-bootstrap-recovery\",\n    \"action\": \"verify\",\n    \"command\": \"npm run bootstrap:ci -- --verify\",\n    \"reason\": \"Current readiness is intact; repeat complete verification without reinstalling.\",\n    \"qualification\": \"metadata-only-reinspection-not-native-qualification\"\n  },\n  \"prerequisites\": {\n    \"state\": \"not-probed\"\n  },\n  \"operationalReadiness\": \"not-probed\",\n  \"nextCommands\": [\n    \"npm run bootstrap:ci -- --verify\"\n  ],\n  \"repairQualification\": \"Current readiness is intact; repeat complete verification without reinstalling. This read-only metadata selection does not qualify native or target readiness.\",\n  \"provisioning\": \"Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.\"\n}\n",
+          "stderr": "",
+          "report": {
+            "schemaVersion": 1,
+            "kind": "checkout-diagnosis",
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.13.0",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "ready",
+              "ready": true,
+              "exitCode": 0,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "available-and-verified",
+                  "reason": null,
+                  "verificationLevel": "setup-inputs-artifact-metadata-with-explicit-capabilities"
+                }
+              ],
+              "reason": null,
+              "code": null,
+              "mismatches": [],
+              "nativeProbes": "not-run"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "verify",
+              "command": "npm run bootstrap:ci -- --verify",
+              "reason": "Current readiness is intact; repeat complete verification without reinstalling.",
+              "qualification": "metadata-only-reinspection-not-native-qualification"
+            },
+            "prerequisites": {
+              "state": "not-probed"
+            },
+            "operationalReadiness": "not-probed",
+            "nextCommands": [
+              "npm run bootstrap:ci -- --verify"
+            ],
+            "repairQualification": "Current readiness is intact; repeat complete verification without reinstalling. This read-only metadata selection does not qualify native or target readiness.",
+            "provisioning": "Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran."
+          }
+        },
+        {
+          "name": "same-abi-runtime-explicit",
+          "command": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "selection": {
+            "path": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1;C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\.codex\\tmp\\arg0-windows\\codex-arg0dvOIy8;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\;C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;C:\\tools\\ruby34\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python313\\Scripts;C:\\Python313;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\dotnet;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Windows MIDI Services\\Tools;C:\\Program Files\\Windows MIDI Services\\Tools\\Console;C:\\Program Files\\GitHub CLI;C:\\Users\\sneak\\AppData\\Local\\nvm;C:\\nvm4w\\nodejs;C:\\Users\\sneak\\AppData\\Local\\Muse Hub;C:\\Program Files\\LLVM\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\dotnet\\;C:\\ProgramData\\ComposerSetup\\bin;C:\\Program Files\\CMake\\bin;C:\\Program Files\\WezTerm;C:\\Program Files\\Go\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\PowerShell\\7\\;C:\\Tools\\Sysinternals;C:\\Users\\sneak\\Tools\\RadeonDeveloperToolSuite-2026-02-02-1757;C:\\vcpkg\\installed\\x64-windows\\bin;C:\\vcpkg;C:\\Program Files\\AMD\\ROCm\\7.1\\bin;C:\\Users\\sneak\\Tools\\LLVM\\llvm-22.1.6-msvc\\bin;C:\\Users\\sneak\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Links;c:\\users\\sneak\\.local\\bin;c:\\users\\sneak\\appdata\\roaming\\python\\python313\\scripts;C:\\Users\\sneak\\go\\bin;C:\\Users\\sneak\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\sneak\\.bun\\bin;C:\\Users\\sneak\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin;C:\\Users\\sneak\\.cache\\lm-studio\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Ccache.Ccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\ccache-4.14.1-windows-x86_64;C:\\Users\\sneak\\Development\\PairOfCleats\\temp\\tasks\\windows-deep-repairs-20261018\\batch45-dotnet-qualification\\cli-home\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1103.4239.0_x64__2p2nqsd0c76g0\\app\\resources",
+            "npmNodeExecutable": null
+          },
+          "exitCode": 1,
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"checkout-diagnosis\",\n  \"root\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk\",\n  \"runtime\": {\n    \"required\": \">=26.12.1 <27\",\n    \"actual\": \"v26.12.1\",\n    \"abi\": \"147\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\",\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.12.1\\\\node.exe\",\n    \"npmNodeExecutable\": null,\n    \"npmExecutable\": null\n  },\n  \"bootstrap\": {\n    \"schemaVersion\": 1,\n    \"state\": \"blocked\",\n    \"ready\": false,\n    \"exitCode\": 1,\n    \"requiredIds\": [\n      \"bootstrap\"\n    ],\n    \"blockedIds\": [\n      \"bootstrap\"\n    ],\n    \"omittedIds\": [],\n    \"items\": [\n      {\n        \"id\": \"bootstrap\",\n        \"required\": true,\n        \"state\": \"unverified\",\n        \"reason\": \"Bootstrap identity differs: runtime.node.\",\n        \"verificationLevel\": null\n      }\n    ],\n    \"reason\": \"Bootstrap identity differs: runtime.node.\",\n    \"code\": \"ERR_BOOTSTRAP_IDENTITY_MISMATCH\",\n    \"mismatches\": [\n      {\n        \"field\": \"runtime.node\",\n        \"expected\": \"v26.12.1\",\n        \"observed\": \"v26.13.0\"\n      }\n    ],\n    \"nativeProbes\": \"not-run\",\n    \"nextAction\": \"verify-natives-and-patches-under-selected-runtime\"\n  },\n  \"recovery\": {\n    \"schemaVersion\": 1,\n    \"kind\": \"checkout-bootstrap-recovery\",\n    \"action\": \"verify\",\n    \"command\": \"npm run bootstrap:ci -- --verify\",\n    \"reason\": \"Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\",\n    \"qualification\": \"metadata-only-reinspection-not-native-qualification\",\n    \"checkedPackages\": 3,\n    \"readBytes\": 6702\n  },\n  \"prerequisites\": {\n    \"state\": \"not-probed\"\n  },\n  \"operationalReadiness\": \"not-probed\",\n  \"nextCommands\": [\n    \"npm run bootstrap:ci -- --verify\"\n  ],\n  \"repairQualification\": \"Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification. This read-only metadata selection does not qualify native or target readiness.\",\n  \"provisioning\": \"Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.\"\n}\n",
+          "stderr": "",
+          "report": {
+            "schemaVersion": 1,
+            "kind": "checkout-diagnosis",
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.12.1",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "Bootstrap identity differs: runtime.node.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "Bootstrap identity differs: runtime.node.",
+              "code": "ERR_BOOTSTRAP_IDENTITY_MISMATCH",
+              "mismatches": [
+                {
+                  "field": "runtime.node",
+                  "expected": "v26.12.1",
+                  "observed": "v26.13.0"
+                }
+              ],
+              "nativeProbes": "not-run",
+              "nextAction": "verify-natives-and-patches-under-selected-runtime"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "verify",
+              "command": "npm run bootstrap:ci -- --verify",
+              "reason": "Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.",
+              "qualification": "metadata-only-reinspection-not-native-qualification",
+              "checkedPackages": 3,
+              "readBytes": 6702
+            },
+            "prerequisites": {
+              "state": "not-probed"
+            },
+            "operationalReadiness": "not-probed",
+            "nextCommands": [
+              "npm run bootstrap:ci -- --verify"
+            ],
+            "repairQualification": "Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification. This read-only metadata selection does not qualify native or target readiness.",
+            "provisioning": "Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran."
+          }
+        },
+        {
+          "name": "same-abi-runtime-ordinary",
+          "command": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js",
+            "ordinary"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "selection": {
+            "path": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1;C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\.codex\\tmp\\arg0-windows\\codex-arg0dvOIy8;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\;C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;C:\\tools\\ruby34\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python313\\Scripts;C:\\Python313;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\dotnet;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Windows MIDI Services\\Tools;C:\\Program Files\\Windows MIDI Services\\Tools\\Console;C:\\Program Files\\GitHub CLI;C:\\Users\\sneak\\AppData\\Local\\nvm;C:\\nvm4w\\nodejs;C:\\Users\\sneak\\AppData\\Local\\Muse Hub;C:\\Program Files\\LLVM\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\dotnet\\;C:\\ProgramData\\ComposerSetup\\bin;C:\\Program Files\\CMake\\bin;C:\\Program Files\\WezTerm;C:\\Program Files\\Go\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\PowerShell\\7\\;C:\\Tools\\Sysinternals;C:\\Users\\sneak\\Tools\\RadeonDeveloperToolSuite-2026-02-02-1757;C:\\vcpkg\\installed\\x64-windows\\bin;C:\\vcpkg;C:\\Program Files\\AMD\\ROCm\\7.1\\bin;C:\\Users\\sneak\\Tools\\LLVM\\llvm-22.1.6-msvc\\bin;C:\\Users\\sneak\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Links;c:\\users\\sneak\\.local\\bin;c:\\users\\sneak\\appdata\\roaming\\python\\python313\\scripts;C:\\Users\\sneak\\go\\bin;C:\\Users\\sneak\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\sneak\\.bun\\bin;C:\\Users\\sneak\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin;C:\\Users\\sneak\\.cache\\lm-studio\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Ccache.Ccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\ccache-4.14.1-windows-x86_64;C:\\Users\\sneak\\Development\\PairOfCleats\\temp\\tasks\\windows-deep-repairs-20261018\\batch45-dotnet-qualification\\cli-home\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1103.4239.0_x64__2p2nqsd0c76g0\\app\\resources",
+            "npmNodeExecutable": null
+          },
+          "exitCode": 1,
+          "stdout": "{\"code\":\"ERR_BOOTSTRAP_REQUIRED\",\"bootstrap\":{\"schemaVersion\":1,\"state\":\"blocked\",\"ready\":false,\"exitCode\":1,\"requiredIds\":[\"bootstrap\"],\"blockedIds\":[\"bootstrap\"],\"omittedIds\":[],\"items\":[{\"id\":\"bootstrap\",\"required\":true,\"state\":\"unverified\",\"reason\":\"Bootstrap identity differs: runtime.node.\",\"verificationLevel\":null}],\"reason\":\"Bootstrap identity differs: runtime.node.\",\"code\":\"ERR_BOOTSTRAP_IDENTITY_MISMATCH\",\"mismatches\":[{\"field\":\"runtime.node\",\"expected\":\"v26.12.1\",\"observed\":\"v26.13.0\"}],\"nativeProbes\":\"incomplete\",\"nextAction\":\"verify-natives-and-patches-under-selected-runtime\"},\"recovery\":{\"schemaVersion\":1,\"kind\":\"checkout-bootstrap-recovery\",\"action\":\"verify\",\"command\":\"npm run bootstrap:ci -- --verify\",\"reason\":\"Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\",\"qualification\":\"metadata-only-reinspection-not-native-qualification\",\"checkedPackages\":3,\"readBytes\":6702},\"runtime\":{\"required\":\">=26.12.1 <27\",\"actual\":\"v26.12.1\",\"abi\":\"147\",\"platform\":\"win32\",\"arch\":\"x64\",\"executable\":\"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.12.1\\\\node.exe\",\"npmNodeExecutable\":null,\"npmExecutable\":null},\"message\":\"\\n======================================================================\\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\\n======================================================================\\nBootstrap identity differs: runtime.node.\\nReason: ERR_BOOTSTRAP_IDENTITY_MISMATCH\\n- runtime.node: expected \\\"v26.12.1\\\"; receipt \\\"v26.13.0\\\"\\nNode: v26.12.1 (C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.12.1\\\\node.exe); required >=26.12.1 <27\\nnpm Node: not selected by npm\\nNext action: verify. Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\\nIn the PairOfCleats checkout (C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk), under the selected runtime, run:\\n\\n  npm run bootstrap:ci -- --verify\\n\\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\\n======================================================================\\n\"}\n",
+          "stderr": "",
+          "report": {
+            "code": "ERR_BOOTSTRAP_REQUIRED",
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "Bootstrap identity differs: runtime.node.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "Bootstrap identity differs: runtime.node.",
+              "code": "ERR_BOOTSTRAP_IDENTITY_MISMATCH",
+              "mismatches": [
+                {
+                  "field": "runtime.node",
+                  "expected": "v26.12.1",
+                  "observed": "v26.13.0"
+                }
+              ],
+              "nativeProbes": "incomplete",
+              "nextAction": "verify-natives-and-patches-under-selected-runtime"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "verify",
+              "command": "npm run bootstrap:ci -- --verify",
+              "reason": "Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.",
+              "qualification": "metadata-only-reinspection-not-native-qualification",
+              "checkedPackages": 3,
+              "readBytes": 6702
+            },
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.12.1",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "message": "\n======================================================================\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\n======================================================================\nBootstrap identity differs: runtime.node.\nReason: ERR_BOOTSTRAP_IDENTITY_MISMATCH\n- runtime.node: expected \"v26.12.1\"; receipt \"v26.13.0\"\nNode: v26.12.1 (C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe); required >=26.12.1 <27\nnpm Node: not selected by npm\nNext action: verify. Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\nIn the PairOfCleats checkout (C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk), under the selected runtime, run:\n\n  npm run bootstrap:ci -- --verify\n\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\n======================================================================\n"
+          }
+        },
+        {
+          "name": "npm-versus-shell-explicit",
+          "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+            "--silent",
+            "--offline",
+            "--no-update-notifier",
+            "--userconfig",
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\.npmrc-empty",
+            "--cache",
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\.tmp\\npm-cache",
+            "run",
+            "diagnosis-probe",
+            "--"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "selection": {
+            "path": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1;C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\.codex\\tmp\\arg0-windows\\codex-arg0dvOIy8;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\;C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;C:\\tools\\ruby34\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python313\\Scripts;C:\\Python313;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\dotnet;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Windows MIDI Services\\Tools;C:\\Program Files\\Windows MIDI Services\\Tools\\Console;C:\\Program Files\\GitHub CLI;C:\\Users\\sneak\\AppData\\Local\\nvm;C:\\nvm4w\\nodejs;C:\\Users\\sneak\\AppData\\Local\\Muse Hub;C:\\Program Files\\LLVM\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\dotnet\\;C:\\ProgramData\\ComposerSetup\\bin;C:\\Program Files\\CMake\\bin;C:\\Program Files\\WezTerm;C:\\Program Files\\Go\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\PowerShell\\7\\;C:\\Tools\\Sysinternals;C:\\Users\\sneak\\Tools\\RadeonDeveloperToolSuite-2026-02-02-1757;C:\\vcpkg\\installed\\x64-windows\\bin;C:\\vcpkg;C:\\Program Files\\AMD\\ROCm\\7.1\\bin;C:\\Users\\sneak\\Tools\\LLVM\\llvm-22.1.6-msvc\\bin;C:\\Users\\sneak\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Links;c:\\users\\sneak\\.local\\bin;c:\\users\\sneak\\appdata\\roaming\\python\\python313\\scripts;C:\\Users\\sneak\\go\\bin;C:\\Users\\sneak\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\sneak\\.bun\\bin;C:\\Users\\sneak\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin;C:\\Users\\sneak\\.cache\\lm-studio\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Ccache.Ccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\ccache-4.14.1-windows-x86_64;C:\\Users\\sneak\\Development\\PairOfCleats\\temp\\tasks\\windows-deep-repairs-20261018\\batch45-dotnet-qualification\\cli-home\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1103.4239.0_x64__2p2nqsd0c76g0\\app\\resources",
+            "npmNodeExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe"
+          },
+          "exitCode": 1,
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"checkout-diagnosis\",\n  \"root\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk\",\n  \"runtime\": {\n    \"required\": \">=26.12.1 <27\",\n    \"actual\": \"v26.12.1\",\n    \"abi\": \"147\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\",\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.12.1\\\\node.exe\",\n    \"npmNodeExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"npmExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node_modules\\\\npm\\\\bin\\\\npm-cli.js\"\n  },\n  \"bootstrap\": {\n    \"schemaVersion\": 1,\n    \"state\": \"blocked\",\n    \"ready\": false,\n    \"exitCode\": 1,\n    \"requiredIds\": [\n      \"bootstrap\"\n    ],\n    \"blockedIds\": [\n      \"bootstrap\"\n    ],\n    \"omittedIds\": [],\n    \"items\": [\n      {\n        \"id\": \"bootstrap\",\n        \"required\": true,\n        \"state\": \"unverified\",\n        \"reason\": \"Bootstrap identity differs: runtime.node.\",\n        \"verificationLevel\": null\n      }\n    ],\n    \"reason\": \"Bootstrap identity differs: runtime.node.\",\n    \"code\": \"ERR_BOOTSTRAP_IDENTITY_MISMATCH\",\n    \"mismatches\": [\n      {\n        \"field\": \"runtime.node\",\n        \"expected\": \"v26.12.1\",\n        \"observed\": \"v26.13.0\"\n      }\n    ],\n    \"nativeProbes\": \"not-run\",\n    \"nextAction\": \"verify-natives-and-patches-under-selected-runtime\"\n  },\n  \"recovery\": {\n    \"schemaVersion\": 1,\n    \"kind\": \"checkout-bootstrap-recovery\",\n    \"action\": \"verify\",\n    \"command\": \"npm run bootstrap:ci -- --verify\",\n    \"reason\": \"Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\",\n    \"qualification\": \"metadata-only-reinspection-not-native-qualification\",\n    \"checkedPackages\": 3,\n    \"readBytes\": 6702\n  },\n  \"prerequisites\": {\n    \"state\": \"not-probed\"\n  },\n  \"operationalReadiness\": \"not-probed\",\n  \"nextCommands\": [\n    \"npm run bootstrap:ci -- --verify\"\n  ],\n  \"repairQualification\": \"Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification. This read-only metadata selection does not qualify native or target readiness.\",\n  \"provisioning\": \"Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.\"\n}\n",
+          "stderr": "",
+          "report": {
+            "schemaVersion": 1,
+            "kind": "checkout-diagnosis",
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.12.1",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+              "npmNodeExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+              "npmExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js"
+            },
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "Bootstrap identity differs: runtime.node.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "Bootstrap identity differs: runtime.node.",
+              "code": "ERR_BOOTSTRAP_IDENTITY_MISMATCH",
+              "mismatches": [
+                {
+                  "field": "runtime.node",
+                  "expected": "v26.12.1",
+                  "observed": "v26.13.0"
+                }
+              ],
+              "nativeProbes": "not-run",
+              "nextAction": "verify-natives-and-patches-under-selected-runtime"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "verify",
+              "command": "npm run bootstrap:ci -- --verify",
+              "reason": "Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.",
+              "qualification": "metadata-only-reinspection-not-native-qualification",
+              "checkedPackages": 3,
+              "readBytes": 6702
+            },
+            "prerequisites": {
+              "state": "not-probed"
+            },
+            "operationalReadiness": "not-probed",
+            "nextCommands": [
+              "npm run bootstrap:ci -- --verify"
+            ],
+            "repairQualification": "Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification. This read-only metadata selection does not qualify native or target readiness.",
+            "provisioning": "Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran."
+          }
+        },
+        {
+          "name": "npm-versus-shell-ordinary",
+          "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+            "--silent",
+            "--offline",
+            "--no-update-notifier",
+            "--userconfig",
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\.npmrc-empty",
+            "--cache",
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\.tmp\\npm-cache",
+            "run",
+            "diagnosis-probe",
+            "--",
+            "ordinary"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "selection": {
+            "path": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1;C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\.codex\\tmp\\arg0-windows\\codex-arg0dvOIy8;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\;C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;C:\\tools\\ruby34\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python313\\Scripts;C:\\Python313;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\dotnet;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Windows MIDI Services\\Tools;C:\\Program Files\\Windows MIDI Services\\Tools\\Console;C:\\Program Files\\GitHub CLI;C:\\Users\\sneak\\AppData\\Local\\nvm;C:\\nvm4w\\nodejs;C:\\Users\\sneak\\AppData\\Local\\Muse Hub;C:\\Program Files\\LLVM\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\dotnet\\;C:\\ProgramData\\ComposerSetup\\bin;C:\\Program Files\\CMake\\bin;C:\\Program Files\\WezTerm;C:\\Program Files\\Go\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\PowerShell\\7\\;C:\\Tools\\Sysinternals;C:\\Users\\sneak\\Tools\\RadeonDeveloperToolSuite-2026-02-02-1757;C:\\vcpkg\\installed\\x64-windows\\bin;C:\\vcpkg;C:\\Program Files\\AMD\\ROCm\\7.1\\bin;C:\\Users\\sneak\\Tools\\LLVM\\llvm-22.1.6-msvc\\bin;C:\\Users\\sneak\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Links;c:\\users\\sneak\\.local\\bin;c:\\users\\sneak\\appdata\\roaming\\python\\python313\\scripts;C:\\Users\\sneak\\go\\bin;C:\\Users\\sneak\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\sneak\\.bun\\bin;C:\\Users\\sneak\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin;C:\\Users\\sneak\\.cache\\lm-studio\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Ccache.Ccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\ccache-4.14.1-windows-x86_64;C:\\Users\\sneak\\Development\\PairOfCleats\\temp\\tasks\\windows-deep-repairs-20261018\\batch45-dotnet-qualification\\cli-home\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1103.4239.0_x64__2p2nqsd0c76g0\\app\\resources",
+            "npmNodeExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe"
+          },
+          "exitCode": 1,
+          "stdout": "{\"code\":\"ERR_BOOTSTRAP_REQUIRED\",\"bootstrap\":{\"schemaVersion\":1,\"state\":\"blocked\",\"ready\":false,\"exitCode\":1,\"requiredIds\":[\"bootstrap\"],\"blockedIds\":[\"bootstrap\"],\"omittedIds\":[],\"items\":[{\"id\":\"bootstrap\",\"required\":true,\"state\":\"unverified\",\"reason\":\"Bootstrap identity differs: runtime.node.\",\"verificationLevel\":null}],\"reason\":\"Bootstrap identity differs: runtime.node.\",\"code\":\"ERR_BOOTSTRAP_IDENTITY_MISMATCH\",\"mismatches\":[{\"field\":\"runtime.node\",\"expected\":\"v26.12.1\",\"observed\":\"v26.13.0\"}],\"nativeProbes\":\"incomplete\",\"nextAction\":\"verify-natives-and-patches-under-selected-runtime\"},\"recovery\":{\"schemaVersion\":1,\"kind\":\"checkout-bootstrap-recovery\",\"action\":\"verify\",\"command\":\"npm run bootstrap:ci -- --verify\",\"reason\":\"Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\",\"qualification\":\"metadata-only-reinspection-not-native-qualification\",\"checkedPackages\":3,\"readBytes\":6702},\"runtime\":{\"required\":\">=26.12.1 <27\",\"actual\":\"v26.12.1\",\"abi\":\"147\",\"platform\":\"win32\",\"arch\":\"x64\",\"executable\":\"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.12.1\\\\node.exe\",\"npmNodeExecutable\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node.exe\",\"npmExecutable\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node_modules\\\\npm\\\\bin\\\\npm-cli.js\"},\"message\":\"\\n======================================================================\\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\\n======================================================================\\nBootstrap identity differs: runtime.node.\\nReason: ERR_BOOTSTRAP_IDENTITY_MISMATCH\\n- runtime.node: expected \\\"v26.12.1\\\"; receipt \\\"v26.13.0\\\"\\nNode: v26.12.1 (C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.12.1\\\\node.exe); required >=26.12.1 <27\\nnpm Node: C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node.exe\\nNext action: verify. Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\\nIn the PairOfCleats checkout (C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk), under the selected runtime, run:\\n\\n  npm run bootstrap:ci -- --verify\\n\\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\\n======================================================================\\n\"}\n",
+          "stderr": "",
+          "report": {
+            "code": "ERR_BOOTSTRAP_REQUIRED",
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "Bootstrap identity differs: runtime.node.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "Bootstrap identity differs: runtime.node.",
+              "code": "ERR_BOOTSTRAP_IDENTITY_MISMATCH",
+              "mismatches": [
+                {
+                  "field": "runtime.node",
+                  "expected": "v26.12.1",
+                  "observed": "v26.13.0"
+                }
+              ],
+              "nativeProbes": "incomplete",
+              "nextAction": "verify-natives-and-patches-under-selected-runtime"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "verify",
+              "command": "npm run bootstrap:ci -- --verify",
+              "reason": "Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.",
+              "qualification": "metadata-only-reinspection-not-native-qualification",
+              "checkedPackages": 3,
+              "readBytes": 6702
+            },
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.12.1",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe",
+              "npmNodeExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+              "npmExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js"
+            },
+            "message": "\n======================================================================\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\n======================================================================\nBootstrap identity differs: runtime.node.\nReason: ERR_BOOTSTRAP_IDENTITY_MISMATCH\n- runtime.node: expected \"v26.12.1\"; receipt \"v26.13.0\"\nNode: v26.12.1 (C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.12.1\\node.exe); required >=26.12.1 <27\nnpm Node: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe\nNext action: verify. Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.\nIn the PairOfCleats checkout (C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk), under the selected runtime, run:\n\n  npm run bootstrap:ci -- --verify\n\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\n======================================================================\n"
+          }
+        },
+        {
+          "name": "npm-aligned-metadata-control",
+          "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+            "--silent",
+            "--offline",
+            "--no-update-notifier",
+            "--userconfig",
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\.npmrc-empty",
+            "--cache",
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\.tmp\\npm-cache",
+            "run",
+            "diagnosis-probe",
+            "--"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "selection": {
+            "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\.codex\\tmp\\arg0-windows\\codex-arg0dvOIy8;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\Program Files\\PowerShell\\7;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\;C:\\Users\\sneak\\AppData\\Local\\Programs\\Python\\Python310\\;C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;C:\\tools\\ruby34\\bin;C:\\Program Files\\PowerShell\\7;C:\\Python313\\Scripts;C:\\Python313;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\dotnet;C:\\ProgramData\\chocolatey\\bin;C:\\Program Files\\Windows MIDI Services\\Tools;C:\\Program Files\\Windows MIDI Services\\Tools\\Console;C:\\Program Files\\GitHub CLI;C:\\Users\\sneak\\AppData\\Local\\nvm;C:\\nvm4w\\nodejs;C:\\Users\\sneak\\AppData\\Local\\Muse Hub;C:\\Program Files\\LLVM\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\dotnet\\;C:\\ProgramData\\ComposerSetup\\bin;C:\\Program Files\\CMake\\bin;C:\\Program Files\\WezTerm;C:\\Program Files\\Go\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\Program Files\\Tailscale\\;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\PowerShell\\7\\;C:\\Tools\\Sysinternals;C:\\Users\\sneak\\Tools\\RadeonDeveloperToolSuite-2026-02-02-1757;C:\\vcpkg\\installed\\x64-windows\\bin;C:\\vcpkg;C:\\Program Files\\AMD\\ROCm\\7.1\\bin;C:\\Users\\sneak\\Tools\\LLVM\\llvm-22.1.6-msvc\\bin;C:\\Users\\sneak\\AppData\\Local\\GitHubDesktop\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Links;c:\\users\\sneak\\.local\\bin;c:\\users\\sneak\\appdata\\roaming\\python\\python313\\scripts;C:\\Users\\sneak\\go\\bin;C:\\Users\\sneak\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\sneak\\.bun\\bin;C:\\Users\\sneak\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin;C:\\Users\\sneak\\.cache\\lm-studio\\bin;C:\\Users\\sneak\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Ccache.Ccache_Microsoft.Winget.Source_8wekyb3d8bbwe\\ccache-4.14.1-windows-x86_64;C:\\Users\\sneak\\Development\\PairOfCleats\\temp\\tasks\\windows-deep-repairs-20261018\\batch45-dotnet-qualification\\cli-home\\.dotnet\\tools;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\sneak\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1103.4239.0_x64__2p2nqsd0c76g0\\app\\resources",
+            "npmNodeExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe"
+          },
+          "exitCode": 0,
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"checkout-diagnosis\",\n  \"root\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk\",\n  \"runtime\": {\n    \"required\": \">=26.12.1 <27\",\n    \"actual\": \"v26.13.0\",\n    \"abi\": \"147\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\",\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"npmNodeExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"npmExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\backlog-20261107\\\\node-v26.13.0-win-x64\\\\node_modules\\\\npm\\\\bin\\\\npm-cli.js\"\n  },\n  \"bootstrap\": {\n    \"schemaVersion\": 1,\n    \"state\": \"ready\",\n    \"ready\": true,\n    \"exitCode\": 0,\n    \"requiredIds\": [\n      \"bootstrap\"\n    ],\n    \"blockedIds\": [],\n    \"omittedIds\": [],\n    \"items\": [\n      {\n        \"id\": \"bootstrap\",\n        \"required\": true,\n        \"state\": \"available-and-verified\",\n        \"reason\": null,\n        \"verificationLevel\": \"setup-inputs-artifact-metadata-with-explicit-capabilities\"\n      }\n    ],\n    \"reason\": null,\n    \"code\": null,\n    \"mismatches\": [],\n    \"nativeProbes\": \"not-run\"\n  },\n  \"recovery\": {\n    \"schemaVersion\": 1,\n    \"kind\": \"checkout-bootstrap-recovery\",\n    \"action\": \"verify\",\n    \"command\": \"npm run bootstrap:ci -- --verify\",\n    \"reason\": \"Current readiness is intact; repeat complete verification without reinstalling.\",\n    \"qualification\": \"metadata-only-reinspection-not-native-qualification\"\n  },\n  \"prerequisites\": {\n    \"state\": \"not-probed\"\n  },\n  \"operationalReadiness\": \"not-probed\",\n  \"nextCommands\": [\n    \"npm run bootstrap:ci -- --verify\"\n  ],\n  \"repairQualification\": \"Current readiness is intact; repeat complete verification without reinstalling. This read-only metadata selection does not qualify native or target readiness.\",\n  \"provisioning\": \"Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.\"\n}\n",
+          "stderr": "",
+          "report": {
+            "schemaVersion": 1,
+            "kind": "checkout-diagnosis",
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.13.0",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+              "npmNodeExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node.exe",
+              "npmExecutable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\backlog-20261107\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js"
+            },
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "ready",
+              "ready": true,
+              "exitCode": 0,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "available-and-verified",
+                  "reason": null,
+                  "verificationLevel": "setup-inputs-artifact-metadata-with-explicit-capabilities"
+                }
+              ],
+              "reason": null,
+              "code": null,
+              "mismatches": [],
+              "nativeProbes": "not-run"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "verify",
+              "command": "npm run bootstrap:ci -- --verify",
+              "reason": "Current readiness is intact; repeat complete verification without reinstalling.",
+              "qualification": "metadata-only-reinspection-not-native-qualification"
+            },
+            "prerequisites": {
+              "state": "not-probed"
+            },
+            "operationalReadiness": "not-probed",
+            "nextCommands": [
+              "npm run bootstrap:ci -- --verify"
+            ],
+            "repairQualification": "Current readiness is intact; repeat complete verification without reinstalling. This read-only metadata selection does not qualify native or target readiness.",
+            "provisioning": "Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran."
+          }
+        },
+        {
+          "name": "unsupported-v26.8.0-alpha.0.0.0-explicit",
+          "command": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.0\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "exitCode": 1,
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"checkout-diagnosis\",\n  \"root\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk\",\n  \"runtime\": {\n    \"required\": \">=26.12.1 <27\",\n    \"actual\": \"v26.8.0-alpha.0.0.0\",\n    \"abi\": \"147\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\",\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.8.0\\\\node.exe\",\n    \"npmNodeExecutable\": null,\n    \"npmExecutable\": null\n  },\n  \"bootstrap\": {\n    \"schemaVersion\": 1,\n    \"state\": \"blocked\",\n    \"ready\": false,\n    \"exitCode\": 1,\n    \"requiredIds\": [\n      \"bootstrap\"\n    ],\n    \"blockedIds\": [\n      \"bootstrap\"\n    ],\n    \"omittedIds\": [],\n    \"items\": [\n      {\n        \"id\": \"bootstrap\",\n        \"required\": true,\n        \"state\": \"unverified\",\n        \"reason\": \"This checkout requires Node.js >=26.12.1 <27.\",\n        \"verificationLevel\": null\n      }\n    ],\n    \"reason\": \"This checkout requires Node.js >=26.12.1 <27.\",\n    \"code\": \"ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\",\n    \"mismatches\": [],\n    \"nativeProbes\": \"not-run\",\n    \"nextAction\": \"locked-bootstrap\"\n  },\n  \"recovery\": {\n    \"schemaVersion\": 1,\n    \"kind\": \"checkout-bootstrap-recovery\",\n    \"action\": \"select-runtime\",\n    \"command\": null,\n    \"reason\": \"Select the supported .nvmrc runtime before preparing this checkout.\",\n    \"qualification\": \"metadata-only-reinspection-not-native-qualification\"\n  },\n  \"prerequisites\": {\n    \"state\": \"not-probed\"\n  },\n  \"operationalReadiness\": \"not-probed\",\n  \"nextCommands\": [],\n  \"repairQualification\": \"Select the supported .nvmrc runtime before preparing this checkout. This read-only metadata selection does not qualify native or target readiness.\",\n  \"provisioning\": \"Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.\"\n}\n",
+          "stderr": "",
+          "report": {
+            "schemaVersion": 1,
+            "kind": "checkout-diagnosis",
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.8.0-alpha.0.0.0",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.0\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "This checkout requires Node.js >=26.12.1 <27.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "This checkout requires Node.js >=26.12.1 <27.",
+              "code": "ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED",
+              "mismatches": [],
+              "nativeProbes": "not-run",
+              "nextAction": "locked-bootstrap"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "select-runtime",
+              "command": null,
+              "reason": "Select the supported .nvmrc runtime before preparing this checkout.",
+              "qualification": "metadata-only-reinspection-not-native-qualification"
+            },
+            "prerequisites": {
+              "state": "not-probed"
+            },
+            "operationalReadiness": "not-probed",
+            "nextCommands": [],
+            "repairQualification": "Select the supported .nvmrc runtime before preparing this checkout. This read-only metadata selection does not qualify native or target readiness.",
+            "provisioning": "Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran."
+          }
+        },
+        {
+          "name": "unsupported-v26.8.0-alpha.0.0.0-ordinary",
+          "command": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.0\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js",
+            "ordinary"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "exitCode": 1,
+          "stdout": "{\"code\":\"ERR_BOOTSTRAP_REQUIRED\",\"bootstrap\":{\"schemaVersion\":1,\"state\":\"blocked\",\"ready\":false,\"exitCode\":1,\"requiredIds\":[\"bootstrap\"],\"blockedIds\":[\"bootstrap\"],\"omittedIds\":[],\"items\":[{\"id\":\"bootstrap\",\"required\":true,\"state\":\"unverified\",\"reason\":\"This checkout requires Node.js >=26.12.1 <27.\",\"verificationLevel\":null}],\"reason\":\"This checkout requires Node.js >=26.12.1 <27.\",\"code\":\"ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\",\"mismatches\":[],\"nativeProbes\":\"incomplete\",\"nextAction\":\"locked-bootstrap\"},\"recovery\":{\"schemaVersion\":1,\"kind\":\"checkout-bootstrap-recovery\",\"action\":\"select-runtime\",\"command\":null,\"reason\":\"Select the supported .nvmrc runtime before preparing this checkout.\",\"qualification\":\"metadata-only-reinspection-not-native-qualification\"},\"runtime\":{\"required\":\">=26.12.1 <27\",\"actual\":\"v26.8.0-alpha.0.0.0\",\"abi\":\"147\",\"platform\":\"win32\",\"arch\":\"x64\",\"executable\":\"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.8.0\\\\node.exe\",\"npmNodeExecutable\":null,\"npmExecutable\":null},\"message\":\"\\n======================================================================\\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\\n======================================================================\\nThis checkout requires Node.js >=26.12.1 <27.\\nReason: ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\\nNode: v26.8.0-alpha.0.0.0 (C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.8.0\\\\node.exe); required >=26.12.1 <27\\nnpm Node: not selected by npm\\nNext action: select-runtime. Select the supported .nvmrc runtime before preparing this checkout.\\nSelect the .nvmrc runtime, then retry this command.\\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\\n======================================================================\\n\"}\n",
+          "stderr": "",
+          "report": {
+            "code": "ERR_BOOTSTRAP_REQUIRED",
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "This checkout requires Node.js >=26.12.1 <27.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "This checkout requires Node.js >=26.12.1 <27.",
+              "code": "ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED",
+              "mismatches": [],
+              "nativeProbes": "incomplete",
+              "nextAction": "locked-bootstrap"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "select-runtime",
+              "command": null,
+              "reason": "Select the supported .nvmrc runtime before preparing this checkout.",
+              "qualification": "metadata-only-reinspection-not-native-qualification"
+            },
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.8.0-alpha.0.0.0",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.0\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "message": "\n======================================================================\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\n======================================================================\nThis checkout requires Node.js >=26.12.1 <27.\nReason: ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\nNode: v26.8.0-alpha.0.0.0 (C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.0\\node.exe); required >=26.12.1 <27\nnpm Node: not selected by npm\nNext action: select-runtime. Select the supported .nvmrc runtime before preparing this checkout.\nSelect the .nvmrc runtime, then retry this command.\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\n======================================================================\n"
+          }
+        },
+        {
+          "name": "unsupported-v26.8.1-explicit",
+          "command": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.1\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "exitCode": 1,
+          "stdout": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"checkout-diagnosis\",\n  \"root\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\Temp\\\\bootstrap-verification-5SsCXk\",\n  \"runtime\": {\n    \"required\": \">=26.12.1 <27\",\n    \"actual\": \"v26.8.1\",\n    \"abi\": \"147\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\",\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.8.1\\\\node.exe\",\n    \"npmNodeExecutable\": null,\n    \"npmExecutable\": null\n  },\n  \"bootstrap\": {\n    \"schemaVersion\": 1,\n    \"state\": \"blocked\",\n    \"ready\": false,\n    \"exitCode\": 1,\n    \"requiredIds\": [\n      \"bootstrap\"\n    ],\n    \"blockedIds\": [\n      \"bootstrap\"\n    ],\n    \"omittedIds\": [],\n    \"items\": [\n      {\n        \"id\": \"bootstrap\",\n        \"required\": true,\n        \"state\": \"unverified\",\n        \"reason\": \"This checkout requires Node.js >=26.12.1 <27.\",\n        \"verificationLevel\": null\n      }\n    ],\n    \"reason\": \"This checkout requires Node.js >=26.12.1 <27.\",\n    \"code\": \"ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\",\n    \"mismatches\": [],\n    \"nativeProbes\": \"not-run\",\n    \"nextAction\": \"locked-bootstrap\"\n  },\n  \"recovery\": {\n    \"schemaVersion\": 1,\n    \"kind\": \"checkout-bootstrap-recovery\",\n    \"action\": \"select-runtime\",\n    \"command\": null,\n    \"reason\": \"Select the supported .nvmrc runtime before preparing this checkout.\",\n    \"qualification\": \"metadata-only-reinspection-not-native-qualification\"\n  },\n  \"prerequisites\": {\n    \"state\": \"not-probed\"\n  },\n  \"operationalReadiness\": \"not-probed\",\n  \"nextCommands\": [],\n  \"repairQualification\": \"Select the supported .nvmrc runtime before preparing this checkout. This read-only metadata selection does not qualify native or target readiness.\",\n  \"provisioning\": \"Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.\"\n}\n",
+          "stderr": "",
+          "report": {
+            "schemaVersion": 1,
+            "kind": "checkout-diagnosis",
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.8.1",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.1\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "This checkout requires Node.js >=26.12.1 <27.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "This checkout requires Node.js >=26.12.1 <27.",
+              "code": "ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED",
+              "mismatches": [],
+              "nativeProbes": "not-run",
+              "nextAction": "locked-bootstrap"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "select-runtime",
+              "command": null,
+              "reason": "Select the supported .nvmrc runtime before preparing this checkout.",
+              "qualification": "metadata-only-reinspection-not-native-qualification"
+            },
+            "prerequisites": {
+              "state": "not-probed"
+            },
+            "operationalReadiness": "not-probed",
+            "nextCommands": [],
+            "repairQualification": "Select the supported .nvmrc runtime before preparing this checkout. This read-only metadata selection does not qualify native or target readiness.",
+            "provisioning": "Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran."
+          }
+        },
+        {
+          "name": "unsupported-v26.8.1-ordinary",
+          "command": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.1\\node.exe",
+          "args": [
+            "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk\\diagnosis-probe.js",
+            "ordinary"
+          ],
+          "cwd": "C:\\Users\\sneak\\AppData\\Local\\Temp\\bootstrap-verification-5SsCXk",
+          "exitCode": 1,
+          "stdout": "{\"code\":\"ERR_BOOTSTRAP_REQUIRED\",\"bootstrap\":{\"schemaVersion\":1,\"state\":\"blocked\",\"ready\":false,\"exitCode\":1,\"requiredIds\":[\"bootstrap\"],\"blockedIds\":[\"bootstrap\"],\"omittedIds\":[],\"items\":[{\"id\":\"bootstrap\",\"required\":true,\"state\":\"unverified\",\"reason\":\"This checkout requires Node.js >=26.12.1 <27.\",\"verificationLevel\":null}],\"reason\":\"This checkout requires Node.js >=26.12.1 <27.\",\"code\":\"ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\",\"mismatches\":[],\"nativeProbes\":\"incomplete\",\"nextAction\":\"locked-bootstrap\"},\"recovery\":{\"schemaVersion\":1,\"kind\":\"checkout-bootstrap-recovery\",\"action\":\"select-runtime\",\"command\":null,\"reason\":\"Select the supported .nvmrc runtime before preparing this checkout.\",\"qualification\":\"metadata-only-reinspection-not-native-qualification\"},\"runtime\":{\"required\":\">=26.12.1 <27\",\"actual\":\"v26.8.1\",\"abi\":\"147\",\"platform\":\"win32\",\"arch\":\"x64\",\"executable\":\"C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.8.1\\\\node.exe\",\"npmNodeExecutable\":null,\"npmExecutable\":null},\"message\":\"\\n======================================================================\\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\\n======================================================================\\nThis checkout requires Node.js >=26.12.1 <27.\\nReason: ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\\nNode: v26.8.1 (C:\\\\Users\\\\sneak\\\\AppData\\\\Local\\\\nvm\\\\v26.8.1\\\\node.exe); required >=26.12.1 <27\\nnpm Node: not selected by npm\\nNext action: select-runtime. Select the supported .nvmrc runtime before preparing this checkout.\\nSelect the .nvmrc runtime, then retry this command.\\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\\n======================================================================\\n\"}\n",
+          "stderr": "",
+          "report": {
+            "code": "ERR_BOOTSTRAP_REQUIRED",
+            "bootstrap": {
+              "schemaVersion": 1,
+              "state": "blocked",
+              "ready": false,
+              "exitCode": 1,
+              "requiredIds": [
+                "bootstrap"
+              ],
+              "blockedIds": [
+                "bootstrap"
+              ],
+              "omittedIds": [],
+              "items": [
+                {
+                  "id": "bootstrap",
+                  "required": true,
+                  "state": "unverified",
+                  "reason": "This checkout requires Node.js >=26.12.1 <27.",
+                  "verificationLevel": null
+                }
+              ],
+              "reason": "This checkout requires Node.js >=26.12.1 <27.",
+              "code": "ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED",
+              "mismatches": [],
+              "nativeProbes": "incomplete",
+              "nextAction": "locked-bootstrap"
+            },
+            "recovery": {
+              "schemaVersion": 1,
+              "kind": "checkout-bootstrap-recovery",
+              "action": "select-runtime",
+              "command": null,
+              "reason": "Select the supported .nvmrc runtime before preparing this checkout.",
+              "qualification": "metadata-only-reinspection-not-native-qualification"
+            },
+            "runtime": {
+              "required": ">=26.12.1 <27",
+              "actual": "v26.8.1",
+              "abi": "147",
+              "platform": "win32",
+              "arch": "x64",
+              "executable": "C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.1\\node.exe",
+              "npmNodeExecutable": null,
+              "npmExecutable": null
+            },
+            "message": "\n======================================================================\nPAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED\n======================================================================\nThis checkout requires Node.js >=26.12.1 <27.\nReason: ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED\nNode: v26.8.1 (C:\\Users\\sneak\\AppData\\Local\\nvm\\v26.8.1\\node.exe); required >=26.12.1 <27\nnpm Node: not selected by npm\nNext action: select-runtime. Select the supported .nvmrc runtime before preparing this checkout.\nSelect the .nvmrc runtime, then retry this command.\nRecovery selection is read-only metadata, not native qualification. Nothing was installed automatically.\n======================================================================\n"
+          }
+        }
+      ]
+    },
+    "replacementCases": [
+      {
+        "id": "tooling/install/checkout-inspection-replacement/journal",
+        "status": "passed",
+        "durationMs": 1594
+      },
+      {
+        "id": "tooling/install/checkout-inspection-replacement/receipt",
+        "status": "passed",
+        "durationMs": 1511
+      }
+    ],
+    "orderedLane": {
+      "before": 3218,
+      "after": 3220,
+      "allOriginalEntriesAndRelativeOrderPreserved": true
+    },
+    "scope": "Isolated canonical metadata fixture only; actual bounded probes delegate to prepared source packages. No application readiness, full native lifecycle or new dependency installation claimed. 26.12.1 to26.13.0 is minor-version drift; patch-only comparator coverage remains separate.",
+    "hostedCi": {
+      "sourceHead": "20b92c986317f8effc6e7d2e0273246845158dd8",
+      "runId": 42420786881,
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42420786881",
+      "jobs": [
+        {
+          "id": 128548685023,
+          "name": "gate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128549209274,
+          "name": "windows",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128549209284,
+          "name": "native-inspection (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128549209291,
+          "name": "native-inspection (macos-latest)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128549209309,
+          "name": "native-inspection (ubuntu-latest)",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128549209316,
+          "name": "rust-tui",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128549209340,
+          "name": "native-index-workflows (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128549209358,
+          "name": "macos",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128549209390,
+          "name": "ubuntu",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128549209401,
+          "name": "windows-authority",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "nativeWorkflowCases": [
+        {
+          "id": "tui/native-index-workflows/build-cancel",
+          "duration": "9.22s"
+        },
+        {
+          "id": "tui/native-index-workflows/build-search",
+          "duration": "17.4s"
+        },
+        {
+          "id": "tui/native-index-workflows/invalid-provider",
+          "duration": "5.60s"
+        },
+        {
+          "id": "tui/native-index-workflows/missing-model",
+          "duration": "5.36s"
+        },
+        {
+          "id": "tui/native-index-workflows/preview-cancel",
+          "duration": "5.43s"
+        },
+        {
+          "id": "tui/native-index-workflows/report",
+          "duration": "14.2s"
+        },
+        {
+          "id": "tui/native-index-workflows/search-published",
+          "duration": "16.7s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot",
+          "duration": "6.89s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-create",
+          "duration": "14.5s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-freeze",
+          "duration": "14.1s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-gc",
+          "duration": "13.9s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "duration": "14.0s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-prune",
+          "duration": "14.8s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-remove",
+          "duration": "15.7s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-show",
+          "duration": "15.1s"
+        },
+        {
+          "id": "tui/native-index-workflows/stale",
+          "duration": "7.10s"
+        },
+        {
+          "id": "tui/native-index-workflows/stats",
+          "duration": "14.5s"
+        },
+        {
+          "id": "tui/native-index-workflows/stats-conflict",
+          "duration": "9.84s"
+        },
+        {
+          "id": "tui/native-index-workflows/validate-published",
+          "duration": "16.4s"
+        },
+        {
+          "id": "tui/native-index-workflows/watch-cancel",
+          "duration": "9.54s"
+        },
+        {
+          "id": "tui/native-index-workflows/workspace",
+          "duration": "16.7s"
+        },
+        {
+          "id": "tui/native-index-workflows/workspace-status",
+          "duration": "12.9s"
+        },
+        {
+          "id": "tui/native-search-conpty/cancel",
+          "duration": "8.96s"
+        },
+        {
+          "id": "tui/native-search-conpty/empty-error",
+          "duration": "14.7s"
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first",
+          "duration": "11.0s"
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "duration": "11.1s"
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "duration": "11.0s"
+        },
+        {
+          "id": "tui/native-search-conpty/incompatible",
+          "duration": "6.59s"
+        },
+        {
+          "id": "tui/native-search-conpty/interrupt",
+          "duration": "9.41s"
+        },
+        {
+          "id": "tui/native-search-conpty/modes",
+          "duration": "6.59s"
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "duration": "10.2s"
+        },
+        {
+          "id": "tui/native-search-conpty/navigation",
+          "duration": "10.4s"
+        },
+        {
+          "id": "tui/native-search-conpty/pagination",
+          "duration": "11.1s"
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "duration": "9.78s"
+        },
+        {
+          "id": "tui/native-search-conpty/replace",
+          "duration": "10.6s"
+        },
+        {
+          "id": "tui/native-search-conpty/scope",
+          "duration": "14.5s"
+        },
+        {
+          "id": "tui/native-search-conpty/truncated",
+          "duration": "5.54s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/cancellation",
+          "duration": "2.18s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/configured-dependency-authority",
+          "duration": "2.26s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/finite-strings-and-overloads",
+          "duration": "2.19s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/host-fallback-refused",
+          "duration": "2.15s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/invalid-config",
+          "duration": "2.13s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/original-snapshot-isolation",
+          "duration": "3.48s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/retained-template-parity",
+          "duration": "2.32s"
+        }
+      ],
+      "scope": "Native Windows workflow job:22 native-index,15 native-search,7 actual TypeScript7.1; all44 pass with original30-second limits. General jobs were still in progress at this snapshot; no all-CI success claimed."
+    },
+    "sourceCandidate": "92720aec3ad1b4d8ef5678706ccdc048493e1281",
+    "originalReportsPreserved": 89,
+    "publicationGate": {
+      "format": {
+        "exitCode": 0,
+        "wholeRepositoryLog": "format-20.log",
+        "finalRuntimeHelperLog": "format-20-runtime-final.log"
+      },
+      "checks": [
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-config-budget.log",
+          "name": "config-budget",
+          "exitCode": 0
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-env-check.log",
+          "name": "env-check",
+          "exitCode": 0
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-generated-freshness.log",
+          "name": "generated-freshness",
+          "exitCode": 0
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-command-surface.log",
+          "name": "command-surface",
+          "exitCode": 0
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-workflow-contract.log",
+          "name": "workflow-contract",
+          "exitCode": 0
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-gate.log",
+          "name": "gate",
+          "exitCode": 0
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\front-gate-09-diff-check.log",
+          "name": "diff-check",
+          "exitCode": 0
+        }
+      ],
+      "gateSummary": {
+        "durationMs": 46511,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "total": 44
+      }
+    },
+    "processAudit": {
+      "path": ".tmp/tasks/validation-20261107/post-bootstrap-owned-process-audit.json",
+      "count": 0,
+      "processes": [],
+      "scope": "Project Node/native TUI only; unrelated applications untouched"
     }
   }
 }
