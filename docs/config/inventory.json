@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T02:21:39.596Z",
+  "generatedAt": "2026-11-07T02:26:52.063Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4710,6 +4710,7 @@
         "tests/context-pack/risk-hydrated-budget.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/context-pack/token-counter-invocation.test.js",
+        "tests/embeddings/pipeline/preparation-window-admission.test.js",
         "tests/embeddings/runner/metadata-probe-observation.test.js",
         "tests/embeddings/runner/token-estimator-original-observation.test.js",
         "tests/fixtures/benchmarks/ownership-boundary-caps.js",

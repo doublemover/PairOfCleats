@@ -2923,3 +2923,7 @@ indexing/embeddings/inline-token-preparation-settlement/original-pending-prepara
 indexing/embeddings/inline-token-preparation-settlement/guarded-single-release
 indexing/embeddings/inline-token-preparation-settlement/strict-falsy-estimator-failures
 indexing/embeddings/inline-token-preparation-settlement/bounded-held-results-and-cancellation
+embeddings/pipeline/preparation-window-admission/before-estimation-and-through-release
+embeddings/pipeline/preparation-window-admission/ordered-windows-beyond-token-lru
+embeddings/pipeline/preparation-window-admission/oversized-text-before-provider-work
+embeddings/pipeline/preparation-window-admission/single-global-reservation
