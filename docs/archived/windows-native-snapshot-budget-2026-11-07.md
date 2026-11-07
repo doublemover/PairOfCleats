@@ -1,6 +1,7 @@
 # Windows native snapshot workflow budget
 
-Implementation checkpoint; affected runtime verification remains unrun.
+Implementation checkpoints and source-bound hosted observations. Current edits
+still require affected runtime verification.
 
 CI2327 at `4f6ca626f5cbad2420caeee84547c6c5f517150a` reports21 native
 index-workflow passes and one30.2-second timeout, `snapshot-remove`.
@@ -48,4 +49,35 @@ admitting only independent native/catalog initialization at the earlier
 chunk-metadata output (7,999 ms in that receipt), instead of waiting for stage4.
 The original build/snapshot join still fences every generation operation.
 Additional catalog/publication/search phase records expose subsequent costs.
-These changes remain unrun; the old workflow observations do not qualify them.
+CI2334 at `7dd801e70bc62be317137e9ca89c5a1ea144a4e0` subsequently passes all22
+native-index cases with zero failures, timeouts or skips. The slowest case is
+build-search at20.8 seconds; total cohort time is284.8 seconds. The
+[original job](https://github.com/doublemover/PairOfCleats/actions/runs/42346707341/job/128326445098)
+qualifies that source checkpoint, not later edits.
+
+CI2336 at `dd6e259c594fb999533722e6209c3ff073bec00d` passes21 cases but published
+search fails its enclosing witness at28.0 seconds. The
+[original job](https://github.com/doublemover/PairOfCleats/actions/runs/42348313440/job/128331382882)
+retains artifact13564079285, SHA256
+`4c9fcf6065b65b5db003ee6581c2afc168bc077f3514025ab8294d66686a47f1`.
+The parent receipt records ordinary status1, no timeout and no native exception;
+its last JavaScript log marker does not identify native fault attribution.
+Native binary SHA256 is
+`66df668388c0e909a6fc3b78136d28f9b1d476d1fb22b7c72beab60ed319c540`,
+Node26.13.0/ABI147, Windows x64. This is historical hosted evidence; its
+author-workspace copy under `.tmp/tasks/ci2336-native-search/` is not required
+or promised in clean checkouts.
+
+Its real seed takes18,467 ms and settles at19,976 ms. Native/catalog readiness
+occurs at6,480/7,312 ms, publication readiness at21,273 ms, and search admission
+at21,526 ms. The transparent proxy records the original `nativeWorkflowAnswer`,
+code/memory/top5/ann:false request and actual search child PID6224. No terminal
+settlement or successful query is inferred from that admission. Earlier terminal
+overlap therefore improved this path without establishing reliable closure.
+
+The current dispatcher change loads its14 independent runtime module roots
+together after the original bootstrap gate, replacing14 sequential import
+barriers. ESM dependency ordering, readiness enforcement, complete real-backend
+seed assertions, source inputs, CLI child ownership and existing deadlines stay
+binding. No measured speedup or final native-search pass is claimed for this
+unrun change; remaining build/query/retirement costs need current qualification.

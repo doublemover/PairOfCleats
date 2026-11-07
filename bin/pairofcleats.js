@@ -5,43 +5,43 @@ import { isDirectExecution } from '../src/shared/direct-execution.js';
 const checkoutInformationHandled = isDirectExecution(import.meta.url) && await handleCheckoutInformation(process.argv.slice(2));
 if (!checkoutInformationHandled) await guardBootstrapEntry(import.meta.url);
 const loadRuntimeModule = specifier => checkoutInformationHandled ? Promise.resolve({}) : import(specifier);
-const { projectIndexFormatError } = await loadRuntimeModule('../src/shared/index-format-error.js');
 import fs from 'node:fs';
 import path from 'node:path';
-const { getToolVersion, resolveRepoRoot, resolveToolRoot } = await loadRuntimeModule('../tools/shared/dict-utils.js');
-const {
-  CONTEXT_PACK_OPTIONS,
-  INDEX_BUILD_OPTIONS,
-  SERVICE_API_OPTIONS,
-  SERVICE_INDEXER_OPTIONS,
-  TOOLING_DETECT_OPTIONS,
-  TOOLING_INSTALL_OPTIONS,
-  resolveCliOptionFlagSets
-} = await loadRuntimeModule('../src/shared/cli-options.js');
-const {
-  COMMAND_SUPPORT_TIER_LABELS,
-  DEFAULT_HELP_SUPPORT_TIERS
-} = await loadRuntimeModule('../src/shared/command-registry-data.js');
-const {
-  describeCommandRegistryEntry,
-  listCommandRegistry,
-  listCommonWorkflowExamples,
-  listHelpSections
-} = await loadRuntimeModule('../src/shared/command-registry-query.js');
-const { spawnSubprocess } = await loadRuntimeModule('../src/shared/subprocess/runner.js');
-const { exitLikeChild } = await loadRuntimeModule('../src/tui/wrapper-exit.js');
-const { buildErrorPayload, ERROR_CODES, isErrorCode } = await loadRuntimeModule('../src/shared/error-codes.js');
-const {
-  getSearchHelp,
-  SEARCH_OPTION_NAMES,
-  SEARCH_SHORT_VALUE_FLAG_NAMES,
-  SEARCH_VALUE_FLAG_NAMES
-} = await loadRuntimeModule('../src/retrieval/cli-args.js');
-const { resolveDispatchRuntimeEnv, isWorkspaceDispatchScript } = await loadRuntimeModule('./dispatch-runtime-env.js');
-const { readFlagValue } = await loadRuntimeModule('../src/shared/cli/argv.js');
-const { validateBuildRawIntent } = await loadRuntimeModule('../src/shared/cli-option-validators.js');
-const { STORAGE_ACTIONS, STORAGE_OPTIONS } = await loadRuntimeModule('../tools/storage/options.js');
-const { isStrictDispatchEnvEnabled } = await loadRuntimeModule('../src/shared/env/runtime.js');
+// The original bootstrap gate completes before any runtime module loads.
+// Independent module roots need no serial filesystem round trips; ESM retains
+// their dependency ordering, and dispatch still awaits the complete set.
+const [
+  { projectIndexFormatError },
+  { getToolVersion, resolveRepoRoot, resolveToolRoot },
+  { CONTEXT_PACK_OPTIONS, INDEX_BUILD_OPTIONS, SERVICE_API_OPTIONS, SERVICE_INDEXER_OPTIONS,
+    TOOLING_DETECT_OPTIONS, TOOLING_INSTALL_OPTIONS, resolveCliOptionFlagSets },
+  { COMMAND_SUPPORT_TIER_LABELS, DEFAULT_HELP_SUPPORT_TIERS },
+  { describeCommandRegistryEntry, listCommandRegistry, listCommonWorkflowExamples, listHelpSections },
+  { spawnSubprocess },
+  { exitLikeChild },
+  { buildErrorPayload, ERROR_CODES, isErrorCode },
+  { getSearchHelp, SEARCH_OPTION_NAMES, SEARCH_SHORT_VALUE_FLAG_NAMES, SEARCH_VALUE_FLAG_NAMES },
+  { resolveDispatchRuntimeEnv, isWorkspaceDispatchScript },
+  { readFlagValue },
+  { validateBuildRawIntent },
+  { STORAGE_ACTIONS, STORAGE_OPTIONS },
+  { isStrictDispatchEnvEnabled }
+] = await Promise.all([
+  '../src/shared/index-format-error.js',
+  '../tools/shared/dict-utils.js',
+  '../src/shared/cli-options.js',
+  '../src/shared/command-registry-data.js',
+  '../src/shared/command-registry-query.js',
+  '../src/shared/subprocess/runner.js',
+  '../src/tui/wrapper-exit.js',
+  '../src/shared/error-codes.js',
+  '../src/retrieval/cli-args.js',
+  './dispatch-runtime-env.js',
+  '../src/shared/cli/argv.js',
+  '../src/shared/cli-option-validators.js',
+  '../tools/storage/options.js',
+  '../src/shared/env/runtime.js'
+].map(loadRuntimeModule));
 
 const ROOT = checkoutInformationHandled ? null : resolveToolRoot();
 const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS || {}).filter((flag) => flag !== 'repo');
