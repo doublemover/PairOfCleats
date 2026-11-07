@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: all open issues in scope except Tantivy/editor work
-Last audited: 2026-11-06
+Last audited: 2026-11-07
 Last reconciled: 2026-11-07
 Last implementation update: 2026-11-07
 Canonical for: initiative status, execution order, and remaining work

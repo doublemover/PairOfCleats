@@ -89,3 +89,14 @@ reported pass; the discovery repair is later source, not qualified by this run.
 No local POSIX execution occurred. Later recovery, repository quota,
 runner-discovery and Go SDK/download changes remain outside this checkpoint's
 acceptance.
+
+## Later documentation gate
+
+The [later run at68a7242f1](https://github.com/doublemover/PairOfCleats/actions/runs/42363758183)
+stops in generated-surface freshness. The active roadmap advanced its issue
+reconciliation to November7 but retained a November6 audit date, violating the
+existing status-ordering contract. The November7 census and source review are
+now reflected in that audit date. The assertion and freshness checks remain.
+Bootstrap/runtime contracts, lint, config and environment checks passed in this
+run; subsequent command/gate, broad, native and authority jobs were skipped.
+This run provides no new runtime acceptance for the later repairs.
