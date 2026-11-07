@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inspectBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
+import { getBootstrapRuntimeContext, inspectBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { runSetupPreflight } from './preflight.js';
 import { inspectCheckoutRecovery } from './checkout-recovery.js';
@@ -19,10 +19,7 @@ export const diagnoseCheckout = async ({ root = ROOT, prerequisites = false } = 
   }
   return {
     schemaVersion: 1, kind: 'checkout-diagnosis', root: path.resolve(root),
-    runtime: { required: '>=26.12.1 <27', actual: process.version, abi: process.versions.modules,
-      platform: process.platform, arch: process.arch, executable: process.execPath,
-      npmNodeExecutable: process.env.npm_node_execpath || null,
-      npmExecutable: process.env.npm_execpath || null },
+    runtime: getBootstrapRuntimeContext(),
     bootstrap, recovery, prerequisites: prerequisiteReport,
     operationalReadiness: 'not-probed',
     nextCommands: recovery.command ? [recovery.command] : [],

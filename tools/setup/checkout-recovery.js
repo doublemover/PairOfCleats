@@ -106,7 +106,8 @@ export const inspectCheckoutRecovery = ({ root, readiness, inputs = null } = {})
       if (!actual.isDirectory() || actual.isSymbolicLink() || actual.dev !== original.dev || actual.ino !== original.ino) throw problem(
         'ERR_CHECKOUT_RECOVERY_CHANGED', 'Recovery directory changed before its plan completed.');
     }
-    return result(intact ? 'verify' : 'repair', intact ? 'Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.'
+    const verifyOnly = intact && readiness?.code !== 'ERR_BOOTSTRAP_NATIVE_UNUSABLE';
+    return result(verifyOnly ? 'verify' : 'repair', verifyOnly ? 'Locked dependencies and recorded native/patch artifacts remain intact; refresh complete verification.'
       : 'Locked package versions are present; apply required patches and use targeted native repair before fresh verification.', { checkedPackages, readBytes });
   } catch (error) {
     observeStorageResource(error, { phase: 'checkout-recovery-input-read' }).requireSettled();

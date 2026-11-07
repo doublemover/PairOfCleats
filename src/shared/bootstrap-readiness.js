@@ -260,20 +260,38 @@ export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = tr
   } catch (error) {
     return { ...readiness(false, error?.message || String(error)), code, mismatches,
       nativeProbes: probeNatives ? 'incomplete' : 'not-run',
-      nextAction: ['ERR_BOOTSTRAP_RECEIPT_REPLACED', 'ERR_BOOTSTRAP_MUTATION_ACTIVE'].includes(code) ? 'retry-after-verifier'
+      nextAction: ['ERR_BOOTSTRAP_RECEIPT_REPLACED', 'ERR_BOOTSTRAP_JOURNAL_REPLACED', 'ERR_BOOTSTRAP_MUTATION_ACTIVE'].includes(code) ? 'retry-after-verifier'
         : code === 'ERR_BOOTSTRAP_IDENTITY_MISMATCH' && mismatches.every(item => item.field.startsWith('runtime.'))
           ? 'verify-natives-and-patches-under-selected-runtime' : 'locked-bootstrap' };
   }
 };
 
-export const formatBootstrapRequired = (reason, root = ROOT) => [
+export const getBootstrapRuntimeContext = () => ({
+  required: '>=26.12.1 <27', actual: process.version, abi: process.versions.modules,
+  platform: process.platform, arch: process.arch, executable: process.execPath,
+  npmNodeExecutable: process.env.npm_node_execpath || null,
+  npmExecutable: process.env.npm_execpath || null
+});
+
+const formatIdentityValue = value => {
+  if (typeof value === 'string') return JSON.stringify(value.length > 512 ? value.slice(0, 512) + '…' : value);
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') return JSON.stringify(value);
+  return `<${Array.isArray(value) ? 'array' : typeof value}>`;
+};
+
+export const formatBootstrapRequired = ({ bootstrap, recovery, runtime: context }, root = ROOT) => [
   '', '======================================================================',
   'PAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED',
-  '======================================================================', reason,
-  `In the PairOfCleats checkout (${root}), run:`, '', '  npm run bootstrap:ci', '',
-  'For intentional dependency-resolution changes only: npm run bootstrap',
-  'Use Node.js >=26.12.1 <27. Bootstrap installs dependencies, applies required patches',
-  'and rebuilds/verifies native modules. Nothing was installed automatically.',
+  '======================================================================', bootstrap.reason,
+  `Reason: ${bootstrap.code}`,
+  ...bootstrap.mismatches.map(item => `- ${item.field}: expected ${formatIdentityValue(item.expected)}; receipt ${formatIdentityValue(item.observed)}`),
+  `Node: ${context.actual} (${context.executable}); required ${context.required}`,
+  `npm Node: ${context.npmNodeExecutable || 'not selected by npm'}`,
+  `Next action: ${recovery.action}. ${recovery.reason}`,
+  ...(recovery.command ? [`In the PairOfCleats checkout (${root}), under the selected runtime, run:`, '', `  ${recovery.command}`, '']
+    : [recovery.action === 'wait' ? 'Wait for the original verifier/mutation to finish, then retry this command.'
+      : 'Select the .nvmrc runtime, then retry this command.']),
+  'Recovery selection is read-only metadata, not native qualification. Nothing was installed automatically.',
   '======================================================================', ''
 ].join('\n');
 
@@ -283,7 +301,11 @@ export const formatBootstrapRequired = (reason, root = ROOT) => [
 export const requireBootstrap = async ({ root = ROOT } = {}) => {
   const result = await inspectBootstrapReadiness({ root });
   if (result.ready) return;
-  const error = Object.assign(new Error(formatBootstrapRequired(result.reason, root)), { code: 'ERR_BOOTSTRAP_REQUIRED' });
+  // Reuse explicit diagnosis's bounded read-only selector only on denial.
+  // Successful admission remains inert; no selected operation executes here.
+  const { inspectCheckoutRecovery } = await import('../../tools/setup/checkout-recovery.js');
+  const diagnosis = { bootstrap: result, recovery: inspectCheckoutRecovery({ root, readiness: result }), runtime: getBootstrapRuntimeContext() };
+  const error = Object.assign(new Error(formatBootstrapRequired(diagnosis, root)), { code: 'ERR_BOOTSTRAP_REQUIRED', ...diagnosis });
   throw error;
 };
 export const guardBootstrapEntry = async entryUrl => {

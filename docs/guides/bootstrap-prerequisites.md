@@ -5,6 +5,13 @@ with npm and Git. Full bootstrap also requires Python 3 and a supported C/C++
 toolchain. The required patched Perl parser is built from source even when other
 packages have prebuilts.
 
+An ordinary `BOOTSTRAP REQUIRED` error retains the same reason, identity-field
+differences, executing Node/npm context and read-only recovery selection as
+`pairofcleats checkout diagnose`. Follow its selected wait, runtime selection,
+verification, targeted repair or locked install action. A known failed native
+probe requires repair even when installed file metadata is unchanged. Diagnostics
+never start a repair, and intact metadata alone never qualifies native readiness.
+
 CI selects **Python 3.15.2** from [.python-version](../../.python-version).
 Local bootstrap accepts a compatible maintained Python 3. The locked node-gyp is
 13.1.0; Python 3.12+ needs node-gyp >=10. Explicit Python selection follows

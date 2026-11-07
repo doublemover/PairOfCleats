@@ -5,7 +5,7 @@ import { inspectCheckoutRecovery } from '../../../tools/setup/checkout-recovery.
 import { runCheckoutBootstrap } from '../../../tools/setup/checkout-bootstrap.js';
 import { diagnoseCheckout } from '../../../tools/setup/checkout-diagnose.js';
 import { withCheckoutMutation } from '../../../tools/setup/checkout-mutation.js';
-import { inspectBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
+import { inspectBootstrapReadiness, requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { CHECKOUT_JOURNAL_STATUS } from '../../../tools/setup/checkout-stage-journal.js';
 import { makeBootstrapVerificationFixture } from '../../helpers/bootstrap-verification.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -84,6 +84,15 @@ try {
     await withCheckoutMutation(root, async () => {
       const diagnosis = await diagnoseCheckout({ root });
       assert.equal(diagnosis.recovery.action, 'wait'); assert.deepEqual(diagnosis.nextCommands, []);
+      await assert.rejects(requireBootstrap({ root }), error => {
+        assert.equal(error.code, 'ERR_BOOTSTRAP_REQUIRED');
+        assert.equal(error.bootstrap.code, diagnosis.bootstrap.code);
+        assert.deepEqual(error.bootstrap.mismatches, diagnosis.bootstrap.mismatches);
+        assert.deepEqual(error.runtime, diagnosis.runtime);
+        assert.deepEqual(error.recovery, diagnosis.recovery);
+        assert.doesNotMatch(error.message, /npm run bootstrap/);
+        return true;
+      });
       let calls = 0;
       await assert.rejects(runCheckoutBootstrap(['locked'], { root, command: () => { calls++; } }), { code: 'ERR_CHECKOUT_MUTATION_BUSY' });
       assert.equal(calls, 0);
@@ -93,7 +102,12 @@ try {
     for (const code of ['ERR_BOOTSTRAP_RECEIPT_REPLACED', 'ERR_BOOTSTRAP_JOURNAL_REPLACED']) assert.equal(
       inspectCheckoutRecovery({ root, readiness: { code } }).action, 'wait');
   } else {
-    await verify(); await write('node_modules/tree-sitter/fixture.node', 'changed unprobed native artifact');
+    await verify();
+    // Selection-only control: no placeholder native is activated. A known
+    // original probe failure cannot be excused by intact file metadata.
+    const unusable = inspectCheckoutRecovery({ root, readiness: { ready: false, code: 'ERR_BOOTSTRAP_NATIVE_UNUSABLE' } });
+    assert.equal(unusable.action, 'repair'); assert.equal(unusable.command, 'npm run bootstrap:ci -- --repair');
+    await write('node_modules/tree-sitter/fixture.node', 'changed unprobed native artifact');
     const { readiness, recovery } = await inspect();
     assert.equal(readiness.ready, false); assert.equal(recovery.action, 'repair');
     assert.match(recovery.qualification, /not-native-qualification/);
