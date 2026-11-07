@@ -19,6 +19,8 @@ counts transfer that capability to the existing pipeline owner. Malformed ordina
 results release their known preparation before fallback. Release failures retain
 the original result and actual cleanup error; cancellation/primary failures survive
 independent cleanup failure. Unknown work grants no new automatic cleanup or retry.
+The actual release error keeps its code/message as the primary diagnostic;
+the retained estimate array cannot replace it with a generic storage message.
 
 Five authored, locally unrun cases cover receiver identity, safe counts, negative
 and malformed hints, ordinary/falsy fallback, native pending errors/results,

@@ -77,13 +77,19 @@ if (mode === 'counts-and-original-release') {
     const estimate = createEmbeddingTokenEstimator({ estimate: () => original, fallback: () => 1 });
     await assert.rejects(estimate(['one']), error => contains(error, original) && contains(error, primary) && isTerminalEmbeddingTokenEstimateFailure(error));
   }
-  const original = [], cleanup = Object.freeze(new Error('invalid-result release failed'));
+  const original = [], cleanup = Object.freeze(Object.assign(new Error('invalid-result release failed'), { code: 'ERR_CONTROLLED_TOKEN_RELEASE' }));
   Object.defineProperty(original, 'release', { value() { assert.equal(this, original); throw cleanup; } });
   const estimate = createEmbeddingTokenEstimator({ estimate: () => original, fallback: () => 1 });
-  await assert.rejects(estimate(['one']), error => contains(error, original) && contains(error, cleanup));
-  const abort = Object.assign(new Error('fallback cancelled'), { name: 'AbortError' }), prepared = [0]; let releases = 0;
-  Object.defineProperty(prepared, 'release', { value() { assert.equal(this, prepared); releases++; throw 0; } });
-  const cancelled = createEmbeddingTokenEstimator({ estimate: () => prepared, fallback() { throw abort; } });
+  await assert.rejects(estimate(['one']), error => contains(error, original) && contains(error, cleanup)
+    && error.code === cleanup.code && error.message === cleanup.message);
+  const valid = [1];
+  Object.defineProperty(valid, 'release', { value() { assert.equal(this, valid); throw cleanup; } });
+  const prepared = await createEmbeddingTokenEstimator({ estimate: () => valid, fallback: () => 1 })(['one']);
+  await assert.rejects(prepared.release(), error => contains(error, valid) && contains(error, cleanup)
+    && error.code === cleanup.code && error.message === cleanup.message);
+  const abort = Object.assign(new Error('fallback cancelled'), { name: 'AbortError' }), cancelledPreparation = [0]; let releases = 0;
+  Object.defineProperty(cancelledPreparation, 'release', { value() { assert.equal(this, cancelledPreparation); releases++; throw 0; } });
+  const cancelled = createEmbeddingTokenEstimator({ estimate: () => cancelledPreparation, fallback() { throw abort; } });
   await assert.rejects(cancelled(['one']), error => contains(error, abort) && contains(error, 0)); assert.equal(releases, 1);
 }
 console.log('Optional token estimates preserve original result/failure observations and release receiver.');

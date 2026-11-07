@@ -29,7 +29,7 @@ export const createEmbeddingTokenEstimator = ({ estimate, receiver = null, fallb
       try {
         const completion = await Reflect.apply(ownedRelease, estimatedValue, []);
         requireSettled(observeStorageResource(completion, { phase: 'embedding-invalid-token-estimate-release' }));
-      } catch (error) { inspectionFailed = true; throw terminal(original.retain(error, { inspectionPresent: true })); }
+      } catch (error) { inspectionFailed = true; throw terminal(original.retain(error, { inspectionPresent: true, inspectionPrimary: true })); }
     };
     const releaseAfterFailure = async primary => {
       try { await releaseInvalidResult(); }
@@ -57,7 +57,7 @@ export const createEmbeddingTokenEstimator = ({ estimate, receiver = null, fallb
               const result = await Reflect.apply(originalRelease, estimated, args);
               requireSettled(observeStorageResource(result, { phase: 'embedding-token-estimate-release' }));
               requireOriginal(); return result;
-            } catch (error) { throw terminal(original.retain(error, { inspectionPresent: true })); }
+            } catch (error) { throw terminal(original.retain(error, { inspectionPresent: true, inspectionPrimary: true })); }
           })();
           return completion;
         } });
