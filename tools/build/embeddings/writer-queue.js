@@ -1,5 +1,13 @@
-import { isAbortError, raceAbort, throwIfAborted } from '../../../src/shared/abort.js';
+import { raceAbort, throwIfAborted } from '../../../src/shared/abort.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { isTerminalEmbeddingTokenEstimateFailure } from '../../../src/shared/embedding-token-estimation.js';
+
+const cancellationObserved = error => {
+  if (isTerminalEmbeddingTokenEstimateFailure(error)) return false;
+  const observed = observeStorageResource(error, { phase: 'embedding-writer-cancellation' });
+  observed.requireSettled();
+  return observed.read('name') === 'AbortError' || observed.read('code') === 'ABORT_ERR';
+};
 
 export const createBoundedWriterQueue = ({
   scheduleIo,
@@ -84,10 +92,16 @@ export const createBoundedWriterQueue = ({
         return typeof scheduleIo === 'function' ? scheduleIo(write) : write();
       })
         .catch(error => {
-          stats.failed++; if (isAbortError(error)) stats.cancelled++;
-          try { observeStorageResource(error, { phase: 'embedding-writer-settlement' }).requireSettled(); }
+          stats.failed++;
+          if (isTerminalEmbeddingTokenEstimateFailure(error)) { terminal.add(error); return; }
+          let cancelled;
+          try {
+            observeStorageResource(error, { phase: 'embedding-writer-settlement' }).requireSettled();
+            cancelled = cancellationObserved(error);
+          }
           catch (pendingError) { terminal.add(pendingError); return; }
-          if (isAbortError(error) || signal?.aborted || error instanceof AggregateError) terminal.add(error);
+          if (cancelled) stats.cancelled++;
+          if (cancelled || signal?.aborted || error instanceof AggregateError) terminal.add(error);
         })
         .finally(() => {
           if (writeStartedAt != null) stats.writeMs += performance.now() - writeStartedAt;
@@ -96,7 +110,8 @@ export const createBoundedWriterQueue = ({
           release();
         });
     } catch (error) {
-      if (isAbortError(error)) stats.cancelled++;
+      try { if (cancellationObserved(error)) stats.cancelled++; }
+      catch (pendingError) { terminal.add(pendingError); throw pendingError; }
       throw error;
     } finally {
       if (waiting) waitingProducerBytes -= bytes;

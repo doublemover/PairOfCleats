@@ -60,21 +60,27 @@ export const retireCheckoutMutationSession = async session => {
  * One caller spans the transaction; nested owned operations borrow its opaque
  * capability explicitly. A live or orphaned record is never reclaimed here.
  */
-export const withCheckoutMutation = async (root, operation, { session = null, signal = null, kind = 'checkout-bootstrap' } = {}) => {
-  if (typeof operation !== 'function' || typeof kind !== 'string' || !kind || kind.length > 64) throw new TypeError('Invalid checkout mutation operation.');
-  root = canonicalRoot(root); signal?.throwIfAborted();
-  if (session) {
-    requireCheckoutMutationSession(root, session);
-    const state = sessions.get(session);
-    if (state.borrowed.size === 128) throw fail('ERR_CHECKOUT_MUTATION_BORROW_LIMIT', 'Checkout mutation has too many outstanding owned operations.');
-    const pending = Promise.resolve().then(() => { requireCheckoutMutationSession(root, session); return operation(session); });
-    state.borrowed.add(pending);
-    pending.then(() => state.borrowed.delete(pending), error => {
-      state.ledger.remember(error); state.borrowed.delete(pending);
-      if (state.borrowedFailures.length < 128) state.borrowedFailures.push(error); else state.ledger.markIncomplete();
-    });
-    return pending;
-  }
+export const withCheckoutMutation = (root, operation, { session = null, signal = null, kind = 'checkout-bootstrap' } = {}) => {
+  try {
+    if (typeof operation !== 'function' || typeof kind !== 'string' || !kind || kind.length > 64) throw new TypeError('Invalid checkout mutation operation.');
+    root = canonicalRoot(root); signal?.throwIfAborted();
+    if (session) {
+      requireCheckoutMutationSession(root, session);
+      const state = sessions.get(session);
+      if (state.borrowed.size === 128) throw fail('ERR_CHECKOUT_MUTATION_BORROW_LIMIT', 'Checkout mutation has too many outstanding owned operations.');
+      const pending = Promise.resolve().then(() => { requireCheckoutMutationSession(root, session); return operation(session); });
+      state.borrowed.add(pending);
+      pending.then(() => state.borrowed.delete(pending), error => {
+        state.ledger.remember(error); state.borrowed.delete(pending);
+        if (state.borrowedFailures.length < 128) state.borrowedFailures.push(error); else state.ledger.markIncomplete();
+      });
+      return pending;
+    }
+    return runRootCheckoutMutation(root, operation, { signal, kind });
+  } catch (error) { return Promise.reject(error); }
+};
+
+const runRootCheckoutMutation = async (root, operation, { signal, kind }) => {
   prepareState(root);
   const lock = await acquireFileLock({ lockPath: path.join(root, CHECKOUT_MUTATION_LOCK), waitMs: 0, createParent: false, signal,
     metadata: { kind, root, resourceSettlementVersion: 1 }, staleRemovalImpl: async () => ({ removed: false, removalMode: 'owner' }) });
