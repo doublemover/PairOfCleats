@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn control_denials_remain_visible_with_long_session_identity_and_scope() {
+    let mut model = model();
+    model.run_id = "long-run-identity-".repeat(20);
+    model.session.scope = "C:\\long-repository-component\\".repeat(20);
+    model.owns_control_channel = true;
+    let reason = interaction::input_disabled(&model, &InputCommand::RepositorySearch)
+        .expect("the original pre-handshake control guard must reject search");
+    model.push_alert("info", reason);
+    for height in [24, 46] {
+        for width in [60, 80, 170] {
+            assert!(
+                screen(&model, width, height).contains(reason),
+                "the actual denial must remain readable at {width}x{height}"
+            );
+        }
+    }
+    assert!(!model.repository_search.available);
+    assert!(model.repository_search.outbox.is_empty());
+}
+
+#[test]
 fn actual_javascript_unicode_frames_decode_and_settle_terminal_jobs() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = process_command::background_command("node")

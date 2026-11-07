@@ -1559,17 +1559,20 @@ fn wrap_text_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
 }
 
 fn session_summary_text(model: &AppModel, width: usize) -> String {
-    let mut parts = vec![
+    let mut parts = Vec::new();
+    // A denial must remain visible even when optional session identity or a
+    // long repository scope consumes the remaining terminal columns.
+    if !model.alerts.is_empty() {
+        parts.push(format!("alert {}", last_alert_summary(model)));
+    }
+    parts.extend([
         format!("mode {}", model.session.mode),
         format!("src {}", model.session.source),
         format!("conn {}", model.session.connection),
         format!("run {}", model.run_id),
-    ];
+    ]);
     if width >= 96 && !model.session.scope.trim().is_empty() {
         parts.push(format!("scope {}", model.session.scope));
-    }
-    if !model.alerts.is_empty() {
-        parts.push(format!("alert {}", last_alert_summary(model)));
     }
     fit_text(&parts.join(" | "), width)
 }

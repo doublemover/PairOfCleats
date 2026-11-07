@@ -406,11 +406,17 @@ pub(super) fn render_compact(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         );
         return;
     }
+    let session = if model.alerts.is_empty() {
+        format!(
+            "{} | {} | scope {}",
+            model.session.mode, model.session.connection, model.session.scope
+        )
+    } else {
+        session_summary_text(model, area.width as usize)
+    };
     let header = format!(
-        "{} | {} | scope {}\n{} | {} | job {} | Tab panes",
-        model.session.mode,
-        model.session.connection,
-        model.session.scope,
+        "{}\n{} | {} | job {} | Tab panes",
+        session,
         model.focus_panel.label(),
         if model.selected_job_expired {
             "EXPIRED selection"
