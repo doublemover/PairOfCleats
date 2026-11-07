@@ -14,13 +14,14 @@ const normalizeMaskValue = value => {
   if (value === false || value === 0 || value === 0n) return 0;
   throw invalid('attention_mask contains a value other than zero or one.');
 };
-const normalizeFieldRows = (value, rowCount, field) => {
+const normalizeFieldRows = (value, rowCount, field, rowLengthLimit = null) => {
   if (!isRow(value)) throw invalid(`${field} is not an array of token rows.`);
   const nested = Array.isArray(value) && value.length > 0 && isRow(value[0]);
   if (nested ? value.length !== rowCount : rowCount !== 1) throw invalid(`${field} row count differs from the requested texts.`);
   const source = nested ? value : [value];
   return source.map(row => {
     if (!isRow(row)) throw invalid(`${field} contains a missing or malformed row.`);
+    if (rowLengthLimit !== null && row.length > rowLengthLimit) throw invalid(`${field} exceeds its admitted tokenizer geometry.`);
     return Array.from(row, entry => field === 'attention_mask' ? normalizeMaskValue(entry) : normalizeTokenValue(entry, field));
   });
 };
@@ -40,11 +41,11 @@ const count = (measurements, field, amount) => {
   if (measurements) measurements[field] = Math.min(Number.MAX_SAFE_INTEGER, (measurements[field] || 0) + amount);
 };
 
-const buildRowsFromTokenizerOutput = (encoded, rowCount, { wantsTokenTypeIds = false } = {}) => {
-  const inputRows = normalizeFieldRows(encoded?.input_ids, rowCount, 'input_ids');
-  const maskRows = encoded?.attention_mask == null ? null : normalizeFieldRows(encoded.attention_mask, rowCount, 'attention_mask');
+const buildRowsFromTokenizerOutput = (encoded, rowCount, { wantsTokenTypeIds = false, rowLengthLimit = null } = {}) => {
+  const inputRows = normalizeFieldRows(encoded?.input_ids, rowCount, 'input_ids', rowLengthLimit);
+  const maskRows = encoded?.attention_mask == null ? null : normalizeFieldRows(encoded.attention_mask, rowCount, 'attention_mask', rowLengthLimit);
   const tokenTypeRows = wantsTokenTypeIds && encoded?.token_type_ids != null
-    ? normalizeFieldRows(encoded.token_type_ids, rowCount, 'token_type_ids')
+    ? normalizeFieldRows(encoded.token_type_ids, rowCount, 'token_type_ids', rowLengthLimit)
     : null;
   const rows = new Array(rowCount);
   for (let i = 0; i < rowCount; i += 1) {
@@ -129,8 +130,10 @@ export const prepareTokenRowsWithCache = ({
   maxLength = null,
   tokenizationCache = null,
   preparedRows = null,
+  rowLengthLimit = null,
   measurements = null
 }) => {
+  if (rowLengthLimit !== null && (!Number.isSafeInteger(rowLengthLimit) || rowLengthLimit < 1)) throw invalid('Invalid admitted tokenizer geometry.');
   const list = Array.isArray(texts) ? texts.map((text) => (typeof text === 'string' ? text : String(text ?? ''))) : [];
   if (!list.length) {
     return [];
@@ -145,7 +148,7 @@ export const prepareTokenRowsWithCache = ({
     : 0;
   for (let i = 0; i < list.length; i += 1) {
     const text = list[i];
-    const prepared = preparedRows?.take(text, identity);
+    const prepared = preparedRows?.read(text, identity);
     if (prepared) { rows[i] = prepared; count(measurements, 'preparedTokenRowHits', 1); continue; }
     if (cacheEnabled) {
       const key = buildTokenizationCacheKey(text, identity);
@@ -172,7 +175,7 @@ export const prepareTokenRowsWithCache = ({
       return_token_type_ids: wantsTokenTypeIds
     });
     const missingRows = buildRowsFromTokenizerOutput(encodedMissing, missingTexts.length, {
-      wantsTokenTypeIds
+      wantsTokenTypeIds, rowLengthLimit
     });
     for (let i = 0; i < missingTexts.length; i += 1) {
       const text = missingTexts[i];
@@ -187,6 +190,9 @@ export const prepareTokenRowsWithCache = ({
       }
     }
   }
+  if (rowLengthLimit !== null) for (const row of rows) {
+    if (row.input_ids.length > rowLengthLimit) throw invalid('Cached token row exceeds its admitted tokenizer geometry.');
+  }
   count(measurements, 'preparedTokenRows', rows.length);
   count(measurements, 'preparedUsefulTokens', rows.reduce((sum, row) => sum + row.attention_mask.reduce((tokens, value) => tokens + value, 0), 0));
   return rows;
@@ -196,41 +202,75 @@ export const prepareTokenRowsWithCache = ({
 // released by the admitted request even on failure; expiry also bounds callers
 // that estimate without subsequently dispatching.
 export const createPreparedTokenRows = ({ maxEntries = 4096, maxBytes = 16 * 1024 * 1024, ttlMs = 60000 } = {}) => {
-  const entries = new Map();
-  let bytes = 0, timer = null;
-  const remove = key => {
-    const entry = entries.get(key);
-    if (entry) { entries.delete(key); bytes -= entry.bytes; }
-    if (!entries.size && timer) { clearTimeout(timer); timer = null; }
-  };
+  if (![maxEntries, maxBytes, ttlMs].every(value => Number.isSafeInteger(value) && value > 0)) throw new RangeError('Invalid prepared token row capacity.');
+  const entries = new Map(), leases = new Set(), reservedKeys = new Set();
+  let bytes = 0, reservedBytes = 0, timer = null;
   const expire = () => {
     timer = null;
     const now = Date.now();
-    for (const [key, entry] of entries) if (entry.expiresAt <= now) remove(key);
-    if (entries.size) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
+    for (const lease of leases) if (lease.expiresAt <= now) lease.release();
+    if (leases.size) { timer = setTimeout(expire, Math.max(1, Math.min(...[...leases].map(lease => lease.expiresAt - now)))); timer.unref?.(); }
   };
   return {
-    retain(texts, rows, identity) {
-      const owner = {}, keys = [];
+    reserve({ texts, identity, maxLength, wantsTokenTypeIds = false }) {
+      if (!Array.isArray(texts) || !texts.length || texts.length > maxEntries || leases.size >= maxEntries || typeof identity !== 'string'
+        || !Number.isSafeInteger(maxLength) || maxLength < 1) return null;
+      const rowBytes = maxLength * (wantsTokenTypeIds ? 3 : 2) * 8;
+      if (!Number.isSafeInteger(rowBytes) || rowBytes > maxBytes) return null;
+      const textCount = texts.length, keys = new Map(); let projected = 0;
       for (let i = 0; i < texts.length; i++) {
-        const key = buildTokenizationCacheKey(texts[i], identity), row = rows[i];
-        const size = key.length * 2 + 128 + (row.input_ids.length + row.attention_mask.length + (row.token_type_ids?.length || 0)) * 8;
-        if (size > maxBytes) continue;
-        remove(key);
-        while (entries.size >= maxEntries || bytes + size > maxBytes) remove(entries.keys().next().value);
-        entries.set(key, { owner, row, bytes: size, expiresAt: Date.now() + ttlMs }); bytes += size; keys.push(key);
+        if (typeof texts[i] !== 'string' || texts[i].length * 2 > Math.min(maxBytes, 4 * 1024 * 1024)) return null;
+        const key = buildTokenizationCacheKey(texts[i], identity);
+        if (keys.has(key)) continue;
+        if (entries.has(key) || reservedKeys.has(key)) return null;
+        projected += key.length * 2 + 128 + rowBytes;
+        if (!Number.isSafeInteger(projected) || projected > maxBytes - bytes - reservedBytes) return null;
+        keys.set(key, i);
       }
-      if (entries.size && !timer) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
-      return () => { for (const key of keys) if (entries.get(key)?.owner === owner) remove(key); };
+      if (keys.size + entries.size + reservedKeys.size > maxEntries) return null;
+      let released = false, committed = false;
+      const lease = { expiresAt: Date.now() + ttlMs, release() {
+        if (released) return;
+        released = true;
+        if (!committed) reservedBytes -= projected;
+        for (const key of keys.keys()) {
+          reservedKeys.delete(key);
+          const entry = entries.get(key);
+          if (entry?.owner === lease) { entries.delete(key); bytes -= entry.bytes; }
+        }
+        leases.delete(lease);
+        if (!leases.size && timer) { clearTimeout(timer); timer = null; }
+      }, commit(rows) {
+        if (released || committed) throw invalid('Prepared token reservation is no longer open.');
+        if (Date.now() >= lease.expiresAt) { lease.release(); throw invalid('Prepared token reservation expired before commit.'); }
+        if (!Array.isArray(rows) || rows.length !== textCount) throw invalid('Prepared token reservation row count differs from its admission.');
+        const admitted = [];
+        for (const [key, index] of keys) {
+          const row = rows[index], length = row?.input_ids?.length;
+          if (!Number.isSafeInteger(length) || length < 1 || length > maxLength || row.attention_mask?.length !== length
+            || (wantsTokenTypeIds ? row.token_type_ids?.length !== length : row.token_type_ids != null)) throw invalid('Prepared token row differs from its admitted geometry.');
+          admitted.push({ key, row, bytes: key.length * 2 + 128 + length * (wantsTokenTypeIds ? 3 : 2) * 8 });
+        }
+        reservedBytes -= projected; committed = true;
+        for (const entry of admitted) {
+          reservedKeys.delete(entry.key); entries.set(entry.key, { ...entry, owner: lease }); bytes += entry.bytes;
+        }
+        return lease.release;
+      } };
+      leases.add(lease); reservedBytes += projected;
+      for (const key of keys.keys()) reservedKeys.add(key);
+      if (!timer) { timer = setTimeout(expire, ttlMs); timer.unref?.(); }
+      return Object.freeze(lease);
     },
-    take(text, identity) {
+    read(text, identity) {
       const key = buildTokenizationCacheKey(text, identity), entry = entries.get(key);
       if (!entry) return null;
-      remove(key);
-      return entry.expiresAt > Date.now() ? entry.row : null;
+      if (entry.owner.expiresAt <= Date.now()) { entry.owner.release(); return null; }
+      return entry.row;
     },
-    clear() { for (const key of entries.keys()) remove(key); },
-    stats: () => ({ entries: entries.size, bytes, maxEntries, maxBytes })
+    clear() { for (const lease of leases) lease.release(); },
+    stats: () => ({ entries: entries.size, bytes, reservedBytes, reservedEntries: reservedKeys.size,
+      reservations: leases.size, maxEntries, maxBytes })
   };
 };
 

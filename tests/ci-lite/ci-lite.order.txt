@@ -2927,3 +2927,8 @@ embeddings/pipeline/preparation-window-admission/before-estimation-and-through-r
 embeddings/pipeline/preparation-window-admission/ordered-windows-beyond-token-lru
 embeddings/pipeline/preparation-window-admission/oversized-text-before-provider-work
 embeddings/pipeline/preparation-window-admission/single-global-reservation
+indexing/embeddings/prepared-row-reservation/pre-tokenizer-capacity
+indexing/embeddings/prepared-row-reservation/pending-and-committed-accounting
+indexing/embeddings/prepared-row-reservation/retained-read-and-original-release
+indexing/embeddings/prepared-row-reservation/geometry-before-copy
+indexing/embeddings/prepared-row-reservation/expiry-and-failed-commit

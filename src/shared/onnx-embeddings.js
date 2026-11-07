@@ -379,21 +379,30 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     if (!list.length) return [];
     const { tokenizer, session } = await embedderPromise;
     const wantsTokenTypeIds = session.inputNames?.includes('token_type_ids') === true;
-    const rows = measureTokenization(() => prepareTokenRowsWithCache({ tokenizer, texts: list, wantsTokenTypeIds,
-      truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength: denseContract?.maxLength ?? null,
-      tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null, measurements: sessionEntry.measurements }));
-    const counts = new Array(list.length);
-    for (let i = 0; i < list.length; i += 1) {
-      const row = rows[i]?.attention_mask || [];
-      let tokenCount = 0;
-      for (let j = 0; j < row.length; j += 1) {
-        tokenCount += Number(row[j]) ? 1 : 0;
-      }
-      counts[i] = Math.max(1, tokenCount);
+    const maxLength = denseContract?.maxLength ?? null;
+    const identity = createTokenizationIdentity({ tokenizer, wantsTokenTypeIds, truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength });
+    const geometry = maxLength ?? tokenizer.model_max_length;
+    const reservation = preparedRows.reserve({ texts: list, identity, maxLength: geometry, wantsTokenTypeIds });
+    if (!reservation) {
+      sessionEntry.measurements.preparedTokenAdmissionDeclined = (sessionEntry.measurements.preparedTokenAdmissionDeclined || 0) + 1;
+      return null;
     }
-    Object.defineProperty(counts, 'release', { value: preparedRows.retain(list, rows, createTokenizationIdentity({ tokenizer,
-      wantsTokenTypeIds, truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength: denseContract?.maxLength ?? null })) });
-    return counts;
+    try {
+      const rows = measureTokenization(() => prepareTokenRowsWithCache({ tokenizer, texts: list, wantsTokenTypeIds,
+        truncation: DEFAULT_EMBEDDING_TRUNCATION, maxLength, rowLengthLimit: geometry,
+        tokenizationCache: tokenizationCache.enabled ? tokenizationCache : null, measurements: sessionEntry.measurements }));
+      const counts = new Array(list.length);
+      for (let i = 0; i < list.length; i += 1) {
+        const row = rows[i]?.attention_mask || [];
+        let tokenCount = 0;
+        for (let j = 0; j < row.length; j += 1) {
+          tokenCount += Number(row[j]) ? 1 : 0;
+        }
+        counts[i] = Math.max(1, tokenCount);
+      }
+      Object.defineProperty(counts, 'release', { value: reservation.commit(rows) });
+      return counts;
+    } catch (error) { reservation.release(); throw error; }
   };
   const prewarm = async ({ tokenizer = true, model = false, texts = null } = {}) => {
     const shouldWarmTokenizer = tokenizer !== false;

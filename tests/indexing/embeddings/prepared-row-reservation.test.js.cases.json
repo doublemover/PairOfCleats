@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pre-tokenizer-capacity", "pending-and-committed-accounting", "retained-read-and-original-release", "geometry-before-copy", "expiry-and-failed-commit"]
+}

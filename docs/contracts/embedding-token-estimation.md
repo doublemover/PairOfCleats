@@ -26,9 +26,9 @@ per-field observations, inspection failures and cleanup failure preservation.
 The formatted passage wrapper preserves model prefixes and empty-input behavior;
 it no longer catches terminal adapter failures as ordinary heuristic fallback.
 Nested estimator wrappers preserve terminal identity even after an original
-observation subsequently settles. This repairs lifecycle boundaries under #1765. The broader #779 requirement
-to reserve bounded preparation windows before tokenizer work remains separate;
-post-allocation retention limits do not establish that admission.
+observation subsequently settles. This repairs lifecycle boundaries under #1765.
+[Preparation windows](embedding-preparation-windows.md) address #779's separate
+admission and row-retention owners; runtime/resource qualification remains pending.
 
 Three additional, locally unrun cases exercise the actual `createEmbedder`
 adapter boundary: formatted counts and original release receiver, ordinary

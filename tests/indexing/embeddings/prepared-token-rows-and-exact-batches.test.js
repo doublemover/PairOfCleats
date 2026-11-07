@@ -17,10 +17,12 @@ assert.equal(raw.reduce((sum, row) => sum + row.attention_mask.reduce((a, b) => 
 assert.equal(raw[0].token_type_ids.length, 1, 'count preparation never pads');
 const texts = Array.from({ length: 512 }, (_, i) => `1:${i}`);
 encodedItems = 0;
-const rows = prepareTokenRowsWithCache({ tokenizer, texts, wantsTokenTypeIds: true, tokenizationCache });
 const preparedRows = createPreparedTokenRows();
 const identity = createTokenizationIdentity({ tokenizer, wantsTokenTypeIds: true });
-const release = preparedRows.retain(texts, rows, identity);
+const reservation = preparedRows.reserve({ texts, identity, maxLength: 512, wantsTokenTypeIds: true });
+assert.ok(reservation); assert.ok(preparedRows.stats().reservedBytes > 0);
+const rows = prepareTokenRowsWithCache({ tokenizer, texts, wantsTokenTypeIds: true, tokenizationCache, rowLengthLimit: 512 });
+const release = reservation.commit(rows);
 for (let i = 0; i < texts.length; i += 64) {
   const encoding = tokenizeBatchWithCache({ tokenizer, texts: texts.slice(i, i + 64), wantsTokenTypeIds: true,
     tokenizationCache, preparedRows });
@@ -30,8 +32,11 @@ for (let i = 0; i < texts.length; i += 64) {
 assert.equal(encodedItems, 512, 'admitted rows larger than the LRU are not tokenized twice');
 release(); assert.equal(preparedRows.stats().entries, 0);
 const small = createPreparedTokenRows({ maxEntries: 2, maxBytes: 1000 });
-const releaseSmall = small.retain(texts, rows, identity);
-assert.ok(small.stats().entries <= 2 && small.stats().bytes <= 1000);
+assert.equal(small.reserve({ texts, identity, maxLength: 512, wantsTokenTypeIds: true }), null, 'oversized preparation is refused before allocation');
+const smallReservation = small.reserve({ texts: texts.slice(0, 2), identity, maxLength: 1, wantsTokenTypeIds: true });
+assert.ok(smallReservation); const releaseSmall = smallReservation.commit(rows.slice(0, 2));
+assert.equal(small.reserve({ texts: ['third'], identity, maxLength: 1 }), null, 'new work cannot evict an admitted row');
+assert.equal(small.stats().entries, 2); assert.ok(small.stats().bytes <= 1000);
 releaseSmall(); assert.equal(small.stats().bytes, 0);
 const estimates = [129, 255, 129, 255, 129, 255, 129, 255];
 const groups = estimates.map((_, i) => ({ groupId: String(i) }));

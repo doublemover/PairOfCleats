@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2759,
+    "hero": 2764,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17557,6 +17557,36 @@
     {
       "id": "embeddings/pipeline/preparation-window-admission/single-global-reservation",
       "order": 2924,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/prepared-row-reservation/pre-tokenizer-capacity",
+      "order": 2925,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/prepared-row-reservation/pending-and-committed-accounting",
+      "order": 2926,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/prepared-row-reservation/retained-read-and-original-release",
+      "order": 2927,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/prepared-row-reservation/geometry-before-copy",
+      "order": 2928,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/prepared-row-reservation/expiry-and-failed-commit",
+      "order": 2929,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

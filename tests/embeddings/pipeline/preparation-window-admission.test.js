@@ -35,8 +35,9 @@ if (mode === 'before-estimation-and-through-release') {
   const processor = createFileEmbeddingsProcessor({ ...options,
     estimateEmbeddingTokensBatch: texts => {
       windowSizes.push(texts.length);
+      const reservation = prepared.reserve({ texts, identity, maxLength: 1 }); assert.ok(reservation);
       const rows = prepareTokenRowsWithCache({ tokenizer, texts, tokenizationCache: cache });
-      return Object.defineProperty(rows.map(row => row.input_ids.length), 'release', { value: prepared.retain(texts, rows, identity) });
+      return Object.defineProperty(rows.map(row => row.input_ids.length), 'release', { value: reservation.commit(rows) });
     }, getChunkEmbeddings: async texts => {
       const encoded = tokenizeBatchWithCache({ tokenizer, texts, tokenizationCache: cache, preparedRows: prepared });
       return encoded.input_ids.map(row => [row[0], 1]);

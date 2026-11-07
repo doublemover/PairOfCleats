@@ -21,16 +21,19 @@ assert.equal(prepare({ maxLength: 2 })[0], short[0]);
 assert.equal(calls.length, 4); assert.equal(measurements.tokenCacheRowHits, 1);
 
 const retained = createPreparedTokenRows(), identity = createTokenizationIdentity({ tokenizer, maxLength: 2 });
-const release = retained.retain(['same'], short, identity);
+const release = retained.reserve({ texts: ['same'], identity, maxLength: 2 }).commit(short);
 assert.equal(prepare({ maxLength: 4, preparedRows: retained })[0].input_ids.length, 4);
 assert.equal(retained.stats().entries, 1, 'different preprocessing cannot consume retained rows');
 assert.equal(prepare({ maxLength: 2, preparedRows: retained })[0], short[0]);
-assert.equal(retained.stats().entries, 0); assert.equal(measurements.preparedTokenRowHits, 1); release();
-const oldRelease = retained.retain(['same'], short, identity);
+assert.equal(retained.stats().entries, 1, 'dispatch reads retain preparation until its existing owner releases');
+assert.equal(measurements.preparedTokenRowHits, 1); release(); assert.equal(retained.stats().entries, 0);
+const oldRelease = retained.reserve({ texts: ['same'], identity, maxLength: 2 }).commit(short);
 const newerRows = [{ input_ids: [8], attention_mask: [1], token_type_ids: null }];
-const newRelease = retained.retain(['same'], newerRows, identity);
+assert.equal(retained.reserve({ texts: ['same'], identity, maxLength: 2 }), null, 'a live preparation cannot be replaced');
+oldRelease();
+const newRelease = retained.reserve({ texts: ['same'], identity, maxLength: 2 }).commit(newerRows);
 oldRelease(); assert.equal(retained.stats().entries, 1, 'an older estimate release cannot release a newer row owner');
-assert.equal(retained.take('same', identity), newerRows[0]); newRelease();
+assert.equal(retained.read('same', identity), newerRows[0]); newRelease();
 
 let duplicateCalls = 0;
 const duplicateTokenizer = texts => { duplicateCalls++; assert.deepEqual(texts, ['duplicate']); return { input_ids: [[1n, 2n]], attention_mask: [[true, false]] }; };

@@ -31,7 +31,7 @@ globalThis.__onnxQualifiedLifetimeFixture = { Tensor, env: {},
   InferenceSession: { create: async (modelPath, sessionOptions) => {
     const control = nextControl;
     control.sessionOptions = sessionOptions;
-    const session = { inputNames: ['input_ids', 'attention_mask'], outputNames: ['last_hidden_state', 'pooler_output'],
+    const session = { inputNames: ['input_ids', 'attention_mask'], outputNames: control.genericGeometry ? ['last_hidden_state'] : ['last_hidden_state', 'pooler_output'],
       outputMetadata: [
         { name: 'last_hidden_state', isTensor: true, type: 'float32', shape: ['batch', 'sequence', 1024] },
         { name: 'pooler_output', isTensor: true, type: 'float32', shape: ['batch', 1024] }
@@ -65,7 +65,7 @@ const hooks = registerHooks({
   }
 });
 const create = async (mode, options = {}) => {
-  const control = { mode, runs: 0, sessionCloses: 0, outputs: [], feeds: [] };
+  const control = { mode, runs: 0, sessionCloses: 0, outputs: [], feeds: [], genericGeometry: options.modelId === 'fixture-unknown-tokenizer-geometry' };
   controls.push(control); nextControl = control;
   const modelPath = path.join(dir, `model-${controls.length}.onnx`);
   await fs.writeFile(modelPath, 'inert graph bytes, no native inference');
@@ -106,7 +106,19 @@ try {
   assert.equal(afterDispatch.tokenizerCalls, beforeDispatch.tokenizerCalls);
   assert.equal(afterDispatch.preparedTokenRowHits, 2); assert.equal(afterDispatch.preparedRowStore.entries, 0);
   assert.equal(afterDispatch.paddedTokenCells, 4); assert.equal(afterDispatch.preparedUsefulTokens, 8);
+  const beforeDeclined = tokenOptions.length;
+  assert.equal(await rowAdapter.estimateTokens(Array.from({ length: 256 }, (_, index) => 'capacity-' + index)), null);
+  assert.equal(tokenOptions.length, beforeDeclined, 'projected token cells are admitted before tokenizer invocation');
+  assert.equal(rowAdapter.executionInfo().measurements.preparedTokenAdmissionDeclined, 1);
+  assert.equal(rowAdapter.executionInfo().measurements.preparedRowStore.reservedBytes, 0);
   await rowAdapter.dispose(); assert.equal(rowControl.sessionCloses, 1);
+
+  const { adapter: unknownGeometry, control: unknownControl } = await create('valid', { modelId: 'fixture-unknown-tokenizer-geometry' });
+  const beforeUnknown = tokenOptions.length;
+  assert.equal(await unknownGeometry.estimateTokens(['optional unknown geometry']), null);
+  assert.equal(tokenOptions.length, beforeUnknown, 'an absent tokenizer bound cannot authorize speculative preparation');
+  assert.equal((await unknownGeometry.getEmbeddings(['inference remains available'])).length, 1);
+  await unknownGeometry.dispose(); assert.equal(unknownControl.sessionCloses, 1);
 
   const { adapter: externalModel, control: externalOwner } = await create('valid', {
     onnxConfig: { cpuExecutionProviderTuning: false },

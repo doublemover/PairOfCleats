@@ -66,7 +66,7 @@ authorized. Work continues solo. Frontload
 implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-[Revision oracles](contracts/revision-oracle.md) (#1528) add finite checks, rebuild parity and bounded minimization. [Finite joins](contracts/relational-join.md) (#1516) retain multiplicities and qualified anti-join absence. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md) preserve native observations and original release. Broader adapters, preparation windows and runtime checks remain pending. CI2296 passes its front gate; repaired failures await rechecks.
+[Revision oracles](contracts/revision-oracle.md) (#1528) add finite checks and minimization. [Finite joins](contracts/relational-join.md) (#1516) retain multiplicities and qualified absence. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) preserve original owners and admit work before tokenization. Broader adapters/runtime checks remain pending. CI2303 passes its gate, Windows authority and Rust jobs; superseded jobs were cancelled.
 
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
 current-source acceptance. The intake above owns remaining scope; current schemas
