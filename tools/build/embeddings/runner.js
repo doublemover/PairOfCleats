@@ -8,7 +8,7 @@ import { createEmbeddingVectorSpool } from './vector-spool.js';
 import { encodeIncrementalManifest, INCREMENTAL_MANIFEST_MAX_BYTES } from '../../../src/index/build/incremental/manifest-codec.js';
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
-import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { describeStorageFailure, observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { tryImport } from '../../../src/shared/optional-deps.js';
 import { createPersistentEmbeddingTextKvStore } from './text-kv-cache.js';
@@ -463,11 +463,6 @@ export const createEmbeddingTextReuseCache = ({
     stats: () => ({ entries: cache.size, retainedBytes, maxBytes: byteCap, method: 'estimated-string-vector-map-storage' }),
     clear() {
       cache.clear(); sizes.clear(); retainedBytes = 0;
-      if (typeof persistentStore?.clear === 'function') {
-        try {
-          persistentStore.clear();
-        } catch {}
-      }
     }
   };
 };
@@ -1195,8 +1190,9 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
         }
       }
     } catch (err) {
+      const diagnostic = describeStorageFailure(err, { phase: 'embedding-bundle-refresh' });
       rewriteFailures += 1;
-      warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${err?.message || err}`);
+      warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${diagnostic.message}`);
     }
   };
 
@@ -1387,25 +1383,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     ? embeddingsConfig.hnsw.isolate
     : null;
   const denseVectorMode = normalizeDenseVectorMode(userConfig?.search?.denseVectorMode, 'merged');
-  /**
-   * Best-effort JSON reader returning `null` when file is absent/invalid.
-   *
-   * @param {string} filePath
-   * @returns {Promise<object|null>}
-   */
-  const readJsonOptional = async (filePath) => {
-    if (!filePath) return null;
-    const candidates = [filePath, `${filePath}.bak`];
-    for (const candidate of candidates) {
-      try {
-        const stats = await fs.stat(candidate);
-        if (!stats?.isFile?.()) continue;
-        if (Number.isFinite(Number(stats.size)) && Number(stats.size) > MAX_JSON_BYTES) continue;
-        return JSON.parse(await fs.readFile(candidate, 'utf8'));
-      } catch {}
-    }
-    return null;
-  };
   const traceArtifactIo = (configEnv || getEnvConfig()).traceArtifactIo === true;
   /**
    * Check whether artifact file exists in raw/compressed/backup forms.
@@ -1420,7 +1397,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       try {
         await fs.access(candidate);
         return true;
-      } catch {}
+      } catch (error) { observeStorageResource(error, { phase: 'embedding-artifact-presence' }).requireSettled(); }
     }
     return false;
   };
@@ -1580,7 +1557,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     try {
       await fs.access(targetPath);
       return true;
-    } catch {
+    } catch (error) {
+      observeStorageResource(error, { phase: 'embedding-root-presence' }).requireSettled();
       return false;
     }
   };
@@ -1632,7 +1610,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     let entries = [];
     try {
       entries = await fs.readdir(buildsRoot, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      observeStorageResource(error, { phase: 'embedding-generation-inventory' }).requireSettled();
       return null;
     }
     const candidates = [];
@@ -1643,7 +1622,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       let mtimeMs = 0;
       try {
         mtimeMs = Number((await fs.stat(candidateRoot)).mtimeMs) || 0;
-      } catch {}
+      } catch (error) { observeStorageResource(error, { phase: 'embedding-generation-mtime' }).requireSettled(); }
       candidates.push({ root: candidateRoot, mtimeMs });
     }
     candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -1872,7 +1851,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     for (const tracker of buildStateTrackers.values()) {
       try {
         tracker.stopHeartbeat?.();
-      } catch {}
+      } catch (error) { observeStorageResource(error, { phase: 'embedding-heartbeat-stop' }).requireSettled(); }
     }
   });
 
@@ -1919,7 +1898,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         const stats = await fs.stat(targetPath);
         if (!stats?.isFile?.()) return null;
         return Number(stats.size) || 0;
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'embedding-maintenance-stat' }).requireSettled();
         return null;
       }
     };
@@ -2038,7 +2018,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       let priorBackendManifest = null;
       if (priorBackendState.ready && !priorBackendState.pending) {
         try { priorBackendManifest = loadPiecesManifest(indexDir, { strict: true, repoRoot: root }); }
-        catch (error) { warn(`[embeddings] ${mode}: prior backend reuse unavailable: ${error.message}`); }
+        catch (error) {
+          const diagnostic = describeStorageFailure(error, { phase: 'embedding-prior-backend-manifest' });
+          warn(`[embeddings] ${mode}: prior backend reuse unavailable: ${diagnostic.message}`);
+        }
       }
       indexState.extensions = { ...indexState.extensions, runtimeAttemptId: runtimeReceipts.reference(mode) };
       indexState.generatedAt = indexState.generatedAt || stateNow;

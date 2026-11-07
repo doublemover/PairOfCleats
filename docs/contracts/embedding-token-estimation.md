@@ -25,3 +25,18 @@ per-field observations, inspection failures and cleanup failure preservation.
 This repairs the outer lifecycle boundary under #1765. The broader #779 requirement
 to reserve bounded preparation windows before tokenizer work remains separate;
 post-allocation retention limits do not establish that admission.
+
+Adjacent runner probes retain original failure observations before treating a
+path/artifact/generation as missing, omitting maintenance size, reporting a bundle
+refresh warning. Warnings use guarded diagnostic
+fields. Ordinary missing/denied inputs keep their established fallback behavior.
+Four additional unrun controls execute the actual probe bodies against ordinary
+files and finite original-work failures; existing real SQLite cache coverage checks
+that memory clear preserves persisted vectors. These models qualify the boundary, not an observed OS
+handle leak. The unused local `readJsonOptional` closure is removed: all repository
+references were its declaration, it had no export/indirect registration or dynamic
+evaluation path, and no meaningful test called it. The unused persistent-clear
+forwarding hook is also removed: the real text store exposes no such method, and
+every cache-construction caller was inspected. Memory clear retains its existing
+coverage and performs no persistent mutation. Other live JSON readers and their
+coverage remain under their existing owners.

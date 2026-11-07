@@ -2910,3 +2910,7 @@ embeddings/runner/token-estimator-original-observation/ordinary-fallback-and-ter
 embeddings/runner/token-estimator-original-observation/original-frozen-pending-error
 embeddings/runner/token-estimator-original-observation/pending-result-and-each-field
 embeddings/runner/token-estimator-original-observation/inspection-failure-is-retained
+embeddings/runner/metadata-probe-observation/path-presence
+embeddings/runner/metadata-probe-observation/artifact-variants
+embeddings/runner/metadata-probe-observation/generation-inventory-and-stat
+embeddings/runner/metadata-probe-observation/maintenance-size

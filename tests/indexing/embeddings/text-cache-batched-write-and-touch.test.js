@@ -21,6 +21,8 @@ try {
   const memory = createEmbeddingTextReuseCache({ persistentStore:store });
   memory.promote('joined', Float32Array.of(5,6));
   assert.equal(store.stats().pendingWrites, 0, 'joiner memory promotion cannot rewrite persistent blobs');
+  memory.clear(); assert.equal(memory.size(), 0);
+  assert.deepEqual(Array.from(store.get('text-1')), [1,1], 'clearing memory does not authorize persistent cache mutation');
   store.set('last', Float32Array.of(7,8)); await store.close(); await store.close();
   const reopened = await createPersistentEmbeddingTextKvStore(options);
   assert.deepEqual(Array.from(reopened.get('last')), [7,8], 'normal close drains vectors');

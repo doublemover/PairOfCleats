@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2742,
+    "hero": 2746,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17455,6 +17455,30 @@
     {
       "id": "embeddings/runner/token-estimator-original-observation/inspection-failure-is-retained",
       "order": 2907,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/metadata-probe-observation/path-presence",
+      "order": 2908,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/metadata-probe-observation/artifact-variants",
+      "order": 2909,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/metadata-probe-observation/generation-inventory-and-stat",
+      "order": 2910,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/metadata-probe-observation/maintenance-size",
+      "order": 2911,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
