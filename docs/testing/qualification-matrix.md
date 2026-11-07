@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-11-06. Contracts and configured workflows describe requirements;
+Audited: 2026-11-07. Contracts and configured workflows describe requirements;
 execution receipts below bind actual results to their source. The
 [roadmap](../roadmap.md) owns current scope and remaining work.
 
@@ -28,8 +28,13 @@ their affected runtime checks; these hosted results do not qualify the current h
 [CI2327's Windows snapshot timeout](../archived/windows-native-snapshot-budget-2026-11-07.md)
 retains the complete original seed, successful removal event and restored terminal,
 while the enclosing fixture exceeds30 seconds. Earlier independent console setup
-is implemented with original native admission and all deadlines unchanged; affected
-native verification remains pending.
+is implemented with original native admission and all deadlines unchanged.
+[CI2340](https://github.com/doublemover/PairOfCleats/actions/runs/42354776241)
+at `c5f4ac1e7896e7ac76140238261e5f79c8363044` passes all22 Windows native-index
+cases with zero failures, timeouts or skips; published search is22.3 seconds and
+the slowest case25.6 seconds under the original30-second limit. Gate, Windows
+authority, Rust TUI and all three native-inspection jobs also pass. Broad jobs
+remain in progress. These observations qualify that source, not later edits.
 
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
 implemented and **locally unrun**. Readiness v3 binds the original journal and

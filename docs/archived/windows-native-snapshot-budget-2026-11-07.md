@@ -75,9 +75,19 @@ code/memory/top5/ann:false request and actual search child PID6224. No terminal
 settlement or successful query is inferred from that admission. Earlier terminal
 overlap therefore improved this path without establishing reliable closure.
 
-The current dispatcher change loads its14 independent runtime module roots
-together after the original bootstrap gate, replacing14 sequential import
-barriers. ESM dependency ordering, readiness enforcement, complete real-backend
-seed assertions, source inputs, CLI child ownership and existing deadlines stay
-binding. No measured speedup or final native-search pass is claimed for this
-unrun change; remaining build/query/retirement costs need current qualification.
+The dispatcher change loads its14 independent runtime module roots together
+after the original bootstrap gate, replacing14 sequential import barriers.
+ESM dependency ordering, readiness enforcement, complete real-backend seeds,
+source inputs, actual child ownership and existing deadlines remain binding.
+
+[CI2340's original Windows job](https://github.com/doublemover/PairOfCleats/actions/runs/42354776241/job/128350858962)
+at `c5f4ac1e7896e7ac76140238261e5f79c8363044` passes all22 cases, zero failures,
+timeouts or skips. Published search passes at22.3 seconds; the slowest case is
+validate-published at25.6 seconds, within its original30-second deadline. Gate,
+Windows authority, Rust TUI and all three native-inspection jobs also pass at
+that checkpoint. Broad jobs are still running at this observation.
+
+This qualifies the original normal-settings cohort at that exact source. It
+does not establish a general latency improvement or qualify later edits. A
+subsequent change overlaps the index entry's16 and search wrapper's3 independent
+root imports after their original bootstrap gates; that change remains unrun.
