@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { applyStorageProbePolicy, planStorageProbePolicy } from '../../../src/shared/storage/probe-policy.js';
-import { readStorageProbePolicy } from '../../../src/shared/storage/probe-policy-read.js';
+import { applyStoragePolicy, planStoragePolicy } from '../../../src/shared/storage/probe-policy.js';
+import { readStoragePolicy } from '../../../src/shared/storage/probe-policy-read.js';
 import { isStorageObservationFailure } from '../../../src/shared/storage/failure-observation.js';
 import { isProvisioningObservationFailure, observeProvisioningResource } from '../../../tools/tooling/provisioning-failure.js';
 import { readPersistentCommandProbeCache, writePersistentCommandProbeCache,
@@ -20,8 +20,8 @@ const caught = action => {
 const root = await makeTempDir('poc-policy-failure-observation-'), originalOpen = fs.openSync;
 try {
   const home = path.join(root, 'home'), category = 'command-probes';
-  const plan = await planStorageProbePolicy({ home, patch: { entryLimit: 2 } });
-  const applied = await applyStorageProbePolicy(plan, { home, category, approvedPlanId: plan.planId });
+  const plan = await planStoragePolicy({ home, patch: { entryLimit: 2 } });
+  const applied = await applyStoragePolicy(plan, { home, category, approvedPlanId: plan.planId });
   const locator = applied.file, receipt = applied.receiptFile;
   const locatorBytes = fs.readFileSync(locator), receiptBytes = fs.readFileSync(receipt);
   const fault = (file, failure) => {
@@ -30,12 +30,12 @@ try {
       return originalOpen(target, ...args);
     };
   };
-  const consumers = [() => readStorageProbePolicy(home), () => readPersistentCommandProbeCache({}),
+  const consumers = [() => readStoragePolicy(home), () => readPersistentCommandProbeCache({}),
     () => writePersistentCommandProbeCache({}), () => invalidatePersistentCommandProbeCache({})];
   await withTemporaryEnv(ensureTestingEnv({ PAIROFCLEATS_HOME: home }), async () => {
     for (const value of [undefined, null, false, 0, '']) {
       fault(locator, value);
-      const report = readStorageProbePolicy(home);
+      const report = readStoragePolicy(home);
       assert.equal(report.status, 'invalid'); assert.equal(report.error.code, 'ERR_STORAGE_POLICY');
       assert.equal(report.error.message, String(value)); assert.equal(report.mutationPerformed, false);
       assert.equal(readPersistentCommandProbeCache({}), null);
@@ -99,7 +99,7 @@ try {
         code: { get() { settled = false; return 'ENOENT'; } }
       }));
       fault(locator, primary);
-      const failure = caught(() => readStorageProbePolicy(home));
+      const failure = caught(() => readStoragePolicy(home));
       assert.equal(failure.cacheOwnershipReleased(), false);
       settled = true; assert.equal(failure.cacheOwnershipReleased(), true);
     }
@@ -108,17 +108,17 @@ try {
         get() { throw null; }
       }));
       fault(locator, primary);
-      const failure = caught(() => readStorageProbePolicy(home));
+      const failure = caught(() => readStoragePolicy(home));
       assert.equal(failure.cacheOwnershipReleased(), false, 'unreadable originals remain unknown');
     }
     fault(locator, Object.freeze(Object.assign(new Error('known settled missing locator'), {
       code: 'ENOENT', cacheOwnershipReleased() { return true; }
     })));
-    assert.equal(readStorageProbePolicy(home).status, 'missing');
+    assert.equal(readStoragePolicy(home).status, 'missing');
     fault(receipt, Object.freeze(Object.assign(new Error('known settled missing receipt'), {
       code: 'ENOENT', cacheOwnershipReleased() { return true; }
     })));
-    assert.equal(readStorageProbePolicy(home).status, 'invalid');
+    assert.equal(readStoragePolicy(home).status, 'invalid');
     fs.openSync = originalOpen;
 
     const command = path.join(root, 'inert-byte-consumer'); fs.writeFileSync(command, 'never executed');
@@ -148,8 +148,8 @@ try {
   });
   fs.openSync = originalOpen;
   assert.deepEqual(fs.readFileSync(locator), locatorBytes); assert.deepEqual(fs.readFileSync(receipt), receiptBytes);
-  assert.equal(readStorageProbePolicy(home).status, 'present');
-  assert.equal(readStorageProbePolicy(path.join(root, 'missing-home')).status, 'missing');
+  assert.equal(readStoragePolicy(home).status, 'present');
+  assert.equal(readStoragePolicy(path.join(root, 'missing-home')).status, 'missing');
   assert.equal(isStorageObservationFailure({ storageFailurePhase: 'storage-policy-read', cacheOwnershipPending: true }), false);
   assert.equal(isProvisioningObservationFailure({ provisioningFailurePhase: 'prerequisite-failure' }), false);
   {

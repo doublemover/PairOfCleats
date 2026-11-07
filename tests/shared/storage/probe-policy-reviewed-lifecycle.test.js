@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { withTemporaryEnv, ensureTestingEnv } from '../../helpers/test-env.js';
-import { planStorageProbePolicy, applyStorageProbePolicy } from '../../../src/shared/storage/probe-policy.js';
-import { readStorageProbePolicy } from '../../../src/shared/storage/probe-policy-read.js';
+import { planStoragePolicy, applyStoragePolicy } from '../../../src/shared/storage/probe-policy.js';
+import { readStoragePolicy } from '../../../src/shared/storage/probe-policy-read.js';
 import { COMMAND_PROBE_POLICY_DEFAULTS, assertCommandProbeStoragePolicy } from '../../../src/contracts/schemas/storage-policy.js';
 import { writePersistentCommandProbeCache, readPersistentCommandProbeCache,
   invalidatePersistentCommandProbeCache } from '../../../src/index/tooling/command-probe-persistent-cache.js';
@@ -15,7 +15,7 @@ try {
   await withTemporaryEnv(ensureTestingEnv({ PAIROFCLEATS_HOME: home }), async () => {
     const base = { providerId: 'policy-fixture', command: process.execPath, args: ['initial'], cwd: temporary,
       probeEnv: {}, toolingConfig: { cache: { dir: path.join(temporary, 'cache') } }, attempted: [{ ok: true }] };
-    assert.deepEqual(readStorageProbePolicy(home).policy, COMMAND_PROBE_POLICY_DEFAULTS);
+    assert.deepEqual(readStoragePolicy(home).policy, COMMAND_PROBE_POLICY_DEFAULTS);
     assert.throws(() => assertCommandProbeStoragePolicy(JSON.parse('{"__proto__":0}'), { partial: true }));
     assert.equal(writePersistentCommandProbeCache(base), true);
     assert.equal(readPersistentCommandProbeCache(base)?.cached, true, 'omitted success TTL uses policy age, rather than Number(null) expiry');
@@ -25,17 +25,17 @@ try {
     const initialFile = path.join(directory, initialName);
     const initialBytes = await fs.readFile(initialFile);
     const configure = async patch => {
-      const plan = await planStorageProbePolicy({ home, patch });
+      const plan = await planStoragePolicy({ home, patch });
       assert.equal(plan.mutationPerformed, false);
-      await applyStorageProbePolicy(plan, { approvedPlanId: plan.planId, home, category: 'command-probes' });
+      await applyStoragePolicy(plan, { approvedPlanId: plan.planId, home, category: 'command-probes' });
       return plan;
     };
-    const disabled = await planStorageProbePolicy({ home, patch: { enabled: false } });
-    assert.equal(readStorageProbePolicy(home).status, 'missing', 'preview creates no policy locator');
-    await assert.rejects(() => applyStorageProbePolicy(disabled, { approvedPlanId: disabled.planId,
+    const disabled = await planStoragePolicy({ home, patch: { enabled: false } });
+    assert.equal(readStoragePolicy(home).status, 'missing', 'preview creates no policy locator');
+    await assert.rejects(() => applyStoragePolicy(disabled, { approvedPlanId: disabled.planId,
       home: path.join(temporary, 'wrong'), category: 'command-probes' }), /exact reviewed/);
-    await assert.rejects(() => applyStorageProbePolicy(disabled, { approvedPlanId: '0'.repeat(64), home, category: 'command-probes' }), /exact reviewed/);
-    const applied = await applyStorageProbePolicy(disabled, { approvedPlanId: disabled.planId, home, category: 'command-probes' });
+    await assert.rejects(() => applyStoragePolicy(disabled, { approvedPlanId: '0'.repeat(64), home, category: 'command-probes' }), /exact reviewed/);
+    const applied = await applyStoragePolicy(disabled, { approvedPlanId: disabled.planId, home, category: 'command-probes' });
     assert.equal(applied.cacheMutationPerformed, false);
     assert.equal(readPersistentCommandProbeCache(base), null);
     assert.equal(writePersistentCommandProbeCache({ ...base, args: ['disabled'] }), false);
@@ -65,25 +65,25 @@ try {
     await configure({ hardBytes: 1 });
     assert.equal(writePersistentCommandProbeCache({ ...base, args: ['too-large-for-policy'] }), false);
     assert.deepEqual(await fs.readFile(kept), pinnedBytes, 'unsatisfiable payload never evicts bytes to discover it cannot fit');
-    const current = readStorageProbePolicy(home);
+    const current = readStoragePolicy(home);
     const selection = current.value.policies['command-probes'].selectionId;
     const receiptFile = path.join(home, 'config', 'storage-policy-selections', `${selection}.json`);
     const receiptBytes = await fs.readFile(receiptFile);
     await fs.unlink(receiptFile);
-    assert.equal(readStorageProbePolicy(home).status, 'invalid', 'missing immutable receipt cannot fall back to defaults');
+    assert.equal(readStoragePolicy(home).status, 'invalid', 'missing immutable receipt cannot fall back to defaults');
     assert.equal(writePersistentCommandProbeCache(base), false);
     assert.equal(readPersistentCommandProbeCache(base), null);
     await fs.writeFile(receiptFile, receiptBytes);
-    const stale = await planStorageProbePolicy({ home, patch: { maxAgeMs: 1000 } });
+    const stale = await planStoragePolicy({ home, patch: { maxAgeMs: 1000 } });
     await configure({ hardBytes: 32768 });
-    await assert.rejects(() => applyStorageProbePolicy(stale, { approvedPlanId: stale.planId, home, category: 'command-probes' }), /changed after review/);
-    const active = readStorageProbePolicy(home).value.policies['command-probes'].selectionId;
+    await assert.rejects(() => applyStoragePolicy(stale, { approvedPlanId: stale.planId, home, category: 'command-probes' }), /changed after review/);
+    const active = readStoragePolicy(home).value.policies['command-probes'].selectionId;
     await fs.appendFile(path.join(home, 'config', 'storage-policy-selections', `${active}.json`), ' ');
-    assert.equal(readStorageProbePolicy(home).status, 'invalid');
+    assert.equal(readStoragePolicy(home).status, 'invalid');
     assert.equal(writePersistentCommandProbeCache(base), false);
     assert.deepEqual(await fs.readFile(kept), pinnedBytes);
     for (const patch of [{ entryLimit: -1 }, { hardBytes: Infinity }, { maxAgeMs: 1.5 }, { arbitrary: true }]) {
-      await assert.rejects(() => planStorageProbePolicy({ home, patch }));
+      await assert.rejects(() => planStoragePolicy({ home, patch }));
     }
   });
 } finally { await rmDirRecursive(temporary); }

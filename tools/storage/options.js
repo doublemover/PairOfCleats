@@ -17,6 +17,6 @@ export const STORAGE_OPTIONS = {
   'entry-limit': { type: 'number', describe: 'Reviewed command-probe entry count; zero bypasses cache use' },
   'hard-bytes': { type: 'number', describe: 'Reviewed command-probe logical byte budget; zero bypasses cache use' },
   'max-age-ms': { type: 'number', describe: 'Reviewed command-probe maximum age; zero bypasses cache use' },
-  plan: { type: 'string', describe: 'Reviewed storage plan or explicit read-only category request JSON' },
+  plan: { type: 'string', describe: 'Reviewed storage plan, lifecycle policy JSON or explicit read-only category request JSON' },
   'plan-id': { type: 'string', describe: 'Exact reviewed storage plan ID' }
 };

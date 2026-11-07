@@ -4,7 +4,7 @@ import path from 'node:path';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
-import { readStorageProbePolicy } from '../../../src/shared/storage/probe-policy-read.js';
+import { readStoragePolicy } from '../../../src/shared/storage/probe-policy-read.js';
 
 const temporary = await makeTempDir('poc-probe-policy-cli-');
 try {
@@ -20,7 +20,7 @@ try {
   const plan = JSON.parse(planResult.stdout);
   assert.equal(plan.after.enabled, false);
   assert.equal(plan.after.entryLimit, 0);
-  assert.equal(readStorageProbePolicy(home).status, 'missing');
+  assert.equal(readStoragePolicy(home).status, 'missing');
   const file = path.join(temporary, 'reviewed.json');
   await fs.writeFile(file, JSON.stringify(plan));
   const applied = invoke(['policy-apply', '--plan', file, '--plan-id', plan.planId]);

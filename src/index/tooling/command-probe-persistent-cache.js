@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { getApplicationHome, getCacheRoot } from '../../shared/cache-roots.js';
-import { readStorageProbePolicy } from '../../shared/storage/probe-policy-read.js';
+import { readStoragePolicy } from '../../shared/storage/probe-policy-read.js';
 import { isStorageObservationFailure, observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { getContainedFileSession } from '../../shared/contained-file-resource.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
@@ -44,7 +44,7 @@ const rethrowRetainedFailure = error => {
 
 const readAdmittedPolicy = () => {
   try {
-    const selected = readStorageProbePolicy(getApplicationHome());
+    const selected = readStoragePolicy(getApplicationHome());
     const policy = selected.policy;
     return policy?.enabled && policy.entryLimit > 0 && policy.maxAgeMs > 0 && policy.hardBytes > 0 ? selected : null;
   } catch (error) {

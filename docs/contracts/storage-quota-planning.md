@@ -84,8 +84,8 @@ Real Windows execution remains pending.
 Five authored, locally unrun regressions cover invalid clocks/ages, epoch/tie/
 alias ordering, exact blocked reasons, conflicting/unknown allocation and
 same-volume reserves. Existing evidence-preservation controls remain. This is
-part of #1267; category cleanup integration, producer-qualified allocation
-domains and real Windows pressure/convergence acceptance remain required.
+part of #1267; broader category cleanup and real Windows pressure/convergence
+acceptance remain required.
 
 ## Coordinated category and repository limits
 
@@ -93,7 +93,8 @@ The same planner accepts at most 1,024 strict internal `scopes`, each naming a
 category or repository identity and optional soft/hard bytes, retention count
 and age. The authoritative flat schema lives beside the current storage-policy
 schema. Duplicate scopes, unknown fields and invalid bounds are rejected.
-This input is not a new CLI/configuration surface or persisted policy selection.
+The same strict input is used by the reviewed machine-local lifecycle selection
+described below.
 
 One physical object is counted once globally and once in every applicable
 scope. Logical category/repository attribution can overlap; these scoped totals
@@ -107,6 +108,70 @@ Every alias must satisfy the existing lifecycle owner. Any applicable age or
 count retention protects the whole physical object, including aliases outside
 that scope. The proposal reports count-retention scope identities. Pins, saved
 evidence, original readers and incomplete references retain their original veto.
+
+## Reviewed machine-local policy
+
+`storage policy-plan --category lifecycle --plan policy.json` reviews a complete
+`{ "enabled": true, "global": {}, "scopes": [] }` policy. `global` accepts
+soft/hard allocated-byte limits, minimum free bytes, retention count and age;
+`scopes` uses the strict category/repository schema above. Limits are exact
+nonnegative integers; zero is literal. Duplicate scopes, unknown fields and
+soft limits above hard limits are rejected. Observed usage/free space belongs to
+the live inventory owner and cannot be supplied as persisted policy authority.
+
+Save the returned plan and apply it through the existing `policy-apply` command,
+with the exact category, home, repository context and plan ID. Publication uses
+the original storage-policy lock, immutable selection receipt and atomic locator.
+Both command-probe and lifecycle selections coexist in **policy format 2**.
+Readers verify every selected receipt; obsolete format 1 is rejected and requires
+explicit current-format regeneration. No old policy is overwritten on refusal.
+
+The publication owner captures and freezes nested policy records before waiting
+for the original lock. Semantic receipt equality ignores JSON key/scope order but
+retains every exact limit. Raw locator hashes still reject a stale review.
+Omitted programmatic patch fields retain current selections; supplied `global`
+and `scopes` records replace those complete records. Disabled lifecycle policy
+retains existing assets. Policy publication changes machine metadata only;
+category cleanup requires its separate reviewed owner and current inventory.
+
+Seven authored, locally unrun cases cover strict limits/scopes, actual reviewed
+publication and fresh reads, coexistence, semantic equality, stale reviews,
+mutation across lock acquisition, obsolete-format refusal and CLI selector
+admission. Existing command-probe resource/failure fixtures use the same owner.
+
+## Reviewed lifecycle cleanup
+
+`storage cleanup-plan --category lifecycle` observes the selected policy and all
+launch-selected category/compatibility roots, including unknown data in the
+application home. One original bounded inventory supplies unique native physical
+allocation and the existing command-probe planner. Overlapping roots share each
+file's allocation; unknown physical identity/allocation cannot become zero usage.
+The deepest registered category attributes each path. Repository attribution
+requires its producer; an unadmitted repo identity defers repository-scoped quotas.
+
+Only the original command-probe owner currently supplies unlink operations.
+Every probe retains its full producer/key, exact file identity, single-link,
+cache-root marker, authority snapshot and live-lease checks. Saved evidence,
+offline assets, unknown home data, pins, unqualified categories and unknown
+original resources retain their veto. Missing use observations cannot satisfy an
+age policy. Minimum-free reserves use an actual native free-space observation and
+the matching native device identity, separate from logical size and quota debt.
+
+The returned plan contains only the quota-selected original probe operations.
+Apply requires the same launch roots and selected policy, a fresh physical/quota
+observation and the same exact operations. The existing cleanup owner revalidates
+authority and resources at unlink. A final observation reports remaining debt;
+additional eviction requires another reviewed plan. A satisfied zero-operation
+plan converges without metadata writes. One invocation's time allowance bounds
+inventory, qualification, policy, free space, apply and the final observation.
+Actual reclaimed filesystem bytes remain unknown; unlink allocation estimates
+and native free-space observations are reported separately.
+
+Eight authored, locally unrun cases exercise real producer-created probe files,
+overlap accounting, minimal cleanup and no-op convergence, original live readers,
+changed policy/roots, pinned and saved data, unknown repo attribution, bounded and
+cancelled scans, a native volume reserve and the existing CLI review/apply path.
+Broader category mutation and native pressure/performance qualification remain.
 
 Selection pays same-volume reserve debt first, then category/repository debts,
 then any remaining global debt. Mandatory local work therefore contributes to

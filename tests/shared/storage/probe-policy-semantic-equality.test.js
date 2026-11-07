@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sameCommandProbeStoragePolicy } from '../../../src/contracts/schemas/storage-policy.js';
-import { planStorageProbePolicy, applyStorageProbePolicy } from '../../../src/shared/storage/probe-policy.js';
-import { readStorageProbePolicy } from '../../../src/shared/storage/probe-policy-read.js';
+import { planStoragePolicy, applyStoragePolicy } from '../../../src/shared/storage/probe-policy.js';
+import { readStoragePolicy } from '../../../src/shared/storage/probe-policy-read.js';
 import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
@@ -22,16 +22,16 @@ assertNoSymlinkPath(repositoryRoot, taskRoot, { allowMissing: true }); await fs.
 const temporary = await fs.mkdtemp(path.join(taskRoot, 'case-'));
 try {
   const home = path.join(temporary, 'home'), repoRoot = path.join(temporary, 'project'); await fs.mkdir(repoRoot);
-  const plan = await planStorageProbePolicy({ home, repoRoot, patch: original });
-  const applied = await applyStorageProbePolicy(plan, { home, repoRoot, category: 'command-probes', approvedPlanId: plan.planId });
+  const plan = await planStoragePolicy({ home, repoRoot, patch: original });
+  const applied = await applyStoragePolicy(plan, { home, repoRoot, category: 'command-probes', approvedPlanId: plan.planId });
   assert.equal(applied.complete, true);
-  const selectionBytes = await fs.readFile(applied.receiptFile), before = readStorageProbePolicy(home);
+  const selectionBytes = await fs.readFile(applied.receiptFile), before = readStoragePolicy(home);
   assert.equal(before.status, 'present'); assert.deepEqual(before.policy, original);
   const locator = JSON.parse(await fs.readFile(before.target, 'utf8'));
   if (mode === 'semantic-policy-equality') {
     locator.policies['command-probes'].policy = reordered;
     await fs.writeFile(before.target, JSON.stringify(locator));
-    const observed = readStorageProbePolicy(home);
+    const observed = readStoragePolicy(home);
     assert.equal(observed.status, 'present'); assert.equal(observed.policyId, before.policyId); assert.deepEqual(observed.policy, original);
     assert.notEqual(observed.sha256, before.sha256, 'raw locator identity still tracks a rewritten file');
     assert.deepEqual(await fs.readFile(applied.receiptFile), selectionBytes, 'semantic equality never rewrites the immutable receipt');
@@ -40,14 +40,14 @@ try {
       { ...reordered, maxAgeMs: null }, { enabled: false, entryLimit: 20, hardBytes: 2000 }]) {
       assert.throws(() => sameCommandProbeStoragePolicy(original, invalid));
       locator.policies['command-probes'].policy = invalid; await fs.writeFile(before.target, JSON.stringify(locator));
-      const rejected = readStorageProbePolicy(home); assert.equal(rejected.status, 'invalid'); assert.equal(rejected.policy, null);
+      const rejected = readStoragePolicy(home); assert.equal(rejected.status, 'invalid'); assert.equal(rejected.policy, null);
       assert.deepEqual(await fs.readFile(applied.receiptFile), selectionBytes);
     }
     locator.policies['command-probes'].policy = original; await fs.writeFile(before.target, JSON.stringify(locator));
-    const reviewed = await planStorageProbePolicy({ home, repoRoot, patch: { hardBytes: 4000 } });
+    const reviewed = await planStoragePolicy({ home, repoRoot, patch: { hardBytes: 4000 } });
     locator.policies['command-probes'].policy = reordered; await fs.writeFile(before.target, JSON.stringify(locator));
     const bytes = await fs.readFile(before.target);
-    await assert.rejects(applyStorageProbePolicy(reviewed, { home, repoRoot, category: 'command-probes', approvedPlanId: reviewed.planId }), /changed after review/);
+    await assert.rejects(applyStoragePolicy(reviewed, { home, repoRoot, category: 'command-probes', approvedPlanId: reviewed.planId }), /changed after review/);
     assert.deepEqual(await fs.readFile(before.target), bytes, 'equivalent policy meaning does not waive stale reviewed-file identity');
     assert.deepEqual(await fs.readFile(applied.receiptFile), selectionBytes);
   }

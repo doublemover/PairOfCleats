@@ -16,7 +16,7 @@ const OPTIONS = Object.freeze({
   'migration-apply': ['category', 'source', 'destination', 'plan', 'plan-id'],
   'migration-rollback': ['category', 'source', 'destination', 'plan', 'plan-id'],
   'migration-status': ['category', 'source', 'destination', 'plan'],
-  'policy-plan': ['category', 'enabled', 'entry-limit', 'hard-bytes', 'max-age-ms'],
+  'policy-plan': ['category', 'enabled', 'entry-limit', 'hard-bytes', 'max-age-ms', 'plan'],
   'policy-apply': ['category', 'plan', 'plan-id']
 });
 const intentError = message => Object.assign(new Error(message), { code: 'ERR_STORAGE_WORKFLOW_INTENT' });
@@ -63,8 +63,16 @@ export const validateStorageWorkflowIntent = (argv, rawArgs) => {
     if (argv[flag] && !path.isAbsolute(argv[flag])) throw intentError(`Storage --${flag} requires an absolute path.`);
   }
   for (const flag of LIMITS) if (!Number.isSafeInteger(argv[flag]) || argv[flag] < 1) throw intentError(`Storage --${flag} requires a positive bounded integer.`);
-  if (action.startsWith('cleanup-') && argv.category && argv.category !== 'command-probes') {
-    throw intentError('Storage cleanup currently admits command-probes only; other categories remain protected.');
+  if (action === 'policy-plan') {
+    if (argv.category === 'lifecycle') {
+      if (!argv.plan) throw intentError('Lifecycle policy review requires --plan naming its complete policy JSON.');
+      if (['enabled', 'entry-limit', 'hard-bytes', 'max-age-ms'].some(flag => supplied.has(flag))) {
+        throw intentError('Lifecycle policy review accepts its complete policy JSON without command-probe policy flags.');
+      }
+    } else if (argv.plan) throw intentError('Command-probe policy review uses its explicit policy flags, not --plan.');
+  }
+  if (action.startsWith('cleanup-') && argv.category && !['command-probes', 'lifecycle'].includes(argv.category)) {
+    throw intentError('Storage cleanup requires command-probes or the reviewed lifecycle composition; other categories remain protected.');
   }
   return action;
 };
@@ -78,6 +86,7 @@ export const assertStorageReviewedRepoContext = (plan, repoRoot) => {
 
 export const assertStorageCleanupScope = ({ argv, cacheRoot, currentCache }) => {
   const probeRoot = path.join(cacheRoot, 'tooling', 'command-probes');
+  if (argv.category === 'lifecycle' && argv.path) throw intentError('Lifecycle cleanup uses every launch-selected category root; --path cannot narrow that policy.');
   if (argv.path && !sameStorageWorkflowPath(argv.path, probeRoot)) throw intentError('Cleanup --path must name the exact selected cache/tooling/command-probes directory.');
   if (!argv['cache-root'] && currentCache && !sameStorageWorkflowPath(currentCache, cacheRoot)) {
     throw intentError('Current application cache differs from the launch-authorized cache. Review it and select the exact --cache-root before cleanup planning or apply.');

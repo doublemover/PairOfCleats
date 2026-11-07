@@ -1,4 +1,5 @@
 export const STORAGE_CLEANUP_PLAN_VERSION = 2;
+export const LIFECYCLE_CLEANUP_PLAN_VERSION = 1;
 export const STORAGE_CLEANUP_LIMITS_SCHEMA = Object.freeze({ type: 'object', additionalProperties: false,
   required: ['maxEntries', 'maxDurationMs'], properties: {
     maxEntries: { type: 'integer', minimum: 1, maximum: 100000 },

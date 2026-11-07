@@ -1,8 +1,8 @@
 # Storage policy publication failures
 
-Status: UNVALIDATED source and authored controls, 2026-10-22.
+Status: current policy-v2 source and authored controls; runtime verification pending.
 
-`applyStorageProbePolicy` retains the original publication failure when its
+`applyStoragePolicy` retains the original publication failure when its
 existing `storage-policy.lock` release also fails. Caught primitive values,
 including `null` and `undefined`, become errors with the exact thrown value as
 their cause before crossing the shared helper's legacy no-operation sentinel.
@@ -13,8 +13,9 @@ The shared `releaseStorageOperationLock` exposes only its actual metadata handle
 in nonenumerable `storageOperationLocks`. Retrying that handle uses the existing
 exact lock identity and never repeats policy publication, finds another owner,
 or changes cached bytes. Unknown diagnostic arrays do not grant lock authority.
-Selection receipts, review identity, literal-zero semantics, conflict handling,
-and the selected policy format are unchanged.
+Command-probe and lifecycle policy selections share immutable receipts, exact
+review identity, literal-zero limits and conflict handling under policy format 2.
+Their original publication and lock-release owners remain independent.
 
 The authored `probe-policy-publication-error-lifetime` fixture faults the actual
 selection-directory creation and actual metadata removal inside disposable

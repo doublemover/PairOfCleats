@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { applyStorageProbePolicy, planStorageProbePolicy } from '../../../src/shared/storage/probe-policy.js';
-import { readStorageProbePolicy } from '../../../src/shared/storage/probe-policy-read.js';
+import { applyStoragePolicy, planStoragePolicy } from '../../../src/shared/storage/probe-policy.js';
+import { readStoragePolicy } from '../../../src/shared/storage/probe-policy-read.js';
 import { readLockInfo } from '../../../src/shared/locks/file-lock.js';
 import { STORAGE_POLICY_VERSION } from '../../../src/contracts/schemas/storage-policy.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
@@ -35,7 +35,7 @@ try {
     const cacheFile = path.join(home, 'cache-guard.bin');
     await originalMkdir(home, { recursive: true });
     await fs.writeFile(cacheFile, 'existing-cache-bytes');
-    const plan = await planStorageProbePolicy({ home, patch: { enabled: false } });
+    const plan = await planStoragePolicy({ home, patch: { enabled: false } });
     let publicationCalls = 0, releaseCalls = 0, denyRelease = cleanupFails;
     fs.mkdir = async (target, ...args) => {
       if (target === directory) { publicationCalls += 1; throw primary; }
@@ -49,12 +49,12 @@ try {
       return originalRm(target, ...args);
     };
     try {
-      const failure = await rejected(() => applyStorageProbePolicy(plan, {
+      const failure = await rejected(() => applyStoragePolicy(plan, {
         approvedPlanId: plan.planId, home, category
       }));
       assert.equal(contains(failure, primary), true, 'publication cause survives cleanup failure, including null/undefined');
       assert.equal(publicationCalls, 1); assert.equal(releaseCalls, 1);
-      assert.equal(readStorageProbePolicy(home).status, 'missing');
+      assert.equal(readStoragePolicy(home).status, 'missing');
       assert.equal(await fs.readFile(cacheFile, 'utf8'), 'existing-cache-bytes');
       if (cleanupFails) {
         assert.equal(contains(failure, cleanup), true);
@@ -74,7 +74,7 @@ try {
         assert.equal(failure.storageOperationLocks, undefined);
       }
       await assert.rejects(fs.lstat(lockPath), { code: 'ENOENT' });
-      assert.equal(readStorageProbePolicy(home).status, 'missing');
+      assert.equal(readStoragePolicy(home).status, 'missing');
       assert.equal(await fs.readFile(cacheFile, 'utf8'), 'existing-cache-bytes');
       return failure;
     } finally { fs.mkdir = originalMkdir; fs.rm = originalRm; }
@@ -96,11 +96,11 @@ try {
   await exercise({ primary: Object.freeze(new Error('ordinary frozen failure')), cleanupFails: false });
 
   const home = path.join(root, 'successful-home'), category = 'command-probes';
-  const plan = await planStorageProbePolicy({ home, patch: { enabled: false, hardBytes: 0 } });
-  const applied = await applyStorageProbePolicy(plan, { approvedPlanId: plan.planId, home, category });
+  const plan = await planStoragePolicy({ home, patch: { enabled: false, hardBytes: 0 } });
+  const applied = await applyStoragePolicy(plan, { approvedPlanId: plan.planId, home, category });
   assert.equal(applied.schemaVersion, STORAGE_POLICY_VERSION); assert.equal(applied.complete, true);
   assert.equal(applied.cacheMutationPerformed, false); assert.equal(applied.existingCacheBytesPreserved, true);
-  const selected = readStorageProbePolicy(home);
+  const selected = readStoragePolicy(home);
   assert.equal(selected.status, 'present'); assert.equal(selected.source, 'machine-local-reviewed-policy');
   assert.equal(selected.policy.enabled, false); assert.equal(selected.policy.hardBytes, 0);
   await assert.rejects(fs.lstat(path.join(home, 'config', 'storage-policy.lock')), { code: 'ENOENT' });

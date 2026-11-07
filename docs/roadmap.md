@@ -83,9 +83,10 @@ and producer constants own format identities.
 1. **P0–P4 first**, prioritizing destructive authority/data-loss and lifecycle
    failures. Batch shared owners. Qualified security/native publication repairs
    retain their receipts above. [Lifecycle/quota planning](contracts/storage-quota-planning.md)
-   (#1267) coordinates global/category/repo proposals, aliases and retention;
+   (#1267) coordinates physical proposals, aliases and retention; policy v2 and
+   reviewed command-probe quota apply are implemented, unrun.
    [Cleanup/diagnostic admission](contracts/storage-cleanup-admission.md) retains v2 bounds and original pending closes;
-   category quota apply and Windows allocation/pressure qualification remain pending.
+   Other category owners and Windows allocation/pressure qualification remain pending.
 2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:
    publication/resource ownership; source/cache identities; semantic and retrieval
    correctness; transports/providers; operator and evaluation workflows. Read full

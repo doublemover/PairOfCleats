@@ -7,7 +7,7 @@ import { inspectDictionaryStorage } from '../../src/shared/storage/dictionary-ad
 import { readToolingCacheEntry } from '../../src/index/tooling/cache-storage.js';
 import { isOwnedCommandProbeCacheEntry } from '../../src/index/tooling/command-probe-persistent-cache.js';
 import { inspectEmbeddingStorageProfile } from './embedding-adapter.js';
-import { readStorageProbePolicy } from '../../src/shared/storage/probe-policy-read.js';
+import { readStoragePolicy } from '../../src/shared/storage/probe-policy-read.js';
 import { inspectManagedStorageReceipts } from './managed-receipt-inventory.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 import { createStorageInspectionAdmission } from '../../src/shared/storage/inspection-admission.js';
@@ -41,7 +41,7 @@ export const inspectStorageCategory = async ({ category, root, home, request = n
   let lease = null;
   try {
     if (category === 'command-probes') {
-      const policy = readStorageProbePolicy(home, checks); control.check();
+      const policy = readStoragePolicy(home, checks); control.check();
       base.policy = policy; base.policyInspected = true;
     }
     if (stopped()) return interrupted({ lease: null });

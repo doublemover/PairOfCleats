@@ -6,7 +6,7 @@ import { resolveLegacyStorageLocations } from '../../src/shared/storage/catalog.
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
 import { explainStorageLayout, inspectStorageLayout, diagnoseStorageLayout, planStorageConfiguration, applyStorageConfiguration } from '../../src/shared/storage/operator.js';
-import { planCacheRootCleanup, applyStorageCleanupPlan } from '../../src/shared/storage/cleanup.js';
+import { planCacheRootCleanup, applyStorageCleanupPlan, planLifecycleCleanup, applyLifecycleCleanup } from '../../src/shared/storage/cleanup.js';
 import { createStorageMigrationPlan } from '../../src/shared/storage/migration-plan.js';
 import { applyStorageMigration, applyStorageMigrationRollback, readStorageMigrationStatus } from '../../src/shared/storage/migration.js';
 import { createDictionaryMigrationOwner } from '../../src/shared/storage/dictionary-adapter.js';
@@ -17,7 +17,8 @@ import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { applyStorageLocatorSelections } from '../../src/shared/storage/selected-layout.js';
 import { inspectStorageCategory } from './category-inventory.js';
-import { planStorageProbePolicy, applyStorageProbePolicy } from '../../src/shared/storage/probe-policy.js';
+import { planStoragePolicy, applyStoragePolicy } from '../../src/shared/storage/probe-policy.js';
+import { assertLifecycleQuotaPolicy } from '../../src/contracts/schemas/storage-policy.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
@@ -145,19 +146,19 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     else if (action === 'doctor') receipt = { ...await diagnoseStorageLayout(diagnosticScope.layout, { ...limits, extraRoots: diagnosticScope.extraRoots }),
       inspectionScope: diagnosticScope.inspectionScope };
     else if (action === 'policy-plan') {
-      const patch = {};
+      const patch = argv.category === 'lifecycle' ? assertLifecycleQuotaPolicy(await readPlan(argv.plan)) : {};
       // An omitted yargs boolean must preserve the current policy, rather than
       // manufacturing an explicit false from parser defaults.
       if (rawArgs.some(token => token === '--enabled' || token === '--no-enabled' || token.startsWith('--enabled='))) patch.enabled = argv.enabled;
       for (const [flag, field] of [['entry-limit', 'entryLimit'], ['hard-bytes', 'hardBytes'], ['max-age-ms', 'maxAgeMs']]) {
         if (argv[flag] !== undefined) patch[field] = argv[flag];
       }
-      receipt = await planStorageProbePolicy({ home: layout.home.path, category: argv.category, patch, repoRoot });
+      receipt = await planStoragePolicy({ home: layout.home.path, category: argv.category, patch, repoRoot });
     } else if (action === 'policy-apply') {
       const plan = await readPlan(argv.plan);
       assertStorageReviewedRepoContext(plan, repoRoot);
       signal?.throwIfAborted(); mutationStarted = true;
-      receipt = await applyStorageProbePolicy(plan, {
+      receipt = await applyStoragePolicy(plan, {
         approvedPlanId: argv['plan-id'], home: layout.home.path, category: argv.category, repoRoot
       });
     }
@@ -177,14 +178,16 @@ export const runStorageCli = async (rawArgs = process.argv.slice(2), { signal = 
     }
     else if (action === 'cleanup-plan') {
       assertStorageCleanupScope({ argv, cacheRoot, currentCache });
-      receipt = await planCacheRootCleanup({ cacheRoot, authorityRoots: [cacheRoot], ...limits });
+      receipt = argv.category === 'lifecycle' ? await planLifecycleCleanup({ layout, extraRoots: legacy, ...limits })
+        : await planCacheRootCleanup({ cacheRoot, authorityRoots: [cacheRoot], ...limits });
     }
     else if (action === 'cleanup-apply') {
       assertStorageCleanupScope({ argv, cacheRoot, currentCache });
       const plan = await readPlan(argv.plan);
-      if (!sameStorageWorkflowPath(plan.cacheRoot, cacheRoot)) throw new Error('Cleanup plan root differs from the launch-selected cache root.');
+      if (!sameStorageWorkflowPath(argv.category === 'lifecycle' ? plan.scope?.cacheRoot : plan.cacheRoot, cacheRoot)) throw new Error('Cleanup plan root differs from the launch-selected cache root.');
       signal?.throwIfAborted(); mutationStarted = true;
-      receipt = await applyStorageCleanupPlan(plan, { authorityRoots: [cacheRoot], approvedPlanId: argv['plan-id'], signal });
+      receipt = argv.category === 'lifecycle' ? await applyLifecycleCleanup(plan, { layout, extraRoots: legacy, approvedPlanId: argv['plan-id'], signal })
+        : await applyStorageCleanupPlan(plan, { authorityRoots: [cacheRoot], approvedPlanId: argv['plan-id'], signal });
     } else if (action === 'migration-plan') {
       assertStorageMigrationScope({ argv, layout, repoRoot });
       const owner = argv.category === 'dictionaries' ? createDictionaryMigrationOwner({ home: layout.home.path, source: argv.source }) : null;

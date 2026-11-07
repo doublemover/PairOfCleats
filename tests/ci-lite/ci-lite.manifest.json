@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2873,
+    "hero": 2888,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18241,6 +18241,96 @@
     {
       "id": "tooling/lsp/managed-runtime-lease-deduplication/changed-identity-and-lookalike-refusal",
       "order": 3038,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/strict-scopes-and-budgets",
+      "order": 3039,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/reviewed-publication-and-restart",
+      "order": 3040,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/semantic-policy-equality",
+      "order": 3041,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/stale-selection-preserves-current",
+      "order": 3042,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/input-snapshot-before-publication",
+      "order": 3043,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/obsolete-format-refusal",
+      "order": 3044,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-policy-publication/cli-review-and-selector-refusal",
+      "order": 3045,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/physical-overlap-and-minimal-cleanup",
+      "order": 3046,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/stable-noop-convergence",
+      "order": 3047,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/active-original-lease-refusal",
+      "order": 3048,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/policy-and-root-change-refusal",
+      "order": 3049,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/pins-and-saved-evidence",
+      "order": 3050,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/unknown-and-bounded-inventory",
+      "order": 3051,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/real-volume-reserve",
+      "order": 3052,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/cli-lifecycle-composition",
+      "order": 3053,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -9,7 +9,7 @@ import { inspectStorageInventory } from '../../../src/shared/storage/inventory.j
 import { createStorageInspectionAdmission } from '../../../src/shared/storage/inspection-admission.js';
 import { withStorageDirectory, getStorageDirectorySession } from '../../../src/shared/storage/directory.js';
 import { acquireRepoCacheAccessLease, repoAccessPaths } from '../../../src/shared/cache/repo-access.js';
-import { planStorageProbePolicy, applyStorageProbePolicy } from '../../../src/shared/storage/probe-policy.js';
+import { planStoragePolicy, applyStoragePolicy } from '../../../src/shared/storage/probe-policy.js';
 import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { isPathWithinRoot } from '../../../src/shared/file-paths.js';
 import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
@@ -64,8 +64,8 @@ try {
     assert.equal(result.items.at(-1).status, 'unscanned'); assert.equal(result.items.at(-1).logicalBytes, null);
     if (mode !== 'deadline-before-volume-fallback') assert.equal(markerReads, 0);
   } else if (['deadline-between-policy-files', 'category-policy-deadline'].includes(mode)) {
-    const plan = await planStorageProbePolicy({ home, patch: { entryLimit: 1 } });
-    const selected = await applyStorageProbePolicy(plan, { approvedPlanId: plan.planId, home, category: 'command-probes' });
+    const plan = await planStoragePolicy({ home, patch: { entryLimit: 1 } });
+    const selected = await applyStoragePolicy(plan, { approvedPlanId: plan.planId, home, category: 'command-probes' });
     assert.equal(selected.complete, true);
     let clock = 0, laterReads = 0; Date.now = () => clock;
     const policyFile = path.join(home, 'config', 'storage-policies.json');

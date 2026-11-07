@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { readVerifiedContainedFileSync } from '../contained-file.js';
 import { describeStorageFailure } from './failure-observation.js';
-import { STORAGE_POLICY_VERSION, COMMAND_PROBE_POLICY_DEFAULTS,
-  assertCommandProbeStoragePolicy, sameCommandProbeStoragePolicy } from '../../contracts/schemas/storage-policy.js';
+import { STORAGE_POLICY_VERSION, STORAGE_POLICY_CATEGORIES, assertStoragePolicyCategory,
+  storagePolicyDefaults, assertStoragePolicy, sameStoragePolicy } from '../../contracts/schemas/storage-policy.js';
 
 export const STORAGE_POLICY_FILE = 'storage-policies.json';
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -12,7 +12,8 @@ const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.
 /** Machine-local policy only. Invalid metadata preserves cached bytes and
  * disables cache use until explicit repair; it never falls back to eviction.
  */
-export const readStorageProbePolicy = (home, { check = () => {} } = {}) => {
+export const readStoragePolicy = (home, { check = () => {}, category = 'command-probes' } = {}) => {
+  assertStoragePolicyCategory(category);
   check();
   home = path.resolve(home);
   const target = path.join(home, 'config', STORAGE_POLICY_FILE);
@@ -24,11 +25,11 @@ export const readStorageProbePolicy = (home, { check = () => {} } = {}) => {
     const value = JSON.parse(read.buffer.toString('utf8'));
     if (!exactKeys(value, ['schemaVersion', 'kind', 'policies']) || value.schemaVersion !== STORAGE_POLICY_VERSION
       || value.kind !== 'pairofcleats-storage-policy-locator' || !value.policies || typeof value.policies !== 'object'
-      || Array.isArray(value.policies) || Object.keys(value.policies).some(key => key !== 'command-probes')) throw new Error('Storage policy locator is incompatible or contains unknown categories.');
-    const entry = value.policies['command-probes'];
-    if (entry !== undefined) {
+      || Array.isArray(value.policies) || Object.keys(value.policies).some(key => !STORAGE_POLICY_CATEGORIES.includes(key))) throw new Error('Storage policy locator is incompatible or contains unknown categories; review and regenerate the current policy format.');
+    for (const [selectedCategory, entry] of Object.entries(value.policies)) {
+      check();
       if (!exactKeys(entry, ['policy', 'selectionId', 'receiptHash']) || !hash(entry.selectionId) || !hash(entry.receiptHash)) throw new Error('Command-probe policy selection is invalid.');
-      assertCommandProbeStoragePolicy(entry.policy);
+      assertStoragePolicy(selectedCategory, entry.policy);
       const receiptFile = path.join(home, 'config', 'storage-policy-selections', `${entry.selectionId}.json`);
       check();
       const receiptRead = readVerifiedContainedFileSync(path.parse(receiptFile).root, receiptFile, { maxBytes: 1024 * 1024 });
@@ -36,17 +37,18 @@ export const readStorageProbePolicy = (home, { check = () => {} } = {}) => {
       const receipt = JSON.parse(receiptRead.buffer.toString('utf8'));
       if (receiptRead.hash !== entry.receiptHash || !exactKeys(receipt, ['schemaVersion', 'kind', 'selectionId', 'home', 'category', 'policy', 'priorSelection'])
         || receipt.schemaVersion !== STORAGE_POLICY_VERSION || receipt.kind !== 'pairofcleats-storage-policy-selection'
-        || receipt.home !== home || receipt.category !== 'command-probes' || receipt.selectionId !== entry.selectionId
-        || !sameCommandProbeStoragePolicy(receipt.policy, entry.policy)) throw new Error('Immutable storage policy receipt is missing, changed or belongs to another owner.');
+        || receipt.home !== home || receipt.category !== selectedCategory || receipt.selectionId !== entry.selectionId
+        || !sameStoragePolicy(selectedCategory, receipt.policy, entry.policy)) throw new Error('Immutable storage policy receipt is missing, changed or belongs to another owner.');
     }
-    return { status: 'present', target, value, sha256: read.hash, policy: entry?.policy || { ...COMMAND_PROBE_POLICY_DEFAULTS },
-      source: entry ? 'machine-local-reviewed-policy' : 'legacy-defaults', policyId: entry?.selectionId || null, mutationPerformed: false };
+    const entry = value.policies[category];
+    return { status: 'present', target, value, sha256: read.hash, policy: entry?.policy || storagePolicyDefaults(category),
+      source: entry ? 'machine-local-reviewed-policy' : 'unselected-defaults', policyId: entry?.selectionId || null, mutationPerformed: false };
   } catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'storage-policy-read', defaultCode: 'ERR_STORAGE_POLICY' });
     check();
     if (!locatorRead && diagnostic.code === 'ENOENT') return { status: 'missing', target,
       value: { schemaVersion: STORAGE_POLICY_VERSION, kind: 'pairofcleats-storage-policy-locator', policies: {} },
-      sha256: null, policy: { ...COMMAND_PROBE_POLICY_DEFAULTS }, source: 'legacy-defaults', policyId: null, mutationPerformed: false };
+      sha256: null, policy: storagePolicyDefaults(category), source: 'unselected-defaults', policyId: null, mutationPerformed: false };
     return { status: 'invalid', target, value: null, sha256: null, policy: null, policyId: null,
       source: 'invalid-policy-preserve-cache-bytes', mutationPerformed: false,
       error: diagnostic };

@@ -4,7 +4,7 @@ import { assertNoSymlinkPath } from '../contained-file.js';
 import { STORAGE_CLASS_CATALOG } from './catalog.js';
 import { inspectStorageOwnership, inspectStorageInventory } from './inventory.js';
 import { inspectStorageAccess } from './access.js';
-import { readStorageProbePolicy } from './probe-policy-read.js';
+import { readStoragePolicy } from './probe-policy-read.js';
 import { inspectStorageRootFailure } from './root-availability.js';
 import { describeStorageFailure } from './failure-observation.js';
 import { reviewStorageLifecycle } from './lifecycle-review.js';
@@ -72,7 +72,8 @@ const inspectLayout = async (layout, { exact = false, extraRoots = [], maxEntrie
 export const inspectStorageLayout = (layout, options = {}) => inspectLayout(layout, options);
 
 export const explainStorageLayout = layout => ({ schemaVersion: 1, layout,
-  commandProbePolicy: readStorageProbePolicy(layout.home.path),
+  commandProbePolicy: readStoragePolicy(layout.home.path),
+  lifecyclePolicy: readStoragePolicy(layout.home.path, { category: 'lifecycle' }),
   classes: STORAGE_CLASS_CATALOG, mutationPerformed: false,
   adoption: 'Version 2 descriptors are available. Existing defaults remain at their legacy locations until a verified category cutover is selected.',
   externalExceptions: STORAGE_CLASS_CATALOG.filter(entry => entry.category === null) });
@@ -87,7 +88,7 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
   const inventory = await inspectLayout(layout, { ...options, exact: false }, admission);
   const findings = [...layout.diagnostics];
   let commandProbePolicy = null;
-  try { admission.check(); commandProbePolicy = readStorageProbePolicy(layout.home.path, { check: admission.check }); admission.check(); }
+  try { admission.check(); commandProbePolicy = readStoragePolicy(layout.home.path, { check: admission.check }); admission.check(); }
   catch (error) { if (!admission.isStop(error)) throw error; }
   if (commandProbePolicy?.status === 'invalid') findings.push({ category: 'command-probes', code: 'invalid-machine-storage-policy',
     path: commandProbePolicy.target, error: commandProbePolicy.error, operations: 'cache-use-bypassed; existing-bytes-preserved' });
