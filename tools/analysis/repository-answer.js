@@ -22,7 +22,7 @@ export const runRepositoryAnswerCli = async (argv = process.argv, { output = pro
     const input = ['inspect', 'retained'].includes(request.mode) ? request : { ...request, query: { ...request.query, cursor }, ...(retention ? { retention } : {}) };
     const result = assertRepositoryAnswer('result', await runner(input, { signal }));
     throwIfAborted(signal);
-    if (!output.write(JSON.stringify(result) + '\n')) await once(output, 'drain', { signal });
+    if (!output.write(JSON.stringify(result) + '\n')) await once(output, 'drain', { signal: signal ?? undefined });
     cursor = args.all && !['inspect', 'retained'].includes(request.mode) ? result.continuation : null;
     if (retention && result.retained) retention = { expectedBaseDigest: result.retained.answerDigest };
   } while (cursor);

@@ -9,7 +9,15 @@ if (mode === 'facts-and-source-maps') {
   const input = createRepositoryAnswerInput(); input.quotations.push(answerQuotation());
   const answer = compileAdmittedQueryAnswer(input);
   assert.match(answer.text, /Recorded candidate \(modeled\)/);
-  assert.match(answer.text, /"parseRequest"/); assert.match(answer.text, /"type":"number","representation":"0"/);
+  assert.match(answer.text, /"parseRequest"/);
+  assert.deepEqual(JSON.parse(answer.text.match(/with parser scalar (\{[^}]+\}) at/u)[1]), { type: 'number', representation: '0' });
+  const reordered = createRepositoryAnswerInput(); reordered.quotations.push(answerQuotation());
+  for (const row of reordered.queryReceipt.rows) {
+    const literal = row.bindings.find(binding => binding.sort === 'Literal');
+    literal.scalar = Object.fromEntries(Object.entries(literal.scalar).reverse());
+  }
+  assert.deepEqual(compileAdmittedQueryAnswer(reordered), answer, 'JSON object key order cannot change visible scalar text, spans or revision identity');
+  assert.throws(() => inspectAnswerRevision({ ...answer, rendererVersion: 1 }), { code: 'ERR_ANSWER_EVIDENCE_CONTRACT' });
   assert.match(answer.text, /not its proven runtime callee/);
   assert.equal(answer.cost.claimsBuilt, 4); assert.equal(answer.claims.length, 4);
   assert.equal(answer.cost.serializedBytes, Buffer.byteLength(JSON.stringify(answer)) + 1);

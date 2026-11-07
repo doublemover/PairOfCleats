@@ -23,6 +23,13 @@ explicit. It never converts a recorded candidate into a runtime callee or an
 empty retained result into program-wide absence. Program semantics, alternative
 support completeness and counter-support assessment remain separate fields.
 
+Renderer2 encodes typed scalar objects with the existing canonical JSON owner.
+Recapturing a saved revision or reordering equivalent input object keys therefore
+preserves visible text, UTF-16 fragment spans, byte costs and revision identity.
+Renderer1 revisions require regeneration; current inspection rejects them.
+Query/answer CLI backpressure accepts an absent cancellation signal while still
+forwarding a supplied original signal to the drain wait.
+
 The existing task-evidence support join owns world/branch/assumption
 compatibility. Deterministic rules build their observations from actual admitted
 provider outputs; caller-supplied `checked` flags are not an admission path.

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.16.0",
+  "schemaVersion": "1.17.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -2224,7 +2224,7 @@
                 "const": "repository-answer-revision"
               },
               "rendererVersion": {
-                "const": 1
+                "const": 2
               },
               "questionRef": {
                 "type": "object",

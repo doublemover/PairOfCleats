@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../../index/semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
-import { ANSWER_INPUT_SCHEMA, ANSWER_EVIDENCE_VERSION, ANSWER_REVISION_SCHEMA } from '../../contracts/schemas/answer-evidence.js';
+import { ANSWER_INPUT_SCHEMA, ANSWER_EVIDENCE_VERSION, ANSWER_RENDERER_VERSION, ANSWER_REVISION_SCHEMA } from '../../contracts/schemas/answer-evidence.js';
 import { assertAnswerEvidence } from '../../contracts/validators/answer-evidence.js';
 import { assertRepositoryQuery } from '../../contracts/validators/repository-question-live.js';
 import { REPOSITORY_QUERY_RECEIPT_SCHEMA } from '../../contracts/schemas/repository-question-live.js';
@@ -47,7 +47,7 @@ export const compileAdmittedQueryAnswer = (input, { maxBytes = ANSWER_MAX_BYTES,
     if (ids.has(requirement.id)) throw fail('Duplicate original requirement identity.'); ids.add(requirement.id);
   }
   const worldId = hash('answer.world.v1', receipt.world), receiptId = hash('answer.query-receipt.v1', receipt);
-  const report = { schemaVersion: ANSWER_EVIDENCE_VERSION, kind: 'repository-answer-revision', rendererVersion: 1,
+  const report = { schemaVersion: ANSWER_EVIDENCE_VERSION, kind: 'repository-answer-revision', rendererVersion: ANSWER_RENDERER_VERSION,
     questionRef: input.questionRef, world: receipt.world, worldId, inputs: input, claims: [], text: '', fragments: [],
     unresolvedRequirements: input.openRequirements.map(requirement => ({ ...requirement, state: 'open', reason: 'caller-requirement-has-no-admitted-checker' })),
     dependencyFootprint: { inventoryId: receipt.world.sourceSnapshotId, queryDigest: receipt.requestDigest, domainId: receipt.world.domainId,
@@ -105,7 +105,7 @@ export const compileAdmittedQueryAnswer = (input, { maxBytes = ANSWER_MAX_BYTES,
     rowClaims.push(id);
     append('claim', 'Recorded candidate (' + target.certainty + '): Invocation (' + invocation.invocationKind + ') at ' + JSON.stringify(invocation.source.path) + ':' + invocation.source.span.join('-')
       + ' has declaration candidate ' + JSON.stringify(declaration.name) + ' at ' + JSON.stringify(declaration.source.path) + ':' + declaration.source.span.join('-')
-      + ' and a retained literal operand ' + (literal.scalar === null ? 'with unavailable parser scalar metadata' : 'with parser scalar ' + JSON.stringify(literal.scalar))
+      + ' and a retained literal operand ' + (literal.scalar === null ? 'with unavailable parser scalar metadata' : 'with parser scalar ' + canonicalSemanticJson(literal.scalar, { maxBytes }))
       + ' at ' + JSON.stringify(literal.source.path) + ':' + literal.source.span.join('-')
       + '. These are correlated retained facts about this Invocation, not its proven runtime callee or argument value.', [id], [invocation.source, declaration.source, literal.source]);
   }

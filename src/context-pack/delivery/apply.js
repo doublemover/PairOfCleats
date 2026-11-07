@@ -26,7 +26,12 @@ export const applyEvidenceDelivery = (inputBase, inputPlan, { signal = null } = 
     const descriptor = descriptors.get(body.id);
     if (!descriptor || !addedIds.has(body.id)) throw deliveryError('IncompleteManifest', 'Delivery contains an unrequested body.');
     const { id: _id, contentHash: _hash, bodyBytes: _bytes, ...metadata } = descriptor;
-    if (deliveryJson(describeDeliveryEntry({ ...metadata, text: body.text }).descriptor) !== deliveryJson(descriptor)) {
+    let actual;
+    try { actual = describeDeliveryEntry({ ...metadata, text: body.text }).descriptor; }
+    catch (cause) {
+      throw Object.assign(deliveryError('TargetDigestMismatch', 'Delivery body cannot reproduce its source/representation descriptor.'), { cause });
+    }
+    if (deliveryJson(actual) !== deliveryJson(descriptor)) {
       throw deliveryError('TargetDigestMismatch', 'Delivery body differs from its source/representation descriptor.');
     }
   }

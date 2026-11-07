@@ -15,7 +15,7 @@ import { GRAPH_EVIDENCE_REQUEST_SCHEMA } from '../../contracts/schemas/graph-evi
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.16.0';
+export const MCP_SCHEMA_VERSION = '1.17.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [

@@ -26,7 +26,7 @@ export const runRepositoryQueryCli = async (argv = process.argv, { output = proc
     const result = await runner(value, { signal });
     assertRepositoryQuery(request.mode === 'describe' ? 'description' : request.mode === 'explain' ? 'explanation' : 'page', result);
     throwIfAborted(signal);
-    if (!output.write(JSON.stringify(result) + '\n')) await once(output, 'drain', { signal });
+    if (!output.write(JSON.stringify(result) + '\n')) await once(output, 'drain', { signal: signal ?? undefined });
     cursor = args.all && request.mode !== 'describe' ? result.cursor : null;
   } while (cursor);
 };

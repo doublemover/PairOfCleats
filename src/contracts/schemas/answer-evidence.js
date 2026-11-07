@@ -3,6 +3,7 @@ import { QUESTION_SOURCE_REFERENCE_SCHEMA, QUESTION_WORLD_SCHEMA } from './repos
 import { REPOSITORY_QUERY_RECEIPT_SCHEMA } from './repository-question-live.js';
 
 export const ANSWER_EVIDENCE_VERSION = 1;
+export const ANSWER_RENDERER_VERSION = 2;
 const text = maximum => ({ type: 'string', minLength: 1, maxLength: maximum });
 const hash = { type: 'string', pattern: '^[a-f0-9]{64}$' };
 const list = (items, maximum) => ({ type: 'array', items, maxItems: maximum });
@@ -23,7 +24,7 @@ const claim = object({ id: hash, predicateId: { enum: ['retainedQueryTuple', 're
   supportSelection: { const: 'selected-provider-receipt' }, alternativesComplete: { const: false }, counterSupportState: { const: 'not-assessed' },
   support: list(support, 1) });
 export const ANSWER_REVISION_SCHEMA = object({ schemaVersion: { const: ANSWER_EVIDENCE_VERSION }, kind: { const: 'repository-answer-revision' },
-  rendererVersion: { const: 1 }, questionRef: ANSWER_QUESTION_REF_SCHEMA, world: QUESTION_WORLD_SCHEMA, worldId: hash,
+  rendererVersion: { const: ANSWER_RENDERER_VERSION }, questionRef: ANSWER_QUESTION_REF_SCHEMA, world: QUESTION_WORLD_SCHEMA, worldId: hash,
   inputs: ANSWER_INPUT_SCHEMA, claims: list(claim, 145), text: { type: 'string', maxLength: 131072 },
   fragments: list(object({ kind: { enum: ['claim', 'qualification', 'open-requirement'] }, span: range,
     claimIds: list(hash, 1), sourceRefs: list(QUESTION_SOURCE_REFERENCE_SCHEMA, 3) }, { quoteSpan: range }), 212),
