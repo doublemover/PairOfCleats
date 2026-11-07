@@ -5,6 +5,8 @@ import { withRuntimeDestinationWriter } from '../../../src/index/semantic/runtim
 import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { retainedRuntimeBytes } from '../../helpers/runtime-publication-work.js';
+import { errorGraphSome } from '../../helpers/error-graph.js';
+import { isFileLockPublicationSession } from '../../../src/shared/locks/file-lock-publication.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('storage/semantic/runtime-writer-resource-ownership/')[1];
 assert.ok(['rejected-original', 'fulfilled-original', 'cleanup-original', 'metadata-original',
@@ -83,7 +85,13 @@ try {
     assert.ok((await fs.lstat(lockPath)).isFile(), 'outstanding original work fences metadata removal');
     assert.equal(shared.used, mode === 'initialization-original' ? 0 : heldBytes,
       'inventory and failed metadata removal cannot refund uncompleted reservations');
-    session = failure.fileLockPublicationSession;
+    // Independent cleanup failures retain their original capability on the
+    // exact nested cause; the outer operation error is not that metadata owner.
+    errorGraphSome(failure, value => {
+      const candidate = value && Object.getOwnPropertyDescriptor(Object(value), 'fileLockPublicationSession')?.value;
+      if (!isFileLockPublicationSession(candidate)) return false;
+      session = candidate; return true;
+    });
     assert.equal(typeof session?.releaseAfterClose, 'function');
     await rejected(() => session.releaseAfterClose());
     assert.ok((await fs.lstat(lockPath)).isFile(), 'metadata recovery does not close or replay native work');

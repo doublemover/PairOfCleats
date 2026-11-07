@@ -16,6 +16,8 @@ import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { inspectStorageCategory } from '../../../tools/storage/category-inventory.js';
 import { inspectManagedStorageReceipts } from '../../../tools/storage/managed-receipt-inventory.js';
 import { inspectDictionaryStorage } from '../../../src/shared/storage/dictionary-adapter.js';
+import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('shared/storage/inspection-phase-admission/')[1];
 const scope = path.resolve('.tmp/tasks/storage-inspection-admission'); await fsp.mkdir(scope, { recursive: true });
@@ -104,7 +106,7 @@ try {
       assert.ok(result.inventory.lifecycle.roots.every(item => !item.cleanupEligible));
     } else {
       assert.equal(result.stopReason, 'time-budget'); assert.equal(result.complete, false);
-      assert.equal(result.lease, null);
+      assert.equal(result.lease.complete, false); assert.equal(result.lease.protected, true, 'the interrupted original lease observation remains explicit and unknown');
     }
     assert.equal(actualCloses, 1, 'the original admitted directory closes despite the stopped enumeration'); assert.equal(laterReads, 0);
   } else if (mode === 'dictionary-manifest-deadline') {
@@ -160,12 +162,14 @@ try {
     };
     let failure;
     await assert.rejects(withStorageDirectory(cache, async () => admission.stopFor('time-budget')), error => { failure = error; return true; });
-    assert.equal(failure, admission.stop, 'the real directory owner can decorate the exact primary stop');
+    assert.equal(errorGraphIncludes(failure, admission.stop), true, 'the real directory owner retains the exact primary stop in its aggregate');
     retainedDirectory = getStorageDirectorySession(failure); assert.ok(retainedDirectory); assert.equal(retainedDirectory.isSettled(), false);
-    assert.throws(() => admission.isStop(failure), error => error.cacheOwnershipPending === true, 'pending close cannot be demoted to an ordinary stopped report');
+    assert.equal(admission.isStop(failure), false, 'a distinct cleanup aggregate cannot masquerade as the exact invocation stop');
+    assert.throws(() => describeStorageFailure(failure), error => error.cacheOwnershipPending === true, 'pending close cannot be demoted to an ordinary diagnostic');
     assert.equal(actualCloses, 0); permitClose = true;
     assert.equal((await retainedDirectory.releaseAfterClose()).settled, true); assert.equal(actualCloses, 1); assert.equal(attempts, 2);
-    assert.equal(admission.isStop(failure), true, 'only actual original close settlement permits stop classification');
+    assert.equal(admission.isStop(failure), false, 'metadata recovery does not relabel the failed invocation as its original plain stop');
+    assert.equal(describeStorageFailure(failure).message, admission.stop.message, 'the settled aggregate can now be projected without losing the original stop');
     retainedDirectory = null;
   } else if (mode === 'exact-stop-observation') {
     const admission = createStorageInspectionAdmission(1000); let failure;

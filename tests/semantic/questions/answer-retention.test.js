@@ -8,7 +8,7 @@ import { createRepositoryAnswerInput } from '../../helpers/repository-answer-inp
 import { compileAdmittedQueryAnswer } from '../../../src/context-pack/answers/render.js';
 import { createRetainedAnswerStore } from '../../../src/context-pack/answers/retention.js';
 import { buildRetainedAnswerGraph, retainedAnswerBytes, retainedAnswerHash } from '../../../src/context-pack/answers/retention-graph.js';
-import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
+import { getRepoRoot, resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { inspectRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
 import { ANSWER_RETENTION_MAX_SLOTS } from '../../../src/contracts/schemas/answer-retention.js';
 
@@ -21,8 +21,8 @@ const cacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig), root = path.jo
 const objects = path.join(root, 'objects'), slots = path.join(root, 'slots');
 const make = (questionRevision = '1', sourceRevision = 'build-1') => {
   const input = createRepositoryAnswerInput({ revision: sourceRevision }); input.questionRef.revision = questionRevision;
-  input.queryReceipt.world.repositoryNamespace = repoRoot;
-  for (const row of input.queryReceipt.rows) row.detailRequest.repoRoot = repoRoot;
+  input.queryReceipt.world.repositoryNamespace = getRepoRoot(repoRoot);
+  for (const row of input.queryReceipt.rows) row.detailRequest.repoRoot = input.queryReceipt.world.repositoryNamespace;
   return compileAdmittedQueryAnswer(input);
 };
 const begin = (store, answer, expectedBaseDigest = null) => store.begin({ questionRef: answer.questionRef, worldId: answer.worldId, expectedBaseDigest });

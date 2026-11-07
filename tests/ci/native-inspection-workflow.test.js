@@ -80,7 +80,7 @@ const originalOwners = [
   /^(indexing\/build-state\/produced-contract|tui\/(operator-index-workflows|supervisor-index-workflows|supervisor-index-build))$/
 ];
 const expected = discovered.filter(test => originalOwners.some(owner => owner.test(test.id))).map(test => test.id).sort();
-assert.equal(expected.length, 70, 'native coverage changes require reviewing conserved job budgets');
+assert.equal(expected.length, 71, 'native coverage changes require reviewing conserved job budgets');
 const selectedBy = (job, os) => job.steps.flatMap(step => {
   if (!step.run?.includes('node tests/run.js')) return [];
   assert.ok([undefined, "runner.os == 'Windows'", "runner.os != 'Windows'"].includes(step.if));
@@ -100,9 +100,9 @@ const selectedBy = (job, os) => job.steps.flatMap(step => {
 });
 const windowsInspection = selectedBy(inspection, 'Windows'), windowsWorkflows = selectedBy(workflows, 'Windows');
 assert.equal(windowsInspection.length, 49);
-assert.equal(windowsWorkflows.length, 21);
+assert.equal(windowsWorkflows.length, 22);
 const windows = [...windowsInspection, ...windowsWorkflows];
 assert.equal(new Set(windows).size, windows.length);
 assert.deepEqual(windows.sort(), expected);
 for (const os of ['Linux', 'macOS']) assert.deepEqual(selectedBy(inspection, os).sort(), expected);
-console.log('Windows native CI conserves70 actual cases across49/21-case jobs; job and fixture limits remain20min/30s');
+console.log('Windows native CI conserves71 actual cases across49/22-case jobs; job and fixture limits remain20min/30s');

@@ -43,7 +43,11 @@ if (mode === 'root-intent-and-unknown-accounting') {
       assert.equal(observed.lifecycle.accounting.logicalAttributedBytes, observed.totals.logicalAttributedBytes);
       assert.equal(observed.lifecycle.accounting.uniqueLogicalBytes, 14);
       assert.equal(observed.lifecycle.accounting.uniqueAllocatedBytes, observed.totals.uniqueAllocatedBytes);
-      if (process.platform === 'win32') assert.equal(observed.lifecycle.accounting.uniqueAllocatedBytes, null);
+      // Native Node can report allocation on Windows too. Compare the one
+      // physical file's actual blocks while retaining overlap deduplication.
+      const stat = await fs.stat(path.join(reports, 'saved.txt'), { bigint: true });
+      const allocated = typeof stat.blocks === 'bigint' && stat.blocks >= 0n ? Number(stat.blocks * 512n) : null;
+      assert.equal(observed.lifecycle.accounting.uniqueAllocatedBytes, allocated);
       assert.equal(observed.lifecycle.accounting.reclaimableAllocatedBytes, null);
       assert.ok(observed.lifecycle.roots.every(row => row.cleanupEligible === false));
       assert.deepEqual(await fs.readdir(temporary, { recursive: true }), before);

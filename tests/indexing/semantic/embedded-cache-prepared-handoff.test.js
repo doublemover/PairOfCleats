@@ -58,8 +58,9 @@ try {
     files: { 'original.js': { semanticCache: parentLocator, semanticSegmentCaches: entries } } };
   const sqliteMetrics = {};
   let parentOpens = 0;
-  const parentFile = path.toNamespacedPath(path.join(bundleDir, 'semantic', parentLocator.cacheKey, 'parts', 'semantic-sources', fixture.source.byteHash + '.utf8'));
-  const countParent = filename => { if (typeof filename === 'string' && path.toNamespacedPath(filename) === parentFile) parentOpens++; };
+  const nativePath = filename => process.platform === 'win32' ? path.toNamespacedPath(filename).toLowerCase() : path.resolve(filename);
+  const parentFile = nativePath(path.join(bundleDir, 'semantic', parentLocator.cacheKey, 'parts', 'semantic-sources', fixture.source.byteHash + '.utf8'));
+  const countParent = filename => { if (typeof filename === 'string' && nativePath(filename) === parentFile) parentOpens++; };
   if (!count) {
     fs.open = async (filename, ...args) => { countParent(filename); return open(filename, ...args); };
     fs.readFile = async (filename, ...args) => { countParent(filename); return readFile(filename, ...args); };
