@@ -5,7 +5,7 @@ import { isSemanticJsonBudgetError } from '../canonical-json-bounds.js';
 
 /** Code-owned unary operators share capture/replay/atomic admission. Original
  * input and output authority stays inside each operator's private owner. */
-export const createFiniteUnaryTransition = ({ getState, fail, hash, build, readBudget }) => (handle, value, options = {}) => {
+export const createFiniteUnaryTransition = ({ getState, fail, hash, build, advance = null, readBudget }) => (handle, value, options = {}) => {
   const state = getState(handle), batch = captureFiniteViewJson(value, state.limits.retainedBytes, fail);
   finiteViewFields(batch, ['batchId', 'expectedRootId', 'input'], [], fail);
   if (typeof batch.batchId !== 'string' || !batch.batchId.length || batch.batchId.length > 128) throw fail('Invalid finite-view batch identity.');
@@ -24,8 +24,10 @@ export const createFiniteUnaryTransition = ({ getState, fail, hash, build, readB
       if (!['cancelled', 'work-budget', 'retention-budget', 'checkpoint-required'].includes(next.status)) throw fail('Original input replay is not a new finite-view transition.');
       return { status: next.status, consumed: false, view: handle };
     }
-    const view = build({ ...state, input: next.view, ledger: [...state.ledger, { batchId: batch.batchId, digest }] }, signal);
-    return { status: 'materialized-private', consumed: true, view, maintenance: 'full-affected-view-recomputation', publication: 'not-attempted' };
+    const ledger = [...state.ledger, { batchId: batch.batchId, digest }];
+    const view = advance ? advance(state, next, ledger, signal) : build({ ...state, input: next.view, ledger }, signal);
+    return { status: 'materialized-private', consumed: true, view,
+      maintenance: getState(view).strategy ?? 'full-affected-view-recomputation', publication: 'not-attempted' };
   } catch (error) {
     if (isAbortError(error)) return { status: 'cancelled', consumed: false, view: handle };
     if (isSemanticJsonBudgetError(error)) return { status: 'retention-budget', consumed: false, view: handle, limit: 'retainedBytes' };

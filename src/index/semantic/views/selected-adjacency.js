@@ -24,19 +24,28 @@ const limitsFor = value => {
   for (const [name, value] of Object.entries(limits)) if (!Number.isSafeInteger(value) || value < 1 || value > SELECTED_ADJACENCY_LIMITS[name]) throw fail('Selected adjacency allowances may only be tightened.');
   return freeze(limits);
 };
-const build = ({ definition, input, limits, ledger }, signal) => {
+const parentKey = parent => key([parent.occurrenceId, parent.supportId]);
+const matches = (definition, parent) => definition.whereField === null || parent[definition.whereField] === definition.whereEquals;
+const project = (definition, parent, prior = null) => {
+  const { multiplicity, ...origin } = parent;
+  const supportId = prior?.supportId ?? hash({ definition, parent: origin });
+  return { occurrenceId: 'selected:' + supportId, supportId, from: parent[definition.projectFrom], to: parent[definition.projectTo],
+    multiplicity, sourceRef: null, parent };
+};
+const inputFor = (input, definition, limits) => {
   const original = readAdjacencyViewInput(input);
   if (original.definition.domainId !== definition.inputDomainId) throw fail('Selected adjacency input has the wrong original domain.');
   if (original.rows.length > limits.inputSupports) throw budget('inputSupports');
-  const rows = []; let work = 0;
-  for (const parent of original.rows) {
+  return original;
+};
+const build = ({ definition, input, limits, ledger }, signal, prepared = null) => {
+  const original = inputFor(input, definition, limits);
+  const rows = prepared?.rows ?? []; let work = prepared?.work ?? 0, supportHashes = prepared?.supportHashes ?? 0;
+  if (!prepared) for (const parent of original.rows) {
     throwIfAborted(signal); if (++work > limits.work) throw budget('work');
-    if (definition.whereField !== null && parent[definition.whereField] !== definition.whereEquals) continue;
+    if (!matches(definition, parent)) continue;
     if (rows.length >= limits.outputSupports) throw budget('outputSupports');
-    const { multiplicity, ...origin } = parent;
-    const supportId = hash({ definition, parent: origin });
-    rows.push({ occurrenceId: 'selected:' + supportId, supportId, from: parent[definition.projectFrom], to: parent[definition.projectTo],
-      multiplicity, sourceRef: null, parent });
+    rows.push(project(definition, parent)); supportHashes++;
   }
   const report = freeze(JSON.parse(key({ schemaVersion: 1, definition, world: original.world, inputRootId: input.rootId,
     rows, capturedDomainComplete: original.complete, ledger }, limits.retainedBytes)));
@@ -46,7 +55,39 @@ const build = ({ definition, input, limits, ledger }, signal) => {
       tuple: [row.from, row.to], multiplicity: row.multiplicity, sourceRef: null })),
     complete: original.complete, maxRetainedBytes: limits.retainedBytes });
   const handle = Object.freeze({ rootId: hash(report), relation, publication: 'private-unpublished', semanticClosure: 'not-implied' });
-  throwIfAborted(signal); owned.set(handle, { definition, input, limits, ledger, report, work }); return handle;
+  throwIfAborted(signal); owned.set(handle, { definition, input, limits, ledger, report, work, supportHashes,
+    strategy: prepared ? 'incremental-selected-supports' : 'full-affected-view-recomputation' }); return handle;
+};
+
+const advance = (state, next, ledger, signal) => {
+  const { definition, limits } = state, input = next.view, original = inputFor(input, definition, limits);
+  const changed = next.supportChanges.length, retained = state.report.rows.length;
+  // Choose estimated row/hash work in this finite exact operator. Both
+  // strategies seal the same report/relation. Include retained-row rebuilding
+  // and comparison work, not just the number of source edits, in the estimate.
+  const estimate = retained * (2 + Math.ceil(Math.log2(retained + changed + 1))) + changed * 4;
+  if (estimate >= original.rows.length) return build({ ...state, input, ledger }, signal);
+  let work = 0, supportHashes = 0;
+  const tick = () => { throwIfAborted(signal); if (++work > limits.work) throw budget('work'); };
+  const rows = new Map(), updates = []; let additions = 0;
+  for (const row of state.report.rows) { tick(); rows.set(parentKey(row.parent), row); }
+  for (const change of next.supportChanges) {
+    tick(); if (!matches(definition, change)) continue;
+    const identity = parentKey(change), previous = rows.get(identity);
+    const count = BigInt(previous?.multiplicity ?? '0') + BigInt(change.multiplicity);
+    if (count < 0n) throw fail('Original selected support underflow.');
+    if (count === 0n) { rows.delete(identity); continue; }
+    updates.push({ identity, change, previous, count }); if (!previous) additions++;
+  }
+  // Admit the final atomic bag after all removals. Input ordering must not turn
+  // a same-size support replacement into a temporary output-cap failure.
+  if (rows.size + additions > limits.outputSupports) throw budget('outputSupports');
+  for (const { identity, change, previous, count } of updates) {
+    tick(); const parent = { ...change, multiplicity: count.toString() };
+    rows.set(identity, project(definition, parent, previous)); if (!previous) supportHashes++;
+  }
+  const ordered = [...rows.entries()].sort(([left], [right]) => { tick(); return left < right ? -1 : left > right ? 1 : 0; });
+  return build({ ...state, input, ledger }, signal, { rows: ordered.map(([, row]) => { tick(); return row; }), work, supportHashes });
 };
 export const bootstrapSelectedAdjacency = (value, options = {}) => {
   const captured = fields(value, ['definition', 'input'], ['limits']);
@@ -56,6 +97,8 @@ export const bootstrapSelectedAdjacency = (value, options = {}) => {
   return build({ definition, input: captured.input, limits, ledger: [] }, options.signal);
 };
 export const describeSelectedAdjacency = handle => get(handle).report;
-export const selectedAdjacencyWork = handle => Object.freeze({ workUnits: get(handle).work, strategy: 'full-affected-view-recomputation' });
-export const applySelectedAdjacencyDelta = createFiniteUnaryTransition({ getState: get, fail, hash, build,
+export const selectedAdjacencyWork = handle => {
+  const state = get(handle); return Object.freeze({ workUnits: state.work, derivedSupportHashes: state.supportHashes, strategy: state.strategy });
+};
+export const applySelectedAdjacencyDelta = createFiniteUnaryTransition({ getState: get, fail, hash, build, advance,
   readBudget: error => budgets.has(error) ? { limit: error.limit } : null });
