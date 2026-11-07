@@ -11,6 +11,7 @@ import { buildRetainedAnswerGraph, retainedAnswerBytes, retainedAnswerHash } fro
 import { getRepoRoot, resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { inspectRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
 import { ANSWER_RETENTION_MAX_SLOTS } from '../../../src/contracts/schemas/answer-retention.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('semantic/questions/answer-retention/')[1];
 assert.ok(['immutable-shared-graph', 'intent-and-base-conflicts', 'interruption-and-resume', 'corruption-and-authority', 'quotas-and-leases', 'native-failure-ownership'].includes(mode));
@@ -77,7 +78,7 @@ try {
     const failed = Object.assign(new Error('injected head replacement failure'), { code: 'EIO' });
     try {
       fs.rename = async (from, to) => { if (path.dirname(to) === slots) throw failed; return originalRename(from, to); };
-      await assert.rejects(store.commit(intent, next), error => error === failed || error.cause === failed);
+      await assert.rejects(store.commit(intent, next), error => errorGraphIncludes(error, failed), 'the exact injected failure survives all atomic/lock ownership layers');
     } finally { fs.rename = originalRename; }
     let read = await store.read(first.questionRef);
     assert.equal(read.answer.digest, first.digest); assert.deepEqual(read.pending, intent);

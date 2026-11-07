@@ -210,7 +210,8 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
     if (isPathWithinRoot(filename, probeRoot)) probeFiles.set(nativePath(filename), {
       relativePath: path.relative(probeRoot, filename), identity: file.identity, allocatedBytes: file.allocatedBytes });
   }
-  const probeInventory = { ...inventory, items: [{ files: [...probeFiles.values()] }] };
+  const probeInventory = { ...inventory, items: [{ id: 'command-probes', category: 'command-probes',
+    path: probeRoot, files: [...probeFiles.values()] }] };
   const probePlan = await planProbeCleanup({ cacheRoot: scope.cacheRoot, authorityRoots: [scope.cacheRoot], ...limits, signal }, probeInventory, control);
   control.check();
   const qualified = new Map(probePlan.operations.map(operation => [nativePath(path.join(probeRoot, operation.relativePath)), operation]));
