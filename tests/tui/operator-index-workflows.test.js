@@ -23,6 +23,9 @@ const launches = [];
 const actor = createTuiIndexWorkflows({ scopes, env, now: () => clock, startJob: async (...args) => { launches.push(args); } });
 const scope = await scopes.selectScope({ kind: 'repo', target: repo });
 const catalog = actor.describe({}).commands;
+const answer = catalog.find(command => command.registryId === 'repository-answer');
+assert.ok(answer); assert.match(answer.unsupportedReason, /exact retained-query request/);
+assert.deepEqual(answer.fields, [], 'unimplemented answer request selection cannot create a native launch form');
 assert.deepEqual(catalog.filter(command => command.registryId.startsWith('index.') && command.registryId !== 'index.diff'
   || command.registryId === 'workspace.build').map(command => command.id).sort(),
 ['index.build', 'index.recover', 'index.report', 'index.stats', 'index.validate', 'index.watch', 'workspace.build',

@@ -66,7 +66,7 @@ authorized. Work continues solo. Frontload
 implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-[Revision-oracle implementation](contracts/revision-oracle.md) (#1528) drives the existing positive-rule owner through exact support edits, independent closed-model checks, rebuild parity and bounded failure minimization. Seven cases are authored; runtime qualification and broader source/storage/test-selection adapters remain pending.
+[Revision-oracle implementation](contracts/revision-oracle.md) (#1528) adds exact support edits, independent closed-model checks, rebuild parity and bounded minimization. Runtime and broader adapters remain pending. CI2296 passes the front gate; platform failures exposed a stale operation-index reader version, shadowed cache-copy state, missing native answer disposition and eager transport imports. Source repairs await targeted checks.
 
 Earlier solo source batches repaired exact embedding/cache identities, sparse Boolean
 completion and execution-qualified result reuse, offsets/bitmap/signed ranking,

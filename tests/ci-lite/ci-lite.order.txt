@@ -2891,3 +2891,4 @@ tooling/eval/revision-oracle/scenario-preconditions
 tooling/eval/revision-oracle/unknown-and-budget-outcomes
 tooling/eval/revision-oracle/original-execution-handles
 tooling/eval/revision-oracle/minimizer-predicate-model
+tui/protocol-fixture-dependencies

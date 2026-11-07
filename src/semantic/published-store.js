@@ -12,6 +12,7 @@ import { createArtifactSemanticStore } from './artifact-store.js';
 import { readSemanticManifest } from './manifest-reader.js';
 import { compareQueryIndexRows } from './query-index.js';
 import { compareOperationIndexRows } from './operation-index.js';
+import { SEMANTIC_OPERATION_INDEX_VERSION } from './source-order.js';
 
 const integrity = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
 const generationMismatch = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
@@ -106,7 +107,7 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
   if (operationPiece) {
     const operationManifest = await readSemanticManifest(indexDir, operationPiece, signal);
     throwIfAborted(signal);
-    assertCurrentIndexFormat({ operation: 'semantic_find', component: 'semantic operation index', expectedVersion: 2,
+    assertCurrentIndexFormat({ operation: 'semantic_find', component: 'semantic operation index', expectedVersion: SEMANTIC_OPERATION_INDEX_VERSION,
       foundVersion: operationManifest.schemaVersion, repoRoot, indexPath: path.join(indexDir, operationPiece.path) });
     operationIndex = assertSemanticOperationIndex(operationManifest);
     validateIndex(operationIndex, compareOperationIndexRows, 'operation index');

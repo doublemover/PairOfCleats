@@ -149,6 +149,7 @@ const UNSUPPORTED = {
   'report.parity': 'Broad parity evaluation requires an explicit backend/corpus qualification plan; not implemented natively.',
   'report.metrics': 'Metrics artifact selection/open adapter is not implemented.',
   'api-contracts': 'API-contract artifact and generation selection adapter is not implemented.',
+  'repository-answer': 'Repository answers require an exact retained-query request and revision/quotation input picker; use the canonical repository-answer CLI.',
   'semantic.enrichment': 'Enqueue/drain mutates the shared enrichment scheduler; native task consent adapter is not implemented.',
   'bench.language': 'Corpus provisioning and broad indexing need an explicit benchmark plan; native adapter is not implemented.',
   'bench.matrix': 'Backend matrix qualification needs an explicit benchmark plan; native adapter is not implemented.',

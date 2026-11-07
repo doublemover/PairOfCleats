@@ -137,9 +137,9 @@ const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAcc
     const destination = path.join(targetRoot, relative);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     diskAccount.reserve(size); reserved += size; onReserve(size);
-    const copied = await fs.copyFile(source, destination, fsConstants.COPYFILE_EXCL);
-    observeStorageResource(copied, { phase: 'semantic-cache-copy' }).requireSettled();
-    if (copied !== undefined) throw new Error('Semantic cache copy did not confirm its standard void result.');
+    const completion = await fs.copyFile(source, destination, fsConstants.COPYFILE_EXCL);
+    observeStorageResource(completion, { phase: 'semantic-cache-copy' }).requireSettled();
+    if (completion !== undefined) throw new Error('Semantic cache copy did not confirm its standard void result.');
     const owner = await acquireContainedFileResource(() => fs.open(destination, 'r+'), { additionalMethods: ['sync'] });
     await owner.run(descriptor => descriptor.sync());
     await syncParentDirectory(destination);

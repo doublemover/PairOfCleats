@@ -8,6 +8,7 @@ import { openPublishedSemanticStore } from '../../../src/semantic/published-stor
 import { checksumString } from '../../../src/shared/hash.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { errorGraphSome } from '../../helpers/error-graph.js';
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 
 // Real schema-valid family/query/operation metadata and actual contained owners.
 const fixture = await createSemanticServingFixture();
@@ -192,7 +193,8 @@ try {
     ['semantic_query_index', { ...fixture.queryIndex, partitionHashes: [] }, 'ERR_SEMANTIC_INTEGRITY'],
     ['semantic_operation_index', { ...fixture.operationIndex, partitionHashes: [] }, 'ERR_SEMANTIC_INTEGRITY'],
     ['semantic_query_index', { ...fixture.queryIndex, unknown: true }, 'ERR_SEMANTIC_QUERY_INDEX'],
-    ['semantic_operation_index', { ...fixture.operationIndex, schemaVersion: 1 }, 'ERR_INDEX_FORMAT_UNSUPPORTED']
+    ...[0, 1, 2, 3, SEMANTIC_OPERATION_INDEX_VERSION + 1].filter(version => version !== SEMANTIC_OPERATION_INDEX_VERSION)
+      .map(schemaVersion => ['semantic_operation_index', { ...fixture.operationIndex, schemaVersion }, 'ERR_INDEX_FORMAT_UNSUPPORTED'])
   ]) {
     await rewrite(name, value); await assert.rejects(open(), { code }); await fixture.restore();
   }
