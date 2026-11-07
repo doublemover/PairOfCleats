@@ -14,6 +14,17 @@ retains YAML deadline negatives and places23 compiler/build cases under the
 existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
+[CI2319](https://github.com/doublemover/PairOfCleats/actions/runs/42334121060)
+at `bb954f86173938e65aec7df2c965a108a7030009` passes the 44-case gate,
+Windows authority, Rust TUI, all three native-inspection jobs and the Windows
+native-index workflow job. Each OS's serial-runtime cohort reports186 passes
+and one failure: interrupted runtime import counts a catalog selector write as
+a current-pointer rewrite. `e29940c47` changes the independent filesystem witness
+to record actual successful rename destinations, asserting the catalog and current
+selectors separately. Immutable-family, native-image, exact byte/read, pinned-reader
+and pointer no-rewrite checks remain. That repair and later source changes await
+their affected runtime checks; these hosted results do not qualify the current head.
+
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
 implemented and **locally unrun**. Readiness v3 binds the original journal and
 probed generation. Prerequisite/install/native commands retain exact bounded
@@ -24,7 +35,9 @@ bootstrap receipts do not qualify these changed owners.
 | Current qualification owner | Required evidence | Status |
 | --- | --- | --- |
 | Benchmark evidence admission (#683/#1765) | Current parity version, actual quiet/missing/failed stream coverage, complete parsing, original close and preserved comparison counts | Nine fixtures authored, locally unrun; existing rollout/waiver/single-pass controls retained; actual campaign and performance acceptance pending |
-| Quota planning, policy and operator review (#1267) | Age/clock validity, alias accounting, same-volume reserve, original inventory/owner projection, semantic policy equality and strict stale apply | Ten fixtures authored, locally unrun; quota selection/eviction composition and real Windows allocation/pressure acceptance remain |
+| Quota planning, policy and operator review (#1267) | Coordinated global/category/repository proposals, age/count retention across aliases, same-volume reserve, original inventory/owner projection, semantic policy equality and strict stale apply | Sixteen fixtures authored, locally unrun; category apply/policy-publication integration and real Windows allocation/pressure acceptance remain |
+| Finite view maintenance (#1516/#1528) | Sparse select/project and affected-group paths equal clean rebuilds and independent copy-level outputs; dense fallback, immutable supports, incomplete domains, atomic capacity, replay/cancellation and work bounds | Eight additional fixtures authored, locally unrun; input validation/report sealing remain required; composition, calibrated cost history, spill, source invalidation and broader adapters remain |
+| Installer and settlement field observations (#1268/#1765) | Actual result observations precede diagnostics and each receipt field; original protections, ordinary/falsy failures and explicit recovery remain | Six additional inert-resource/real-metadata cases authored, locally unrun; real packages, children and native lifecycle qualification retain their separate owners |
 | Finite source-policy receipts (#1530) | Frozen original source execution, subgroup/missing/abstention gates, paired diagnostics and exact domain/expiry invalidation | Nine fixtures authored, locally unrun; maximum shadow-only; calibration, cross-run exposure, statistical risk and production activation remain separate |
 | Local retrieval adaptation (#1529) | Source-pinned training-only judgments/masks, named objective gradients, exact pairing, independent dense reference, deterministic CPU training/resume, retraction and retirement | Cohort/optimizer/kernel and 22 fixtures authored, locally unrun; actual encoder execution, serving integration and held-out quality/cost qualification remain |
 | Checkout transaction, recovery and readiness | Strict dependency-free information paths; exact locked install; current package/patch/native verification; concurrent and cancelled owners; generation drift | Focused fixtures authored; new runtime acceptance pending |
