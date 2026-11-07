@@ -39,9 +39,10 @@ records its eight Windows failures and their repairs. CI2341 at
 `41c487ba00854967f155d27c02b3e3f82c974ee6` again passes all22 native-index cases,
 with published search20.7 seconds and slowest build-search21.3 seconds. Its gate,
 Windows authority, Rust and native-inspection jobs pass; its completed POSIX
-broad jobs expose one new assertion mismatch. Windows records2,791 passing,
+broad jobs expose one new transport-wrapping defect. Windows records2,791 passing,
 one failing, zero timed-out and three skipped ci-lite cases: all eight former
-failures pass, with the same transport-field assertion now corrected in source.
+failures pass. The wrapping repair retains original descriptors, and the original
+teardown-graph assertion remains alongside an exact transport-field check.
 These observations qualify their exact sources, not later edits.
 
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are

@@ -69,18 +69,21 @@ index/search import overlap, with the original operations and deadlines intact.
 Ubuntu and macOS broad jobs each record 2,792 passed, one failed, zero timed out
 and two skipped. Both former shared failures pass. The new failure is
 `tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure`:
-its teardown assertion searched generic `cause`/`errors` edges instead of the
-transport owner's exact `downloadCleanupError` field. The original transport
-sets that nonenumerable field to the actual cancellation failure; the new check
-requires exact identity there. It retains the journal error and original download
-in the error graph, actual session closure, protected leases/staging, failed
-early retirement, successful original recovery and the unchanged old selector.
+the transport retained its exact `downloadCleanupError`, but journal-error
+composition used an inert carrier that omitted the original descriptors. The
+outer install boundary therefore could not find that field and fulfill its
+documented generic `cause`/`errors` teardown edge. This is a production wrapping
+defect, not an obsolete error-graph assertion. The common composer's literal
+owner message preserves the original fields without invoking a pending message
+getter. The original generic-edge assertion remains, alongside a new exact-field
+identity check. Journal/original errors, actual closure, protected leases/staging,
+failed early retirement, original recovery and the old selector remain covered.
 No failure retry or resource-settlement assertion is removed.
 
 The [completed Windows broad job](https://github.com/doublemover/PairOfCleats/actions/runs/42359226633/job/128364328668)
 records 2,791 passed, one failed, zero timed out and three skipped ci-lite cases.
 All eight original CI2340 failures now pass, including all six C# cases. Its sole
-failure is the same transport-field assertion above. The nightly-plan fixture
+failure exposes the same transport-wrapping defect above. The nightly-plan fixture
 still takes39.6 seconds, exceeding the focused30-second requirement despite its
 reported pass; the discovery repair is later source, not qualified by this run.
 No local POSIX execution occurred. Later recovery, repository quota,

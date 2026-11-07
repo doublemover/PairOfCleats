@@ -96,6 +96,7 @@ try {
     if (journalFailure) {
       assert.equal(errorGraphIncludes(failure, journalFailure), true);
       assert.equal(original.downloadCleanupError, independent, 'the original transport retains its exact teardown failure on the documented resource field');
+      assert.equal(errorGraphIncludes(failure, independent), true, 'the outer install boundary preserves its promised generic teardown-error edge');
       assert.equal(original.downloadSession.isSettled(), false);
     }
     assert.equal(codeReads, mode === 'independent-diagnostic-retains-stage' ? 1 : 0);

@@ -48,8 +48,9 @@ The download control uses the real response-session owner with a deliberately
 blocked response cancel and a failed transaction-journal rename. Recovery retains
 the original session across error composition and awaits its actual closure.
 The transport's `downloadCleanupError` field retains the exact cancellation
-failure; the original download and journal errors remain in the generic error
-graph. Checks bind each observation to its actual producer-owned edge.
+failure. The outer install boundary also exposes that error through the generic
+graph, alongside the original download and journal errors. Checks retain both
+the exact producer-owned field and the promised generic graph edge.
 Actual vendor packages and native lifetime qualification remain separate.
 
 Recovery receipt validation uses the same field-by-field observation owner,
