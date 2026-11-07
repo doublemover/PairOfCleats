@@ -4,6 +4,9 @@ The native operator catalog composes the canonical public registry and option
 owners. Every selected stable/operator/experimental command must have a concrete
 typed form or an explicit reason its native request/review adapter is unavailable.
 There is no generic unsupported fallback: missing dispositions remain errors.
+Experimental commands require explicit catalog opt-in; default discovery and
+preview cannot implicitly enable them. Opt-in still does not grant a launch
+token for an unavailable native adapter.
 
 Repository query and answer CLIs are available through their canonical typed
 request owners. Their native request/cursor/revision pickers are unavailable;

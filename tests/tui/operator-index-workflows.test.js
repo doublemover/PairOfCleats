@@ -22,13 +22,27 @@ let clock = 0;
 const launches = [];
 const actor = createTuiIndexWorkflows({ scopes, env, now: () => clock, startJob: async (...args) => { launches.push(args); } });
 const scope = await scopes.selectScope({ kind: 'repo', target: repo });
-const catalog = actor.describe({}).commands;
-const answer = catalog.find(command => command.registryId === 'repository-answer');
+const described = actor.describe({}), catalog = described.commands;
+assert.equal(described.experimentalEnabled, false);
+for (const id of ['repository-answer', 'repository-query']) {
+  assert.equal(catalog.some(command => command.registryId === id), false, 'experimental workflows require explicit opt-in');
+  await assert.rejects(actor.preview({ scopeId: scope.id, commandId: id, values: {} }), { code: 'ERR_TUI_WORKFLOW_COMMAND' });
+}
+const experimental = actor.describe({ includeExperimental: true }); assert.equal(experimental.experimentalEnabled, true);
+const answer = experimental.commands.find(command => command.registryId === 'repository-answer');
 assert.ok(answer); assert.match(answer.unsupportedReason, /exact retained-query request/);
 assert.deepEqual(answer.fields, [], 'unimplemented answer request selection cannot create a native launch form');
-const question = catalog.find(command => command.registryId === 'repository-query');
+const question = experimental.commands.find(command => command.registryId === 'repository-query');
 assert.ok(question); assert.match(question.unsupportedReason, /source-pinned typed request picker/);
 assert.deepEqual(question.fields, [], 'unimplemented question/cursor selection cannot create a native launch form');
+for (const command of [answer, question]) {
+  const unsupported = await actor.preview({ scopeId: scope.id, commandId: command.id, values: {} });
+  assert.equal(unsupported.launchable, false); assert.equal(unsupported.errorCode, 'ERR_TUI_WORKFLOW_UNSUPPORTED');
+  assert.equal(unsupported.previewId, undefined); assert.deepEqual(unsupported.errors, [command.unsupportedReason]);
+}
+assert.equal(launches.length, 0, 'unsupported experimental previews cannot create a job');
+const restored = actor.describe({}); assert.equal(restored.experimentalEnabled, false);
+assert.deepEqual(restored.commands.map(command => command.id), catalog.map(command => command.id));
 assert.deepEqual(catalog.filter(command => command.registryId.startsWith('index.') && command.registryId !== 'index.diff'
   || command.registryId === 'workspace.build').map(command => command.id).sort(),
 ['index.build', 'index.recover', 'index.report', 'index.stats', 'index.validate', 'index.watch', 'workspace.build',

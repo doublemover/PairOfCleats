@@ -28,5 +28,8 @@ for (const includeExperimental of [false, true]) for (const backendDelegationEna
     const command = commands.find(command => command.registryId === id); assert.ok(command);
     assert.match(command.unsupportedReason, reason); assert.deepEqual(command.fields, []);
   }
+  else for (const id of ['repository-answer', 'repository-query']) {
+    assert.equal(commands.some(command => command.registryId === id), false, 'default discovery does not enable experimental commands');
+  }
 }
 console.log('Every public command has a concrete native disposition before terminal or workflow execution.');
