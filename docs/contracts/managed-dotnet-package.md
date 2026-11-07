@@ -43,6 +43,16 @@ unrelated managed SDK. A damaged selected package or SDK cannot silently fall
 back to another generation. Original assembly paths and complete package
 dependencies remain leased through child close and retained LSP sessions.
 
+When the direct command and a declared runtime name the same physical generation,
+one original retained handle serves both roles. The current selector and exact
+expected tuple are still rechecked. The existing two complete byte inspections
+run under that original lease; the identical alias does not repeat them or create
+a second metadata lease. Copied handles, conflicting identities and duplicate
+runtime declarations cannot grant this reuse. Three additional locally unrun
+cases exercise actual inventory opens, one live lease, real framed child shutdown
+and identity/lookalike refusal. This establishes intended work bounds; measured
+SDK latency remains pending.
+
 Both synchronous and asynchronous command probes preserve the DLL argument;
 testing `dotnet --version` alone cannot qualify `csharp-ls`. The actual framed
 host receives the existing repository-command trust check before execution.

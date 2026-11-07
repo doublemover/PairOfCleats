@@ -3038,3 +3038,6 @@ tooling/install/managed-csharp-package/external-host-does-not-adopt-managed-sdk
 tooling/install/managed-csharp-package/sync-probe-and-workspace-trust
 tooling/install/managed-csharp-package/external-host-requires-own-command-trust
 tooling/install/managed-csharp-package/framed-initialize-and-original-generation-lease
+tooling/lsp/managed-runtime-lease-deduplication/synchronous-original-owner
+tooling/lsp/managed-runtime-lease-deduplication/retained-client-original-owner
+tooling/lsp/managed-runtime-lease-deduplication/changed-identity-and-lookalike-refusal

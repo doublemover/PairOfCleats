@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T07:15:31.399Z",
+  "generatedAt": "2026-11-07T07:25:03.504Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3849,6 +3849,7 @@
         "tests/tooling/lsp/document-context-hover-policy.test.js",
         "tests/tooling/lsp/managed-dotnet-provider-lifetime.test.js",
         "tests/tooling/lsp/managed-runtime-closure-settlement.test.js",
+        "tests/tooling/lsp/managed-runtime-lease-deduplication.test.js",
         "tests/tooling/lsp/managed-session-installation-lifetime.test.js",
         "tests/tooling/lsp/pull-diagnostics.test.js",
         "tests/tooling/providers/managed-command-frozen-recovery.test.js",
@@ -5034,6 +5035,7 @@
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
         "tests/tooling/lsp/graceful-exit-after-transport-close.test.js",
         "tests/tooling/lsp/launch-input-snapshot.test.js",
+        "tests/tooling/lsp/managed-runtime-lease-deduplication.test.js",
         "tests/tooling/lsp/materialization-generation.test.js",
         "tests/tooling/lsp/pull-diagnostics.test.js",
         "tests/tooling/lsp/signature-boundary-providers.test.js",

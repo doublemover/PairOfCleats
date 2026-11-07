@@ -76,6 +76,24 @@ export const retainManagedCommandInstallation = async options => {
   return wrapRetainedInstallation(selected, held);
 };
 
+/** Share only this owner's original retained handle, within one invocation.
+ * Recheck the current selection and expected tuple; copied handles or a changed
+ * runtime never avoid acquisition/validation. Full inspection still runs twice
+ * under the original lease, rather than twice again for its identical alias. */
+export const reuseRetainedManagedCommandInstallation = (leases, options) => {
+  if (!options.expectedSelection) return null;
+  const command = path.resolve(options.command);
+  const held = leases.find(lease => installationOwners.has(lease) && path.resolve(lease.command) === command);
+  if (!held) return null;
+  held.assertHeld();
+  const selected = resolveManagedCommandSelection(options);
+  if (!selected || selected.toolId !== held.toolId || selected.descriptorId !== held.descriptorId || selected.installId !== held.installId) {
+    throw fail('Managed runtime generation changed after original lease acquisition.');
+  }
+  held.assertHeld();
+  return held;
+};
+
 const wrapRetainedInstallation = (selected, held) => {
   if (held?.ok !== true || held.receipt?.installId !== selected.installId
     || held.receipt?.descriptorId !== selected.descriptorId || path.resolve(held.command || '') !== path.resolve(selected.command)) {
@@ -124,6 +142,7 @@ export const runWithManagedCommandInstallationSync = (options, run) => {
   try {
     for (const selection of [options, ...runtimes.map(expectedSelection => ({ ...options,
       command: expectedSelection.command, expectedSelection }))]) {
+      if (reuseRetainedManagedCommandInstallation(leases, selection)) continue;
       const selected = resolveManagedCommandSelection(selection);
       if (selected) leases.push(wrapRetainedInstallation(selected, retainManagedToolInstallationSync(selected)));
     }

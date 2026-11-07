@@ -1,5 +1,6 @@
 import { createLspClient } from './client.js';
-import { normalizeManagedRuntimeCommands, retainManagedCommandInstallation, retainPendingManagedCommand } from '../../../index/tooling/managed-command-lifetime.js';
+import { normalizeManagedRuntimeCommands, retainManagedCommandInstallation, retainPendingManagedCommand,
+  reuseRetainedManagedCommandInstallation } from '../../../index/tooling/managed-command-lifetime.js';
 
 /** Runtime lease spans idle pool retention and every transport generation.
  * Teardown must be confirmed by the exact client that spawned the children. */
@@ -12,8 +13,10 @@ export const createRetainedLspClient = async options => {
     installation = await retainManagedCommandInstallation({ toolingRoot, command: options.cmd });
     if (installation) installations.push(installation);
     for (const selection of runtimeCommands) {
-      const runtime = await retainManagedCommandInstallation({ toolingRoot, command: selection.command, expectedSelection: selection });
-      installations.push(runtime);
+      const options = { toolingRoot, command: selection.command, expectedSelection: selection };
+      const reused = reuseRetainedManagedCommandInstallation(installations, options);
+      const runtime = reused || await retainManagedCommandInstallation(options);
+      if (!reused) installations.push(runtime);
       runtimeInstallations.push(runtime);
     }
     client = createLspClient({ ...options,
