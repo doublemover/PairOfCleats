@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-11-07T11:47:39.706Z
+Generated: 2026-11-07T12:16:41.360Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-11-07T11:47:39.706Z
 ## Lane Summary
 
 - `gate`: 44 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 3129 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 3136 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 249 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 23 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -29,7 +29,7 @@ Generated: 2026-11-07T11:47:39.706Z
 - `tooling/triage`: 26 tests, 10060 ms known duration
 - `indexing/shards`: 4 tests, 8870 ms known duration
 - `indexing/file-processor`: 20 tests, 8370 ms known duration
-- `tooling/install`: 281 tests, 8330 ms known duration
+- `tooling/install`: 288 tests, 8330 ms known duration
 - `indexing/type-inference`: 18 tests, 5700 ms known duration
 - `indexing/imports`: 36 tests, 5550 ms known duration
 - `cli/general`: 9 tests, 5410 ms known duration

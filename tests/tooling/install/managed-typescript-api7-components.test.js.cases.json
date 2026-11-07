@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact-pins-and-targets", "versioned-component-owners", "closed-preparation", "sdk-real-fixture-exports", "sdk-invalid-fixture-exports", "original-before-fields", "guarded-activation-result"]
+}

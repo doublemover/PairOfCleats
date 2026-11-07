@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2963,
+    "hero": 2970,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18789,6 +18789,48 @@
       "order": 3129,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/exact-pins-and-targets",
+      "order": 3130,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/versioned-component-owners",
+      "order": 3131,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/closed-preparation",
+      "order": 3132,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/sdk-real-fixture-exports",
+      "order": 3133,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/sdk-invalid-fixture-exports",
+      "order": 3134,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/original-before-fields",
+      "order": 3135,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-api7-components/guarded-activation-result",
+      "order": 3136,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T11:35:35.125Z",
+  "generatedAt": "2026-11-07T12:16:51.063Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5037,6 +5037,7 @@
         "tests/tooling/install/managed-recovery-receipt-observation.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
+        "tests/tooling/install/managed-typescript-api7-components.test.js",
         "tests/tooling/install/managed-typescript-native.test.js",
         "tests/tooling/install/managed-verifier-original-observation.test.js",
         "tests/tooling/install/native-diagnostic-ownership.test.js",
@@ -5693,6 +5694,7 @@
         "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",
+        "tests/tooling/install/managed-typescript-api7-components.test.js",
         "tests/tooling/install/managed-typescript-native.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",
         "tests/tooling/install/operational-execution-trust-and-lifetime.test.js",

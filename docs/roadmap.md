@@ -77,6 +77,7 @@ an explicit source/profile route and bounded pull diagnostics; runtime checks aw
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
 current-source acceptance. [Compiler selection](contracts/typescript-compiler-selection.md)
 retains original failures instead of substituting ambient compilers (producer31).
+[TS7.1 preparation](contracts/typescript-api7-components.md) is implemented; API work remains.
 [Installer inputs](contracts/managed-install-input-ownership.md) seal intent and
 archive/Go index bytes before I/O; runtime checks remain pending.
 

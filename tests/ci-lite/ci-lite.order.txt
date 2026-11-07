@@ -3132,3 +3132,10 @@ tooling/install/install-action-original-observation/returned-pending-result
 tooling/install/install-action-original-observation/independent-inspection
 tooling/install/install-action-original-observation/revoked-during-reservation-read
 tooling/eval/published-index-revision-oracle/closed-preflight
+tooling/install/managed-typescript-api7-components/exact-pins-and-targets
+tooling/install/managed-typescript-api7-components/versioned-component-owners
+tooling/install/managed-typescript-api7-components/closed-preparation
+tooling/install/managed-typescript-api7-components/sdk-real-fixture-exports
+tooling/install/managed-typescript-api7-components/sdk-invalid-fixture-exports
+tooling/install/managed-typescript-api7-components/original-before-fields
+tooling/install/managed-typescript-api7-components/guarded-activation-result
