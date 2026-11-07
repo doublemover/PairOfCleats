@@ -33,7 +33,8 @@ const nullable = value => ({ anyOf: [value, { type: 'null' }] });
 const terminal = nullable(object({ kind: { enum: ['return', 'throw'] }, value: { type: 'boolean' } }));
 const ms = { type: 'number', minimum: 0 };
 export const FINITE_FEASIBILITY_RESULT_SCHEMA = object({ schemaVersion: { const: FINITE_FEASIBILITY_VERSION },
-  kind: { const: 'finite-boolean-feasibility' }, targetIdentity: hash, sourceSetId: hash, world: QUESTION_WORLD_SCHEMA,
+  kind: { const: 'finite-boolean-feasibility' }, executionId: { type: 'string', minLength: 1, maxLength: 64 },
+  targetIdentity: hash, sourceSetId: hash, world: QUESTION_WORLD_SCHEMA,
   anchors: FINITE_FEASIBILITY_REQUEST_SCHEMA.properties.anchors, observationEpoch: uint,
   solverOutcome: { enum: ['sat', 'unsat', 'unknown'] }, semanticOutcome: { enum: ['inModelWitness', 'inModelRefutation', 'unknown'] },
   profile: { const: FINITE_FEASIBILITY_PROFILE }, approximationKind: { enum: ['witnessed-supplied-finite-path', 'exact-supplied-finite-slice', 'unqualified'] },
@@ -51,3 +52,15 @@ export const FINITE_FEASIBILITY_RESULT_SCHEMA = object({ schemaVersion: { const:
   cursor: nullable(object({ targetIdentity: hash, observationEpoch: uint, token: { type: 'string', minLength: 1, maxLength: 64 } })),
   work: object({ preparationMs: ms, sourceBytesVerified: uint, producerAssignments: uint, checkerAssignments: uint,
     producerSteps: uint, checkerSteps: uint, advanceCalls: uint, canceledCalls: uint, advanceMs: ms }) });
+
+export const FINITE_FEASIBILITY_CLAIM_REQUEST_SCHEMA = object({ targetIdentity: hash, sourceSetId: hash, world: QUESTION_WORLD_SCHEMA,
+  predicate: FINITE_FEASIBILITY_REQUEST_SCHEMA.properties.predicate, scope: { const: 'supplied-finite-model-only' } });
+export const FINITE_FEASIBILITY_CLAIM_SCHEMA = object({ schemaVersion: { const: FINITE_FEASIBILITY_VERSION },
+  kind: { const: 'checked-finite-feasibility-claim' }, claimId: hash, receiptId: hash,
+  executionId: FINITE_FEASIBILITY_RESULT_SCHEMA.properties.executionId, observationEpoch: uint,
+  targetIdentity: hash, sourceSetId: hash, world: QUESTION_WORLD_SCHEMA,
+  scope: { const: 'supplied-finite-model-only' }, predicate: FINITE_FEASIBILITY_REQUEST_SCHEMA.properties.predicate,
+  outcome: { enum: ['exists-in-finite-input-domain', 'absent-in-finite-input-domain'] },
+  inputs: FINITE_FEASIBILITY_REQUEST_SCHEMA.properties.inputs, entryConditions: FINITE_FEASIBILITY_REQUEST_SCHEMA.properties.entryConditions,
+  totalAssignments: uint, witness: FINITE_FEASIBILITY_RESULT_SCHEMA.properties.witness,
+  verification: { const: 'independent-finite-forward-replay-v1' }, sourceProgram: { const: 'not-established' } });

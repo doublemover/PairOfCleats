@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T00:05:40.252Z",
+  "generatedAt": "2026-11-07T00:13:03.658Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4950,6 +4950,7 @@
         "tests/tooling/eval/evidence-task-cohort.test.js",
         "tests/tooling/eval/evidence-task-quality.test.js",
         "tests/tooling/eval/finite-evidence-task.test.js",
+        "tests/tooling/eval/finite-feasibility-claims.test.js",
         "tests/tooling/eval/finite-policy-qualification.test.js",
         "tests/tooling/eval/intervention-dataset.test.js",
         "tests/tooling/eval/masked-contrastive-objective.test.js",

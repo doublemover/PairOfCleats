@@ -6,9 +6,9 @@ import { checkFiniteFeasibilityAssignment } from '../index/semantic/feasibility/
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { FINITE_FEASIBILITY_PROFILE, FINITE_FEASIBILITY_VERSION } from '../contracts/schemas/finite-feasibility.js';
-import { assertFiniteFeasibilityResult } from '../contracts/validators/finite-feasibility.js';
+import { assertFiniteFeasibilityResult, captureFiniteFeasibilityClaimRequest, assertFiniteFeasibilityClaim } from '../contracts/validators/finite-feasibility.js';
 
-const targets = new WeakMap(), cursors = new WeakMap(), results = new WeakMap();
+const targets = new WeakMap(), cursors = new WeakMap(), results = new WeakMap(), claims = new WeakMap();
 const freeze = value => {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) { for (const child of Object.values(value)) freeze(child); Object.freeze(value); } return value;
 };
@@ -25,7 +25,7 @@ export const createFiniteFeasibilityTarget = ({ request, sourceSnapshots }) => {
   const began = performance.now(), slice = prepareFiniteFeasibilitySlice(request, sourceSnapshots);
   const target = freeze({ schemaVersion: FINITE_FEASIBILITY_VERSION, profile: FINITE_FEASIBILITY_PROFILE,
     targetIdentity: slice.targetIdentity, sourceSetId: slice.sourceSetId, world: slice.request.world });
-  targets.set(target, { slice, target, epoch: 0, currentCursor: null, busy: false, retired: false, invalidation: null,
+  targets.set(target, { slice, target, executionId: randomUUID(), epoch: 0, currentCursor: null, busy: false, retired: false, invalidation: null,
     progress: { phase: slice.cyclic ? 'unsupported' : 'explore', next: 0, checked: 0, unknown: 0, witness: null,
       unsupportedRows: [], unsupportedOmitted: 0 },
     work: { preparationMs: performance.now() - began, sourceBytesVerified: slice.sourceBytes, producerAssignments: 0,
@@ -46,6 +46,7 @@ const publish = (state, progress) => {
   const semanticOutcome = progress.phase === 'witness' ? 'inModelWitness' : progress.phase === 'refutation' ? 'inModelRefutation' : 'unknown';
   const cursor = complete ? null : freeze({ targetIdentity: state.target.targetIdentity, observationEpoch: epoch, token: randomUUID() });
   const result = freeze({ schemaVersion: FINITE_FEASIBILITY_VERSION, kind: 'finite-boolean-feasibility',
+    executionId: state.executionId,
     targetIdentity: state.target.targetIdentity, observationEpoch: epoch, sourceSetId: state.target.sourceSetId,
     world: state.target.world, anchors: state.slice.request.anchors,
     solverOutcome: semanticOutcome === 'inModelWitness' ? 'sat' : semanticOutcome === 'inModelRefutation' ? 'unsat' : 'unknown',
@@ -133,6 +134,36 @@ export const explainRefinement = result => {
   return freeze({ result, targetState: state.retired ? 'retired' : state.invalidation ? 'stale' : 'active',
     invalidation: state.invalidation, world: state.target.world, anchors: state.slice?.request.anchors ?? null,
     history: 'analysis-event-instrumentation-unavailable', programExecution: 'none' });
+};
+/** Named finite-model claims require original checked observations and exact
+ * consumer scope. Serialized reports or solver labels grant no such admission.
+ */
+export const readCheckedFiniteFeasibilityClaim = (result, input) => {
+  const state = result && typeof result === 'object' ? results.get(result) : null;
+  if (!state) throw fail('Original finite feasibility result required.');
+  const request = captureFiniteFeasibilityClaimRequest(input);
+  owner(state.target);
+  if (request.targetIdentity !== result.targetIdentity || request.sourceSetId !== result.sourceSetId
+    || canonicalSemanticJson(request.world) !== canonicalSemanticJson(state.target.world)) {
+    throw Object.assign(new Error('Finite claim target/source/world differs from the consumer scope.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
+  }
+  if (canonicalSemanticJson(request.predicate) !== canonicalSemanticJson(state.slice.request.predicate)) throw fail('Finite claim predicate differs from the consumer predicate.');
+  if (result.semanticOutcome === 'unknown' || result.verification !== 'independent-finite-forward-replay-v1') {
+    throw Object.assign(new Error('No independently checked finite predicate claim is available.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
+  }
+  if (!claims.has(result)) {
+    const content = { schemaVersion: FINITE_FEASIBILITY_VERSION, kind: 'checked-finite-feasibility-claim',
+      targetIdentity: result.targetIdentity, sourceSetId: result.sourceSetId, world: result.world, scope: request.scope,
+      predicate: state.slice.request.predicate, inputs: state.slice.request.inputs, entryConditions: state.slice.request.entryConditions,
+      outcome: result.semanticOutcome === 'inModelWitness' ? 'exists-in-finite-input-domain' : 'absent-in-finite-input-domain',
+      totalAssignments: result.exploration.totalAssignments, witness: result.witness,
+      verification: result.verification, sourceProgram: 'not-established' };
+    const claimId = semanticHash('finite-feasibility.claim.v1', content);
+    const receipt = freeze({ ...content, claimId, executionId: result.executionId, observationEpoch: result.observationEpoch,
+      receiptId: semanticHash('finite-feasibility.receipt.v1', { claimId, executionId: result.executionId, observationEpoch: result.observationEpoch }) });
+    assertFiniteFeasibilityClaim(receipt); claims.set(result, receipt);
+  }
+  return claims.get(result);
 };
 export const invalidateFiniteFeasibilityTarget = (target, { sourceUnitId, newSourceHash }) => {
   const state = owner(target), original = state.slice.sourceIdentities.find(row => row.sourceUnitId === sourceUnitId);

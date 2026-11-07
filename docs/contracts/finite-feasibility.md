@@ -65,12 +65,30 @@ by the explanation owner. Source invalidation is explicit at this internal seam;
 retirement drops private slice/index references and refuses further advancement.
 Returned immutable historical results retain their source identities.
 
+The existing lazy offline evaluation registry exposes this profile through
+`createTarget`, `refine`, `resume`, `explain`, `claim`, `invalidate` and `dispose`.
+It admits no arbitrary command, provider callback or fallback executor. The
+scoped claim reader requires the original checked result, an active original
+target, exact source set/world/predicate and `supplied-finite-model-only` scope.
+Unknown, copied, stale and retired observations cannot grant a checked claim.
+It exposes entry conditions and the complete finite input domain alongside the
+named existence/refutation outcome, never a source-program absence claim.
+
+Semantic claim IDs replay for equivalent judgments. Every target preparation has
+a distinct execution UUID; receipt IDs bind that original execution and observed
+epoch so repeated analysis cannot collapse as one actual run. Cached claim reads
+still recheck current original target authority. Already returned historical JSON
+does not become a persistent activation or revocation capability.
+
 Nine authored cases remain locally unrun: shared contradictory guards, exact
 source/witness capture, phi predecessor changes and exceptions, unsupported/cyclic
 frontiers, all admitted operation truth tables, pagination/cancellation/overlap,
 stale sources/retirement, deliberately corrupted candidate interpreters rejected
 by the real checker, and strict SSA/source admission. No issue closure or runtime
 qualification follows from these authored controls.
+Two further unrun cases cover scoped consumer rejection, independent execution
+receipts, registry controls, versioned old-read/new-write parity and duplicate
+same-state output rejection.
 
 Remaining #1527 work includes qualified source/compiler-IR translation and current
 world admission, enum/bitvector and optional SMT profiles, demanded call summaries,

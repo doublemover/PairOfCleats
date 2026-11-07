@@ -2866,3 +2866,5 @@ storage/semantic/finite-feasibility/stale-source-and-retirement
 storage/semantic/finite-feasibility/independent-candidate-corruption
 storage/semantic/finite-feasibility/strict-ssa-and-source-admission
 storage/semantic/finite-feasibility/boolean-operation-concrete-oracle
+tooling/eval/finite-feasibility-claims/exact-scope-and-original-receipts
+tooling/eval/finite-feasibility-claims/offline-adapter-and-versioned-state

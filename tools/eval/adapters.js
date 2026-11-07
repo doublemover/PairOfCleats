@@ -1,5 +1,13 @@
 const loaded = new Map();
 const loaders = {
+  'finite-boolean-acyclic-v1': async () => {
+    const owner = await import('../../src/semantic/finite-feasibility.js');
+    return Object.freeze({ id: 'finite-boolean-acyclic-v1', executionClass: 'supplied-finite-boolean-model-only',
+      capabilities: Object.freeze(['createTarget', 'refine', 'resume', 'explain', 'claim', 'invalidate', 'dispose']),
+      createTarget: owner.createFiniteFeasibilityTarget, refine: owner.refinePredicate, resume: owner.resumeRefinement,
+      explain: owner.explainRefinement, claim: owner.readCheckedFiniteFeasibilityClaim,
+      invalidate: owner.invalidateFiniteFeasibilityTarget, dispose: owner.retireFiniteFeasibilityTarget });
+  },
   'finite-lookup-v1': async () => {
     const owner = await import('../../src/graph/hypotheses/paired-intervention.js');
     return Object.freeze({ id: 'finite-lookup-v1', executionClass: 'supplied-finite-model-only',
