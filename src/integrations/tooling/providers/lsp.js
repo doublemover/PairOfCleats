@@ -59,6 +59,8 @@ import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 import { resolveToolingRuntimeLaunch } from '../../../index/tooling/runtime-launch.js';
+import { TYPESCRIPT_NATIVE_PROFILE, assertTypeScriptNativeInitialize } from '../../../index/tooling/typescript-native-profile.js';
+import { createDiagnosticPull } from './lsp/pull-diagnostics.js';
 import { sha1 } from '../../../shared/hash.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { createWorkspaceMethodHealth } from './lsp/workspace-method-health.js';
@@ -192,6 +194,7 @@ export {
  * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}>}
  */
 export async function collectLspTypes({
+  protocolProfile = null,
   rootDir,
   documents,
   targets,
@@ -482,7 +485,7 @@ export async function collectLspTypes({
     crashLoopQuarantined: false
   };
 
-  const { diagnosticsByUri, onNotification, waitForDiagnostics, registerDocument, unregisterDocument } = createDiagnosticsCollector({
+  const { diagnosticsByUri, onNotification, waitForDiagnostics, registerDocument, unregisterDocument, setDiagnosticsForUri } = createDiagnosticsCollector({
     captureDiagnostics,
     requireOwnedDocuments: true,
     checks,
@@ -490,7 +493,11 @@ export async function collectLspTypes({
     maxDiagnosticUris: resolvedMaxDiagnosticUris,
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
-  const onRequest = createLspConfigurationHandler(initializationOptions);
+  const configurationHandler = createLspConfigurationHandler(initializationOptions), diagnosticPull = createDiagnosticPull();
+  const onRequest = async message => {
+    if (captureDiagnostics && message?.method === 'workspace/diagnostic/refresh') { diagnosticPull.refresh(); return null; }
+    return configurationHandler ? configurationHandler(message) : null;
+  };
 
   const launch = resolveToolingRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
     languages: docs.map(doc => doc.languageId),
@@ -601,6 +608,14 @@ export async function collectLspTypes({
     };
 
     const runWithHealthGuard = async (fn, options = {}) => {
+      guard.assertSettled?.();
+      const remainingDeadline = () => {
+        if (!Number.isFinite(options.deadlineAt)) return Infinity;
+        const remaining = Math.floor(options.deadlineAt - Date.now());
+        if (remaining <= 0) throw Object.assign(new Error('The LSP collection deadline expired before request admission.'),
+          { code: 'ERR_TOOLING_LSP_COLLECTION_DEADLINE' });
+        return remaining;
+      };
       const state = lifecycleHealth.getState();
       runtime.lifecycle = state;
       if (state.crashLoopQuarantined) {
@@ -619,12 +634,14 @@ export async function collectLspTypes({
             count: state.fdPressureEvents
           });
         }
-        await sleep(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
+        await sleep(Math.min(remainingDeadline(), 1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
       }
       try {
+        const admitted = parameters => { const remaining = remainingDeadline();
+          return fn({ ...parameters, timeoutMs: Math.min(remaining, parameters.timeoutMs) }); };
         const out = await guard.run(workspaceHealth
-          ? parameters => workspaceHealth.run(options.label, () => fn(parameters), { retriesRemaining: parameters.retriesRemaining })
-          : fn, options);
+          ? parameters => workspaceHealth.run(options.label, () => admitted(parameters), { retriesRemaining: parameters.retriesRemaining })
+          : admitted, options);
         refreshRuntimeState();
         return out;
       } catch (err) {
@@ -673,9 +690,11 @@ export async function collectLspTypes({
         const rawInitializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
           rootUri,
           capabilities: {
-            ...(onRequest ? { workspace: { configuration: true } } : {}),
+            workspace: { ...(configurationHandler ? { configuration: true } : {}),
+              ...(captureDiagnostics ? { diagnostics: { refreshSupport: true } } : {}) },
             textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true },
-              publishDiagnostics: { versionSupport: true } }
+              publishDiagnostics: { versionSupport: true },
+              ...(captureDiagnostics ? { diagnostic: { dynamicRegistration: false, relatedDocumentSupport: false } } : {}) }
           },
           initializationOptions,
           timeoutMs: guardTimeout
@@ -686,6 +705,7 @@ export async function collectLspTypes({
           initError.code = 'ERR_TOOLING_LSP_INVALID_INITIALIZE_RESULT';
           throw initError;
         }
+        if (protocolProfile === TYPESCRIPT_NATIVE_PROFILE) assertTypeScriptNativeInitialize(initializeResult);
         positionEncoding = resolveInitializeResultPositionEncoding(initializeResult);
         runtime.positionEncoding = positionEncoding;
         if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
@@ -699,6 +719,7 @@ export async function collectLspTypes({
           desyncError.code = LSP_SESSION_DESYNC_ERROR_CODE;
           throw desyncError;
         }
+        if (protocolProfile === TYPESCRIPT_NATIVE_PROFILE) assertTypeScriptNativeInitialize(initializeResult);
         positionEncoding = resolveInitializeResultPositionEncoding(initializeResult);
         runtime.positionEncoding = positionEncoding;
       }
@@ -1111,7 +1132,16 @@ export async function collectLspTypes({
         // Real servers debounce validation beyond documentSymbol completion.
         // Wait once for each opened document's first notification (including an
         // empty result), with a shared budget rather than a delay per document.
-        runtime.diagnosticsDrain = await waitForDiagnostics(
+        const pulled = await diagnosticPull.collect({ capability: initializeResult?.capabilities?.diagnosticProvider,
+          openDocs, setDiagnosticsForUri, invalidateDiagnosticsForUri: registerDocument, signal: toolingAbortSignal,
+          maxDocuments: Math.min(10000, Math.max(1, resolvedMaxDiagnosticUris)),
+          maxDurationMs: softDeadlineAt == null ? 4000 : Math.min(4000, Math.max(0, Math.floor(softDeadlineAt - Date.now()))),
+          request: (method, params, remaining) => runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.request(
+            method, params, { timeoutMs: guardTimeout }), { label: 'diagnostic', timeoutOverride: remaining,
+            deadlineAt: Date.now() + remaining, retriesOverride: 0 }) });
+        if (pulled.supported && !pulled.complete) checks.push({ name: 'tooling_pull_diagnostics_incomplete', status: 'warn',
+          message: 'Pull diagnostic collection is incomplete: ' + pulled.reason });
+        runtime.diagnosticsDrain = pulled.supported ? pulled : await waitForDiagnostics(
           Array.from(openDocs.values(), (doc) => [doc.uri, doc.legacyUri]),
           {
             timeoutMs: softDeadlineAt == null ? 500 : Math.min(500, Math.max(0, softDeadlineAt - Date.now())),

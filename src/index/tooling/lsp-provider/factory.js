@@ -5,6 +5,7 @@ import { admitProviderCatalog, createProviderCatalogError, setProviderCatalogOri
 import { resolveProviderWorkspaceExecutionAuthority, isSourcekitProvider } from '../workspace-execution.js';
 import { ensureSourcekitPackageResolutionPreflight } from '../preflight/sourcekit-package-resolution.js';
 import { admitScriptLspInputs } from '../script-lsp-profiles.js';
+import { admitTypeScriptNativeInputs, TYPESCRIPT_NATIVE_PROFILE } from '../typescript-native-profile.js';
 import { admitKotlinLspInputs, kotlinLspMigrationDiagnostic } from '../kotlin-lsp-profile.js';
 import {
   mergePreflightChecks,
@@ -53,8 +54,11 @@ export const createConfiguredLspProvider = (server) => {
   const executionAuthorityFor = (ctx) => resolveProviderWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId, server
   });
-  const admitInputs = inputs => admitKotlinLspInputs({ profileId: server.workspaceExecutionProfile || server.id,
-    inputs: admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs }) });
+  const admitInputs = inputs => {
+    const admitted = admitKotlinLspInputs({ profileId: server.workspaceExecutionProfile || server.id,
+      inputs: admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs }) });
+    return server.protocolProfile === TYPESCRIPT_NATIVE_PROFILE ? admitTypeScriptNativeInputs(admitted) : admitted;
+  };
   const blockedExecutionOutput = (ctx, inputs, authority, owner) => ({
     provider: { id: providerId, version: owner.version, configHash: owner.getConfigHash(ctx) },
     byChunkUid: {},
@@ -301,6 +305,9 @@ export const createConfiguredLspProvider = (server) => {
     const executionAuthority = executionAuthorityFor(ctx);
     if (executionAuthority) return executionAuthority;
     const admittedInputs = admitInputs(inputs);
+    if (server.protocolProfile === TYPESCRIPT_NATIVE_PROFILE && !admittedInputs.documents.length) return {
+      state: 'blocked', blockProvider: true, reasonCode: 'typescript_native_no_admitted_sources', checks: admittedInputs.checks
+    };
     if (server.workspaceExecutionProfile === 'kotlin-lsp' && !admittedInputs.documents.length) return {
       state: 'blocked', blockProvider: true, reasonCode: 'kotlin_lsp_no_admitted_sources', checks: admittedInputs.checks
     };

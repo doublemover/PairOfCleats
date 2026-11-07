@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2840,
+    "hero": 2850,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18045,6 +18045,66 @@
       "order": 3005,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-native/canonical-archive-bounds",
+      "order": 3006,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-native/explicit-profile-and-source-authority",
+      "order": 3007,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-native/verification-and-original-settlement",
+      "order": 3008,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-typescript-native/managed-publication-and-selection",
+      "order": 3009,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/lsp/pull-diagnostics/full-original-document-report",
+      "order": 3010,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/pull-diagnostics/refresh-replaces-prior-reports",
+      "order": 3011,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/pull-diagnostics/bounded-admission-and-unsupported-reports",
+      "order": 3012,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/pull-diagnostics/replacement-and-original-pending-work",
+      "order": 3013,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/pull-diagnostics/guard-narrows-retry-admission",
+      "order": 3014,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/pull-diagnostics/framed-native-profile-and-owned-disposal",
+      "order": 3015,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

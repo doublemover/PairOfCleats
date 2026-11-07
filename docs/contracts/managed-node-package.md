@@ -43,7 +43,7 @@ Read-only selection, synchronous/owned probes, initialize handshakes, pooled LSP
 sessions and workspace-health identity share the launch's actual command/argv.
 The script prefix appears once and actual attempted child arguments are retained.
 The Node prerequisite uses the application's exact executable, with no PATH or
-system installation. Producer `lspBindings`68 prevents prior derived replay from
+system installation. Producer `lspBindings`69 prevents prior derived replay from
 assuming the old launch meaning. Native/.NET recipes retain their active contracts.
 
 Version verification runs the pinned CLI entry through the original async child

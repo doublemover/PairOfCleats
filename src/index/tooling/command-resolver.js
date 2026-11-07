@@ -15,6 +15,7 @@ import { pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { createRetainedLspClient } from '../../integrations/tooling/lsp/managed-client.js';
 import { runWithManagedCommandInstallationSync } from './managed-command-lifetime.js';
 import { resolveToolingRuntimeLaunch } from './runtime-launch.js';
+import { resolveTypeScriptNativeCommand } from './typescript-native-profile.js';
 import { createBinaryDiscovery, classifyBinaryDiscoverySelection } from './binary-utils.js';
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
@@ -458,6 +459,7 @@ const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig, discovery }) => {
   const requested = String(cmd || '').trim();
   if (!requested) return '';
   if (isExplicitCommandPath(requested)) return requested;
+  if (requested === 'typescript-native') return resolveTypeScriptNativeCommand(toolingConfig?.dir);
   const scopedMatch = discovery.findInDirs(requested, resolveRuntimeToolDirs({ repoRoot, toolingConfig }));
   if (scopedMatch) return scopedMatch;
   return discovery.findOnPath(requested) || requested;

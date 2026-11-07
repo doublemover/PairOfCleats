@@ -339,8 +339,13 @@ export const createToolingGuard = ({
       log(`[tooling] ${name} circuit breaker tripped.`);
     }
   };
-  const run = async (fn, { label, timeoutOverride } = {}) => {
+  const run = async (fn, { label, timeoutOverride, retriesOverride } = {}) => {
     requirePendingOriginals();
+    if (retriesOverride != null && (!Number.isSafeInteger(retriesOverride) || retriesOverride < 0)) {
+      throw new TypeError('Tooling request retries must be a nonnegative integer.');
+    }
+    // A finite enclosing workflow may narrow, never increase, existing retries.
+    const admittedRetries = retriesOverride == null ? retries : Math.min(retries, retriesOverride);
     if (isOpen()) {
       const reason = lastFailure?.message || 'unknown failure';
       const err = new Error(`${name} tooling disabled (circuit breaker): ${reason}`);
@@ -355,10 +360,10 @@ export const createToolingGuard = ({
       throw err;
     }
     let attempt = 0;
-    while (attempt <= retries) {
+    while (attempt <= admittedRetries) {
       requirePendingOriginals();
       try {
-        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs, attempt, retriesRemaining: retries - attempt });
+        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs, attempt, retriesRemaining: admittedRetries - attempt });
         requireOriginal(result, 'tooling-guard-successful-result');
         reset();
         return result;
@@ -372,7 +377,7 @@ export const createToolingGuard = ({
         const healthDecision = getWorkspaceHealthDecision(err);
         if (healthDecision?.kind === 'not-admitted') throw err;
         attempt += 1;
-        if (attempt > retries || healthDecision?.kind === 'failed-admitted') {
+        if (attempt > admittedRetries || healthDecision?.kind === 'failed-admitted') {
           try { recordFailure(err, label, { methodScoped: healthDecision?.methodScoped === true }); originalFailure.requireSettled(); }
           catch (diagnosticError) { throw retainFailureDiagnostic(err, diagnosticError, prerequisite); }
           throw err;

@@ -2,6 +2,7 @@ import { normalizeProviderId } from './provider-contract.js';
 import { getLspProviderDelta } from './lsp-provider-deltas.js';
 import { SCRIPT_LSP_PRESET_DEFINITIONS, SCRIPT_LSP_PRESET_ALIASES } from './script-lsp-profiles.js';
 import { KOTLIN_LSP_PRESET } from './kotlin-lsp-profile.js';
+import { TYPESCRIPT_NATIVE_PRESET } from './typescript-native-profile.js';
 
 const normalizePresetKey = (value) => normalizeProviderId(value);
 const adaptiveDocScopeFor = (providerId) => {
@@ -14,6 +15,7 @@ const adaptiveDocScopeFor = (providerId) => {
 const PRESET_DEFINITIONS = Object.freeze({
   ...SCRIPT_LSP_PRESET_DEFINITIONS,
   'kotlin-lsp': KOTLIN_LSP_PRESET,
+  'typescript-native': TYPESCRIPT_NATIVE_PRESET,
   basedpyright: Object.freeze({
     id: 'basedpyright', cmd: 'basedpyright-langserver', args: ['--stdio'], languages: ['python'],
     label: 'Python (BasedPyright, explicit experimental profile)', priority: 80,
@@ -157,6 +159,7 @@ const PRESET_DEFINITIONS = Object.freeze({
 
 const PRESET_ALIAS_TO_KEY = Object.freeze({
   ...SCRIPT_LSP_PRESET_ALIASES,
+  'typescript-native': 'typescript-native',
   'kotlin-lsp': 'kotlin-lsp',
   'kotlin-official': 'kotlin-lsp',
   basedpyright: 'basedpyright',

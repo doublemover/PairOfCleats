@@ -241,6 +241,7 @@ export const normalizeServerConfig = (server, index) => {
     id,
     ...(preset && Object.hasOwn(SCRIPT_LSP_PRESET_DEFINITIONS, preset.id) ? { scriptProfileId: preset.id } : {}),
     profileContractVersion: preset?.profileContractVersion || null,
+    protocolProfile: preset?.protocolProfile || null,
     exclusiveLanguageGroup: preset?.exclusiveLanguageGroup || null,
     replacesProviderIds: Array.isArray(preset?.replacesProviderIds) ? [...preset.replacesProviderIds] : [],
     requiresWorkspaceExecution: preset?.requiresWorkspaceExecution === true,

@@ -3008,3 +3008,13 @@ tooling/install/managed-pyright-package/owned-probe-and-generation-lease
 tooling/install/managed-pyright-package/strict-digest-and-previous-generation
 tooling/install/managed-pyright-package/verification-observation-and-cancellation
 tooling/install/managed-pyright-package/external-default-without-managed-selection
+tooling/install/managed-typescript-native/canonical-archive-bounds
+tooling/install/managed-typescript-native/explicit-profile-and-source-authority
+tooling/install/managed-typescript-native/verification-and-original-settlement
+tooling/install/managed-typescript-native/managed-publication-and-selection
+tooling/lsp/pull-diagnostics/full-original-document-report
+tooling/lsp/pull-diagnostics/refresh-replaces-prior-reports
+tooling/lsp/pull-diagnostics/bounded-admission-and-unsupported-reports
+tooling/lsp/pull-diagnostics/replacement-and-original-pending-work
+tooling/lsp/pull-diagnostics/guard-narrows-retry-admission
+tooling/lsp/pull-diagnostics/framed-native-profile-and-owned-disposal

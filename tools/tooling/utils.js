@@ -34,6 +34,7 @@ import { identifyOperationalTool, OPERATIONAL_TOOL_IDS, verifyManagedOperational
 import { resolveManagedDotnetSdkRecipe, verifyManagedDotnetSdk } from './managed-dotnet-sdk.js';
 import { createGoplsCacheRecipe, GOPLS_PACKAGE } from './gopls-recipe.js';
 import { resolveManagedPyrightRecipe, verifyManagedPyright } from './managed-pyright.js';
+import { resolveManagedTypeScriptNativeRecipe, verifyManagedTypeScriptNative } from './managed-typescript-native.js';
 import { resolveManagedNodePackageLaunch } from '../../src/shared/managed-node-package.js';
 import { runWithManagedCommandInstallationSync } from '../../src/index/tooling/managed-command-lifetime.js';
 import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
@@ -394,6 +395,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   // API used by our provider. Match the project's supported dependency range.
   const typescriptPackage = `typescript@${packageMetadata.dependencies.typescript}`;
   const pyrightRecipe = resolveManagedPyrightRecipe();
+  const nativeTypeScriptRecipe = resolveManagedTypeScriptNativeRecipe();
   const absoluteToolingRoot = path.resolve(toolingRoot);
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
@@ -469,6 +471,13 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         install: managedRecipe ? { cache: managedRecipe } : {}, verifyManagedInstall: verifyManagedOperationalTool,
         provisioningBlocker: blockers[id] || 'No approved native archive is declared for this platform/architecture.' };
     }),
+    {
+      id: 'typescript-native', label: 'TypeScript 7 native LSP (explicit)', explicitOnly: true,
+      languages: ['javascript', 'typescript'], detect: { cmd: 'typescript-native', args: ['--version'], binDirs: [] },
+      install: nativeTypeScriptRecipe ? { cache: nativeTypeScriptRecipe } : {},
+      ...(nativeTypeScriptRecipe ? { version: nativeTypeScriptRecipe.managedDescriptor.version, verifyManagedInstall: verifyManagedTypeScriptNative } : {}),
+      docs: 'https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/'
+    },
     {
       id: 'tsserver',
       label: 'TypeScript server',
@@ -801,7 +810,8 @@ export function resolveToolsForLanguages(languages, toolingRoot, repoRoot, tooli
     : [];
   for (const language of normalizedLanguages) {
     const candidates = filterToolsByConfig(
-      registry.filter((tool) => tool.languages.some((lang) => String(lang || '').toLowerCase() === language)),
+      registry.filter((tool) => tool.languages.some((lang) => String(lang || '').toLowerCase() === language)
+        && (tool.explicitOnly !== true || getToolProviderAliases(tool.id).some(id => toolingConfig?.enabledTools?.includes(id)))),
       toolingConfig
     );
     if (!candidates.length) continue;

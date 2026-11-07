@@ -486,6 +486,7 @@ export const collectConfiguredOutput = async ({
         abortSignal,
         log,
         providerId,
+        protocolProfile: server.protocolProfile,
         cmd: resolvedCmd,
         collectTypes: shouldCollectTypesForRequestedKinds(requestedKinds),
         args: resolvedArgs,

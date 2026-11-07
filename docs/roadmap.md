@@ -54,7 +54,7 @@ The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every
 
 [Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 
-[Historical re-checks](archived/windows-historical-rechecks-2026-10-24.md) and [failure repairs](archived/windows-failure-repairs-2026-10-24.md) retain their source identities; checkpoint 265 supersedes their counts. Gate B1-B7 acceptance follows the [rollout policy](specs/usr-core-rollout-release-migration.md). Linked native receipts retain fail-before and ten-process crash evidence; they do not qualify later implementation.
+Gate B1-B7 acceptance follows the [rollout policy](specs/usr-core-rollout-release-migration.md). Historical native receipts retain their source identities and ten-process crash evidence; later implementation needs current acceptance.
 
 The published document security repair excludes DOCX deleted/moved-from text,
 versions extraction and bundle reuse, and corrects UNC service-root authority.
@@ -71,8 +71,9 @@ refresh the PR overview at least every 20 commits.
 
 The [native workflow budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
 overlaps read-only console/catalog setup while retaining full seed verification.
-[Windows Pyright](contracts/managed-node-package.md) uses a pinned prebuilt bundle,
-existing archive admission and original Node/package leases; runtime checks await.
+[Windows Pyright](contracts/managed-node-package.md) and [native TypeScript](contracts/typescript-native-lsp.md)
+use pinned prebuilt packages and existing admission/leases. Native TypeScript adds
+an explicit source/profile route and bounded pull diagnostics; runtime checks await.
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
 current-source acceptance. The intake above owns remaining scope; current schemas
 and producer constants own format identities.
