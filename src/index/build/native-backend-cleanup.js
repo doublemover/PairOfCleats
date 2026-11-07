@@ -59,7 +59,7 @@ const proveOrphan = async ({ record, repoRoot, repoCacheRoot, buildsRoot, home, 
 /** Bounded real metadata operations through the existing native command owner.
  * No nested reader lease is admitted inside our own exclusive namespace. */
 const requalifyNative = async record => {
-  const { runNativeDatabaseCommand } = await import('../../../tools/shared/native-database-lifetime.js');
+  const { runNativeDatabaseCommand } = await import('../../shared/storage/native-database-lifetime.js');
   await runNativeDatabaseCommand({ commandIdentity: `${record.backend}.cleanup.inspect` }, async resources => {
     if (record.backend === 'sqlite') {
       const Database = require('better-sqlite3');

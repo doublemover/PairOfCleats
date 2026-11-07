@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { runNativeDatabaseCommand, getPendingNativeDatabaseOwners } from '../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand, getPendingNativeDatabaseOwners } from '../../src/shared/storage/native-database-lifetime.js';
 
 // Actual canonical command owner with inert handles; authored, not executed.
 const command = { commandIdentity: 'sqlite.compact' };

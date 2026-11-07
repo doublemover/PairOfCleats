@@ -9,12 +9,13 @@ import { prepareLmdbReadyPublication } from '../../../src/storage/lmdb/ready-pub
 import { LMDB_ARTIFACT_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
 import { updateSqliteState } from '../../../src/storage/sqlite/build/index-state.js';
 import { publishIndexStateMutation } from '../../../src/shared/index-state-publication.js';
-import { runNativeDatabaseCommand } from '../../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../../src/shared/storage/native-database-lifetime.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { checksumFile } from '../../../src/shared/hash.js';
 import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 // UNVALIDATED: actual publication/mutex/native-command owners. Native cases
 // use one tiny real LMDB store, never a full index or subprocess.
@@ -33,6 +34,12 @@ await fs.mkdir(indexDir, { recursive: true });
 await fs.writeFile(statePath, JSON.stringify({ mode: 'code', buildId: 'fixture-generation', sqlite: { keep: true }, extensions: { keep: 'source' } }));
 const target = path.join(repoCacheRoot, 'builds', 'generation', 'index-lmdb', 'index-code');
 const initial = await updateLmdbState(indexDir, { enabled: true, ready: false, pending: true, schemaVersion: LMDB_SCHEMA_VERSION });
+// This fixture exercises refresh of an existing artifact family. The shared
+// state owner intentionally does not invent a missing pieces manifest.
+const initialHash = await checksumFile(statePath);
+await writePiecesManifest(indexDir, [{ name: 'index_state', path: 'index_state.json', format: 'json',
+  bytes: (await fs.stat(statePath)).size, checksum: `${initialHash.algo}:${initialHash.value}` }],
+{ buildId: initial.buildId });
 const before = await fs.readFile(statePath, 'utf8'), read = async () => JSON.parse(await fs.readFile(statePath, 'utf8'));
 const patch = { enabled: true, ready: true, pending: false, schemaVersion: LMDB_SCHEMA_VERSION, buildMode: 'code', path: target };
 const lockPath = path.join(indexDir, '.index_state.write.lock');

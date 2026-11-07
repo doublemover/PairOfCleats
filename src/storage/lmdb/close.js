@@ -1,4 +1,4 @@
-import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { addStorageFailureContext, readStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 /** LMDB 3.5.1 can resolve close() before an outstanding prefetch drains. Its
@@ -44,9 +44,17 @@ export const createLmdbCloseOwner = (db, originalClose) => {
           // A failed original native call stays unknown even if its callback
           // arrives later. A successful physical close may separately await
           // an original result/inspection owner, without repeating close.
-          throw addStorageFailureContext(error, { cacheOwnershipPending: true,
+          let failure = addStorageFailureContext(error, { cacheOwnershipPending: true,
             cacheOwnershipReleased: isSettled, lmdbCloseOwner: owner }, null,
           { forceAggregate: true, nonEnumerable: ['lmdbCloseOwner'] });
+          // The captured original result can discover an independent failure
+          // while its observer runs. Its private context retains that blocker;
+          // expose the same original failure in the outward error graph too.
+          const inspections = new Set([...observations.values()].flatMap(observation =>
+            readStorageFailureContext(observation.primary)?.inspectionErrors || []));
+          for (const inspection of inspections) failure = addStorageFailureContext(failure, {}, inspection,
+            { secondaryPresent: true, forceAggregate: true });
+          throw failure;
         });
         closing.catch(() => {});
       }

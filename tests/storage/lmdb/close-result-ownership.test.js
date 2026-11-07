@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLmdbCloseOwner } from '../../../src/storage/lmdb/close.js';
-import { runNativeDatabaseCommand } from '../../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../../src/shared/storage/native-database-lifetime.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';

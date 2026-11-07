@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../src/shared/storage/native-database-lifetime.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { getSqliteStorageOperation } from '../../src/storage/sqlite/build/storage-operation.js';
 import { prepareExistingConfiguredNativePublication, commitConfiguredNativePublication } from '../../src/shared/storage/native-publication-producer.js';

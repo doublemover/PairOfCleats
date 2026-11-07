@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { assertDelegatedNativeDatabaseScope } from '../../../tools/shared/native-database-authority.js';
+import { assertDelegatedNativeDatabaseScope } from '../../../src/shared/storage/native-database-authority.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-native-scope-'));
 try {

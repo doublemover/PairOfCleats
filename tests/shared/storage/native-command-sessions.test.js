@@ -4,7 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { open } from 'lmdb';
-import { runNativeDatabaseCommand } from '../../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../../src/shared/storage/native-database-lifetime.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/shared/storage/access.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';

@@ -16,7 +16,7 @@ import { updateLmdbState } from '../../src/storage/lmdb/index-state.js';
 import { CREATE_TABLES_SQL, SCHEMA_VERSION } from '../../src/storage/sqlite/schema.js';
 import { writeSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
 import { LMDB_SCHEMA_VERSION, LMDB_META_KEYS, LMDB_ARTIFACT_KEYS } from '../../src/storage/lmdb/schema.js';
-import { runNativeDatabaseCommand } from '../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../src/shared/storage/native-database-lifetime.js';
 import { acquireNativeReaderStorage } from '../../src/shared/storage/native-reader.js';
 import { createLmdbCloseOwner } from '../../src/storage/lmdb/close.js';
 

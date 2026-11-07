@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../src/shared/storage/native-database-lifetime.js';
 import { LMDB_BUILD_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';

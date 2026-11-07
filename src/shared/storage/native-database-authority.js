@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { stableStringify } from '../../src/shared/stable-json.js';
-import { isPathWithinRoot } from '../../src/shared/file-paths.js';
-import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
+import { stableStringify } from '../stable-json.js';
+import { isPathWithinRoot } from '../file-paths.js';
+import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../contained-file.js';
 
 const fail = message => { throw Object.assign(new Error(message), { code: 'ERR_NATIVE_DATABASE_DELEGATED_SCOPE' }); };
 

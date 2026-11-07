@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { runNativeDatabaseCommand } from '../../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../../src/shared/storage/native-database-lifetime.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-native-command-close-'));
 try {
@@ -44,7 +45,8 @@ try {
   await assert.rejects(runNativeDatabaseCommand({ commandIdentity: 'lmdb.build' }, async resources => {
     const handle = resources.own({ close: () => { closeCalls++; throw cleanup; } });
     await resources.use(handle, () => { throw primary; });
-  }), error => error.cause?.cause === primary && error.nativeCleanupError === cleanup
+  }), error => errorGraphIncludes(error.cause, primary) && errorGraphIncludes(error.nativeCleanupError, cleanup)
+    && error.nativeCleanupError.lmdbCloseOwner.isPhysicallyClosed() === false
     && error.cacheOwnershipReleased() === false && primary.nativeCleanupError === undefined,
   'exact primary and cleanup remain separate causes without mutating a frozen operation failure');
   assert.equal(closeCalls, 1, 'an uncertain failed close is retained rather than retried or marked closed');

@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { open, allDbs } from 'lmdb';
 import { Packr } from 'msgpackr';
 import { createLmdbBackend } from '../../../src/retrieval/cli-lmdb.js';
-import { runNativeDatabaseCommand } from '../../../tools/shared/native-database-lifetime.js';
+import { runNativeDatabaseCommand } from '../../../src/shared/storage/native-database-lifetime.js';
 import { LMDB_META_KEYS, LMDB_ARTIFACT_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
 import { buildLmdbReport } from '../../../src/index/validate/lmdb-report.js';
 import { decodeLmdbValue } from '../../../src/storage/lmdb/utils.js';

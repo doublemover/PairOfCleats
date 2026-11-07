@@ -1,13 +1,13 @@
-import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
-import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../../src/shared/cache/repo-access-delegation.js';
+import { createLifecycleRegistry } from '../lifecycle/registry.js';
+import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../cache/repo-access-delegation.js';
 import { assertDelegatedNativeCommandIdentity, assertDelegatedNativeDatabaseScope } from './native-database-authority.js';
-import { createLmdbCloseOwner } from '../../src/storage/lmdb/close.js';
-import { acquireRepoStorageSession } from '../../src/shared/storage/repository-session.js';
-import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import { createLmdbCloseOwner } from '../../storage/lmdb/close.js';
+import { acquireRepoStorageSession } from './repository-session.js';
+import { isPathWithinRoot } from '../file-paths.js';
 import path from 'node:path';
-import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
-import { readStorageFailureContext } from '../../src/shared/storage/operation-error.js';
-import { acquireConfiguredNativeStorageSession, configuredNativeStorageConfigurationKey } from '../../src/shared/storage/configured-native-storage.js';
+import { observeStorageResource } from './failure-observation.js';
+import { readStorageFailureContext } from './operation-error.js';
+import { acquireConfiguredNativeStorageSession, configuredNativeStorageConfigurationKey } from './configured-native-storage.js';
 
 const commands = new Set(['sqlite.compact', 'lmdb.build', 'sqlite.cleanup.inspect', 'lmdb.cleanup.inspect']);
 const pendingOwners = new Set();
