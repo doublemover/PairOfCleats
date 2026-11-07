@@ -4,7 +4,7 @@ import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import { inspectStorageInventory } from '../../src/shared/storage/inventory.js';
 import { EMBEDDING_PROTECTED_METADATA } from '../../src/shared/storage/catalog.js';
 import { resolveEmbeddingCacheProfile } from '../../src/shared/embeddings-cache/layout.js';
-import { readCacheIndex } from '../build/embeddings/cache.js';
+import { readEmbeddingIndex as readCacheIndex } from '../build/embeddings/cache/index-log.js';
 import { collectReferenceProtection } from '../build/embeddings/cache/file-references.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
@@ -38,7 +38,10 @@ const fingerprint = async (directory, stopped) => {
 
 /** Read-only category adapter: strict canonical replay includes cache.index.delta.
  * A snapshot race or unreadable reference ownership blocks lifecycle admission.
- * No shard lock is acquired during explain/inventory because acquisition writes.
+ * Borrow the same canonical metadata producer directly: the ordinary payload
+ * access wrapper acquires leases/touches and therefore cannot serve read-only
+ * diagnostics. Fingerprints revalidate metadata; no payload/mutation authority
+ * escapes this observation. Ordinary cache readers retain their profile leases.
  */
 export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repoId = null,
   maxEntries = 100000, maxDurationMs = 10000, signal = null } = {}) => {
@@ -49,6 +52,7 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
   const roots = [];
   const indexes = [];
   const failures = [];
+  const snapshots = new Map();
   let entryCount = 0;
   let protectedKeys = 0;
   let referencesComplete = true;
@@ -65,13 +69,34 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
     const directories = [path.join(root, 'global-chunks'), ...MODES.map(mode => path.join(root, mode, 'files'))];
     for (const mode of MODES) roots.push({ id: `embedding-${tier}-${mode}-metadata`, category: 'embedding-metadata',
       path: path.join(root, mode, 'cache.meta.json'), retention: 'referenced', repoId });
-    const snapshots = new Map();
+    // References can read a mode before its ordinary inventory turn. Capture
+    // every baseline first and retain it through the final physical scan.
+    for (const directory of directories) {
+      if (stopped()) break;
+      try {
+        const before = await fingerprint(directory, stopped);
+        if (stopped()) break;
+        snapshots.set(directory, { tier, before });
+      } catch (error) {
+        referencesComplete = false;
+        failures.push({ tier, directory, reason: 'unreadable-embedding-baseline',
+          ...describeStorageFailure(error, { phase: 'embedding-storage-initial-metadata' }) });
+      }
+    }
+    const readObservedIndex = async (directory, identityKey, options) => {
+      if (stopped()) throw new Error('Embedding inspection stopped before index admission.');
+      const snapshot = snapshots.get(directory);
+      if (!snapshot || snapshot.before['cache.lock']) throw new Error('Embedding index has no inactive observed baseline.');
+      const index = await readCacheIndex(directory, identityKey, options);
+      if (stopped()) throw new Error('Embedding inspection stopped after its original index reader settled.');
+      return index;
+    };
     for (const directory of directories) {
       if (stopped()) { failures.push({ tier, reason: stopReason }); break; }
       try {
-        const before = await fingerprint(directory, stopped);
-        if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
-        snapshots.set(directory, before);
+        const snapshot = snapshots.get(directory);
+        if (!snapshot) continue;
+        const { before } = snapshot;
         roots.push({ id: `embedding-${tier}-${path.relative(root, directory)}`, category: 'embedding-profile',
           path: directory, retention: 'referenced', repoId });
         if (before['cache.lock']) throw new Error('Existing embedding shard/index lock is protected; inspect does not recover it.');
@@ -86,7 +111,7 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
           indexes.push({ tier, directory, status: present ? 'unindexed-report-only' : 'missing', entries: null, referencesComplete: !present });
           continue;
         }
-        const index = await readCacheIndex(directory, profile.identityKey, { strict: true });
+        const index = await readObservedIndex(directory, profile.identityKey, { strict: true });
         if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
         if (index.version !== 1 || index.identityKey !== profile.identityKey) throw new Error('Embedding index profile identity mismatch.');
         const keys = Object.keys(index.entries || {});
@@ -104,7 +129,7 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
           if (Number.isFinite(access)) newestAccess = Math.max(newestAccess || 0, access);
         }
         let reference = { incomplete: false, protectedKeys: new Set() };
-        if (path.basename(directory) === 'global-chunks') reference = await collectReferenceProtection(directory, index, { readIndex: readCacheIndex });
+        if (path.basename(directory) === 'global-chunks') reference = await collectReferenceProtection(directory, index, { readIndex: readObservedIndex });
         if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
         if (reference.incomplete) referencesComplete = false;
         protectedKeys += reference.protectedKeys.size;
@@ -119,20 +144,20 @@ export const inspectEmbeddingStorageProfile = async ({ cacheRoot, identity, repo
         reason: 'unreadable-or-active-embedding-owner', ...describeStorageFailure(error, { phase: 'embedding-storage-index-inventory',
           defaultCode: 'ERR_EMBEDDING_STORAGE_INVENTORY' }) }); }
     }
-    for (const [directory, before] of snapshots) {
-      if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
-      try {
-        const after = await fingerprint(directory, stopped);
-        if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
-        if (JSON.stringify(after) !== JSON.stringify(before)) throw new Error('Embedding checkpoint/delta/lock changed during inventory.');
-      } catch (error) { referencesComplete = false; failures.push({ tier, directory, reason: 'concurrent-embedding-publication',
-        ...describeStorageFailure(error, { phase: 'embedding-storage-metadata-revalidation' }) }); }
-    }
     // Only known mode roots are scanned. Scanning the legacy tuple parent would
     // accidentally include profiles-v2 and every unrelated complete identity.
   }
   const physical = stopped() ? null : await inspectStorageInventory({ roots, maxEntries: maxEntries - entryCount,
     maxDurationMs: Math.max(1, maxDurationMs - (Date.now() - started)), signal });
+  for (const [directory, { tier, before }] of snapshots) {
+    if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
+    try {
+      const after = await fingerprint(directory, stopped);
+      if (stopped()) { failures.push({ tier, directory, reason: stopReason }); break; }
+      if (JSON.stringify(after) !== JSON.stringify(before)) throw new Error('Embedding checkpoint/delta/lock changed during inventory.');
+    } catch (error) { referencesComplete = false; failures.push({ tier, directory, reason: 'concurrent-embedding-publication',
+      ...describeStorageFailure(error, { phase: 'embedding-storage-metadata-revalidation' }) }); }
+  }
   stopped();
   stopReason ||= physical?.stopReason || null;
   return { schemaVersion: 1, category: 'embedding-profile', repoId, profile,

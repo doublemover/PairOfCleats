@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T06:43:01.128Z",
+  "generatedAt": "2026-11-07T06:58:10.789Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4888,6 +4888,7 @@
         "tests/shared/storage/configured-sqlite-operation.test.js",
         "tests/shared/storage/coordinated-quota-scopes.test.js",
         "tests/shared/storage/diagnostic-field-settlement.test.js",
+        "tests/shared/storage/embedding-inventory-publication-race.test.js",
         "tests/shared/storage/error-projection-originals.test.js",
         "tests/shared/storage/free-space-observation.test.js",
         "tests/shared/storage/handoff-drain-ownership.test.js",

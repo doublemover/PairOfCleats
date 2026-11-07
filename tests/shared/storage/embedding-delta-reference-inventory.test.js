@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { buildCacheIdentity, resolveGlobalChunkCacheDir, resolveCacheDir, writeCacheIndex,
@@ -33,7 +34,23 @@ try {
   const checkpoint = JSON.parse(await fs.readFile(path.join(files, 'cache.index.json'), 'utf8'));
   assert.equal(Object.keys(checkpoint.entries).length, 0, 'fixture entry exists only in the committed delta');
   const before = await fs.readdir(temporary, { recursive: true });
-  const inventory = await inspectEmbeddingStorageProfile({ cacheRoot: temporary, identity });
+  const writes = [], restore = [];
+  const recordWrites = (owner, field, writesFile = () => true) => {
+    const original = owner[field]; restore.push(() => { owner[field] = original; });
+    owner[field] = (...args) => { if (writesFile(args)) writes.push({ field, file: String(args[0]) }); return original(...args); };
+  };
+  const opensForWrite = ([, flags]) => typeof flags === 'number'
+    ? (flags & (fsSync.constants.O_WRONLY | fsSync.constants.O_RDWR | fsSync.constants.O_CREAT | fsSync.constants.O_TRUNC | fsSync.constants.O_APPEND)) !== 0
+    : typeof flags === 'string' && /[wa+]/.test(flags);
+  for (const owner of [fs, fsSync]) {
+    for (const field of owner === fs ? ['mkdir', 'writeFile', 'rename', 'unlink'] : ['mkdirSync', 'writeFileSync', 'renameSync', 'unlinkSync']) recordWrites(owner, field);
+    recordWrites(owner, owner === fs ? 'open' : 'openSync', opensForWrite);
+  }
+  let inventory;
+  try { inventory = await inspectEmbeddingStorageProfile({ cacheRoot: temporary, identity }); }
+  finally { for (const action of restore.reverse()) action(); }
+  assert.deepEqual(writes, [], 'read-only inventory performs no temporary lease writes, profile touches or other mutations');
+  assert.equal(inventory.complete, true, JSON.stringify(inventory.failures));
   const fileIndex = inventory.indexes.find(index => index.directory === files);
   assert.equal(fileIndex.entries, 1, 'canonical owner includes delta-only pointers');
   assert.equal(inventory.references.protectedChunkKeys, 1, 'delta-only file references protect immutable chunks');

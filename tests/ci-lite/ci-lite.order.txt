@@ -3027,3 +3027,6 @@ shared/storage/kernel-allocation-accounting/unique-observed-allocation
 shared/storage/kernel-allocation-accounting/conflicting-alias-allocation
 shared/storage/kernel-allocation-accounting/reviewed-probe-unlink-estimate
 shared/storage/kernel-allocation-accounting/sparse-or-compressed-allocation
+shared/storage/embedding-delta-reference-inventory
+shared/storage/embedding-inventory-publication-race/reference-before-mode-baseline
+shared/storage/embedding-inventory-publication-race/publication-during-physical-inventory

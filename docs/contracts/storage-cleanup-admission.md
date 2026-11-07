@@ -71,6 +71,19 @@ retains its original total clock through manifest/marker reads and every file
 verification; cancellation is forwarded to those original bounded readers.
 Already admitted descriptors still close before a stopped result or failure.
 
+Embedding profile diagnostics read strict checkpoint/delta metadata directly
+through its canonical producer. Ordinary payload access still uses profile leases
+and advisory touches; a diagnostic acquires neither and performs no writes.
+Every known mode's metadata baseline precedes reference reads and remains the
+original baseline through physical inventory and final revalidation. Publication
+during either phase makes reference completeness false. Existing native read and
+close ownership, lock protection and read-only authority remain binding.
+
+The existing delta/reference fixture now records actual write admissions,
+including transient lease files that a before/after directory listing misses.
+Two additional locally unrun cases publish real competing checkpoints through
+the existing cache owner during reference collection and physical enumeration.
+
 Fifteen additional cases are authored and locally unrun. They cover pre-cancelled
 diagnosis, each root/policy/lease admission boundary, unknown volume absence,
 exact root/enumeration/revalidation, original directory close and explicit owner
