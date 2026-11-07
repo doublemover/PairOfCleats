@@ -70,3 +70,13 @@ authored, locally unrun finite controls cover early/nested/mid-field refusal,
 original failure/inspection/function values, the closed positive, truncation,
 nonzero status and late guard revocation. Existing real SDK/native qualification
 remains separate from these injected spawn results.
+
+The SDK transaction keeps the original verifier/receipt observations through
+capability projection, binary hashing, generation promotion, pointer activation
+and each cleanup mutation. Receipt writes use the existing atomic-file owner
+with a commit prerequisite. Download reconciliation retains the original branded
+response session, and archive recovery uses exact guarded receipts. Four further
+authored, locally unrun integration controls use the real transaction/storage
+owners with inert archives/probes: root/nested capability revocation, an original
+post-verification file open and function-valued failure retirement. The selected
+old SDK remains usable and recovery does not repeat either download.

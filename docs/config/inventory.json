@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T09:54:00.252Z",
+  "generatedAt": "2026-11-07T10:00:46.849Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3810,6 +3810,7 @@
         "tests/tooling/install/download-selected-closure.test.js",
         "tests/tooling/install/go-sdk-explicit-pin.test.js",
         "tests/tooling/install/go-sdk-frozen-recovery.test.js",
+        "tests/tooling/install/go-sdk-publication-observation.test.js",
         "tests/tooling/install/gopls-allocation-recipe.test.js",
         "tests/tooling/install/install-allocation-admission.test.js",
         "tests/tooling/install/install-download-resource-lifetime.test.js",
@@ -5016,6 +5017,7 @@
         "tests/tooling/install/clangd-owned-acquisition.test.js",
         "tests/tooling/install/estimate-destination-identity.test.js",
         "tests/tooling/install/go-sdk-probe-original-observation.test.js",
+        "tests/tooling/install/go-sdk-publication-observation.test.js",
         "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-install-phase-observation.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",

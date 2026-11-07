@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2929,
+    "hero": 2933,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18583,6 +18583,30 @@
     {
       "id": "tooling/install/go-sdk-probe-original-observation/closed-positive-and-late-observation",
       "order": 3095,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-publication-observation/root-capability-revocation",
+      "order": 3096,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-publication-observation/nested-capability-revocation",
+      "order": 3097,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-publication-observation/post-verification-file-read",
+      "order": 3098,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-publication-observation/function-failure-retirement",
+      "order": 3099,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

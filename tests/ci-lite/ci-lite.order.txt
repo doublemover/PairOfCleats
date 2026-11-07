@@ -3098,3 +3098,7 @@ tooling/install/go-sdk-probe-original-observation/failure-before-result
 tooling/install/go-sdk-probe-original-observation/inspection-retains-independent-work
 tooling/install/go-sdk-probe-original-observation/function-original-failure
 tooling/install/go-sdk-probe-original-observation/closed-positive-and-late-observation
+tooling/install/go-sdk-publication-observation/root-capability-revocation
+tooling/install/go-sdk-publication-observation/nested-capability-revocation
+tooling/install/go-sdk-publication-observation/post-verification-file-read
+tooling/install/go-sdk-publication-observation/function-failure-retirement

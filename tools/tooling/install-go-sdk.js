@@ -8,13 +8,14 @@ import {
   GO_SDK_ARCHIVE_LIMITS, GO_SDK_MAX_DOWNLOAD_BYTES
 } from '../../src/shared/managed-go.js';
 import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
-import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload } from './install-shared.js';
+import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload, isInstallDownloadSession } from './install-shared.js';
 import { verifyInstallerRequirementProbe } from './install-requirements.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import { verifyOwnedResource, captureManagedVerificationFailure, retainManagedResourceFailure } from './managed-verification.js';
 import { createManagedVerificationObservation } from './managed-verification-observation.js';
+import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 
 export { GO_SDK_ARCHIVE_LIMITS };
 const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
@@ -161,42 +162,56 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   let pointerTempIdentity = null;
   let pendingError = null;
   let operationError = null;
+  let probeResult = null;
   let cleaned = false, resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet();
   const archiveSessions = new Set();
+  const downloads = new Map(), resourceObservation = createManagedVerificationObservation(), recoveryObservation = createManagedVerificationObservation();
   const resourceId = randomUUID();
   const observeFailure = error => {
-    if (!error || typeof error !== 'object' || observed.has(error) || described.has(error)) return;
+    if (error === null || !['object', 'function'].includes(typeof error) || observed.has(error) || described.has(error)) return;
     observed.add(error);
     const archiveSession = getArchiveExtractionSession(error);
     if (archiveSession) archiveSessions.add(archiveSession);
     const captured = captureManagedVerificationFailure(error, resourceId);
+    if (captured.owned) resourceObservation.rememberComposition(error); else resourceObservation.remember(error);
+    const download = Object.getOwnPropertyDescriptor(error, 'downloadSession')?.value;
+    if (isInstallDownloadSession(download) && !downloads.has(download)) {
+      if (downloads.size === 128) observerOverflow = true;
+      else downloads.set(download, Object.freeze({ downloadSession: download, cacheOwnershipReleased: captured.observe }));
+    }
     if (captured.observe) {
       if (observers.length < 128) observers.push(captured.observe);
       else observerOverflow = true;
     }
     if (captured.owned || captured.observe && !captured.observe()) resourcePending = true;
   };
-  const resourcesSettled = () => !observerOverflow && !resourcePending && observers.every(observe => observe());
+  const resourcesSettled = () => !observerOverflow && !resourcePending && resourceObservation.isSettled()
+    && recoveryObservation.isSettled() && observers.every(observe => observe());
+  const requireResourcesSettled = () => {
+    if (!resourcesSettled()) throw new Error('Actual Go SDK verifier child/tree closure remains pending.', { cause: probeResult ?? operationError });
+  };
   const cleanupTransaction = async () => {
-    if (!resourcesSettled()) throw new Error('Actual Go SDK verifier child/tree closure remains pending.');
+    requireResourcesSettled();
     if (cleaned) return true;
     if (pointerTemp) {
       const current = await fs.lstat(pointerTemp, { bigint: true }).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
       if (current) {
         if (!pointerTempIdentity || !current.isFile() || current.isSymbolicLink() || current.dev !== pointerTempIdentity.dev
           || current.ino !== pointerTempIdentity.ino) throw new Error('Go SDK private pointer identity changed; unknown evidence is preserved.');
-        await fs.rm(pointerTemp, { force: false });
+        requireResourcesSettled(); await fs.rm(pointerTemp, { force: false });
       }
       pointerTemp = null; pointerTempIdentity = null;
     }
+    requireResourcesSettled();
     const current = await fs.lstat(transaction, { bigint: true }).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
     if (current) {
       if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== transactionIdentity.dev || current.ino !== transactionIdentity.ino) {
         throw new Error('Go SDK transaction identity changed; unknown evidence is preserved.');
       }
-      await fs.rm(transaction, { recursive: true, force: false });
+      requireResourcesSettled(); await fs.rm(transaction, { recursive: true, force: false });
     }
+    requireResourcesSettled();
     cleaned = true;
     return true;
   };
@@ -207,10 +222,10 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   };
   const recovery = Object.freeze({ resourceId, transaction, releaseAfterClosure: async () => {
     if (!reconciling) reconciling = (async () => {
-      if (operationError?.downloadSession) await settleInstallDownload(operationError);
+      for (const witness of downloads.values()) await settleInstallDownload(witness);
       for (const session of archiveSessions) {
         const closed = await session.releaseAfterClose();
-        if (closed?.resourceId !== session.resourceId || closed?.settled !== true || closed?.pending !== false || !session.isSettled()) {
+        if (!recoveryObservation.exactReceipt(closed, session.resourceId) || !session.isSettled()) {
           throw new Error('Actual Go SDK archive descriptor closure remains pending.');
         }
       }
@@ -247,23 +262,32 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     env.GOWORK = 'off';
     const probe = await verifyOwnedResource(input => (dependencies.probe || probeInstalledSdk)(command, input),
       { cwd: cwd || transaction, env, signal }, resourceId);
-    observeFailure(probe);
-    const verification = verifyInstallerRequirementProbe('go', probe);
+    probeResult = probe; observeFailure(probe); requireResourcesSettled();
+    const readProbe = field => { requireResourcesSettled(); const value = resourceObservation.read(probe, field); requireResourcesSettled(); return value; };
+    const ok = readProbe('ok'), stdout = readProbe('stdout');
+    if (stdout != null && typeof stdout !== 'string') throw new TypeError('Go SDK version output must be a string.', { cause: stdout });
+    const verification = verifyInstallerRequirementProbe('go', { ok, stdout });
+    requireResourcesSettled();
     if (!verification.ok || verification.identity.version !== archive.version
       || verification.identity.platform !== target.os || verification.identity.arch !== target.arch) {
-      throw createInstallError('go_sdk_probe_failed', 'The installed Go SDK did not report the expected version/platform/architecture.');
+      const error = createInstallError('go_sdk_probe_failed', 'The installed Go SDK did not report the expected version/platform/architecture.');
+      error.cause = probe; throw error;
     }
     const receipt = { schemaVersion: 1, packageKey, version: archive.version, os: target.os, arch: target.arch,
       filename: archive.filename, indexUrl: archive.indexUrl, sourceUrl: archive.sourceUrl,
       archiveSha256: archive.sha256, archiveBytes: archive.size, goBinarySha256: hashManagedGoFile(command),
       identity: verification.identity, verificationLevel: 'official-release-sha256-and-executable-version',
       installedAt: new Date().toISOString() };
-    await fs.writeFile(path.join(extracted, 'installation.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    requireResourcesSettled();
+    await atomicWriteJson(path.join(extracted, 'installation.json'), receipt, { mkdir: false, createOnly: true, beforeCommit: requireResourcesSettled });
     signal?.throwIfAborted();
+    requireResourcesSettled();
     await fs.rename(extracted, destination);
     pointerTemp = path.join(cache, `.current-${randomUUID()}.json`);
-    await fs.writeFile(pointerTemp, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    requireResourcesSettled();
+    await atomicWriteJson(pointerTemp, receipt, { mkdir: false, createOnly: true, beforeCommit: requireResourcesSettled });
     pointerTempIdentity = await fs.lstat(pointerTemp, { bigint: true });
+    requireResourcesSettled();
     const nowPointer = await fs.lstat(pointer).catch((error) => { if (error.code !== 'ENOENT') throw error; return null; });
     if ((pointerStat == null) !== (nowPointer == null) || (pointerStat &&
       (!nowPointer.isFile() || nowPointer.isSymbolicLink() || nowPointer.dev !== pointerStat.dev || nowPointer.ino !== pointerStat.ino
@@ -273,7 +297,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
         currentSelectionPreserved: true, deletionAuthority: false };
       throw changed;
     }
-    await fs.rename(pointerTemp, pointer);
+    requireResourcesSettled(); await fs.rename(pointerTemp, pointer);
     pointerTemp = null; pointerTempIdentity = null;
     const installed = resolveManagedGoSdk(toolingRoot, { platform, arch });
     if (!installed) throw createInstallError('go_sdk_cache_verification_failed', 'Published SDK receipt could not be verified.');
