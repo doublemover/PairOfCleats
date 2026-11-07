@@ -2998,3 +2998,6 @@ shared/storage/inspection-phase-admission/deadline-between-policy-files
 shared/storage/inspection-phase-admission/deadline-in-original-lease-reader
 shared/storage/inspection-phase-admission/pending-original-close-over-stop
 shared/storage/inspection-phase-admission/exact-stop-observation
+shared/storage/inspection-phase-admission/exact-root-deadline
+shared/storage/inspection-phase-admission/exact-directory-close
+shared/storage/inspection-phase-admission/exact-revalidation-deadline

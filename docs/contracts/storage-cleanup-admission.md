@@ -35,7 +35,8 @@ between real unlinks, original reader close after cancellation, strict old-plan
 rejection and ordinary positive deletion. Fixture removal verifies its physical
 root and unique disposable marker. Existing lease, authority, replacement,
 resource-observation and saved-evidence negatives remain unchanged.
-# Diagnostic phase admission
+
+## Diagnostic phase admission
 
 Metadata-only inspection and `storage doctor` share one original admission
 across root stats, physical-path resolution, ownership-marker reads, missing-root
@@ -48,7 +49,11 @@ A stopped metadata root remains `unscanned` with unknown byte counts. If policy
 inspection was not admitted/completed, diagnosis returns `commandProbePolicy:
 null` and `commandProbePolicyInspected: false`; this is neither a missing policy
 nor a valid default selection. Uninspected leases and references remain protected.
-The exact inventory scanner retains its existing separate bounded scan contract.
+The exact inventory scanner uses the same admission policy with its original
+scan clock. Root/marker/volume reads, directory admission, each iterator read and
+final directory revalidation check that one budget. An expired final stat cannot
+mark the scan complete. Already admitted reads still finish and close normally;
+unscanned roots cannot contribute zero bytes to a complete usage total.
 
 Cleanup and diagnosis reuse the same private stop owner. A cleanup failure can
 decorate that exact stop error with an original pending-resource observation.
@@ -57,6 +62,7 @@ timeout classification. A refused native close remains a retained failure;
 only actual settlement permits reporting the operation as stopped. No category
 deletion authority, forced lease release or resource-closure retry is introduced.
 
-Eight additional cases are authored and locally unrun. They cover pre-cancelled
+Eleven additional cases are authored and locally unrun. They cover pre-cancelled
 diagnosis, each root/policy/lease admission boundary, unknown volume absence,
-original directory close and explicit owner recovery after a refused native close.
+exact root/enumeration/revalidation, original directory close and explicit owner
+recovery after a refused native close.

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { resolveStorageLayout } from '../../../src/shared/storage/layout.js';
 import { inspectStorageLayout, diagnoseStorageLayout } from '../../../src/shared/storage/operator.js';
+import { inspectStorageInventory } from '../../../src/shared/storage/inventory.js';
 import { createStorageInspectionAdmission } from '../../../src/shared/storage/inspection-admission.js';
 import { withStorageDirectory, getStorageDirectorySession } from '../../../src/shared/storage/directory.js';
 import { acquireRepoCacheAccessLease, repoAccessPaths } from '../../../src/shared/cache/repo-access.js';
@@ -37,6 +38,8 @@ try {
     assert.equal(result.commandProbePolicy, null); assert.equal(result.commandProbePolicyInspected, false);
     assert.equal(result.leaseInspectionComplete, false); assert.equal(result.inventory.items.length, Object.keys(layout.descriptors).length);
     assert.ok(result.inventory.items.every(item => item.status === 'unscanned' && item.logicalBytes === null));
+    const empty = await inspectStorageInventory({ roots: [], signal: controller.signal });
+    assert.equal(empty.complete, false); assert.equal(empty.stopReason, 'cancelled'); assert.equal(admissions, 0);
   } else if (['deadline-after-root-stat', 'deadline-after-realpath', 'deadline-before-volume-fallback'].includes(mode)) {
     let clock = 0, laterAdmissions = 0, markerReads = 0; Date.now = () => clock;
     const late = () => { if (clock >= 1000) laterAdmissions++; };
@@ -85,6 +88,33 @@ try {
     assert.equal(result.leaseStopReason, 'time-budget'); assert.equal(result.leaseInspectionComplete, false);
     assert.equal(actualCloses, 1, 'the original admitted directory closes despite the stopped enumeration'); assert.equal(laterReads, 0);
     assert.ok(result.inventory.lifecycle.roots.every(item => !item.cleanupEligible));
+  } else if (['exact-root-deadline', 'exact-directory-close', 'exact-revalidation-deadline'].includes(mode)) {
+    let clock = 0, rootStats = 0, laterAdmissions = 0, opens = 0, closes = 0;
+    const late = () => { if (clock >= 1000) laterAdmissions++; };
+    Date.now = () => clock;
+    fsp.lstat = async (...args) => {
+      late(); const value = await original.lstat(...args);
+      if (same(args[0], cache)) {
+        rootStats++;
+        if (mode === 'exact-root-deadline' && rootStats === 1 || mode === 'exact-revalidation-deadline' && rootStats === 3) clock = 1000;
+      }
+      return value;
+    };
+    fsp.open = (...args) => { late(); opens++; return original.open(...args); };
+    fsp.opendir = async (...args) => {
+      late(); const directory = await original.opendir(...args), read = directory.read.bind(directory), close = directory.close.bind(directory);
+      directory.read = async () => { late(); const value = await read(); if (mode === 'exact-directory-close') clock = 1000; return value; };
+      directory.close = async () => { const value = await close(); closes++; return value; };
+      return directory;
+    };
+    const result = await inspectStorageInventory({ roots: [{ id: 'cache', category: 'cache', path: cache },
+      { id: 'next', category: 'cache', path: home }], includeFiles: true, maxDurationMs: 1000 });
+    assert.equal(result.complete, false); assert.equal(result.stopReason, 'time-budget'); assert.equal(laterAdmissions, 0);
+    assert.equal(result.items[1].status, 'unscanned'); assert.equal(result.items[1].logicalBytes, null);
+    assert.equal(result.totals.uniqueLogicalBytes, null);
+    if (mode === 'exact-root-deadline') { assert.equal(opens, 0); assert.equal(closes, 0); assert.equal(result.items[0].logicalBytes, null); }
+    else if (mode === 'exact-directory-close') assert.equal(closes, 1, 'the exact scanner still closes the original directory after its read exhausts time');
+    else assert.equal(rootStats, 3, 'expiry on final directory revalidation cannot mark the scan complete');
   } else if (mode === 'pending-original-close-over-stop') {
     const admission = createStorageInspectionAdmission(1000), closeFailure = new Error('original native close refused');
     let attempts = 0, actualCloses = 0;
