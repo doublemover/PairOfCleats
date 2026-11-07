@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T08:11:31.486Z",
+  "generatedAt": "2026-11-07T08:34:34.444Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5065,6 +5065,7 @@
         "tests/tooling/triage/inspector-index-filter-context-consumer.test.js",
         "tests/tooling/triage/record-id-native-io-admission.test.js",
         "tests/tooling/triage/record-publication.test.js",
+        "tests/tooling/typescript-loader-original-failure.test.js",
         "tests/tooling/vfs/consumer-storage-admission.test.js",
         "tests/tooling/vfs/cross-process-publication.test.js",
         "tests/tooling/vfs/provider-session-lifetime.test.js",
@@ -5701,6 +5702,7 @@
         "tests/tooling/service/runtime-config-revalidation.test.js",
         "tests/tooling/structural/search.test.js",
         "tests/tooling/typescript-compiler-compatibility.test.js",
+        "tests/tooling/typescript-loader-original-failure.test.js",
         "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
         "tests/tooling/workspace/build-runtime-child-observation.test.js",

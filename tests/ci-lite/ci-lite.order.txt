@@ -3057,3 +3057,10 @@ shared/storage/lifecycle-quota-cleanup/unknown-and-bounded-inventory
 shared/storage/lifecycle-quota-cleanup/real-volume-reserve
 shared/storage/lifecycle-quota-cleanup/cli-lifecycle-composition
 shared/storage/lifecycle-quota-cleanup/policy-change-between-unlinks
+tooling/typescript-loader-original-failure/async-selected-failure
+tooling/typescript-loader-original-failure/async-pending-original
+tooling/typescript-loader-original-failure/sync-selected-failure
+tooling/typescript-loader-original-failure/sync-pending-original
+tooling/typescript-loader-original-failure/installed-layout-is-not-absence
+tooling/typescript-loader-original-failure/original-falsy-failures
+tooling/typescript-loader-original-failure/absence-trust-and-positive-control

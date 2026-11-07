@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["async-selected-failure", "async-pending-original", "sync-selected-failure", "sync-pending-original", "installed-layout-is-not-absence", "original-falsy-failures", "absence-trust-and-positive-control"]
+}

@@ -75,7 +75,9 @@ overlaps read-only console/catalog setup while retaining full seed verification.
 use pinned prebuilt packages and existing admission/leases. Native TypeScript adds
 an explicit source/profile route and bounded pull diagnostics; runtime checks await.
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
-current-source acceptance. The intake above owns remaining scope; current schemas
+current-source acceptance. [Compiler selection](contracts/typescript-compiler-selection.md)
+retains original failures instead of substituting ambient compilers (producer31).
+The intake above owns remaining scope; current schemas
 and producer constants own format identities.
 
 ### Execution order

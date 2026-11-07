@@ -14,7 +14,7 @@ import { runTypeScriptProviderSubprocess } from './typescript/runtime/index.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 import { selectTypeScriptDocuments, createDefaultCompilerOptions, resolveTsconfigOverride, findNearestConfig, parseTsConfig } from './typescript/config.js';
 
-const TYPESCRIPT_PROVIDER_VERSION = '3.0.1';
+const TYPESCRIPT_PROVIDER_VERSION = '3.0.2';
 
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
