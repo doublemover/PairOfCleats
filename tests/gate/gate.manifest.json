@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 35,
+    "hero": 36,
     "matrix": 2,
     "meta": 6,
     "soak": 0,
@@ -273,6 +273,12 @@
       "order": 43,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tui/operator-command-dispositions",
+      "order": 44,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

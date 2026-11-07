@@ -26,6 +26,9 @@ const catalog = actor.describe({}).commands;
 const answer = catalog.find(command => command.registryId === 'repository-answer');
 assert.ok(answer); assert.match(answer.unsupportedReason, /exact retained-query request/);
 assert.deepEqual(answer.fields, [], 'unimplemented answer request selection cannot create a native launch form');
+const question = catalog.find(command => command.registryId === 'repository-query');
+assert.ok(question); assert.match(question.unsupportedReason, /source-pinned typed request picker/);
+assert.deepEqual(question.fields, [], 'unimplemented question/cursor selection cannot create a native launch form');
 assert.deepEqual(catalog.filter(command => command.registryId.startsWith('index.') && command.registryId !== 'index.diff'
   || command.registryId === 'workspace.build').map(command => command.id).sort(),
 ['index.build', 'index.recover', 'index.report', 'index.stats', 'index.validate', 'index.watch', 'workspace.build',
