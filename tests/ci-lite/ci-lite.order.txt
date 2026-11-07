@@ -2948,3 +2948,5 @@ indexing/semantic/adjacency-support-history/retracted-support-binding
 indexing/semantic/adjacency-support-history/net-zero-support-binding
 indexing/semantic/adjacency-support-history/bounded-history-and-work
 indexing/semantic/adjacency-support-history/derived-owner-binding
+tooling/eval/relational-revision-oracle/unary-retractions-and-incomplete-domains
+tooling/eval/relational-revision-oracle/unary-independent-mapping-defects

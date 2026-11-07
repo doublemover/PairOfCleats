@@ -12,9 +12,9 @@ const loaders = {
       capabilities: Object.freeze(['bootstrap', 'apply', 'inspect', 'work']), bootstrap: owner.bootstrapGroupedAdjacency,
       apply: owner.applyGroupedAdjacencyDelta, inspect: owner.describeGroupedAdjacency, work: owner.groupedAdjacencyWork });
   },
-  'finite-relational-revisions-v1': async () => {
+  'finite-relational-revisions-v2': async () => {
     const owner = await import('./revisions/relational.js');
-    return Object.freeze({ id: 'finite-relational-revisions-v1', executionClass: 'tiny-supplied-relational-revisions-only',
+    return Object.freeze({ id: owner.REVISION_RELATIONAL_PROFILE, executionClass: 'tiny-supplied-relational-revisions-only',
       capabilities: Object.freeze(['generate', 'run', 'inspect', 'compareDiagnostic', 'minimize', 'dispose']),
       generate: owner.generateRelationalRevisionScenario, run: owner.runRelationalRevisionScenario, inspect: owner.readRelationalRevisionRun,
       compareDiagnostic: owner.compareRelationalRevisionOutput, minimize: owner.minimizeRelationalRevisionFailure, dispose: owner.retireRelationalRevisionRun });

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2780,
+    "hero": 2782,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17683,6 +17683,18 @@
     {
       "id": "indexing/semantic/adjacency-support-history/derived-owner-binding",
       "order": 2945,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/relational-revision-oracle/unary-retractions-and-incomplete-domains",
+      "order": 2946,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/relational-revision-oracle/unary-independent-mapping-defects",
+      "order": 2947,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

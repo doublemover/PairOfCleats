@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["actual-registered-operators", "independent-cross-term-and-threshold-defects", "multiplicity-and-origin-defects", "strict-revision-worlds", "unknown-reference-budget", "original-execution-retirement"]
+  "cases": ["actual-registered-operators", "independent-cross-term-and-threshold-defects", "multiplicity-and-origin-defects", "strict-revision-worlds", "unknown-reference-budget", "original-execution-retirement", "unary-retractions-and-incomplete-domains", "unary-independent-mapping-defects"]
 }

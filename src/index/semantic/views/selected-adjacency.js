@@ -51,7 +51,7 @@ const build = ({ definition, input, limits, ledger }, signal) => {
 export const bootstrapSelectedAdjacency = (value, options = {}) => {
   const captured = fields(value, ['definition', 'input'], ['limits']);
   const definition = captureFiniteViewDefinition(captured.definition, SELECTED_ADJACENCY_DEFINITION_SCHEMA, fail);
-  if (!validate(definition) || (definition.whereField === null) !== (definition.whereEquals === null)) throw fail('Invalid selected adjacency definition.');
+  if (!validate(definition)) throw fail('Invalid selected adjacency definition.');
   readAdjacencyViewInput(captured.input); const limits = limitsFor(captured.limits);
   return build({ definition, input: captured.input, limits, ledger: [] }, options.signal);
 };

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
+import { REVISION_RELATIONAL_VERSION, REVISION_RELATIONAL_PROFILE } from '../../../src/contracts/schemas/revision-relational.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/relational-revision-oracle/')[1];
 assert.ok(['actual-registered-operators', 'independent-cross-term-and-threshold-defects', 'multiplicity-and-origin-defects',
-  'strict-revision-worlds', 'unknown-reference-budget', 'original-execution-retirement'].includes(mode));
-const adapter = await getOfflineEvaluationAdapter('finite-relational-revisions-v1');
+  'strict-revision-worlds', 'unknown-reference-budget', 'original-execution-retirement',
+  'unary-retractions-and-incomplete-domains', 'unary-independent-mapping-defects'].includes(mode));
+const adapter = await getOfflineEvaluationAdapter(REVISION_RELATIONAL_PROFILE);
 const world = { generation: { baseBuildId: 'relational-revision-base', semanticRevision: 0 }, repositoryNamespace: 'fixture', contextKey: 'declared-inputs' };
 const generate = (family, seed = 0) => adapter.generate({ world, family, seed });
 const empty = { capturedDomainComplete: true, unresolvedLeftSupports: 0, rows: [] };
@@ -55,14 +57,46 @@ if (mode === 'actual-registered-operators') {
   const controller = new AbortController(); controller.abort(null);
   assert.throws(() => adapter.run(scenario, { signal: controller.signal }), error => error.name === 'AbortError' && error.cause === null);
 } else if (mode === 'unknown-reference-budget') {
-  const scenario = generate('join-cross-term'), run = adapter.run(scenario, { maxReferencePairs: 0 });
+  const scenario = generate('join-cross-term'), run = adapter.run(scenario, { maxReferenceWork: 0 });
   try {
     const report = adapter.inspect(run); assert.equal(report.outcome, 'unknown'); assert.equal(report.checkpoints.length, 4);
     assert.equal(report.checkpoints[0].outcome, 'pass'); assert.equal(report.checkpoints[1].outcome, 'unknown');
-    assert.equal(report.checkpoints[1].claims[0].reason, 'reference-pair-budget');
+    assert.equal(report.checkpoints[1].claims[0].reason, 'reference-operation-budget');
     assert.equal(report.checkpoints[1].claims[1].outcome, 'pass', 'rebuild parity cannot substitute for the exhausted independent reference');
   } finally { adapter.dispose(run); }
-  for (const options of [{ maxReferencePairs: -1 }, { maxReferencePairs: 4097 }, { maxMs: 1001 }]) assert.throws(() => adapter.run(scenario, options));
+  for (const options of [{ maxReferenceWork: -1 }, { maxReferenceWork: 4097 }, { maxMs: 1001 }, { maxReferencePairs: 1 }]) assert.throws(() => adapter.run(scenario, options));
+} else if (mode === 'unary-retractions-and-incomplete-domains') {
+  for (const family of ['group-extremum-retraction', 'selected-duplicate-projection', 'group-partial-domain', 'selected-partial-domain', 'anti-join-partial-domain']) for (const seed of [0, 17, 4294967295]) {
+    const scenario = generate(family, seed), run = adapter.run(scenario);
+    try {
+      const report = adapter.inspect(run); assert.equal(report.schemaVersion, REVISION_RELATIONAL_VERSION); assert.equal(report.outcome, 'pass', family + ':' + seed);
+      assert.equal(report.operator, scenario.definition.operator);
+      assert.ok(report.checkpoints.every(row => row.outcome === 'pass' && row.candidateRelationRootId === row.rebuildRelationRootId));
+      if (family === 'group-partial-domain') {
+        assert.equal(expected(scenario, 0).relationCardinality, '0'); assert.ok(Number(expected(scenario, 1).relationCardinality) > 0);
+      }
+      if (family === 'selected-partial-domain') assert.ok(Number(expected(scenario, 0).relationCardinality) > 0);
+    } finally { adapter.dispose(run); }
+  }
+  await assert.rejects(getOfflineEvaluationAdapter('finite-relational-revisions-v1'), { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
+  const stale = structuredClone(generate('join-cross-term')); stale.schemaVersion = 1; stale.profile = 'finite-relational-revisions-v1';
+  assert.throws(() => adapter.run(stale), /Invalid/);
+} else if (mode === 'unary-independent-mapping-defects') {
+  for (const family of ['group-extremum-retraction', 'selected-duplicate-projection', 'group-partial-domain']) {
+    const scenario = generate(family, 17), output = expected(scenario, 1);
+    const mutations = [value => { value.relationCardinality = '99'; }, value => { value.rows.pop(); },
+      value => { value.capturedDomainComplete = !value.capturedDomainComplete; }];
+    if (family.startsWith('group-')) mutations.push(value => { value.rows[0].minimum = 'stale-minimum'; },
+      value => { value.rows[0].weightedCount = '1'; }, value => { value.rows[0].alternatives[0].supportId = 'wrong-parent'; });
+    else mutations.push(value => { value.rows[0].multiplicity = '8'; }, value => { value.rows[0].parent.supportId = 'wrong-parent'; });
+    for (const mutate of mutations) {
+      const wrong = structuredClone(output); mutate(wrong);
+      assert.equal(adapter.compareDiagnostic({ scenario, checkpoint: 1, actual: wrong }).outcome, 'fail', family);
+    }
+    const unknown = adapter.run(scenario, { maxReferenceWork: 0 });
+    try { assert.equal(adapter.inspect(unknown).outcome, 'unknown'); assert.equal(adapter.inspect(unknown).checkpoints[0].claims[1].outcome, 'pass'); }
+    finally { adapter.dispose(unknown); }
+  }
 } else {
   const scenario = generate('anti-join-support-threshold'), first = adapter.run(scenario), receipt = adapter.inspect(first);
   assert.throws(() => adapter.inspect({ ...first }), /Original/); assert.throws(() => receipt.checkpoints.push({}), TypeError);

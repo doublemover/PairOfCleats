@@ -56,23 +56,31 @@ minimization. Seeded diagnostic defects must be detected while corrected outputs
 pass. The minimizer's injected finite boundary control tests its decision logic;
 it does not claim the real positive-rule owner currently fails.
 
-The `finite-relational-revisions-v1` adapter additionally drives the original
-[join/anti-join cohort](relational-join.md). It supports eight original supports
+The `finite-relational-revisions-v2` adapter drives the original
+[join/anti-join cohort](relational-join.md), [select/project](selected-adjacency.md)
+and [grouped views](grouped-adjacency.md). It supports eight original supports
 per input, eight copies per support and sixteen exact-hash edits. Its reference
 recounts the complete contribution history, expands tiny occurrence bags and
-compares exact endpoint/parent multiplicities and captured-domain observations.
+compares exact endpoint/parent multiplicities, captured-domain observations and
+the actual emitted relation cardinality. Group minima/maxima use complete tiny
+copy expansion and preserve all parent alternatives. Incomplete groups emit no
+exact aggregate facts; known positive select/project copies remain available.
 It imports no candidate arrangement, coefficient or delta helper. Fresh relation
 content is compared separately; private transition ledgers legitimately give
 different view roots. It does not normalize the actual relation content away.
 
-Scenario/receipt contracts are in `revision-relational.js`. Reference pair work is
+Scenario/receipt contracts are version 2 in `revision-relational.js`. The v1
+profile/scenarios/receipts and `maxReferencePairs` option are rejected; regenerate
+them under the current contract. All original binary families/assertions remain.
+Reference pair/copy examinations use `maxReferenceWork`/`referenceOperations`,
 bounded to 4,096 per checkpoint and cooperative execution to 1,000 ms. Exhaustion
 is unknown even when rebuild parity passes. Receipts retain all checkpoints and
 at most the first full independent counterexample, with exact output hashes and
 failure outcomes for subsequent disagreements, under 256 KiB. Diagnostic data
-comparison does not create an original execution handle. Six additional authored,
+comparison does not create an original execution handle. Eight authored,
 unrun cases cover actual registered operators, seeded cross-term/threshold and
-origin/multiplicity defects, stale worlds, unknown and handle retirement. This
+origin/multiplicity defects, unary retraction, false aggregate cardinality and
+partial-domain exactness, stale worlds, unknown and handle retirement. This
 profile has no source materializer or durable publication. Both finite profiles
 share the bounded revision-deletion engine. Relational minimization requires the
 same named checkpoint's independent bag disagreement; positive-rule minimization
