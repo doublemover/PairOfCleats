@@ -444,6 +444,7 @@
       "ci/workflow-contract",
       "cli/build-index/all/sqlite-stage4",
       "cli/general/display-finalization-order",
+      "cli/general/lazy-runtime-admission",
       "cli/general/tooling-command-controls",
       "cli/general/tui-build-install",
       "cli/general/tui-install-missing-cargo",
@@ -1251,6 +1252,10 @@
       "perf/bench/language-report-environment-metadata",
       "perf/bench/language-run-verdict",
       "perf/bench/query-generator-boolean-semantics",
+      "perf/bench/representative-workload-consumers/graph-skewed-first-half",
+      "perf/bench/representative-workload-consumers/graph-skewed-independent-first-half",
+      "perf/bench/representative-workload-consumers/graph-skewed-independent-second-half",
+      "perf/bench/representative-workload-consumers/graph-skewed-second-half",
       "perf/context-pack-risk-benchmark",
       "perf/crash-log-error-latency/long-log",
       "perf/crash-log-error-latency/small-log",
@@ -2627,14 +2632,14 @@
       "workspace/authoring-preview-apply",
       "workspace/diagnostic-partial-members"
     ],
-    "candidateCases": 2190,
+    "candidateCases": 2195,
     "mapping": "Changed fixtures since858144c plus discovered starting checks named by current issues; this is selection, not complete acceptance proof.",
     "mappingReceipt": {
       "path": ".tmp/tasks/validation-20261107/issue-check-mapping.json",
       "sha256": "900be959cb5d2cb2908075851b85eaa15381ba76ba1e8e031c9f47f689b6f0fd",
-      "availability": "historical-author-workspace"
+      "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
     },
-    "executedCandidateCases": 2187,
+    "executedCandidateCases": 2192,
     "unexecutedCandidateCaseIds": [
       "smoke/tantivy",
       "storage/sqlite/ann/sqlite-extension",
@@ -27505,15 +27510,1213 @@
           "skipReason": null
         }
       ]
+    },
+    {
+      "id": "cohort-native-search-ready",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-native-search-ready-report.json",
+        "sha256": "dc89cfad3caa90d202fd9b62acdeed0ab82777533b3968879030d65c2a6919cd",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 45292,
+        "failed": 4,
+        "passed": 0,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "status": "failed",
+          "durationMs": 11293,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "failed",
+          "durationMs": 11333,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "status": "failed",
+          "durationMs": 11434,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "status": "failed",
+          "durationMs": 11204,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-lazy-runtime",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-lazy-runtime-report.json",
+        "sha256": "d61ed58ffa9f2c6727340abfe7ecad86834c4eb03d8ee9ec95019b21e90d7418",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 25125,
+        "failed": 1,
+        "passed": 5,
+        "skipped": 0,
+        "total": 6
+      },
+      "tests": [
+        {
+          "id": "cli/general/display-finalization-order",
+          "status": "failed",
+          "durationMs": 20476,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "cli/general/lazy-runtime-admission",
+          "status": "passed",
+          "durationMs": 224,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/file-processor/lint-cache-replay",
+          "status": "passed",
+          "durationMs": 1838,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/file-processor/lint-nested-chunk-projection",
+          "status": "passed",
+          "durationMs": 1257,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/file-processor/lint-policy-runtime",
+          "status": "passed",
+          "durationMs": 878,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/file-processor/lint-real-session-costs",
+          "status": "passed",
+          "durationMs": 430,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-native-ready-recheck",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-native-ready-recheck-report.json",
+        "sha256": "00c228289326c266f2284d3e54a980396dc2dceae4c2fdd868ef2139736816f7",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 305313,
+        "failed": 8,
+        "passed": 10,
+        "skipped": 0,
+        "total": 18
+      },
+      "tests": [
+        {
+          "id": "cli/general/display-finalization-order",
+          "status": "passed",
+          "durationMs": 614,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/report",
+          "status": "failed",
+          "durationMs": 29513,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/workspace",
+          "status": "failed",
+          "durationMs": 28907,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/cancel",
+          "status": "passed",
+          "durationMs": 15506,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/empty-error",
+          "status": "failed",
+          "durationMs": 12513,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first",
+          "status": "failed",
+          "durationMs": 11544,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "status": "failed",
+          "durationMs": 26488,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "failed",
+          "durationMs": 26120,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/incompatible",
+          "status": "passed",
+          "durationMs": 9151,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/interrupt",
+          "status": "passed",
+          "durationMs": 14679,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/modes",
+          "status": "passed",
+          "durationMs": 8721,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "status": "failed",
+          "durationMs": 11012,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/navigation",
+          "status": "passed",
+          "durationMs": 17013,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/pagination",
+          "status": "passed",
+          "durationMs": 20783,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "status": "passed",
+          "durationMs": 17877,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/replace",
+          "status": "passed",
+          "durationMs": 16958,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/scope",
+          "status": "failed",
+          "durationMs": 30368,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/truncated",
+          "status": "passed",
+          "durationMs": 7486,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-native-input-ready",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-native-input-ready-report.json",
+        "sha256": "9ebe99d4a58dd92ff62cd041f815c4bc891b1978fb2471d66d739c2953dfc813",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 68356,
+        "failed": 1,
+        "passed": 2,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "status": "passed",
+          "durationMs": 26243,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "failed",
+          "durationMs": 25442,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "status": "passed",
+          "durationMs": 16658,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-startup-recovery",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-startup-recovery-report.json",
+        "sha256": "5af25d83d358713ccd8b30af31a33ecf923a7c8e3e85293d397e844098a06f5f",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 178291,
+        "failed": 5,
+        "passed": 25,
+        "skipped": 0,
+        "total": 30
+      },
+      "tests": [
+        {
+          "id": "cli/general/display-finalization-order",
+          "status": "passed",
+          "durationMs": 669,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "cli/general/lazy-runtime-admission",
+          "status": "passed",
+          "durationMs": 210,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/runtime/build-cli-terminal-outcome",
+          "status": "passed",
+          "durationMs": 776,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/progress/contract-matrix",
+          "status": "passed",
+          "durationMs": 375,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/progress/display-cell-layout",
+          "status": "passed",
+          "durationMs": 187,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/docs/contract-matrix",
+          "status": "passed",
+          "durationMs": 1421,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/delete-file",
+          "status": "failed",
+          "durationMs": 27178,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+          "status": "failed",
+          "durationMs": 27198,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/edit-only",
+          "status": "failed",
+          "durationMs": 27282,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/restore-file",
+          "status": "failed",
+          "durationMs": 27503,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-admission-core",
+          "status": "passed",
+          "durationMs": 7805,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-admission-index-first",
+          "status": "passed",
+          "durationMs": 14489,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-admission-index-second",
+          "status": "passed",
+          "durationMs": 9676,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-admission-sqlite",
+          "status": "passed",
+          "durationMs": 4210,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-denial-core",
+          "status": "passed",
+          "durationMs": 2087,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-denial-index-first",
+          "status": "passed",
+          "durationMs": 2941,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-denial-index-second",
+          "status": "passed",
+          "durationMs": 2836,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-denial-sqlite",
+          "status": "passed",
+          "durationMs": 1214,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/information-and-library-guard",
+          "status": "passed",
+          "durationMs": 1237,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/native-activation-and-integrity",
+          "status": "passed",
+          "durationMs": 1580,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/policy-patch-and-abi-drift",
+          "status": "passed",
+          "durationMs": 1999,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-diagnosis-identity",
+          "status": "passed",
+          "durationMs": 200,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/installed-unverified-targeted-repair",
+          "status": "passed",
+          "durationMs": 574,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/intact-repeat-and-journal-recovery",
+          "status": "passed",
+          "durationMs": 535,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/lock-declarations-and-bounds",
+          "status": "passed",
+          "durationMs": 343,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/locked-version-and-missing-dependency",
+          "status": "passed",
+          "durationMs": 345,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness",
+          "status": "passed",
+          "durationMs": 635,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/original-owner-and-runtime-blockers",
+          "status": "passed",
+          "durationMs": 393,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/install/checkout-recovery/source-versus-patch-drift",
+          "status": "passed",
+          "durationMs": 731,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "status": "failed",
+          "durationMs": 11589,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-handshake-hidden-child",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-handshake-hidden-child-report.json",
+        "sha256": "3b307404395d8313960a2d1d0c360d177359a5172ae6514e0458f8623edd10f7",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 11724,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "failed",
+          "durationMs": 11708,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-graph-generations",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-graph-generations-report.json",
+        "sha256": "91a6cd8b43b2eafd4da4a0a0e975714f474a3ea7916648a5a2896a71ae227457",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 68710,
+        "failed": 2,
+        "passed": 2,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "id": "perf/bench/graph-lazy-admission-phases",
+          "status": "passed",
+          "durationMs": 6700,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/query-worker-retirement-cap",
+          "status": "passed",
+          "durationMs": 1168,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/representative-workload-consumers/graph-skewed",
+          "status": "failed",
+          "durationMs": 30430,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/representative-workload-consumers/graph-skewed-independent",
+          "status": "failed",
+          "durationMs": 30394,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-graph-partition",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-graph-partition-report.json",
+        "sha256": "05257cab236c7e7eec1737760d6e470deebe4c6940e70f874eecdbe831200415",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 73163,
+        "failed": 0,
+        "passed": 7,
+        "skipped": 0,
+        "total": 7
+      },
+      "tests": [
+        {
+          "id": "ci/suite-runner.smoke",
+          "status": "passed",
+          "durationMs": 2446,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/graph-lazy-admission-phases",
+          "status": "passed",
+          "durationMs": 5567,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/query-worker-retirement-cap",
+          "status": "passed",
+          "durationMs": 929,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/representative-workload-consumers/graph-skewed-first-half",
+          "status": "passed",
+          "durationMs": 17838,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/representative-workload-consumers/graph-skewed-independent-first-half",
+          "status": "passed",
+          "durationMs": 15593,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/representative-workload-consumers/graph-skewed-independent-second-half",
+          "status": "passed",
+          "durationMs": 15470,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "perf/bench/representative-workload-consumers/graph-skewed-second-half",
+          "status": "passed",
+          "durationMs": 15304,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "front-gate-06",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/front-gate-06-report.json",
+        "sha256": "b65b9b4e0206d4133c9af74a8d91b9fdbdcec0f3524b63573165dc55b3aaa83c",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 36499,
+        "failed": 1,
+        "passed": 43,
+        "skipped": 0,
+        "total": 44
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 98,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 104,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 111,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 94,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 96,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 100,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 397,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 97,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 109,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 219,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 2221,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 313,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 266,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 441,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 423,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 421,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 436,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 418,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 433,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 620,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 411,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 825,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 953,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 964,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 917,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 824,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 653,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 1025,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1401,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 95,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1642,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 895,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1347,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 822,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2639,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1476,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 429,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 647,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1698,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1730,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/ordered-lane-discovery",
+          "status": "passed",
+          "durationMs": 312,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/gate-policy",
+          "status": "passed",
+          "durationMs": 189,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "failed",
+          "durationMs": 6830,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-command-dispositions",
+          "status": "passed",
+          "durationMs": 288,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-publication-06-recheck",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-publication-06-recheck-report.json",
+        "sha256": "3d694336cc1d1e22146cb42f0de8d73b95b6e6178670539bddc22a7c9126da93",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 25382,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/shared-module-boundary-guard",
+          "status": "passed",
+          "durationMs": 2723,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/shared-module-ledger",
+          "status": "passed",
+          "durationMs": 2722,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/shared-module-review-files",
+          "status": "passed",
+          "durationMs": 2465,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "passed",
+          "durationMs": 13485,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/shared-module-performance",
+          "status": "passed",
+          "durationMs": 3973,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-output-owner-recheck",
+      "sourceState": "98d68675cb8c3fdf72eff10429f71e7fbe75934b plus evolving fifth repair batch. Discovery failures and earlier UI observations are historical; this is not final-tree acceptance. Final targeted owners and source blobs are identified in fifthFollowupRepairBatch.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-output-owner-recheck-report.json",
+        "sha256": "bde2d636e9aebf036fc0011b34710465666da829cbf063feca02ba49f06bb5eb",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 2266,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "cli/general/display-finalization-order",
+          "status": "passed",
+          "durationMs": 548,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/runtime/build-cli-terminal-outcome",
+          "status": "passed",
+          "durationMs": 572,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/docs/contract-matrix",
+          "status": "passed",
+          "durationMs": 1135,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
     }
   ],
   "latestObserved": {
-    "uniqueCases": 2435,
-    "passed": 2417,
-    "failed": 17,
+    "uniqueCases": 2459,
+    "passed": 2437,
+    "failed": 21,
     "skipped": 1,
     "timeouts": 2,
-    "note": "Source-bound focused observations, not final-tree or full-suite acceptance. Four revision-operation deadlines and thirteen native TUI timing failures remain. Original replaced aggregate failures are retained."
+    "note": "Latest source-bound local observations, not a final-tree/full-suite pass. Hosted observations remain separate and never overwrite local failures. Original aggregate failures remain in records."
   },
   "repairs": [
     {
@@ -27665,9 +28868,10 @@
     },
     {
       "number": 1272,
-      "status": "Partial; ordinary operational bootstrap banner still loses typed repair action",
+      "status": "Partial; ordinary typed recovery loss and known-native-failure selection repaired and focused controls pass.",
       "githubBodyReadbackVerified": true,
-      "source": "5be405ff5ea0a383f50ab1db5ab6d0581c721cac"
+      "source": "98be3a04c51b00818a18a2449edf5b2a4e1a7432",
+      "remaining": "Complete actual runtime/npm selection and concurrent replacement matrix against the full issue scope before closure."
     },
     {
       "number": 1139,
@@ -27773,7 +28977,7 @@
       "remaining": "Typed RST/AsciiDoc reference observations/resolution and canonical persisted navigation, with explicit unsupported/ambiguous/authority/budget states."
     }
   ],
-  "remaining": "Four revision transition deadlines and thirteen native TUI timing failures remain. Three selected cases are explicitly external/optional. Continue full-scope issue reviews and concrete category/package/compiler/semantic/oracle implementation gaps; this is not full-suite or all-issue acceptance.",
+  "remaining": "Twenty-one current local failures remain: four revision-operation deadlines and seventeen native TUI seed/terminal/handshake cases. Hosted98d68675c qualifies the six real revision cases,22 native-index cases and40 authority cases separately. Remaining full-scope issue implementation/qualification and explicit editor/Tantivy/sqlite-vec exclusions stay open.",
   "publicationGate": {
     "status": "passed",
     "format": 0,
@@ -28443,6 +29647,30 @@
       "orderedLaneMembership": "Original CI ordered entry replaced in-place by both cases; refreshed five-lane audit has zero missing/duplicate/mismatch/overrun.",
       "originalReport": "cohort-22",
       "replacementReport": "cohort-22-partition"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/graph-skewed",
+      "replacementIds": [
+        "perf/bench/representative-workload-consumers/graph-skewed-first-half",
+        "perf/bench/representative-workload-consumers/graph-skewed-second-half"
+      ],
+      "reason": "Original24-child aggregate exhausts30 seconds. Two independently bounded capsules retain both shapes, all six paired trials per shape, original alternating arms and every cross-shape/cache/source/work assertion.",
+      "coverageOwner": "docs/testing/consolidation-ownership.json",
+      "originalReport": "cohort-graph-generations",
+      "replacementReport": "cohort-graph-partition",
+      "orderedLaneMembership": "Each original CI-lite and serial-runtime ID is replaced in-place by both halves; no deadline/retry/backend change."
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/graph-skewed-independent",
+      "replacementIds": [
+        "perf/bench/representative-workload-consumers/graph-skewed-independent-first-half",
+        "perf/bench/representative-workload-consumers/graph-skewed-independent-second-half"
+      ],
+      "reason": "Original24-child aggregate exhausts30 seconds. Two independently bounded capsules retain both shapes, all six paired trials per shape, original alternating arms and every cross-shape/cache/source/work assertion.",
+      "coverageOwner": "docs/testing/consolidation-ownership.json",
+      "originalReport": "cohort-graph-generations",
+      "replacementReport": "cohort-graph-partition",
+      "orderedLaneMembership": "Each original CI-lite and serial-runtime ID is replaced in-place by both halves; no deadline/retry/backend change."
     }
   ],
   "nativeFlowSamples": {
@@ -30166,10 +31394,11 @@
   "serialPerformanceQualification": {
     "reports": [
       "cohort-26",
-      "cohort-26-recheck"
+      "cohort-26-recheck",
+      "cohort-graph-partition"
     ],
-    "observedCases": 138,
-    "passed": 138,
+    "observedCases": 144,
+    "passed": 144,
     "workerProfile": "One serial fixture and one indexing thread; zero retries/native-status redo.",
     "sqliteWarm": {
       "measurement": "sqlite-warm-query-ms",
@@ -30211,7 +31440,154 @@
         "availability": "historical-author-workspace"
       }
     },
-    "claim": "Per-case work/resource contracts and the stated warm SQLite latency bound pass. This is not a universal speedup, final-tree benchmark campaign or full performance-issue closeout."
+    "claim": "Per-case work/resource contracts and the stated warm SQLite latency bound pass. This is not a universal speedup, final-tree benchmark campaign or full performance-issue closeout.",
+    "caseIds": [
+      "perf/artifact-io/streaming-determinism",
+      "perf/artifact-io/streaming-memory-cap",
+      "perf/artifact-io/streaming-vs-full",
+      "perf/bench/comparison-input-contract",
+      "perf/bench/embedding-bakeoff-effective-policy",
+      "perf/bench/embedding-bakeoff-phase-lifecycle",
+      "perf/bench/embedding-model-bakeoff-lib",
+      "perf/bench/graph-lazy-admission-phases",
+      "perf/bench/language-default-cache-root",
+      "perf/bench/language-needs-index-artifacts-compressed",
+      "perf/bench/language-ownership",
+      "perf/bench/language-query-backends",
+      "perf/bench/language-query-capabilities",
+      "perf/bench/language-report-blocker-confirmations",
+      "perf/bench/language-report-crash-retention",
+      "perf/bench/language-report-cross-repo-dedupe",
+      "perf/bench/language-report-environment-metadata",
+      "perf/bench/language-run-verdict",
+      "perf/bench/query-generator-boolean-semantics",
+      "perf/bench/query-worker-retirement-cap",
+      "perf/bench/representative-workload-consumers/graph-skewed-first-half",
+      "perf/bench/representative-workload-consumers/graph-skewed-independent-first-half",
+      "perf/bench/representative-workload-consumers/graph-skewed-independent-second-half",
+      "perf/bench/representative-workload-consumers/graph-skewed-second-half",
+      "perf/context-pack-risk-benchmark",
+      "perf/crash-log-error-latency/long-log",
+      "perf/crash-log-error-latency/small-log",
+      "perf/embeddings/artifact-lease-work/cold-async-1",
+      "perf/embeddings/artifact-lease-work/cold-async-2",
+      "perf/embeddings/artifact-lease-work/cold-async-3",
+      "perf/embeddings/artifact-lease-work/cold-sync-1",
+      "perf/embeddings/artifact-lease-work/cold-sync-2",
+      "perf/embeddings/artifact-lease-work/cold-sync-3",
+      "perf/embeddings/artifact-lease-work/concurrent-async-1",
+      "perf/embeddings/artifact-lease-work/concurrent-async-2",
+      "perf/embeddings/artifact-lease-work/concurrent-async-3",
+      "perf/embeddings/artifact-lease-work/concurrent-sync-1",
+      "perf/embeddings/artifact-lease-work/concurrent-sync-2",
+      "perf/embeddings/artifact-lease-work/concurrent-sync-3",
+      "perf/embeddings/artifact-lease-work/small-async-1",
+      "perf/embeddings/artifact-lease-work/small-async-2",
+      "perf/embeddings/artifact-lease-work/small-async-3",
+      "perf/embeddings/artifact-lease-work/small-sync-1",
+      "perf/embeddings/artifact-lease-work/small-sync-2",
+      "perf/embeddings/artifact-lease-work/small-sync-3",
+      "perf/embeddings/artifact-lease-work/warm-async-1",
+      "perf/embeddings/artifact-lease-work/warm-async-2",
+      "perf/embeddings/artifact-lease-work/warm-async-3",
+      "perf/embeddings/artifact-lease-work/warm-sync-1",
+      "perf/embeddings/artifact-lease-work/warm-sync-2",
+      "perf/embeddings/artifact-lease-work/warm-sync-3",
+      "perf/indexing/embeddings/scheduler-backpressure",
+      "perf/indexing/filter-index/bitmap-roundtrip",
+      "perf/indexing/fixtures/health-snapshot-work/code-reference",
+      "perf/indexing/fixtures/health-snapshot-work/code-snapshot",
+      "perf/indexing/fixtures/health-snapshot-work/small-reference",
+      "perf/indexing/fixtures/health-snapshot-work/small-snapshot",
+      "perf/indexing/fixtures/health-snapshot-work/three-reference",
+      "perf/indexing/fixtures/health-snapshot-work/three-snapshot",
+      "perf/indexing/fixtures/health-snapshot-work/warm-reference",
+      "perf/indexing/fixtures/health-snapshot-work/warm-snapshot",
+      "perf/indexing/postings/worker-memory-huge-write-buffer-headroom",
+      "perf/indexing/relations/streaming-build",
+      "perf/indexing/runtime/scheduler-deterministic",
+      "perf/indexing/runtime/scheduler-stage-wiring",
+      "perf/indexing/runtime/scheduler-telemetry",
+      "perf/indexing/validate/manifest-fusion-work/jsonl-eager-1",
+      "perf/indexing/validate/manifest-fusion-work/jsonl-eager-2",
+      "perf/indexing/validate/manifest-fusion-work/jsonl-eager-3",
+      "perf/indexing/validate/manifest-fusion-work/jsonl-fused-1",
+      "perf/indexing/validate/manifest-fusion-work/jsonl-fused-2",
+      "perf/indexing/validate/manifest-fusion-work/jsonl-fused-3",
+      "perf/indexing/validate/manifest-fusion-work/multipart-eager-1",
+      "perf/indexing/validate/manifest-fusion-work/multipart-eager-2",
+      "perf/indexing/validate/manifest-fusion-work/multipart-eager-3",
+      "perf/indexing/validate/manifest-fusion-work/multipart-fused-1",
+      "perf/indexing/validate/manifest-fusion-work/multipart-fused-2",
+      "perf/indexing/validate/manifest-fusion-work/multipart-fused-3",
+      "perf/indexing/validate/manifest-fusion-work/small-eager-1",
+      "perf/indexing/validate/manifest-fusion-work/small-eager-2",
+      "perf/indexing/validate/manifest-fusion-work/small-eager-3",
+      "perf/indexing/validate/manifest-fusion-work/small-fused-1",
+      "perf/indexing/validate/manifest-fusion-work/small-fused-2",
+      "perf/indexing/validate/manifest-fusion-work/small-fused-3",
+      "perf/indexing/validate/manifest-fusion-work/warm-eager-1",
+      "perf/indexing/validate/manifest-fusion-work/warm-eager-2",
+      "perf/indexing/validate/manifest-fusion-work/warm-eager-3",
+      "perf/indexing/validate/manifest-fusion-work/warm-fused-1",
+      "perf/indexing/validate/manifest-fusion-work/warm-fused-2",
+      "perf/indexing/validate/manifest-fusion-work/warm-fused-3",
+      "perf/risk/witness-retention-work/branch20-candidate-1",
+      "perf/risk/witness-retention-work/branch20-candidate-2",
+      "perf/risk/witness-retention-work/branch20-candidate-3",
+      "perf/risk/witness-retention-work/branch20-reference-1",
+      "perf/risk/witness-retention-work/branch20-reference-2",
+      "perf/risk/witness-retention-work/branch20-reference-3",
+      "perf/risk/witness-retention-work/branch4-candidate-1",
+      "perf/risk/witness-retention-work/branch4-candidate-2",
+      "perf/risk/witness-retention-work/branch4-candidate-3",
+      "perf/risk/witness-retention-work/branch4-reference-1",
+      "perf/risk/witness-retention-work/branch4-reference-2",
+      "perf/risk/witness-retention-work/branch4-reference-3",
+      "perf/risk/witness-retention-work/spine12-candidate-1",
+      "perf/risk/witness-retention-work/spine12-candidate-2",
+      "perf/risk/witness-retention-work/spine12-candidate-3",
+      "perf/risk/witness-retention-work/spine12-reference-1",
+      "perf/risk/witness-retention-work/spine12-reference-2",
+      "perf/risk/witness-retention-work/spine12-reference-3",
+      "perf/risk/witness-retention-work/spine20-candidate-1",
+      "perf/risk/witness-retention-work/spine20-candidate-2",
+      "perf/risk/witness-retention-work/spine20-candidate-3",
+      "perf/risk/witness-retention-work/spine20-reference-1",
+      "perf/risk/witness-retention-work/spine20-reference-2",
+      "perf/risk/witness-retention-work/spine20-reference-3",
+      "perf/risk/witness-retention-work/spine20-wide-candidate-1",
+      "perf/risk/witness-retention-work/spine20-wide-candidate-2",
+      "perf/risk/witness-retention-work/spine20-wide-candidate-3",
+      "perf/risk/witness-retention-work/spine20-wide-reference-1",
+      "perf/risk/witness-retention-work/spine20-wide-reference-2",
+      "perf/risk/witness-retention-work/spine20-wide-reference-3",
+      "perf/risk/witness-retention-work/spine4-candidate-1",
+      "perf/risk/witness-retention-work/spine4-candidate-2",
+      "perf/risk/witness-retention-work/spine4-candidate-3",
+      "perf/risk/witness-retention-work/spine4-reference-1",
+      "perf/risk/witness-retention-work/spine4-reference-2",
+      "perf/risk/witness-retention-work/spine4-reference-3",
+      "perf/sqlite-p95-latency",
+      "perf/storage/semantic/prepared-row-work/mixed-plain",
+      "perf/storage/semantic/prepared-row-work/mixed-prepared",
+      "perf/storage/semantic/prepared-row-work/nodes-plain",
+      "perf/storage/semantic/prepared-row-work/nodes-prepared",
+      "perf/storage/semantic/prepared-row-work/operands-plain",
+      "perf/storage/semantic/prepared-row-work/operands-prepared",
+      "perf/storage/semantic/prepared-row-work/small-plain",
+      "perf/storage/semantic/prepared-row-work/small-prepared",
+      "perf/storage/semantic/query-final-encoding-work/operation-memory-reencoded",
+      "perf/storage/semantic/query-final-encoding-work/operation-merged-encoded",
+      "perf/storage/semantic/query-final-encoding-work/operation-merged-reencoded",
+      "perf/storage/semantic/query-final-encoding-work/query-memory-reencoded",
+      "perf/storage/semantic/query-final-encoding-work/query-merged-encoded",
+      "perf/storage/semantic/query-final-encoding-work/query-merged-reencoded",
+      "perf/tooling/bench/sqlite-fixture-admission",
+      "perf/vfs-memory-plateau",
+      "perf/writer-unified-pipeline"
+    ],
+    "note": "Source-bound selected serial cohorts across recorded checkpoints; all original six graph pairs per shape survive four current capsules. Not a final-tree repeat of every performance case."
   },
   "fourthFollowupRepairBatch": {
     "base": "22c624f7229a99d6932a6f68ac394f937774610f",
@@ -30568,5 +31944,2493 @@
         }
       }
     }
+  },
+  "hostedCi2355": {
+    "sourceHead": "98d68675cb8c3fdf72eff10429f71e7fbe75934b",
+    "runId": 42409871998,
+    "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42409871998",
+    "authority": {
+      "jobId": 128516010864,
+      "conclusion": "success",
+      "cohortPassed": 40,
+      "observedLeadingGuards": 0,
+      "cases": [
+        {
+          "id": "ci/duplicate-scanner-contract",
+          "durationMs": 773,
+          "status": "passed"
+        },
+        {
+          "id": "cli/general/legacy-entrypoint-symlink-contract",
+          "durationMs": 3980,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/discovery/discover-scm-root-alias",
+          "durationMs": 629,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/ignore/contract-matrix",
+          "durationMs": 240,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/incremental/reuse",
+          "durationMs": 575,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/validate/index-contract-matrix",
+          "durationMs": 1080,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/validate/index-current-build-pointer-case-insensitive",
+          "durationMs": 749,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/watch/promotion/safety",
+          "durationMs": 1150,
+          "status": "passed"
+        },
+        {
+          "id": "indexing/watch/root-normalization",
+          "durationMs": 144,
+          "status": "passed"
+        },
+        {
+          "id": "integrations/inference-history/security",
+          "durationMs": 1600,
+          "status": "passed"
+        },
+        {
+          "id": "perf/bench/language-prerequisite-phase",
+          "durationMs": 308,
+          "status": "passed"
+        },
+        {
+          "id": "perf/bench/language-resource-roots",
+          "durationMs": 303,
+          "status": "passed"
+        },
+        {
+          "id": "perf/bench/language-submodule-recovery",
+          "durationMs": 432,
+          "status": "passed"
+        },
+        {
+          "id": "retrieval/filters/filter-only-cache-integrity",
+          "durationMs": 1320,
+          "status": "passed"
+        },
+        {
+          "id": "security/contained-file-boundaries",
+          "durationMs": 154,
+          "status": "passed"
+        },
+        {
+          "id": "security/editor-tui-authority",
+          "durationMs": 473,
+          "status": "passed"
+        },
+        {
+          "id": "security/java-workspace-execution-authority",
+          "durationMs": 914,
+          "status": "passed"
+        },
+        {
+          "id": "security/nested-repository-command-authority",
+          "durationMs": 410,
+          "status": "passed"
+        },
+        {
+          "id": "security/repository-authority",
+          "durationMs": 439,
+          "status": "passed"
+        },
+        {
+          "id": "security/rust-workspace-execution-authority",
+          "durationMs": 682,
+          "status": "passed"
+        },
+        {
+          "id": "security/tooling-cache-authority",
+          "durationMs": 2940,
+          "status": "passed"
+        },
+        {
+          "id": "security/tooling-cache-storage",
+          "durationMs": 1870,
+          "status": "passed"
+        },
+        {
+          "id": "services/api/federated-search-validation-matrix",
+          "durationMs": 3830,
+          "status": "passed"
+        },
+        {
+          "id": "services/snapshot-core-contract-matrix",
+          "durationMs": 951,
+          "status": "passed"
+        },
+        {
+          "id": "shared/contained-file-verified-read",
+          "durationMs": 106,
+          "status": "passed"
+        },
+        {
+          "id": "shared/direct-execution-contract",
+          "durationMs": 83,
+          "status": "passed"
+        },
+        {
+          "id": "shared/fs/find-upwards-contract",
+          "durationMs": 80,
+          "status": "passed"
+        },
+        {
+          "id": "shared/index-ref",
+          "durationMs": 223,
+          "status": "passed"
+        },
+        {
+          "id": "storage/semantic/retained-cache-cleanup",
+          "durationMs": 1760,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/cache/gc-contract-matrix",
+          "durationMs": 5540,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/install/bootstrap-preflight",
+          "durationMs": 337,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/lsp/pyright-workspace-config-jsonc",
+          "durationMs": 120,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/release/file-walk",
+          "durationMs": 85,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/release/readiness-gate",
+          "durationMs": 3520,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/release/release-check-output-paths",
+          "durationMs": 1590,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/release/verify-surface-output-paths",
+          "durationMs": 1230,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/reports/map-selected-index-alias",
+          "durationMs": 3480,
+          "status": "passed"
+        },
+        {
+          "id": "tui/operator-artifact-physical-alias",
+          "durationMs": 184,
+          "status": "passed"
+        },
+        {
+          "id": "tui/operator-search-file-authority",
+          "durationMs": 2540,
+          "status": "passed"
+        },
+        {
+          "id": "tui/operator-settings-authority",
+          "durationMs": 5380,
+          "status": "passed"
+        }
+      ]
+    },
+    "nativeIndex": {
+      "jobId": 128516010911,
+      "conclusion": "success",
+      "workflowCases": 22,
+      "vendorCases": 7,
+      "observedLeadingGuards": 0,
+      "cases": [
+        {
+          "id": "tui/native-index-workflows/build-cancel",
+          "durationMs": 11100,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/build-search",
+          "durationMs": 24700,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/invalid-provider",
+          "durationMs": 6080,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/missing-model",
+          "durationMs": 6020,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/preview-cancel",
+          "durationMs": 6080,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/report",
+          "durationMs": 22700,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/search-published",
+          "durationMs": 23800,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot",
+          "durationMs": 7550,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-create",
+          "durationMs": 20200,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-freeze",
+          "durationMs": 20400,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-gc",
+          "durationMs": 20200,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "durationMs": 20600,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-prune",
+          "durationMs": 20500,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-remove",
+          "durationMs": 20600,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-show",
+          "durationMs": 20600,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/stale",
+          "durationMs": 7450,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/stats",
+          "durationMs": 20500,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/stats-conflict",
+          "durationMs": 9900,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/validate-published",
+          "durationMs": 24700,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/watch-cancel",
+          "durationMs": 12200,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/workspace",
+          "durationMs": 24600,
+          "status": "passed"
+        },
+        {
+          "id": "tui/native-index-workflows/workspace-status",
+          "durationMs": 18100,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/cancellation",
+          "durationMs": 3630,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/configured-dependency-authority",
+          "durationMs": 3570,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/finite-strings-and-overloads",
+          "durationMs": 3570,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/host-fallback-refused",
+          "durationMs": 3580,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/invalid-config",
+          "durationMs": 3540,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/original-snapshot-isolation",
+          "durationMs": 5930,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/typescript-api7-native/retained-template-parity",
+          "durationMs": 3860,
+          "status": "passed"
+        }
+      ]
+    },
+    "publishedIndex": {
+      "jobId": 128516010750,
+      "cases": [
+        {
+          "id": "tooling/eval/published-index-revision-oracle/delete-file",
+          "durationMs": 12700,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+          "durationMs": 13100,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/edit-only",
+          "durationMs": 12900,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/original-world-rechecks",
+          "durationMs": 7210,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/pending-reader-retirement",
+          "durationMs": 6830,
+          "status": "passed"
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/restore-file",
+          "durationMs": 12900,
+          "status": "passed"
+        }
+      ]
+    },
+    "windowsGeneral": {
+      "conclusion": "failure",
+      "jobId": 128516010750,
+      "serialRuntimeSummary": {
+        "passed": 192,
+        "failed": 1,
+        "total": 193
+      },
+      "failure": {
+        "id": "perf/bench/representative-workload-consumers/graph-skewed-independent",
+        "actual": 11,
+        "expected": 12,
+        "assertion": "distinct numeric PID count",
+        "line": 97
+      }
+    },
+    "otherJobs": [
+      {
+        "id": 128515472879,
+        "name": "gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010750,
+        "name": "windows",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 128516010800,
+        "name": "ubuntu",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010820,
+        "name": "macos",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010840,
+        "name": "native-inspection (macos-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010864,
+        "name": "windows-authority",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010895,
+        "name": "native-inspection (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010911,
+        "name": "native-index-workflows (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010915,
+        "name": "native-inspection (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128516010920,
+        "name": "rust-tui",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "fifthFollowupRepairBatch": {
+    "base": "98d68675cb8c3fdf72eff10429f71e7fbe75934b",
+    "status": "Targeted repairs committed/pushed with exact remote/PR head readback;21 local failures remain. Documentation publication follows without source changes.",
+    "files": [
+      {
+        "path": "src/index/lint-runtime.js",
+        "blob": "4701313914d9352628d0cacc198702900a248812"
+      },
+      {
+        "path": "src/shared/bootstrap-readiness.js",
+        "blob": "bc35dd4852a2f6b2411def76a60f0f119c985163"
+      },
+      {
+        "path": "src/shared/cli/display/terminal.js",
+        "blob": "c7897c0d9733ed23cb1e9b7e5a7ce1c1613186f5"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.manifest.json",
+        "blob": "d04cc7c341da74acece5b6ad46ac438e1dcd1add"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.order.txt",
+        "blob": "31dd645b31c2c2d639b54a0c071db9a87885ef15"
+      },
+      {
+        "path": "tests/cli/general/display-finalization-order.test.js",
+        "blob": "14bb48113fc217bed8d4bf6a83bfbadf1ae8f1c5"
+      },
+      {
+        "path": "tests/cli/general/lazy-runtime-admission.test.js",
+        "blob": "d152322080e84389a421673ff9b5dcbb59615bc4"
+      },
+      {
+        "path": "tests/fixtures/tui/native-delayed-hello.js",
+        "blob": "995a76f5bea58a8dae4595e7e2ebe5a8164552ba"
+      },
+      {
+        "path": "tests/indexing/runtime/build-cli-terminal-outcome.test.js",
+        "blob": "f4b780ee03b9ceb267fb7c2eaf2afb0bbd0dcf59"
+      },
+      {
+        "path": "tests/perf/bench/graph-lazy-admission-phases.test.js",
+        "blob": "82081912a5b91a8ab941042250fe602204558e5d"
+      },
+      {
+        "path": "tests/perf/bench/query-worker-retirement-cap.test.js",
+        "blob": "d70a8babacabe893449db76c23199a5e5f9a9995"
+      },
+      {
+        "path": "tests/perf/bench/representative-workload-consumers.test.js",
+        "blob": "a9a86b5aa492442fd7ec57f85d8a0aa31b68992b"
+      },
+      {
+        "path": "tests/perf/bench/representative-workload-consumers.test.js.cases.json",
+        "blob": "2cd88d32f95c43d6bf8f86b5571a04bfe5b5f5ce"
+      },
+      {
+        "path": "tests/tooling/ci/run-suite-api-plan.test.js",
+        "blob": "2d025a1c74ecdc8850c84628a602a0b831991ab6"
+      },
+      {
+        "path": "tests/tooling/install/checkout-diagnosis-identity.test.js",
+        "blob": "d0448ff625ad64e760f4c613d0c3f8e7e30d263b"
+      },
+      {
+        "path": "tests/tooling/install/checkout-recovery.test.js",
+        "blob": "6eaa3f3f96e0a63ff97bf898ec981fd1e1743731"
+      },
+      {
+        "path": "tests/tui/native-search-conpty.test.js",
+        "blob": "a647737039f4f6c343eec858e2e80e02fe258ca4"
+      },
+      {
+        "path": "tools/bench/graph/store-lazy-load-worker.js",
+        "blob": "ac83b887c7a8e58f7371247e857147621f8a62e4"
+      },
+      {
+        "path": "tools/bench/graph/store-lazy-load.js",
+        "blob": "5fce9059f1c54a865ce1e1f5d632f8beee6d1f5e"
+      },
+      {
+        "path": "tools/ci/run-suite.js",
+        "blob": "da16b16b70265bfe20bca8b110c1673255173783"
+      },
+      {
+        "path": "tools/setup/checkout-diagnose.js",
+        "blob": "6b61b432b10b9a40761fa7c19ef5c2ec2f285e2c"
+      },
+      {
+        "path": "tools/setup/checkout-recovery.js",
+        "blob": "51a4b3cfca5e59ee0aa5b2bcc56c84e06d83eefe"
+      }
+    ],
+    "repairs": [
+      "Only admitted lint and interactive display activate ESLint/terminal-kit; exact original activation failures stay visible. Build CLI imports its actual owner, with both interception fixtures migrated.",
+      "Ordinary bootstrap errors retain typed reason/mismatches/runtime and the same bounded recovery selector as explicit diagnosis. Failed native activation selects repair even with intact metadata; no automatic operation.",
+      "Native search waits for its actual connection/input-loop evidence and uses streaming screen reconstruction. Query/source and narrow controls have passing observations, but later cold seeds still fail. Handshake denial remains unqualified.",
+      "Graph benchmark v3 checks spawned PID and native process-start identity, rejects repeated warm generations, and preserves all original paired trials through four bounded capsules. Query retirement counts five actual starts/closes and preserves the reused live memory worker."
+    ],
+    "importWork": {
+      "before": {
+        "path": ".tmp/tasks/validation-20261107/build-entry-import-before.json",
+        "sha256": "f15bd76255d4ff2c5f8a3123e1f257779773660adcb6f66504d83fb07782cf28",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "after": {
+        "path": ".tmp/tasks/validation-20261107/build-entry-import-lazy.json",
+        "sha256": "97641ddec2be85970f7f6cea337048cdd96d6d15b6eab459c3c8f4b80762fcb4",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "modulesBefore": 2409,
+      "modulesAfter": 2197,
+      "scope": "Fresh build-entry import plus readiness; no build, backend or general startup-speed claim."
+    },
+    "beforeProof": {
+      "terminal": {
+        "path": ".tmp/tasks/validation-20261107/lazy-runtime-before.log",
+        "sha256": "16949938b2ac063f77e0e7ef511d002a8b9185b8019f8a0d82a15f71dc9f0708",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "lint": {
+        "path": ".tmp/tasks/validation-20261107/lazy-lint-before.log",
+        "sha256": "275e496ece40e8009e26df0a34d08ee713b5bc829755487c11a51c5feb65f81e",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "sourceHead": "98d68675cb8c3fdf72eff10429f71e7fbe75934b",
+      "method": "Actual committed owner sources loaded in memory; each original eager vendor activation fails the new guard. No checkout or receipt forgery."
+    },
+    "nativeVerification": {
+      "exitCode": 0,
+      "node": "26.13.0",
+      "abi": 147,
+      "requiredProbes": 37,
+      "patchedPackages": 8,
+      "targetFiles": 30,
+      "hunks": 81,
+      "warningOrErrorLines": 0,
+      "log": {
+        "path": ".tmp/tasks/validation-20261107/native-verify-07.log",
+        "sha256": "ab1583bfda199a385adfe37a2f97a0ae2f645f8fd77476f2431c8329fe8238dc",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      }
+    },
+    "nativeBinary": {
+      "pinnedRust": "1.99.1",
+      "exitCode": 0,
+      "build": {
+        "path": ".tmp/tasks/validation-20261107/native-tui-build-pinned.log",
+        "sha256": "220ddd07836050227dca6faae9ce77e8aa48fae114afcfc1507b778692638ead",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "identity": {
+        "exitCode": 0,
+        "head": "98d68675cb8c3fdf72eff10429f71e7fbe75934b",
+        "sha256": "3A649A640CFEE3C22E49901DFEA7C4D57B4C2F625727A329DDD7BE6A5DB9A369"
+      },
+      "unchangedFromBefore": true,
+      "initialShellFailure": "Unqualified shell selected1.93.1; explicit installed1.99.1 builds cleanly without global configuration changes."
+    },
+    "publicationGate": {
+      "format": {
+        "path": ".tmp/tasks/validation-20261107/format-17.log",
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "finalAffectedFormatting": [
+        {
+          "path": ".tmp/tasks/validation-20261107/format-17-final-files.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        {
+          "path": ".tmp/tasks/validation-20261107/format-17-native-helper.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        {
+          "path": ".tmp/tasks/validation-20261107/format-17-graph-final.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        {
+          "path": ".tmp/tasks/validation-20261107/format-17-ci-plan.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        {
+          "path": ".tmp/tasks/validation-20261107/format-17-output-guards.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      ],
+      "checks": [
+        {
+          "name": "config-budget",
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-06-config-budget.log",
+          "exitCode": 0
+        },
+        {
+          "name": "env-check",
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-06-env-check.log",
+          "exitCode": 0
+        },
+        {
+          "name": "generated-freshness",
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-06-generated-freshness.log",
+          "exitCode": 0
+        },
+        {
+          "name": "command-surface",
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-06-command-surface.log",
+          "exitCode": 0
+        },
+        {
+          "name": "workflow-contract",
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-06-workflow-contract.log",
+          "exitCode": 0
+        }
+      ],
+      "gateLane": {
+        "original": {
+          "durationMs": 36499,
+          "failed": 1,
+          "passed": 43,
+          "skipped": 0,
+          "total": 44
+        },
+        "repair": "Only the exact serial inventory expectation changed; all runtime assertions, counts and limits remain strict.",
+        "recheck": {
+          "durationMs": 25382,
+          "failed": 0,
+          "passed": 5,
+          "skipped": 0,
+          "total": 5
+        },
+        "qualifiedGateCases": 44,
+        "scope": "43 original passes plus the focused repaired case; no repeated full gate."
+      },
+      "governance": {
+        "log": {
+          "path": ".tmp/tasks/validation-20261107/governance-08.log",
+          "sha256": "0524ef53d17525df3768dba53c5a07005f24c7c3299db47bd02fffdbdea352b7",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        "lanes": {
+          "ci-lite": 3218,
+          "ci": 250,
+          "gate": 44,
+          "ci-long": 23,
+          "usr-full-conformance": 11
+        },
+        "missing": 0,
+        "duplicates": 0,
+        "mismatches": 0,
+        "overruns": 0
+      },
+      "finalGeneratedFreshness": {
+        "exitCode": 0,
+        "path": ".tmp/tasks/validation-20261107/generated-freshness-06-final.log",
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "diffCheck": 0,
+      "status": "passed-after-focused-inventory-recheck"
+    },
+    "graphRawSamples": [
+      {
+        "id": "perf/bench/representative-workload-consumers/graph-skewed-first-half",
+        "receipt": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.testLogs/bench35-graph-skewed-first-half-1794085060281.json",
+          "sha256": "7ba8ff300e14c6978377a3763ff98e08f22ff4086f50e2954a797b517ea099a5",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        "source": {
+          "state": "dirty",
+          "revision": "98d68675cb8c3fdf72eff10429f71e7fbe75934b"
+        },
+        "shapes": [
+          {
+            "schemaVersion": 3,
+            "trialOffset": 0,
+            "order": [
+              "baseline",
+              "current",
+              "current",
+              "baseline",
+              "baseline",
+              "current"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 0,
+                "pid": 22036,
+                "processStartedAtMs": 1794085043486.861,
+                "setupMs": 14.086099999999988,
+                "admissionBuildMs": 37.88560000000007,
+                "coldTotalMs": 51.971700000000055,
+                "warmHitMs": 0.016599999999925785,
+                "childWallMs": 1289,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 1,
+                "pid": 27796,
+                "processStartedAtMs": 1794085047214.701,
+                "setupMs": 13.38630000000012,
+                "admissionBuildMs": 37.19119999999998,
+                "coldTotalMs": 50.5775000000001,
+                "warmHitMs": 0.01880000000005566,
+                "childWallMs": 1225,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 2,
+                "pid": 30568,
+                "processStartedAtMs": 1794085048441.798,
+                "setupMs": 13.78650000000016,
+                "admissionBuildMs": 38.59550000000013,
+                "coldTotalMs": 52.38200000000029,
+                "warmHitMs": 0.01830000000018117,
+                "childWallMs": 1225,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "current",
+                "trialIndex": 0,
+                "pid": 19652,
+                "processStartedAtMs": 1794085044772.219,
+                "setupMs": 13.592499999999973,
+                "admissionBuildMs": 30.46530000000007,
+                "coldTotalMs": 44.05780000000004,
+                "warmHitMs": 0.01999999999998181,
+                "childWallMs": 1239,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 1,
+                "pid": 26556,
+                "processStartedAtMs": 1794085046007.596,
+                "setupMs": 13.617099999999937,
+                "admissionBuildMs": 28.599699999999984,
+                "coldTotalMs": 42.21679999999992,
+                "warmHitMs": 0.019700000000057116,
+                "childWallMs": 1208,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 2,
+                "pid": 28060,
+                "processStartedAtMs": 1794085049667.227,
+                "setupMs": 14.214899999999943,
+                "admissionBuildMs": 30.53690000000006,
+                "coldTotalMs": 44.7518,
+                "warmHitMs": 0.018299999999953798,
+                "childWallMs": 1233,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          },
+          {
+            "schemaVersion": 3,
+            "trialOffset": 0,
+            "order": [
+              "baseline",
+              "current",
+              "current",
+              "baseline",
+              "baseline",
+              "current"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 0,
+                "pid": 32460,
+                "processStartedAtMs": 1794085050915.948,
+                "setupMs": 14.513299999999845,
+                "admissionBuildMs": 42.00739999999996,
+                "coldTotalMs": 56.520699999999806,
+                "warmHitMs": 0.016800000000102955,
+                "childWallMs": 1170,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 257674,
+                  "graph_relations": 734830,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 12000
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 1,
+                "pid": 30476,
+                "processStartedAtMs": 1794085054413.641,
+                "setupMs": 19.93859999999995,
+                "admissionBuildMs": 86.25030000000015,
+                "coldTotalMs": 106.1889000000001,
+                "warmHitMs": 0.024399999999786814,
+                "childWallMs": 2943,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 257674,
+                  "graph_relations": 734830,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 12000
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 2,
+                "pid": 17336,
+                "processStartedAtMs": 1794085057410.522,
+                "setupMs": 14.549299999999903,
+                "admissionBuildMs": 45.556499999999915,
+                "coldTotalMs": 60.10579999999982,
+                "warmHitMs": 0.014599999999973079,
+                "childWallMs": 1490,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 257674,
+                  "graph_relations": 734830,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 12000
+              },
+              {
+                "arm": "current",
+                "trialIndex": 0,
+                "pid": 34936,
+                "processStartedAtMs": 1794085052081.291,
+                "setupMs": 13.862199999999916,
+                "admissionBuildMs": 6.204199999999901,
+                "coldTotalMs": 20.066399999999817,
+                "warmHitMs": 0.01269999999999527,
+                "childWallMs": 1110,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 1,
+                "pid": 6480,
+                "processStartedAtMs": 1794085053189.707,
+                "setupMs": 14.976899999999887,
+                "admissionBuildMs": 6.574399999999969,
+                "coldTotalMs": 21.551299999999856,
+                "warmHitMs": 0.012199999999893407,
+                "childWallMs": 1221,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 2,
+                "pid": 28884,
+                "processStartedAtMs": 1794085058871.23,
+                "setupMs": 22.00669999999991,
+                "admissionBuildMs": 6.458300000000008,
+                "coldTotalMs": 28.464999999999918,
+                "warmHitMs": 0.01700000000005275,
+                "childWallMs": 1252,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "perf/bench/representative-workload-consumers/graph-skewed-independent-first-half",
+        "receipt": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.testLogs/bench35-graph-skewed-independent-first-half-1794085075874.json",
+          "sha256": "b3773612ed350d2dcbf0c85041914366b35ed9a35b99bd33b8353dc4abf8f0d5",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        "source": {
+          "state": "dirty",
+          "revision": "98d68675cb8c3fdf72eff10429f71e7fbe75934b"
+        },
+        "shapes": [
+          {
+            "schemaVersion": 3,
+            "trialOffset": 0,
+            "order": [
+              "baseline",
+              "current",
+              "current",
+              "baseline",
+              "baseline",
+              "current"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 0,
+                "pid": 34828,
+                "processStartedAtMs": 1794085061339.444,
+                "setupMs": 14.445400000000063,
+                "admissionBuildMs": 17.07029999999986,
+                "coldTotalMs": 31.515699999999924,
+                "warmHitMs": 0.013799999999946522,
+                "childWallMs": 1244,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 1,
+                "pid": 14920,
+                "processStartedAtMs": 1794085064899.532,
+                "setupMs": 13.639899999999898,
+                "admissionBuildMs": 16.675899999999956,
+                "coldTotalMs": 30.315799999999854,
+                "warmHitMs": 0.012600000000020373,
+                "childWallMs": 1167,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 2,
+                "pid": 18076,
+                "processStartedAtMs": 1794085066065.684,
+                "setupMs": 14.577699999999822,
+                "admissionBuildMs": 17.36889999999994,
+                "coldTotalMs": 31.946599999999762,
+                "warmHitMs": 0.01269999999999527,
+                "childWallMs": 1226,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "current",
+                "trialIndex": 0,
+                "pid": 35052,
+                "processStartedAtMs": 1794085062606.638,
+                "setupMs": 13.888200000000097,
+                "admissionBuildMs": 6.451500000000124,
+                "coldTotalMs": 20.33970000000022,
+                "warmHitMs": 0.012200000000120781,
+                "childWallMs": 1175,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 1,
+                "pid": 11548,
+                "processStartedAtMs": 1794085063749.489,
+                "setupMs": 14.034200000000055,
+                "admissionBuildMs": 6.613299999999981,
+                "coldTotalMs": 20.647500000000036,
+                "warmHitMs": 0.012600000000020373,
+                "childWallMs": 1143,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 2,
+                "pid": 17176,
+                "processStartedAtMs": 1794085067314.478,
+                "setupMs": 14.33990000000017,
+                "admissionBuildMs": 6.735300000000052,
+                "coldTotalMs": 21.075200000000223,
+                "warmHitMs": 0.012400000000070577,
+                "childWallMs": 1205,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          },
+          {
+            "schemaVersion": 3,
+            "trialOffset": 0,
+            "order": [
+              "baseline",
+              "current",
+              "current",
+              "baseline",
+              "baseline",
+              "current"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 0,
+                "pid": 29792,
+                "processStartedAtMs": 1794085068532.537,
+                "setupMs": 14.092899999999872,
+                "admissionBuildMs": 19.79860000000008,
+                "coldTotalMs": 33.89149999999995,
+                "warmHitMs": 0.013599999999996726,
+                "childWallMs": 1166,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 252573,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 1,
+                "pid": 35208,
+                "processStartedAtMs": 1794085072038.049,
+                "setupMs": 14.725400000000036,
+                "admissionBuildMs": 19.22460000000001,
+                "coldTotalMs": 33.950000000000045,
+                "warmHitMs": 0.019199999999955253,
+                "childWallMs": 1138,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 252573,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 2,
+                "pid": 17236,
+                "processStartedAtMs": 1794085073182.028,
+                "setupMs": 13.905899999999974,
+                "admissionBuildMs": 23.01929999999993,
+                "coldTotalMs": 36.925199999999904,
+                "warmHitMs": 0.022400000000061482,
+                "childWallMs": 1312,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 252573,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "current",
+                "trialIndex": 0,
+                "pid": 25268,
+                "processStartedAtMs": 1794085069679.472,
+                "setupMs": 13.859100000000126,
+                "admissionBuildMs": 6.782000000000153,
+                "coldTotalMs": 20.64110000000028,
+                "warmHitMs": 0.011899999999968713,
+                "childWallMs": 1149,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 1,
+                "pid": 35428,
+                "processStartedAtMs": 1794085070826.344,
+                "setupMs": 13.566099999999778,
+                "admissionBuildMs": 6.3233000000000175,
+                "coldTotalMs": 19.889399999999796,
+                "warmHitMs": 0.012600000000020373,
+                "childWallMs": 1218,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 2,
+                "pid": 14724,
+                "processStartedAtMs": 1794085074496.729,
+                "setupMs": 14.582699999999932,
+                "admissionBuildMs": 6.001700000000028,
+                "coldTotalMs": 20.58439999999996,
+                "warmHitMs": 0.012600000000020373,
+                "childWallMs": 1200,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "perf/bench/representative-workload-consumers/graph-skewed-independent-second-half",
+        "receipt": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.testLogs/bench35-graph-skewed-independent-second-half-1794085091342.json",
+          "sha256": "8e433afb843d8b797f381bc0337b71dec0823ca5a555b28042700ce3e87787d7",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        "source": {
+          "state": "dirty",
+          "revision": "98d68675cb8c3fdf72eff10429f71e7fbe75934b"
+        },
+        "shapes": [
+          {
+            "schemaVersion": 3,
+            "trialOffset": 3,
+            "order": [
+              "current",
+              "baseline",
+              "baseline",
+              "current",
+              "current",
+              "baseline"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 3,
+                "pid": 29724,
+                "processStartedAtMs": 1794085078132.105,
+                "setupMs": 13.771099999999933,
+                "admissionBuildMs": 16.90910000000008,
+                "coldTotalMs": 30.680200000000013,
+                "warmHitMs": 0.013599999999996726,
+                "childWallMs": 1150,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 4,
+                "pid": 34032,
+                "processStartedAtMs": 1794085079279.357,
+                "setupMs": 17.621999999999844,
+                "admissionBuildMs": 24.036599999999908,
+                "coldTotalMs": 41.65859999999975,
+                "warmHitMs": 0.015399999999999636,
+                "childWallMs": 1253,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 5,
+                "pid": 29720,
+                "processStartedAtMs": 1794085082932.283,
+                "setupMs": 13.986300000000028,
+                "admissionBuildMs": 20.33289999999988,
+                "coldTotalMs": 34.31919999999991,
+                "warmHitMs": 0.013999999999896318,
+                "childWallMs": 1161,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "current",
+                "trialIndex": 3,
+                "pid": 9268,
+                "processStartedAtMs": 1794085076937.078,
+                "setupMs": 13.884699999999839,
+                "admissionBuildMs": 6.579199999999901,
+                "coldTotalMs": 20.46389999999974,
+                "warmHitMs": 0.02359999999998763,
+                "childWallMs": 1218,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 4,
+                "pid": 17584,
+                "processStartedAtMs": 1794085080538.246,
+                "setupMs": 15.086500000000115,
+                "admissionBuildMs": 8.498900000000049,
+                "coldTotalMs": 23.585400000000163,
+                "warmHitMs": 0.02800000000002001,
+                "childWallMs": 1244,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 5,
+                "pid": 17788,
+                "processStartedAtMs": 1794085081782.039,
+                "setupMs": 14.386799999999994,
+                "admissionBuildMs": 6.977300000000014,
+                "coldTotalMs": 21.364100000000008,
+                "warmHitMs": 0.013300000000072032,
+                "childWallMs": 1151,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          },
+          {
+            "schemaVersion": 3,
+            "trialOffset": 3,
+            "order": [
+              "current",
+              "baseline",
+              "baseline",
+              "current",
+              "current",
+              "baseline"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 3,
+                "pid": 27436,
+                "processStartedAtMs": 1794085085267.346,
+                "setupMs": 17.023299999999836,
+                "admissionBuildMs": 26.09830000000011,
+                "coldTotalMs": 43.121599999999944,
+                "warmHitMs": 0.01770000000010441,
+                "childWallMs": 1240,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 252573,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 4,
+                "pid": 29348,
+                "processStartedAtMs": 1794085086506.547,
+                "setupMs": 13.488799999999856,
+                "admissionBuildMs": 21.594900000000052,
+                "coldTotalMs": 35.08369999999991,
+                "warmHitMs": 0.013699999999971624,
+                "childWallMs": 1196,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 252573,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 5,
+                "pid": 23432,
+                "processStartedAtMs": 1794085090002.388,
+                "setupMs": 15.628199999999879,
+                "admissionBuildMs": 22.771099999999933,
+                "coldTotalMs": 38.39929999999981,
+                "warmHitMs": 0.012899999999945067,
+                "childWallMs": 1177,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 252573,
+                  "graph_relations": 29524,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "current",
+                "trialIndex": 3,
+                "pid": 15012,
+                "processStartedAtMs": 1794085084105.128,
+                "setupMs": 15.032500000000027,
+                "admissionBuildMs": 6.815200000000004,
+                "coldTotalMs": 21.84770000000003,
+                "warmHitMs": 0.013699999999971624,
+                "childWallMs": 1164,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 4,
+                "pid": 35388,
+                "processStartedAtMs": 1794085087700.766,
+                "setupMs": 14.145100000000184,
+                "admissionBuildMs": 6.925500000000056,
+                "coldTotalMs": 21.07060000000024,
+                "warmHitMs": 0.012400000000070577,
+                "childWallMs": 1171,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 5,
+                "pid": 27116,
+                "processStartedAtMs": 1794085088870.761,
+                "setupMs": 14.58660000000009,
+                "admissionBuildMs": 6.1724999999999,
+                "coldTotalMs": 20.75909999999999,
+                "warmHitMs": 0.011900000000196087,
+                "childWallMs": 1132,
+                "indexSignature": "index_state:build:graph-shape-512-128|mode:code|surface:0.1.0|state:fb4bb22df41da39e47571f558daab221b1e42105fcbfb8908630ec83047f88b9",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "perf/bench/representative-workload-consumers/graph-skewed-second-half",
+        "receipt": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.testLogs/bench35-graph-skewed-second-half-1794085106649.json",
+          "sha256": "98670bbb1d38799d20ed359b91ad8eeaab6cd3597dc8ab20447fb49fb6840c57",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        "source": {
+          "state": "dirty",
+          "revision": "98d68675cb8c3fdf72eff10429f71e7fbe75934b"
+        },
+        "shapes": [
+          {
+            "schemaVersion": 3,
+            "trialOffset": 3,
+            "order": [
+              "current",
+              "baseline",
+              "baseline",
+              "current",
+              "current",
+              "baseline"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 3,
+                "pid": 35084,
+                "processStartedAtMs": 1794085093612.297,
+                "setupMs": 14.426799999999957,
+                "admissionBuildMs": 37.96160000000009,
+                "coldTotalMs": 52.38840000000005,
+                "warmHitMs": 0.01999999999998181,
+                "childWallMs": 1219,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 4,
+                "pid": 19160,
+                "processStartedAtMs": 1794085094830.436,
+                "setupMs": 13.43470000000002,
+                "admissionBuildMs": 39.609100000000126,
+                "coldTotalMs": 53.04380000000015,
+                "warmHitMs": 0.020299999999906504,
+                "childWallMs": 1295,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 5,
+                "pid": 29240,
+                "processStartedAtMs": 1794085098551.691,
+                "setupMs": 13.686599999999885,
+                "admissionBuildMs": 37.48029999999994,
+                "coldTotalMs": 51.16689999999983,
+                "warmHitMs": 0.0181999999999789,
+                "childWallMs": 1206,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 10425,
+                  "graph_relations": 29524,
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 512
+              },
+              {
+                "arm": "current",
+                "trialIndex": 3,
+                "pid": 22264,
+                "processStartedAtMs": 1794085092384.451,
+                "setupMs": 13.338100000000168,
+                "admissionBuildMs": 28.437800000000152,
+                "coldTotalMs": 41.77590000000032,
+                "warmHitMs": 0.01689999999985048,
+                "childWallMs": 1229,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 4,
+                "pid": 31864,
+                "processStartedAtMs": 1794085096126.923,
+                "setupMs": 13.671399999999949,
+                "admissionBuildMs": 28.72160000000008,
+                "coldTotalMs": 42.39300000000003,
+                "warmHitMs": 0.019000000000005457,
+                "childWallMs": 1233,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 5,
+                "pid": 6688,
+                "processStartedAtMs": 1794085097357.002,
+                "setupMs": 13.75120000000004,
+                "admissionBuildMs": 28.548900000000003,
+                "coldTotalMs": 42.30010000000004,
+                "warmHitMs": 0.016900000000077853,
+                "childWallMs": 1193,
+                "indexSignature": "index_state:build:graph-shape-512-4096|mode:code|surface:0.1.0|state:40848560e0d3905e73e8804b080f44183bce91c672f16691d59ab863a5536e21",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "cc8f452a336963d484a5c22b9f390d2cc81287aae565751ab569f0a45553f33e",
+                  "occurrences": 4096,
+                  "chunks": 4096,
+                  "symbols": 4096
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 680703
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          },
+          {
+            "schemaVersion": 3,
+            "trialOffset": 3,
+            "order": [
+              "current",
+              "baseline",
+              "baseline",
+              "current",
+              "current",
+              "baseline"
+            ],
+            "samples": [
+              {
+                "arm": "baseline",
+                "trialIndex": 3,
+                "pid": 31544,
+                "processStartedAtMs": 1794085100874.854,
+                "setupMs": 13.446000000000026,
+                "admissionBuildMs": 41.65899999999999,
+                "coldTotalMs": 55.10500000000002,
+                "warmHitMs": 0.013699999999971624,
+                "childWallMs": 1135,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 257674,
+                  "graph_relations": 734830,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 12000
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 4,
+                "pid": 35556,
+                "processStartedAtMs": 1794085102002.966,
+                "setupMs": 14.21289999999999,
+                "admissionBuildMs": 43.411500000000046,
+                "coldTotalMs": 57.62440000000004,
+                "warmHitMs": 0.014900000000125146,
+                "childWallMs": 1127,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 257674,
+                  "graph_relations": 734830,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 12000
+              },
+              {
+                "arm": "baseline",
+                "trialIndex": 5,
+                "pid": 16320,
+                "processStartedAtMs": 1794085105365.375,
+                "setupMs": 17.293999999999983,
+                "admissionBuildMs": 41.73919999999998,
+                "coldTotalMs": 59.033199999999965,
+                "warmHitMs": 0.014400000000023283,
+                "childWallMs": 1133,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "call_sites",
+                  "graph_relations",
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "call_sites": 257674,
+                  "graph_relations": 734830,
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": 12000
+              },
+              {
+                "arm": "current",
+                "trialIndex": 3,
+                "pid": 28320,
+                "processStartedAtMs": 1794085099772.595,
+                "setupMs": 13.78589999999997,
+                "admissionBuildMs": 6.117500000000064,
+                "coldTotalMs": 19.903400000000033,
+                "warmHitMs": 0.012399999999843203,
+                "childWallMs": 1100,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 4,
+                "pid": 28160,
+                "processStartedAtMs": 1794085103132.546,
+                "setupMs": 14.147799999999961,
+                "admissionBuildMs": 6.375500000000102,
+                "coldTotalMs": 20.523300000000063,
+                "warmHitMs": 0.011899999999968713,
+                "childWallMs": 1144,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              },
+              {
+                "arm": "current",
+                "trialIndex": 5,
+                "pid": 2680,
+                "processStartedAtMs": 1794085104278.022,
+                "setupMs": 13.985700000000065,
+                "admissionBuildMs": 5.97059999999999,
+                "coldTotalMs": 19.956300000000056,
+                "warmHitMs": 0.011399999999980537,
+                "childWallMs": 1086,
+                "indexSignature": "index_state:build:graph-shape-12000-128|mode:code|surface:0.1.0|state:b3d9d310fbdfb8b9c61f8d55af07944d824d42c5e2c230ab575248fcb54b1b03",
+                "manifestIdentity": "8fd94b726e1df25f3ebc92bca84595bd49164491db96d78c85796852769bbaad",
+                "witness": {
+                  "sha256": "dd69fc7934cca80f65afb74a7347a37412cde028c68b2cb8ab89924235f4260c",
+                  "occurrences": 128,
+                  "chunks": 128,
+                  "symbols": 128
+                },
+                "artifactsUsed": [
+                  "symbol_edges"
+                ],
+                "artifactBytes": {
+                  "symbol_edges": 20663
+                },
+                "completedColdOperations": 1,
+                "completedWarmOperations": 1,
+                "indexBuildsObserved": 1,
+                "omittedGraphNodes": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "remainingFailureIds": [
+      "tooling/eval/published-index-revision-oracle/delete-file",
+      "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+      "tooling/eval/published-index-revision-oracle/edit-only",
+      "tooling/eval/published-index-revision-oracle/restore-file",
+      "tui/native-index-workflows/report",
+      "tui/native-index-workflows/search-published",
+      "tui/native-index-workflows/snapshot-create",
+      "tui/native-index-workflows/snapshot-freeze",
+      "tui/native-index-workflows/snapshot-gc",
+      "tui/native-index-workflows/snapshot-list-populated",
+      "tui/native-index-workflows/snapshot-prune",
+      "tui/native-index-workflows/snapshot-remove",
+      "tui/native-index-workflows/snapshot-show",
+      "tui/native-index-workflows/stats",
+      "tui/native-index-workflows/validate-published",
+      "tui/native-index-workflows/workspace",
+      "tui/native-search-conpty/empty-error",
+      "tui/native-search-conpty/failed-first",
+      "tui/native-search-conpty/handshake",
+      "tui/native-search-conpty/query-source",
+      "tui/native-search-conpty/scope"
+    ],
+    "diagnostics": {
+      "profile": {
+        "path": ".tmp/tasks/validation-20261107/native-seed-profile/cold-seed.cpuprofile",
+        "sha256": "fb187a71783d267750af33152104300ef850a16ea768d3c587d77533aa685296",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "result": {
+        "path": ".tmp/tasks/validation-20261107/native-seed-profile/result-02.json",
+        "sha256": "1e07078fc9274e28d276f5fcf4e4763dc2ea8affa4a4b274597a56038b0feb8b",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "scope": "Bounded diagnostic exceeds30 seconds with profiling enabled; incomplete profile does not establish a runtime cause or qualify latency."
+    },
+    "githubCensus": {
+      "path": ".tmp/tasks/validation-20261107/open-issues-before-publication-06.json",
+      "sha256": "cc3dccc2a228d79fbe52f8192d7b1d2c7af0e60759bd9cd47306f9d5df68cbfb",
+      "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+    },
+    "processAudit": {
+      "matchingProjectProcesses": 0,
+      "receipt": {
+        "path": ".tmp/tasks/validation-20261107/final-owned-process-audit.json",
+        "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "action": "Read-only inventory; no unrelated process was stopped."
+    },
+    "fixtureEscapeRepair": {
+      "original": "The migrated build-entry import left a display fixture intercepting its former barrel. Captured failure evidence stays under the test cache, not author caches.",
+      "repair": "Both inert CLI fixtures intercept the actual leaf and independently reject loading the real production build owner; all original output assertions remain.",
+      "proof": "cohort-output-owner-recheck: both fixtures and the final docs contract pass."
+    },
+    "sourceCandidate": "98be3a04c51b00818a18a2449edf5b2a4e1a7432",
+    "publication": {
+      "sourceHead": "98be3a04c51b00818a18a2449edf5b2a4e1a7432",
+      "remoteShaVerified": true,
+      "prHeadVerified": true,
+      "branch": "codex/pr557-audit-repairs-20261012"
+    },
+    "githubUpdates": [
+      {
+        "number": 1272,
+        "state": "open",
+        "sourceHead": "98be3a04c51b00818a18a2449edf5b2a4e1a7432",
+        "updatedAt": "2026-11-07T21:20:28Z",
+        "exactBodyReadbackVerified": true,
+        "originalRequirementsRetained": true,
+        "statusSection": "<!-- poc-issue-closeout:start -->\n### Current implementation and validation — 2026-11-07\n\n**Partial; ordinary recovery-decision loss is fixed. Full runtime/replacement qualification remains.**\n\nPublished `98be3a04c51b00818a18a2449edf5b2a4e1a7432` carries the original typed readiness reason, exact identity-field mismatches and executing Node/npm context through ordinary `ERR_BOOTSTRAP_REQUIRED` errors. Human output and structured error data use the same bounded read-only recovery selector as explicit checkout diagnosis. Wait/runtime-selection cases recommend no overlapping install. A known failed native probe selects targeted repair even when recorded file metadata is intact. No diagnostic starts a repair or grants operational readiness.\n\nNineteen focused Windows readiness/identity/recovery cases pass: all eleven independently bounded guarded-entry cases, individual schema/root/runtime mismatch comparisons, ordinary-versus-explicit denial parity, all five formatter actions, bounded malformed-identity diagnostics, actual active-mutation refusal, source/patch/package/native drift and known-native-failure selection. Six surrounding CLI/progress/doc controls also pass. Fresh required native/patch verification passes37 probes/eight packages/30 files/81 hunks without warnings or errors.\n\nRemaining acceptance: complete actual same-ABI Node patch and npm-versus-shell selection scenarios, and receipt/journal replacement during inspection, including ordinary-error versus explicit JSON parity. Current field comparisons and held-mutation controls do not substitute for that full matrix. Keep missing patches/binaries distinct from verify-only selection; metadata alone never establishes readiness.\n\n[Ordinary gate and typed diagnostics](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/src/shared/bootstrap-readiness.js) · [Shared recovery selector](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/tools/setup/checkout-recovery.js) · [Identity/ordinary-error controls](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/tests/tooling/install/checkout-diagnosis-identity.test.js) · [Recovery controls](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/tests/tooling/install/checkout-recovery.test.js).\n<!-- poc-issue-closeout:end -->",
+        "statusSectionSha256": "d0dbaa24749e288bbb0f52edbc2c713048538886e14d47eab7290c4c49f50cd6"
+      },
+      {
+        "number": 1528,
+        "state": "open",
+        "sourceHead": "98be3a04c51b00818a18a2449edf5b2a4e1a7432",
+        "updatedAt": "2026-11-07T21:20:29Z",
+        "exactBodyReadbackVerified": true,
+        "originalRequirementsRetained": true,
+        "statusSection": "<!-- poc-current-qualification:start -->\n### Current qualification — 2026-11-07\n\n**Partial; all six real published-index cases pass on hosted Windows. Local transition deadlines and broader adapter/minimizer scope remain open.**\n\n[CI2355](https://github.com/doublemover/PairOfCleats/actions/runs/42409871998) at `98d68675cb8c3fdf72eff10429f71e7fbe75934b` passes the six actual code-publication cases with the closed v3 profile. Edit/delete/rename/re-add cases take12.7–13.1s; original-world rechecks and pending-reader retirement take7.21/6.83s. Commands use normal production workers, one indexing thread,25s operation/30s fixture bounds, zero retries and native-status redo disabled.\n\nCandidate revisions stay ordered; exactly two independent original build worlds overlap. Both children settle before failure propagation/retirement, while original resource observations remain prerequisites. Actual validation requires zero issues and exactly six declared optional omissions, matching terminal warning count and inspected published generation. Full original source/UID/token comparisons remain. Old v1/v2 profiles are rejected.\n\nThe latest local follow-up at published `98be3a04c51b00818a18a2449edf5b2a4e1a7432` still exhausts all four transition-operation deadlines, including cleanup within the30s fixture. Those failures remain in the campaign; hosted source-bound passes do not erase them or qualify later source automatically. No larger deadline, disabled backend, retry, source normalization or reduced comparison is accepted. Closed preflight and original/falsey build-pair controls pass.\n\nExisting suggestion11, async minimizer8, direct-source8 and relational/consumer-proof checks remain component evidence. Remaining full issue scope: resolve local bounded execution, qualify current failing-world minimization, and finish the semantic/build-world, certificate, source-qualified suggestion adapters and counterexample families below. The hosted example cohort alone does not complete that framework.\n\n[Published v3 owner](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/tools/eval/revisions/index-runner.js) · [Original build-pair settlement](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/tools/eval/revisions/index-build-pair.js) · [Actual publication cases](https://github.com/doublemover/PairOfCleats/blob/98be3a04c51b00818a18a2449edf5b2a4e1a7432/tests/tooling/eval/published-index-revision-oracle.test.js).\n<!-- poc-current-qualification:end -->",
+        "statusSectionSha256": "2c493ca917c50cd29254357eb3a1a8993ab3947c1ec562a1db08a23f61e2af4c"
+      }
+    ]
   }
 }

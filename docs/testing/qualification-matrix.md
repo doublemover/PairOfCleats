@@ -5,11 +5,11 @@ order. This matrix defines useful acceptance and distinguishes current evidence
 from the broader qualification still required.
 
 The [Windows campaign](../archived/windows-issue-validation-2026-11-07.md) records
-2,435 source-bound observations: **2,417 pass,17 fail and one Linux-only fixture is
+2,459 source-bound observations: **2,437 pass,21 fail and one Linux-only fixture is
 excluded on Windows**. Two failures reach the outer30-second limit. Four revision
-transition cases and13 native TUI timing cases remain unqualified. These are
+transition cases and17 native seed/terminal/handshake cases remain unqualified. These are
 focused observations across recorded source checkpoints, not a final-tree or
-full-suite pass. Of2,190 selected IDs,2,187 have observations; three explicit
+full-suite pass. Of2,195 selected IDs,2,192 have local observations; three explicit
 external/optional cases are listed below. Full original issue requirements and
 follow-ups govern closure; passing adjacent fixtures alone does not.
 
@@ -17,17 +17,17 @@ follow-ups govern closure; passing adjacent fixtures alone does not.
 
 | Area | Evidence and coverage owner | Remaining boundary |
 | --- | --- | --- |
-| Supported setup | Node26.13.0, Windows x64, ABI147;37 required native probes and eight patched packages/30 files/81 hunks verify without warnings or errors. Eleven readiness cases conserve every original guarded entry and denial/admission assertion. | Activation/readiness does not qualify every operation, backend or lifecycle. Use the exact repository pin and locked bootstrap for stale setup. |
+| Supported setup | Node26.13.0, Windows x64, ABI147;37 required native probes and eight patched packages/30 files/81 hunks verify without warnings or errors. Nineteen readiness/identity/recovery cases preserve original guards and typed ordinary recovery decisions. | Activation/readiness does not qualify every operation, backend or lifecycle. Use the exact repository pin and locked bootstrap for stale setup. |
 | Native crash attribution | [Windows ONNX parity](../archived/windows-onnx-runtime-parity-2026-10-30.md) retains CDB evidence for the addon/DLL API mismatch. ONNX Runtime1.30.0 matches Transformers4.3.2. No native crash is observed in the current campaign. | Runtime qualification stays bound to its original commands, dependencies and source; absence of a crash in an unrelated check is not a regression proof. |
 | Fatal workers | #1646 closes after four actual thread/process and fake-owner fixtures: asynchronous exceptions/rejections, held exit, failed stop, late results, PID/thread identity, ordinary failures, bounded replacements and no replay/fallback. | Preserve actual closure and reservations; task-promise or vendor-inventory settlement alone is insufficient. |
-| Native terminal workflows | Real Windows ConPTY, native binary and supervisor cases run with terminal/output/PID receipts. Published22c624f72 CI passes the native-index job; the broader local run exposes13 native TUI timing failures. | Complete cold setup plus actual report/search/snapshot/workspace operations must fit the existing bounds. Two current outer timeouts and all failed witness deadlines remain failures. Isolating application home does not close them. |
-| File and destination authority | Portable artifact controls use real files/exports and explicit alias-classification faults. The original physical source/destination alias assertions are conserved in `tui/operator-artifact-physical-alias`. | Physical Windows proof belongs to the capable hosted authority cohort. Portable injection neither claims physical alias coverage nor requires local link creation/elevation. |
+| Native terminal workflows | Real Windows ConPTY, native binary and supervisor cases run with terminal/output/PID receipts. Published98d68675c CI passes22 native-index cases; the broader local run exposes17 native seed/terminal/handshake failures. | Complete cold setup plus actual report/search/snapshot/workspace operations must fit the existing bounds. Two current outer timeouts and all failed witness deadlines remain failures. Isolating application home does not close them. |
+| File and destination authority | Portable artifact controls use real files/exports and explicit alias-classification faults. The original physical source/destination alias assertions are conserved in `tui/operator-artifact-physical-alias`. | Physical Windows proof passes the40-case hosted authority cohort at98d68675c. Portable injection neither claims physical alias coverage nor requires local link creation/elevation. |
 | SQLite/FTS and cache authority | Focused retrieval, generation/pointer, cold/warm cache, positive source and strict-format controls pass. Cold memory/SQLite report fixtures no longer read an author workspace. | Rank correlation diagnostics are not rank-equivalence qualification. Optional sqlite-vec remains separate. |
 | Native database lifetime | Shared runtime owner replaces production imports from tooling.120 focused affected cases pass, including real native publication/cleanup, original result/inspection failures and LMDB callback/close ordering. | Broader allocation pressure, category cleanup and every unadopted consumer retain their issue-specific acceptance owners. |
 | Native flow construction | #1682 closes with bounded real construction, paused-sink backpressure, exact batch-size invariance and cancellation/failure ownership. Raw logical-work samples are retained. | Logical construction bounds do not establish constant process heap/RSS or latency. |
 | Comment admission and content maps | #1657 qualifies ordinary prose versus legal notices, policy/custom matcher behavior and current cache replay. #1654 qualifies21 actual logical-content, exact-key, YAML/TOML, VFS/token and retained-map/projection cases. | These bounded producer/consumer checks do not claim renderer, framework, native-parser or complete language qualification. |
 | Triage lineage | #1699 qualifies17 bounded lineage/cursor/publication cases and actual ingest/decision/context CLI, preserving all code/prose/comment source/identity comparisons. | Historical decisions remain historical facts; relation or similarity never grants mutation, approval or suppression authority. |
-| Revision oracle | Closed published-index v3 retains canonical commands, normal workers, fixed two-world overlap, ordered candidate revisions and exact source/UID/token comparisons. Recheck and pending-reader retirement pass. Exact optional validation omissions are asserted. | Four real transition cases still exceed the25-second operation bound. Broader semantic/build-world/certificate/suggestion adapters and failing-world minimization remain open under #1528. |
+| Revision oracle | Closed published-index v3 retains canonical commands, normal workers, fixed two-world overlap, ordered candidate revisions and exact source/UID/token comparisons. Recheck and pending-reader retirement pass. Exact optional validation omissions are asserted. | All six real cases pass on hosted Windows at98d68675c; four local transitions still exceed the25-second operation bound. Broader semantic/build-world/certificate/suggestion adapters and failing-world minimization remain open under #1528. |
 | TypeScript and managed providers | Experimental TS7.1 component/contract/vendor25-case qualification includes seven actual Windows vendor requests and both child closes. Managed operational recovery and selected provider fixtures pass. | Existing compiler-consumer migration, stable promotion, complete package/build closures and remaining real provider consumers stay open under #1155/#1559 and related owners. |
 | Questions, evidence and services | Selected real artifact/SQLite/compiler-reader and HTTP/MCP contract cases pass, including authority, missing-generation, invalid-request, cursor, incomplete and cancellation negatives. | Finite profiles and component parity do not establish every live/spilled semantic implementation, external reference process or real-model evaluation. |
 | Architecture and documentation references | Architecture DTO/policy identity and existing detection/cap controls are present. RST/AsciiDoc outline controls pass. | #1707 still needs generation-qualified source occurrences and independent report-route proof. #1722 still needs typed reference resolution and persisted navigation. |
@@ -68,8 +68,8 @@ The receipt retains earlier macOS/Ubuntu failures and their exact source states.
 
 | Kind | Useful evidence | Current observation |
 | --- | --- | --- |
-| Correctness/resource bounds | Actual queue admission, retained bytes/rows, original cleanup, bounded work and independent output comparisons. | All138 selected performance cases pass after one focused scheduler-seed repair. Many are work/resource contracts rather than latency measurements. |
-| Coupling budgets | Fresh import census with unchanged thresholds and operational behavior. | API620→558 imports; required budget passes. No latency speedup inferred. |
+| Correctness/resource bounds | Actual queue admission, retained bytes/rows, original cleanup, bounded work and independent output comparisons. | All144 cases in the selected serial cohorts have passing source-bound observations, including all four graph capsules. Many are work/resource contracts rather than latency measurements. |
+| Coupling budgets | Fresh import census with unchanged thresholds and operational behavior. | API620→558 and build-entry2,409→2,197 imports; unchanged budgets pass. No latency speedup inferred. |
 | Latency | Expected indexed sources before warm sampling; raw samples, exact workload/runtime and unchanged threshold. | SQLite `greet` and `answer` both retrieve `index.js`;20 warm samples give p95 **164.9ms**, below the unchanged **7,500ms** Windows bound. |
 | Optimization qualification | Serial paired original/current/control arms, independent output identity, actual work, CPU/wall/peak observations and declared cold/warm scope. | Current artifact/health/row/encoding/risk samples are retained in the campaign; mixed timings do not establish a universal speedup or complete every performance issue. |
 
@@ -86,7 +86,8 @@ and release campaigns need their own declared workloads and acceptance.
 - `storage/sqlite/ann/sqlite-extension`: optional sqlite-vec is outside this target.
 - `tui/operator-artifact-physical-alias`: retained physical alias qualifier runs in
   the capable hosted Windows authority owner. Local validation creates no links
-  and makes no security-setting or permission changes.
+  and makes no security-setting or permission changes. The hosted40-case cohort
+  passes this exact retained qualifier at98d68675c.
 - The Linux ELF/clangd positive fixture remains platform-specific. Its Windows
   unsupported-platform and portable authority controls remain separate; a Windows
   executable is not a Linux sealing witness.

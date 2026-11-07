@@ -2948,8 +2948,8 @@
       "title": "[Setup] Keep help and checkout diagnosis available before bootstrap readiness",
       "batch": "setup-and-tool-providers",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Partial implementation or follow-up acceptance remains.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Ordinary typed recovery and known-native-failure selection repaired;19 focused cases pass. Actual runtime/npm/concurrent-replacement qualification remains. GitHub OPEN/body readback verified at98be3a04c51b00818a18a2449edf5b2a4e1a7432.",
       "owners": [
         "tools/setup/preflight.js",
         "src/shared/bootstrap-readiness.js",
@@ -4480,7 +4480,7 @@
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
       "review": "implementation-partial",
-      "recordedDisposition": "Direct/suggestion/relational and async minimizer controls pass. Six real published-index cases remain unqualified within original25-second operations; v2 contract repairs recorded. Current GitHub status updated and readback verified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac.",
+      "recordedDisposition": "Six real published-index cases pass hosted Windows at98d68675c; four latest local transition deadlines and broader adapter/minimizer scope remain. GitHub OPEN/body readback verified at98be3a04c51b00818a18a2449edf5b2a4e1a7432.",
       "owners": [
         "tools/eval/risk-pack.js",
         "src/graph/suggest-tests.js",
@@ -5483,6 +5483,7 @@
       1657,
       1699
     ],
-    "method": "Fresh complete345-issue GitHub CLI census; four source-qualified closures and four precise partial/gap updates have exact state/body readback. Current source-bound execution details are in the November7 Windows validation receipt."
+    "method": "Fresh complete345-issue census before fifth-batch publication. Eight campaign closures remain verified; source-qualified partial updates and exact validation results are recorded in the November7 receipt.",
+    "statusSource": "98be3a04c51b00818a18a2449edf5b2a4e1a7432"
   }
 }

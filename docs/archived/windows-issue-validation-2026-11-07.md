@@ -7,12 +7,12 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Latest observations cover **2,435 distinct cases:2,417 pass,17 fail and one
+Latest observations cover **2,459 distinct cases:2,437 pass,21 fail and one
 Linux-only fixture is excluded on Windows**. Two failures reach the outer30-second
-limit. Four published-index transition cases and13 native TUI timing cases remain
+limit. Four published-index transition cases and17 native seed/terminal/handshake cases remain
 unqualified. Original failures and unsuccessful diagnostic controls are retained;
 no retry or relaxed deadline counts as acceptance. Current publication checks are
-recorded with the fourth repair batch below.
+recorded with the fifth repair batch below.
 
 Node **26.13.0**, Windows x64, ABI147: native verification exits0 with all37
 required probes successful. Eight patched packages,30 target files and81 hunks
@@ -292,3 +292,61 @@ native/patch verification passes37 required probes and eight packages/30 files/
 81 hunks with zero unexpected warnings or errors. The JSON receipt binds exact
 source blobs, check logs and hashes; earlier observations remain source-bound.
 No new native crash is observed. The17 timing failures above remain open.
+
+## Startup, recovery and hosted CI follow-up
+
+The current local selection contains2,195 IDs, with2,192 observed. Tantivy and
+sqlite-vec remain outside this target. The physical-alias case remains unexecuted
+locally but passes in the40-case hosted Windows authority cohort at98d68675c.
+The new native search controls reveal additional seed/terminal failures; the21
+local failures remain explicit, including the later failed seed after the17.9s
+query/source pass. Narrow and first-failure narrow controls pass16.7/26.2s. The
+handshake rejection witness remains unqualified; no retry or diagnostic control
+is counted as closure.
+
+Build entry imports fall2,409→2,197 after selecting the actual build owner and
+activating ESLint/terminal-kit only for admitted lint/interactive work. Both
+original eager imports fail the new regression under the actual committed owner
+source; the repaired guard and four actual lint controls pass. These are import
+work observations, not a general startup latency claim.
+
+Ordinary bootstrap errors retain typed reason/mismatches and executing Node/npm
+context through the same read-only wait/verify/repair/install selector as explicit
+diagnosis. A known failed native probe now selects repair despite intact file
+metadata. Nineteen readiness/identity/recovery cases and six CLI/progress/doc
+controls pass; no repair runs automatically. #1272 remains open for its full
+runtime/selection/concurrent-replacement qualification.
+
+[CI2355](https://github.com/doublemover/PairOfCleats/actions/runs/42409871998) at
+98d68675c passes22 Windows native-index cases, seven actual TS7.1 vendor cases,
+all three native-inspection jobs, Rust and authority. All six real published-index
+cases pass; the four transition cases take12.7–13.1s. The Windows serial cohort
+passes192/193 and fails the distinct-PID assertion:12 serial child executions
+report11 numeric PID values. These hosted observations remain separate from
+local failures and do not qualify later source.
+
+Graph benchmark v3 checks original spawned PID plus Node process-start identity,
+accepts recycled PID numbers and rejects repeated warm generations. Query-worker
+qualification counts five actual launches/closes, retains the reused live memory
+worker and preserves the global live/retiring cap. Both original24-child graph
+wrappers exceed30s locally. Four capsules retain both original shapes, six pairs
+per shape, all48 children, alternating order and every cross-shape/source/cache
+assertion. All four pass15.3–17.8s; the generation, retirement and CI-selection
+controls also pass. All144 cases in the selected serial cohorts have passing
+source-bound observations. Raw48 graph samples and original failures are retained.
+
+Fresh native verification again passes37 probes/eight packages/30 files/81 hunks
+without warnings or errors. The pinned Rust1.99.1 build is clean and leaves the
+original binary hash unchanged; the unqualified shell's1.93.1 failure remains
+recorded. Format and the five preceding publication checks pass. The gate passes
+43 cases initially, then its exact inventory fixture is repaired for the four
+graph capsules and passes a focused recheck with four ownership/budget controls.
+No full gate or successful broad cohort is repeated.
+
+The implementation checkpoint is `98be3a04c51b00818a18a2449edf5b2a4e1a7432`; every recorded final
+source blob matches that committed/pushed tree and the PR head was read back.
+#1272/#1528 remain open with concrete updated scopes and exact body/state readback.
+CI2355 subsequently completes Ubuntu/macOS general jobs successfully; its sole
+Windows failure is the PID assertion repaired above. Qualification of later
+source remains separate. Final read-only process inventory finds no project Node
+or native TUI process left running; unrelated applications were untouched.
