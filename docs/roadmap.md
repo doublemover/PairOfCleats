@@ -44,7 +44,7 @@ while broader lifecycle policy (#1267) remains.
 
 The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every captured issue; routing alone is not completion evidence. Work proceeds in this order:
 
-1. Storage/publication: finish lifecycle/quota policy (#1267), category apply and semantic publication. #1574's qualified SQLite/LMDB cleanup is closed; its receipt above owns the completed scope.
+1. Storage/publication: finish [category cleanup](contracts/storage-quota-planning.md) (#1267) and semantic publication. #1574's qualified SQLite/LMDB cleanup is closed; its receipt above owns the completed scope.
 2. Dependency/parser cutovers: #672/#681 and [JSDoc ownership #668](archived/javascript-documentation-closeout-2026-11-05.md) are qualified and closed. Finish remaining parser migrations with actual consumer parity.
 3. Setup/providers: managed acquisition, executable/prerequisite identity, cancellation and original retirement. Explicit inert fixtures and actual vendor qualification remain distinct.
 4. Language/semantic consumers, retrieval and context: batch shared producer/version repairs, then run their bounded positive/negative fixtures against current source.

@@ -29,7 +29,7 @@ export const decideStorageLifecycle = (item, { includeEvidence = false, now = Da
   if (item.retention === 'downloadable' && item.explicitAssetEviction !== true) reasons.push('offline-critical-asset-retention');
   if (maxAgeMs !== null) {
     const lastUse = timestamp(item);
-    if (!Number.isFinite(lastUse) || typeof item.lastUse?.provenance !== 'string' || !item.lastUse.provenance
+    if (item.lastUse?.bound === 'lower' || !Number.isFinite(lastUse) || typeof item.lastUse?.provenance !== 'string' || !item.lastUse.provenance
       || item.lastUse.provenance === 'unknown') reasons.push('unknown-last-use');
     else if (now - lastUse < maxAgeMs) reasons.push('within-retention-age');
   }

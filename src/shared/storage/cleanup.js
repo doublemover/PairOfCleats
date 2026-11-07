@@ -16,6 +16,7 @@ import { readStoragePolicy } from './probe-policy-read.js';
 import { inspectStorageFreeSpace } from './destination.js';
 import { isPathWithinRoot } from '../file-paths.js';
 import { observeLifecycleRepositories, applyLifecycleRepositories } from './lifecycle-repositories.js';
+import { observeLifecycleUse } from './lifecycle-use.js';
 
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const errorRecord = error => describeStorageFailure(error, { phase: 'storage-cleanup-report',
@@ -219,6 +220,7 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
   control.check();
   const qualified = new Map(probePlan.operations.map(operation => [nativePath(path.join(probeRoot, operation.relativePath)), operation]));
   const repositories = await observeLifecycleRepositories({ inventory, scope, limits, control, signal });
+  const use = await observeLifecycleUse({ inventory, scope, control, signal });
   const roots = scope.roots.toSorted((a, b) => b.path.length - a.path.length);
   const items = [];
   for (const file of inventory.physicalFiles) {
@@ -239,7 +241,7 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
         external: owner?.external === true || !isPathWithinRoot(filename, scope.home), ownerQualified: knownProbe || knownRepository,
         lease: knownProbe ? probePlan.lease : knownRepository ? { complete: true, protected: false } : { complete: false, protected: true },
         references: { complete: knownProbe || knownRepository, retained: !knownProbe && !knownRepository }, allLinksAccounted: file.nlink === 1,
-        lastUse: { timestamp: null, provenance: 'unknown-no-original-use-observation' } });
+        lastUse: use.byPath.get(key) ?? { timestamp: null, provenance: 'unknown-no-original-use-observation' } });
     }
   }
   let freeSpace = null, freeSpaceScopeId = null;
@@ -265,7 +267,7 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
     selectedFiles: owner.proof.files.filter(file => file.artifact !== 'storage-owner-marker'
       && selected.has(`${file.identity.dev}:${file.identity.ino}`)).map(file => file.relativePath) }))
     .filter(owner => owner.selectedFiles.length > 0);
-  return { policy, inventory: inventorySummary, quota, freeSpace,
+  return { policy, inventory: inventorySummary, quota, freeSpace, useObservations: use.observations,
     probePlan: { ...probeBody, planId: digest(probeBody), dryRun: true }, repositoryPlans, blocked: repositories.blocked };
 };
 

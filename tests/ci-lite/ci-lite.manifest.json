@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2981,
+    "hero": 2990,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18895,6 +18895,60 @@
     {
       "id": "tooling/typescript-api7-contract/compiler-capability-inventory",
       "order": 3147,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/payload-bound-recency",
+      "order": 3148,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/passive-and-incomplete-inputs",
+      "order": 3149,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/lower-bound-age-refusal",
+      "order": 3150,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/coalesced-original-journal",
+      "order": 3151,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/read-only-original-inventory",
+      "order": 3152,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/changed-input-refusal",
+      "order": 3153,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/writer-refusal",
+      "order": 3154,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/lifecycle-preview-preserves-cache",
+      "order": 3155,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-query-use/original-close-refusal",
+      "order": 3156,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -149,7 +149,8 @@ file's allocation; unknown physical identity/allocation cannot become zero usage
 The deepest registered category attributes each path. Repository attribution
 requires its producer; an unadmitted repo identity defers repository-scoped quotas.
 
-Only the original command-probe owner currently supplies unlink operations.
+The original command-probe and canonical generated-repository owners supply
+unlink operations.
 Every probe retains its full producer/key, exact file identity, single-link,
 cache-root marker, authority snapshot and live-lease checks. Saved evidence,
 offline assets, unknown home data, pins, unqualified categories and unknown
@@ -222,8 +223,9 @@ allocation or deletion authority; operator cleanup integration remains unfinishe
 
 ## Reviewed repository cache subsets
 
-Lifecycle cleanup plan version 2 adds the existing canonical repository cleanup
-owner alongside command probes. Version 1 receipts require a fresh preview.
+Lifecycle cleanup plan version3 composes canonical repository cleanup, command
+probes and original use observations. Obsolete version1/2 receipts require a
+fresh preview.
 The launch-selected state coordinator travels with the plan; a custom state root
 does not silently fall back to another home during repository exclusion.
 
@@ -251,3 +253,35 @@ cover minimal subset pruning/no-op convergence, original readers, mixed evidence
 and pins, stale file sets, changed policy and cancellation between real unlinks.
 Full indexes, embedding/CAS reachability, model/tool eviction and generalized
 last-use integration still require their respective category owners.
+
+
+## Original query-use observations
+
+Lifecycle previews now read existing query-cache entries and their coalesced
+payload-identity touch journals from the same physical inventory. Every observed
+source/journal retains its original native identity and content hash. An unrelated
+key, retired signature or superseded payload cannot extend current use. Unknown
+rows invalidate the observation; they are not filtered into a falsely complete
+older timestamp. Epoch zero remains valid. Passive data checks reject getters,
+proxies and decorated arrays without invoking them.
+
+This path performs no second tree inventory, per-hit write, touch, lease release
+or deletion. Qualification is capped at128 query-cache files and32MiB total
+source/journal bytes, within the existing shared cleanup deadline. Changed
+original files or a journal created after inventory stop admission. Active or
+unknown writer locks, malformed data and unreadable inputs retain explicit
+unknown-use results. Pending original file resources still propagate through
+the existing failure owner instead of becoming ordinary diagnostics.
+
+The latest observed use is explicitly a **lower bound**, not proof that no later
+use occurred. Age-based eviction therefore retains `unknown-last-use` for these
+records. Cache-shaped data also remains unqualified for deletion: a filename,
+valid timestamp or a familiar JSON shape cannot grant a category owner. The
+preview exposes useful original observations while broader query-cache,
+embedding/CAS and offline-asset cleanup remains with its actual owner.
+
+Nine authored, locally unrun controls cover payload-bound timestamps, passive
+and malformed inputs, lower-bound age refusal, actual coalesced journal
+publication, read-only inventory reuse, changed inputs, writer refusal and a
+real lifecycle preview preserving the cache under unsatisfied pressure, plus
+original descriptor-close refusal and explicit recovery.

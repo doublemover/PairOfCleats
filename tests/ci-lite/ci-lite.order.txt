@@ -3150,3 +3150,12 @@ tooling/typescript-api7-contract/snapshot-and-source-identity
 tooling/typescript-api7-contract/configuration-closure
 tooling/typescript-api7-contract/receipt-rejection
 tooling/typescript-api7-contract/compiler-capability-inventory
+shared/storage/lifecycle-query-use/payload-bound-recency
+shared/storage/lifecycle-query-use/passive-and-incomplete-inputs
+shared/storage/lifecycle-query-use/lower-bound-age-refusal
+shared/storage/lifecycle-query-use/coalesced-original-journal
+shared/storage/lifecycle-query-use/read-only-original-inventory
+shared/storage/lifecycle-query-use/changed-input-refusal
+shared/storage/lifecycle-query-use/writer-refusal
+shared/storage/lifecycle-query-use/lifecycle-preview-preserves-cache
+shared/storage/lifecycle-query-use/original-close-refusal

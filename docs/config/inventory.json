@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T13:04:26.000Z",
+  "generatedAt": "2026-11-07T13:26:41.565Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3763,6 +3763,7 @@
         "tests/shared/storage/index-writer-metadata-release-timeout.test.js",
         "tests/shared/storage/kernel-allocation-accounting.test.js",
         "tests/shared/storage/layout-resolution.test.js",
+        "tests/shared/storage/lifecycle-query-use.test.js",
         "tests/shared/storage/lifecycle-quota-cleanup.test.js",
         "tests/shared/storage/lifecycle-repository-cleanup.test.js",
         "tests/shared/storage/locator-resource-failure-observation.test.js",
@@ -4909,6 +4910,7 @@
         "tests/shared/storage/kernel-allocation-accounting.test.js",
         "tests/shared/storage/lifecycle-operator-review.test.js",
         "tests/shared/storage/lifecycle-policy-publication.test.js",
+        "tests/shared/storage/lifecycle-query-use.test.js",
         "tests/shared/storage/lifecycle-quota-cleanup.test.js",
         "tests/shared/storage/lifecycle-repository-cleanup.test.js",
         "tests/shared/storage/managed-child-original-ack.test.js",

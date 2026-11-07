@@ -3,6 +3,7 @@ import { atomicWriteJson } from '../shared/io/atomic-write.js';
 import { withFileLock } from '../shared/locks/file-lock.js';
 import path from 'node:path';
 import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { types } from 'node:util';
 
 const MAX_TOUCH_BYTES = 256 * 1024;
 const MAX_PENDING_PATHS = 128;
@@ -15,6 +16,48 @@ const validRows = data => data?.version === 1 && Array.isArray(data.entries) ? d
 
 export const loadQueryCacheTouches = cachePath => validRows(loadBoundedJsonFileSync(touchPath(cachePath),
   { maxBytes: MAX_TOUCH_BYTES }).data);
+
+/** Read-only projection for lifecycle diagnosis. Latest observed use is a
+ * lower bound, not proof that no later use occurred. Never grants ownership,
+ * deletion authority or an age-based absence claim. Unknown rows invalidate
+ * the observation instead of silently disappearing from retention evidence. */
+export const observeQueryCacheLastUse = (cache, journal = null) => {
+  const unknown = reason => ({ complete: false, reason, timestamp: null, provenance: 'query-cache-use-unknown', bound: 'lower' });
+  const passive = value => value && typeof value === 'object' && !types.isProxy(value)
+    && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+    && Reflect.ownKeys(value).every(key => typeof key === 'string' && Object.getOwnPropertyDescriptor(value, key)?.enumerable
+      && Object.hasOwn(Object.getOwnPropertyDescriptor(value, key), 'value'));
+  const array = (value, max) => {
+    if (!Array.isArray(value) || types.isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > max
+      || Reflect.ownKeys(value).length !== value.length + 1) return false;
+    for (let index = 0; index < value.length; index++) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) return false;
+    }
+    return true;
+  };
+  if (!passive(cache) || Object.keys(cache).sort().join(',') !== 'entries,version' || cache.version !== 1
+    || !array(cache.entries, 100000)) return unknown('unrecognized-query-cache-input');
+  if (journal !== null && (!passive(journal) || Object.keys(journal).sort().join(',') !== 'entries,version' || journal.version !== 1
+    || !array(journal.entries, 4096))) return unknown('unrecognized-query-touch-journal');
+  const time = value => Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000000;
+  const identity = row => passive(row) && ['key', 'signature', 'payloadId'].every(key => typeof row[key] === 'string' && row[key].length && row[key].length <= 4096);
+  const entries = new Map(); let latest = null, matchedTouches = 0;
+  for (const entry of cache.entries) {
+    if (!identity(entry) || !time(entry.ts)) return unknown('incomplete-query-payload-identity-or-time');
+    const key = JSON.stringify([entry.key, entry.signature, entry.payloadId]);
+    entries.set(key, Math.max(entries.get(key) ?? 0, entry.ts)); latest = Math.max(latest ?? 0, entry.ts);
+  }
+  for (const row of journal?.entries || []) {
+    if (!identity(row) || Object.keys(row).sort().join(',') !== 'key,payloadId,signature,ts' || !time(row.ts)) return unknown('incomplete-query-touch-observation');
+    const key = JSON.stringify([row.key, row.signature, row.payloadId]);
+    if (!entries.has(key)) continue;
+    latest = Math.max(latest, row.ts); matchedTouches++;
+  }
+  if (latest === null) return unknown('empty-query-cache-has-no-use-observation');
+  return { complete: true, reason: null, timestamp: new Date(latest).toISOString(), bound: 'lower',
+    provenance: 'original-query-entries-and-payload-bound-coalesced-touches', entries: cache.entries.length, matchedTouches };
+};
 
 export const requireQueryCacheTouchSettlement = cachePath => {
   if (!cachePath) return;
