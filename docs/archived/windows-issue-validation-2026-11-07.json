@@ -28708,15 +28708,795 @@
           "skipReason": null
         }
       ]
+    },
+    {
+      "id": "cohort-search-api-seed",
+      "sourceState": "8d91e0634 plus canonical API seed; before native alert repair. The first status-assertion mistake is retained separately in original logs.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-search-api-seed-report.json",
+        "sha256": "bdd6f58e898cef9e84ff307c53e7c7209c0d9eb0cb3542fef57154966fa3277b",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 41574,
+        "failed": 1,
+        "passed": 1,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "failed",
+          "durationMs": 24855,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "status": "passed",
+          "durationMs": 16701,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-search-api-alert",
+      "sourceState": "8d91e0634 plus the final native alert repair/binary; before the final relative-scope fixture input repair. Earlier source remains distinct.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-search-api-alert-report.json",
+        "sha256": "b24a26e7c1d04b5e95e5beddfe50bf9158980b279c903c98d1728c4429eff0aa",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 250283,
+        "failed": 2,
+        "passed": 13,
+        "skipped": 0,
+        "total": 15
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/cancel",
+          "status": "passed",
+          "durationMs": 14253,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/empty-error",
+          "status": "passed",
+          "durationMs": 25080,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first",
+          "status": "failed",
+          "durationMs": 25290,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "status": "failed",
+          "durationMs": 25186,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "passed",
+          "durationMs": 15558,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/incompatible",
+          "status": "passed",
+          "durationMs": 8509,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/interrupt",
+          "status": "passed",
+          "durationMs": 13381,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/modes",
+          "status": "passed",
+          "durationMs": 9019,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "status": "passed",
+          "durationMs": 16129,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/navigation",
+          "status": "passed",
+          "durationMs": 15830,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/pagination",
+          "status": "passed",
+          "durationMs": 17779,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "status": "passed",
+          "durationMs": 15324,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/replace",
+          "status": "passed",
+          "durationMs": 16145,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/scope",
+          "status": "passed",
+          "durationMs": 24831,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/truncated",
+          "status": "passed",
+          "durationMs": 7934,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-search-compact-paste",
+      "sourceState": "8d91e0634 plus the final native alert repair/binary; before the final relative-scope fixture input repair. Earlier source remains distinct.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-search-compact-paste-report.json",
+        "sha256": "68f95d6dd2faef9d246e0cc2a125a3f3e6c6c789b4bc7509131fda7eb15238fc",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 103125,
+        "failed": 2,
+        "passed": 3,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/failed-first",
+          "status": "failed",
+          "durationMs": 23712,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "status": "failed",
+          "durationMs": 23527,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "status": "passed",
+          "durationMs": 17057,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "status": "passed",
+          "durationMs": 14860,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/scope",
+          "status": "passed",
+          "durationMs": 23951,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-search-relative-scope",
+      "sourceState": "5439116a7b57ef14be42b18447e6491f82775020; final source blobs in sixthFollowupRepairBatch",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-search-relative-scope-report.json",
+        "sha256": "08e6055de19535220f3fd42ba37d958cbd7300c05a9ba9668cabcf4f76ed95e9",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 55976,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "tui/native-search-conpty/failed-first",
+          "status": "passed",
+          "durationMs": 17212,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "status": "passed",
+          "durationMs": 16901,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-search-conpty/scope",
+          "status": "passed",
+          "durationMs": 21852,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-search-failure-owners",
+      "sourceState": "5439116a7b57ef14be42b18447e6491f82775020; final source blobs in sixthFollowupRepairBatch",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-search-failure-owners-report.json",
+        "sha256": "50af277d16b25e2890bb3f30547862f91ef9682f0228acdab585e98e17b933b4",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 31630,
+        "failed": 0,
+        "passed": 15,
+        "skipped": 0,
+        "total": 15
+      },
+      "tests": [
+        {
+          "id": "tui/operation-failure-projection",
+          "status": "passed",
+          "durationMs": 207,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-reader-retirement",
+          "status": "passed",
+          "durationMs": 527,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-search-failure-cause",
+          "status": "passed",
+          "durationMs": 498,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-search-lifecycle/truncated-output",
+          "status": "passed",
+          "durationMs": 1019,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-search-request-contract",
+          "status": "passed",
+          "durationMs": 489,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-artifact-generation-cleanup",
+          "status": "passed",
+          "durationMs": 630,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/empty-success",
+          "status": "passed",
+          "durationMs": 3338,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/invalid-repository",
+          "status": "passed",
+          "durationMs": 826,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/invalid-request",
+          "status": "passed",
+          "durationMs": 869,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/missing-capability",
+          "status": "passed",
+          "durationMs": 3168,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/missing-index",
+          "status": "passed",
+          "durationMs": 3331,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/results-success",
+          "status": "passed",
+          "durationMs": 4011,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failure-contract/unsupported-format",
+          "status": "passed",
+          "durationMs": 3702,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-failures",
+          "status": "passed",
+          "durationMs": 356,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/supervisor-search-recovery",
+          "status": "passed",
+          "durationMs": 8635,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "gate-07",
+      "sourceState": "5439116a7b57ef14be42b18447e6491f82775020; final source blobs in sixthFollowupRepairBatch",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/gate-07-report.json",
+        "sha256": "22cfd24f12dd58e8bdc840f135b0bc71d9eff566e712beb4da87c80be2e33686",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 50389,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "total": 44
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 107,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 101,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 108,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 102,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 115,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 90,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 438,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 97,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 110,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 218,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 2442,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 334,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 289,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 435,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 422,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 422,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 435,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 450,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 446,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 676,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 451,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 908,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 1122,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 1156,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 1126,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 1073,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 853,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 1304,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1650,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 114,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1887,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 1008,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1642,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 1039,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 3091,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1730,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 509,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 747,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1831,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 2063,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/ordered-lane-discovery",
+          "status": "passed",
+          "durationMs": 410,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/gate-policy",
+          "status": "passed",
+          "durationMs": 209,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "passed",
+          "durationMs": 16231,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-command-dispositions",
+          "status": "passed",
+          "durationMs": 335,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
     }
   ],
   "latestObserved": {
-    "uniqueCases": 2459,
-    "passed": 2437,
-    "failed": 21,
+    "uniqueCases": 2470,
+    "passed": 2453,
+    "failed": 16,
     "skipped": 1,
-    "timeouts": 2,
-    "note": "Latest source-bound local observations, not a final-tree/full-suite pass. Hosted observations remain separate and never overwrite local failures. Original aggregate failures remain in records."
+    "timeouts": 1,
+    "note": "Latest source-bound local observations, not a final-tree/full-suite pass. Hosted results remain separate. Original failures, abandoned controls and targeted replacement observations are retained."
   },
   "repairs": [
     {
@@ -28977,7 +29757,7 @@
       "remaining": "Typed RST/AsciiDoc reference observations/resolution and canonical persisted navigation, with explicit unsupported/ambiguous/authority/budget states."
     }
   ],
-  "remaining": "Twenty-one current local failures remain: four revision-operation deadlines and seventeen native TUI seed/terminal/handshake cases. Hosted98d68675c qualifies the six real revision cases,22 native-index cases and40 authority cases separately. Remaining full-scope issue implementation/qualification and explicit editor/Tantivy/sqlite-vec exclusions stay open.",
+  "remaining": "Sixteen current local failures remain: four revision-operation deadlines and twelve native-index cases. All fifteen native-search cases have passing source-bound observations after targeted repairs. Hosted8d91e0634 qualifies22 native-index, seven actual TS7.1 and40 authority cases separately. Full issue implementation/qualification and explicit editor/Tantivy/sqlite-vec exclusions remain open.",
   "publicationGate": {
     "status": "passed",
     "format": 0,
@@ -34432,5 +35212,872 @@
         "statusSectionSha256": "2c493ca917c50cd29254357eb3a1a8993ab3947c1ec562a1db08a23f61e2af4c"
       }
     ]
+  },
+  "sixthFollowupRepairBatch": {
+    "base": "8d91e0634b4c594070393977bac4f6e9395f7720",
+    "sourceCandidate": "5439116a7b57ef14be42b18447e6491f82775020",
+    "status": "targeted-native-search-and-failure-controls-pass;local-revision-and-native-index-failures-remain",
+    "files": [
+      {
+        "path": "crates/pairofcleats-tui/src/main.rs",
+        "blob": "a281242509bf0885c801b1e20aefc4e84c535ef9",
+        "sha256": "2b5ebb5ce2bfb73ef91085a3d05a1943937c080bfd0665009b0ea5e130a5b6b0"
+      },
+      {
+        "path": "crates/pairofcleats-tui/src/interaction.rs",
+        "blob": "ad6418b99f897ad2fd15762024bf42fbd758ca12",
+        "sha256": "55ac8ce46c29fb4b17aecd71c9e44683864de6b7377f9fc314c9e340dd00bac5"
+      },
+      {
+        "path": "crates/pairofcleats-tui/src/redraw_tests.rs",
+        "blob": "372d3a4436d8316796c9e9a5299d3499818fe209",
+        "sha256": "352011dcf003bed193d78853f8c005720c09269cc916d9bf0c1137f64285f89e"
+      },
+      {
+        "path": "tests/tui/native-search-conpty.test.js",
+        "blob": "40658cd22ff22910f2981c7012e5b187447dfb0f",
+        "sha256": "31e98ae17b246c9573eef266a7e62763ea67a05cb6ee519d624efd3eb017b6cc"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "blob": "a228bad29e79256015c67a13cc5b8260f0f6c640",
+        "sha256": "249e3324f75ba7f7e9c430ed6c50dfd1c257640342f095881ced7159606bf1a4"
+      },
+      {
+        "path": "tests/ci/workflow-contract.test.js",
+        "blob": "e9c4fa333b7f54489b8b88ab7b71cbf62d198671",
+        "sha256": "f459006d5b543dd669295292e02067457af8be68be05f62698a033e8d1fe9b78"
+      },
+      {
+        "path": "docs/guides/tui.md",
+        "blob": "d5d8c579db5e30c0d77630d501295207feba9e73",
+        "sha256": "cc240540fb76732b4688df79df554bb549381ec02d2125acef5320bb1322ac0c"
+      }
+    ],
+    "repairs": [
+      "Prioritize original alerts before optional session identity/scope and include them in compact headers.",
+      "Retain the real canonical Stage1 lexical seed, original ten-second bound including import/teardown, isolated test config and actual publication/capability assertions.",
+      "Observe each actual native connection layout, and type relative paths resolving to the original invalid file/repository/alternate repository. Keep realpath, positive-hit, cancellation, terminal, privacy and descendant assertions.",
+      "Assign the entire native-search family to the existing actual-binary Windows CI job with serial thirty-second/zero-retry/zero-redo qualification and original receipt uploads."
+    ],
+    "beforeProof": {
+      "renderer": {
+        "path": ".tmp/tasks/validation-20261107/native-alert-before.log",
+        "sha256": "f6ec734968fef694ef5ba6a27d312c51b5b93f2f909442281bd4e00496f22336",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "intermediateWideOnlyRepair": {
+        "path": ".tmp/tasks/validation-20261107/native-alert-after.log",
+        "sha256": "1872292ac3562459be5f033d40211a065d7ea8e65b205d3b0b13062706c33ced",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "initialSeedStatusAssertion": "The first API-seed run expected stage-completed; the actual canonical Stage1 outcome publishes sparse retrieval. The assertion now requires that stronger exact outcome, one stage, zero validation issues and completed sparse capability.",
+      "ineffectivePasteControl": "Windows console key delivery still paced the long authored prefix. This diagnostic did not qualify either failure case; it was removed. Relative input resolves to each original target and retains realpath assertions."
+    },
+    "rust": {
+      "passed": 157,
+      "ignored": 0,
+      "tests": {
+        "path": ".tmp/tasks/validation-20261107/native-alert-rust-all.log",
+        "sha256": "8d0c15302e7f6b16cf53c333881bdf242b4f0497bfd48527898bc0cfbaa2678e",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "fmt": {
+        "path": ".tmp/tasks/validation-20261107/native-alert-rustfmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "clippy": {
+        "path": ".tmp/tasks/validation-20261107/native-alert-clippy.log",
+        "sha256": "349cd86dc7004dded78336d4d2d4e772cb7928196af5ce4890c6d84d9d69bad1",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "build": {
+        "path": ".tmp/tasks/validation-20261107/native-alert-build.log",
+        "sha256": "f42bc1c0ea6a728a14b816e7f9ff19b86e773ca53d6e39e99e9fd63547c01c4a",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "binary": {
+        "path": "crates/pairofcleats-tui/target/debug/pairofcleats-tui.exe",
+        "sha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef"
+      }
+    },
+    "nativeCases": [
+      {
+        "id": "tui/native-search-conpty/cancel",
+        "report": "cohort-search-api-alert",
+        "durationMs": 14253,
+        "observation": {
+          "mode": "cancel",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "beforeInput": 503,
+            "terminalRestored": true,
+            "beforeOutput": 7,
+            "mode": "search",
+            "stderr": "",
+            "exitCode": 0,
+            "afterOutput": 7,
+            "afterInput": 503
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            22168
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-cancel-4732-1794087266250-rotlvw\\capture\\2026-11-07T21-34-34-749Z-native-search-cancel-170x46-4732"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_cancel.attempt-1.log",
+          "sha256": "77b7bf534a5c5b285c70761ea4ffb67f182a931353a6b59e0024753ee2a97fac",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/empty-error",
+        "report": "cohort-search-api-alert",
+        "durationMs": 25080,
+        "observation": {
+          "mode": "empty-error",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "beforeOutput": 7,
+            "beforeInput": 503,
+            "afterOutput": 7,
+            "stderr": "",
+            "exitCode": 0,
+            "afterInput": 503,
+            "mode": "search",
+            "terminalRestored": true
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            10796,
+            16552,
+            26308
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-empty-error-17736-1794087280476-yspcga\\capture\\2026-11-07T21-34-49-652Z-native-search-empty-error-170x46-17736"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_empty-error.attempt-1.log",
+          "sha256": "60bc233fbfd3460276eefcf693f2845fdf1e13a06dc46e9673e78f406f3a8cf0",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/failed-first",
+        "report": "cohort-search-relative-scope",
+        "durationMs": 17212,
+        "observation": {
+          "mode": "failed-first",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "exitCode": 0,
+            "afterInput": 503,
+            "stderr": "",
+            "afterOutput": 7,
+            "beforeInput": 503,
+            "mode": "search"
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            33752
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-failed-first-31152-1794087673140-9j1ucm\\capture\\2026-11-07T21-41-21-715Z-native-search-failed-first-80x24-31152"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-relative-scope-logs/run-1794087672841-3ky949/tui_native-search-conpty_failed-first.attempt-1.log",
+          "sha256": "54f463bb8938332214e45a4d37f502016e60697f22f69357f3356aa842f177f2",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/failed-first-narrow",
+        "report": "cohort-search-relative-scope",
+        "durationMs": 16901,
+        "observation": {
+          "mode": "failed-first-narrow",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "exitCode": 0,
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "stderr": "",
+            "mode": "search",
+            "beforeInput": 503,
+            "afterInput": 503,
+            "afterOutput": 7
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            20220
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-failed-first-narrow-19900-1794087690357-tfwedv\\capture\\2026-11-07T21-41-38-857Z-native-search-failed-first-narrow-32x24-19900"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-relative-scope-logs/run-1794087672841-3ky949/tui_native-search-conpty_failed-first-narrow.attempt-1.log",
+          "sha256": "9a4ec7cabf00a72c5d86b16398ed3a653f116b81dcd921c9a0d70fa917b342db",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/handshake",
+        "report": "cohort-search-compact-paste",
+        "durationMs": 17057,
+        "observation": {
+          "mode": "handshake",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "stderr": "",
+            "mode": "search",
+            "exitCode": 0,
+            "beforeOutput": 7,
+            "afterInput": 503,
+            "afterOutput": 7,
+            "beforeInput": 503,
+            "terminalRestored": true
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            31008
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-handshake-13760-1794087598517-y1gwoz\\capture\\2026-11-07T21-40-07-326Z-native-search-handshake-170x46-13760"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-compact-paste-logs/run-1794087550929-25b0m1/tui_native-search-conpty_handshake.attempt-1.log",
+          "sha256": "9bbcc88ad7edbc6ad7207d4040964d6f7ab4378a8b7f443f32fe8fb25dfeb0e2",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/incompatible",
+        "report": "cohort-search-api-alert",
+        "durationMs": 8509,
+        "observation": {
+          "mode": "incompatible",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "afterOutput": 7,
+            "stderr": "",
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "afterInput": 503,
+            "exitCode": 0,
+            "beforeInput": 503,
+            "mode": "search"
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            16920
+          ],
+          "actualIndexBuild": false,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-incompatible-15660-1794087371583-05pbmj\\capture\\2026-11-07T21-36-11-916Z-native-search-incompatible-170x46-15660"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_incompatible.attempt-1.log",
+          "sha256": "820ade030173b634aa5484f823f741efdd3fe396e4b23d1a79d24b85004e139a",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/interrupt",
+        "report": "cohort-search-api-alert",
+        "durationMs": 13381,
+        "observation": {
+          "mode": "interrupt",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "beforeOutput": 7,
+            "exitCode": 0,
+            "beforeInput": 503,
+            "stderr": "",
+            "terminalRestored": true,
+            "afterInput": 503,
+            "afterOutput": 7,
+            "mode": "search"
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            26884
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-interrupt-21896-1794087380099-3uq2gr\\capture\\2026-11-07T21-36-28-237Z-native-search-interrupt-170x46-21896"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_interrupt.attempt-1.log",
+          "sha256": "703417bb143ae76b90c2f951b5882166954397de3321ec7fbf35108c21105a2b",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/modes",
+        "report": "cohort-search-api-alert",
+        "durationMs": 9019,
+        "observation": {
+          "mode": "modes",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "terminalRestored": true,
+            "afterOutput": 7,
+            "beforeInput": 503,
+            "beforeOutput": 7,
+            "mode": "search",
+            "exitCode": 0,
+            "afterInput": 503,
+            "stderr": ""
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            33004
+          ],
+          "actualIndexBuild": false,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-modes-24684-1794087393491-6vx34a\\capture\\2026-11-07T21-36-33-804Z-native-search-modes-170x46-24684"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_modes.attempt-1.log",
+          "sha256": "f07c6ebed635d5e78434ee15ef4a4ac5338cf3d1cda18e18cf5f68451216dbab",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/narrow",
+        "report": "cohort-search-compact-paste",
+        "durationMs": 14860,
+        "observation": {
+          "mode": "narrow",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "exitCode": 0,
+            "beforeInput": 503,
+            "stderr": "",
+            "afterInput": 503,
+            "afterOutput": 7,
+            "terminalRestored": true,
+            "mode": "search",
+            "beforeOutput": 7
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            18732
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-narrow-29320-1794087615521-bz4i9t\\capture\\2026-11-07T21-40-22-958Z-native-search-narrow-60x18-29320"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-compact-paste-logs/run-1794087550929-25b0m1/tui_native-search-conpty_narrow.attempt-1.log",
+          "sha256": "5e59251cf3dfcddcf56858d0d07d0787a22c8422367c0fc10313de986834666f",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/navigation",
+        "report": "cohort-search-api-alert",
+        "durationMs": 15830,
+        "observation": {
+          "mode": "navigation",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "beforeInput": 503,
+            "afterOutput": 7,
+            "mode": "search",
+            "afterInput": 503,
+            "exitCode": 0,
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "stderr": ""
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            24284,
+            19656
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-navigation-31488-1794087418628-c502ra\\capture\\2026-11-07T21-37-06-658Z-native-search-navigation-170x46-31488"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_navigation.attempt-1.log",
+          "sha256": "3ca90a38991a10c3256c0262f345a11f2515e7fa227a67c73b0b88133e93e920",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/pagination",
+        "report": "cohort-search-api-alert",
+        "durationMs": 17779,
+        "observation": {
+          "mode": "pagination",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "mode": "search",
+            "afterInput": 503,
+            "beforeInput": 503,
+            "afterOutput": 7,
+            "exitCode": 0,
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "stderr": ""
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            24596,
+            34824
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-pagination-19124-1794087434451-nfvu4h\\capture\\2026-11-07T21-37-22-382Z-native-search-pagination-170x46-19124"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_pagination.attempt-1.log",
+          "sha256": "8392c8a66d4d0677e96ea8a878986d2b1b7f75f32406dd930b5b47e31061cc59",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/query-source",
+        "report": "cohort-search-api-alert",
+        "durationMs": 15324,
+        "observation": {
+          "mode": "query-source",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "afterOutput": 7,
+            "terminalRestored": true,
+            "exitCode": 0,
+            "beforeInput": 503,
+            "stderr": "",
+            "afterInput": 503,
+            "mode": "search",
+            "beforeOutput": 7
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            16836
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-query-source-34184-1794087452240-ualosh\\capture\\2026-11-07T21-37-40-349Z-native-search-query-source-170x46-34184"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_query-source.attempt-1.log",
+          "sha256": "c160c79ea62476f8921572592c032b173ceba9f578dc5215b067f7e5f754faaa",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/replace",
+        "report": "cohort-search-api-alert",
+        "durationMs": 16145,
+        "observation": {
+          "mode": "replace",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "mode": "search",
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "afterOutput": 7,
+            "exitCode": 0,
+            "afterInput": 503,
+            "beforeInput": 503,
+            "stderr": ""
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            28708,
+            20668
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-replace-31840-1794087467563-6x0bjn\\capture\\2026-11-07T21-37-55-423Z-native-search-replace-170x46-31840"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_replace.attempt-1.log",
+          "sha256": "aa7905c1b530d59782b59ee96310503a965f0cf32f7c98c177f29d5f1e755798",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/scope",
+        "report": "cohort-search-relative-scope",
+        "durationMs": 21852,
+        "observation": {
+          "mode": "scope",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "exitCode": 0,
+            "stderr": "",
+            "mode": "search",
+            "beforeOutput": 7,
+            "afterOutput": 7,
+            "afterInput": 503,
+            "beforeInput": 503,
+            "terminalRestored": true
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            16916,
+            35552
+          ],
+          "actualIndexBuild": true,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-scope-18188-1794087707218-9fvnc8\\capture\\2026-11-07T21-42-00-213Z-native-search-scope-170x46-18188"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-relative-scope-logs/run-1794087672841-3ky949/tui_native-search-conpty_scope.attempt-1.log",
+          "sha256": "900cf3d526e4711cefb3fcfdd9c1ad230f81174f15d24f0f1f3ac5d67a575639",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      },
+      {
+        "id": "tui/native-search-conpty/truncated",
+        "report": "cohort-search-api-alert",
+        "durationMs": 7934,
+        "observation": {
+          "mode": "truncated",
+          "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\crates\\pairofcleats-tui\\target\\debug\\pairofcleats-tui.exe",
+          "binarySha256": "301ba8bf433c638dcabc7970e89fa0cf1ee83c4952d6c856fed82ef112af72ef",
+          "receipt": {
+            "afterOutput": 7,
+            "exitCode": 0,
+            "beforeOutput": 7,
+            "terminalRestored": true,
+            "beforeInput": 503,
+            "stderr": "",
+            "mode": "search",
+            "afterInput": 503
+          },
+          "supervisorReaped": true,
+          "queryChildren": [
+            24412
+          ],
+          "actualIndexBuild": false,
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-search-truncated-8728-1794087508580-k0q29w\\capture\\2026-11-07T21-38-28-876Z-native-search-truncated-170x46-8728"
+        },
+        "log": {
+          "path": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/validation-20261107/cohort-search-api-alert-logs/run-1794087265923-7aecqp/tui_native-search-conpty_truncated.attempt-1.log",
+          "sha256": "5ce24169b27f4caf23d85027099d74b795a36cd891821305fbc651f04fc6663e",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        }
+      }
+    ],
+    "failureControls": {
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-search-failure-owners-report.json",
+        "sha256": "50af277d16b25e2890bb3f30547862f91ef9682f0228acdab585e98e17b933b4",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "passed": 15
+    },
+    "publicationGate": {
+      "format": {
+        "path": ".tmp/tasks/validation-20261107/format-18.log",
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "checks": [
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-07-config-budget.log",
+          "exitCode": 0,
+          "name": "config-budget"
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-07-env-check.log",
+          "exitCode": 0,
+          "name": "env-check"
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-07-generated-freshness.log",
+          "exitCode": 0,
+          "name": "generated-freshness"
+        },
+        {
+          "name": "command-surface",
+          "exitCode": 0,
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-07-command-surface.log"
+        },
+        {
+          "name": "workflow-contract",
+          "exitCode": 0,
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-07-workflow-contract.log"
+        }
+      ],
+      "gateLane": {
+        "durationMs": 50389,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "total": 44
+      },
+      "originalInheritedAuthorityFailure": {
+        "path": ".tmp/tasks/validation-20261107/publication-07-command-surface-inherited-authority.log",
+        "sha256": "4ae19277439c5d0778da1ed7df20e90681013eeb85c740d400f751cede50a0c5",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "environmentCorrection": "Only the validation process clears a nonexistent inherited PAIROFCLEATS_TRUSTED_CONFIG. The actual authority guard remains unchanged.",
+      "diffCheck": 0,
+      "finalDocumentationFreshness": {
+        "exitCode": 0,
+        "path": ".tmp/tasks/validation-20261107/generated-freshness-07-docs-final.log",
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      }
+    },
+    "remainingFailureIds": [
+      "tooling/eval/published-index-revision-oracle/delete-file",
+      "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+      "tooling/eval/published-index-revision-oracle/edit-only",
+      "tooling/eval/published-index-revision-oracle/restore-file",
+      "tui/native-index-workflows/report",
+      "tui/native-index-workflows/search-published",
+      "tui/native-index-workflows/snapshot-create",
+      "tui/native-index-workflows/snapshot-freeze",
+      "tui/native-index-workflows/snapshot-gc",
+      "tui/native-index-workflows/snapshot-list-populated",
+      "tui/native-index-workflows/snapshot-prune",
+      "tui/native-index-workflows/snapshot-remove",
+      "tui/native-index-workflows/snapshot-show",
+      "tui/native-index-workflows/stats",
+      "tui/native-index-workflows/validate-published",
+      "tui/native-index-workflows/workspace"
+    ],
+    "hosted": {
+      "runId": 42415823849,
+      "runNumber": 2357,
+      "source": "8d91e0634b4c594070393977bac4f6e9395f7720",
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42415823849",
+      "status": "in-progress; exact job states at observation",
+      "jobs": [
+        {
+          "id": 128533660994,
+          "name": "gate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181095,
+          "name": "native-index-workflows (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181098,
+          "name": "windows-authority",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181102,
+          "name": "native-inspection (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181112,
+          "name": "rust-tui",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181140,
+          "name": "native-inspection (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181160,
+          "name": "windows",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128534181179,
+          "name": "native-inspection (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128534181221,
+          "name": "ubuntu",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128534181229,
+          "name": "macos",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ],
+      "cohorts": [
+        {
+          "name": "authority",
+          "logBytes": 54213,
+          "passingIds": [
+            "ci/duplicate-scanner-contract",
+            "cli/general/legacy-entrypoint-symlink-contract",
+            "indexing/discovery/discover-scm-root-alias",
+            "indexing/ignore/contract-matrix",
+            "indexing/incremental/reuse",
+            "indexing/validate/index-contract-matrix",
+            "indexing/validate/index-current-build-pointer-case-insensitive",
+            "indexing/watch/promotion/safety",
+            "indexing/watch/root-normalization",
+            "integrations/inference-history/security",
+            "perf/bench/language-prerequisite-phase",
+            "perf/bench/language-resource-roots",
+            "perf/bench/language-submodule-recovery",
+            "retrieval/filters/filter-only-cache-integrity",
+            "security/contained-file-boundaries",
+            "security/editor-tui-authority",
+            "security/java-workspace-execution-authority",
+            "security/nested-repository-command-authority",
+            "security/repository-authority",
+            "security/rust-workspace-execution-authority",
+            "security/tooling-cache-authority",
+            "security/tooling-cache-storage",
+            "services/api/federated-search-validation-matrix",
+            "services/snapshot-core-contract-matrix",
+            "shared/contained-file-verified-read",
+            "shared/direct-execution-contract",
+            "shared/fs/find-upwards-contract",
+            "shared/index-ref",
+            "storage/semantic/retained-cache-cleanup",
+            "tooling/cache/gc-contract-matrix",
+            "tooling/install/bootstrap-preflight",
+            "tooling/lsp/pyright-workspace-config-jsonc",
+            "tooling/release/file-walk",
+            "tooling/release/readiness-gate",
+            "tooling/release/release-check-output-paths",
+            "tooling/release/verify-surface-output-paths",
+            "tooling/reports/map-selected-index-alias",
+            "tui/operator-artifact-physical-alias",
+            "tui/operator-search-file-authority",
+            "tui/operator-settings-authority"
+          ],
+          "failLines": []
+        },
+        {
+          "name": "native-index",
+          "logBytes": 95917,
+          "passingIds": [
+            "tui/native-index-workflows/build-cancel",
+            "tui/native-index-workflows/build-search",
+            "tui/native-index-workflows/invalid-provider",
+            "tui/native-index-workflows/missing-model",
+            "tui/native-index-workflows/preview-cancel",
+            "tui/native-index-workflows/report",
+            "tui/native-index-workflows/search-published",
+            "tui/native-index-workflows/snapshot",
+            "tui/native-index-workflows/snapshot-create",
+            "tui/native-index-workflows/snapshot-freeze",
+            "tui/native-index-workflows/snapshot-gc",
+            "tui/native-index-workflows/snapshot-list-populated",
+            "tui/native-index-workflows/snapshot-prune",
+            "tui/native-index-workflows/snapshot-remove",
+            "tui/native-index-workflows/snapshot-show",
+            "tui/native-index-workflows/stale",
+            "tui/native-index-workflows/stats",
+            "tui/native-index-workflows/stats-conflict",
+            "tui/native-index-workflows/validate-published",
+            "tui/native-index-workflows/watch-cancel",
+            "tui/native-index-workflows/workspace",
+            "tui/native-index-workflows/workspace-status",
+            "tooling/typescript-api7-native/cancellation",
+            "tooling/typescript-api7-native/configured-dependency-authority",
+            "tooling/typescript-api7-native/finite-strings-and-overloads",
+            "tooling/typescript-api7-native/host-fallback-refused",
+            "tooling/typescript-api7-native/invalid-config",
+            "tooling/typescript-api7-native/original-snapshot-isolation",
+            "tooling/typescript-api7-native/retained-template-parity"
+          ],
+          "failLines": []
+        },
+        {
+          "name": "native-windows",
+          "logBytes": 102740,
+          "passingIds": [
+            "tui/native-artifact-actions/actions",
+            "tui/native-artifact-actions/cancel",
+            "tui/native-artifact-actions/copy",
+            "tui/native-artifact-actions/export",
+            "tui/native-artifact-actions/missing",
+            "tui/native-artifact-actions/stale",
+            "tui/native-artifact-actions/untrusted",
+            "tui/native-job-inspection/disabled",
+            "tui/native-job-inspection/incomplete",
+            "tui/native-job-inspection/invalid-json",
+            "tui/native-job-inspection/json",
+            "tui/native-job-inspection/oversized",
+            "tui/native-job-inspection/text",
+            "tui/native-job-inspection/truncated",
+            "tooling/install/node-pty-conout-disposal",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-01",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-02",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-03",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-04",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-05",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-06",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-07",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-08",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-09",
+            "tooling/install/node-pty-fresh-lifecycle/fresh-10",
+            "tooling/install/node-pty-patch-roundtrip",
+            "lang/perl/heredoc-cache",
+            "lang/perl/heredoc-native",
+            "lang/perl/native-fresh-lifecycle/fresh-01",
+            "lang/perl/native-fresh-lifecycle/fresh-02",
+            "lang/perl/native-fresh-lifecycle/fresh-03",
+            "lang/perl/native-fresh-lifecycle/fresh-04",
+            "lang/perl/native-fresh-lifecycle/fresh-05",
+            "lang/perl/native-fresh-lifecycle/fresh-06",
+            "lang/perl/native-fresh-lifecycle/fresh-07",
+            "lang/perl/native-fresh-lifecycle/fresh-08",
+            "lang/perl/native-fresh-lifecycle/fresh-09",
+            "lang/perl/native-fresh-lifecycle/fresh-10",
+            "lang/perl/package-chunks",
+            "lang/perl/scanner-lifecycle",
+            "lang/perl/scheduler-crash-recovery",
+            "tooling/install/native-grammar-activation",
+            "tooling/install/native-parser-error-contract",
+            "tooling/install/perl-patch-roundtrip",
+            "tooling/install/tree-sitter-patch-roundtrip",
+            "indexing/build-state/produced-contract",
+            "tui/operator-index-workflows",
+            "tui/supervisor-index-build",
+            "tui/supervisor-index-workflows"
+          ],
+          "failLines": []
+        }
+      ]
+    },
+    "nativeVerification": {
+      "owner": "fifthFollowupRepairBatch.nativeVerification",
+      "setupInputsChanged": false,
+      "note": "No pinned dependency, patch or readiness owner input changes in this wave. Existing37-probe verification and normal entry guards remain binding."
+    },
+    "processAudit": {
+      "path": ".tmp/tasks/validation-20261107/native-search-owned-process-audit.json",
+      "sha256": "f7b43044b58f5936dd0a3cf57d63bbea270b5cafe5c887cfd45892e645b8547c",
+      "availability": "historical-author-workspace;not-promised-in-clean-checkouts",
+      "processes": [],
+      "scope": "Project Node and native TUI command lines; unrelated applications untouched",
+      "count": 0
+    },
+    "diagnosticInvocationError": "The first documentation follow-up used a nonexistent generated-surface ID. The canonical artifact-schema-index owner passes; no generator or drift assertion changed."
   }
 }

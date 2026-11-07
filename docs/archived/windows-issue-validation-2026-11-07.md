@@ -7,12 +7,12 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Latest observations cover **2,459 distinct cases:2,437 pass,21 fail and one
-Linux-only fixture is excluded on Windows**. Two failures reach the outer30-second
-limit. Four published-index transition cases and17 native seed/terminal/handshake cases remain
+Latest observations cover **2,470 distinct cases:2,453 pass,16 fail and one
+Linux-only fixture is excluded on Windows**. One failure reaches the outer30-second
+limit. Four published-index transition cases and12 native-index cases remain
 unqualified. Original failures and unsuccessful diagnostic controls are retained;
 no retry or relaxed deadline counts as acceptance. Current publication checks are
-recorded with the fifth repair batch below.
+recorded with the sixth repair batch below.
 
 Node **26.13.0**, Windows x64, ABI147: native verification exits0 with all37
 required probes successful. Eight patched packages,30 target files and81 hunks
@@ -350,3 +350,49 @@ CI2355 subsequently completes Ubuntu/macOS general jobs successfully; its sole
 Windows failure is the PID assertion repaired above. Qualification of later
 source remains separate. Final read-only process inventory finds no project Node
 or native TUI process left running; unrelated applications were untouched.
+
+## Native search and visible control denials
+
+The sixth batch is implemented at `5439116a7b57ef14be42b18447e6491f82775020`.
+The native renderer put alerts after long session identities/paths in wide
+headers and omitted them from compact headers. The new long-identity denial
+regression fails before the repair. Both headers now prioritize the original
+alert; the live-control guard and failed-search contract stay strict. All157
+Rust tests pass, together with rustfmt, the actual binary build and Clippy with
+warnings denied. The receipt records the changed binary hash and source blobs.
+
+Native-search setup now calls the canonical Stage1 build API with its original
+ten-second deadline covering import, actual work and teardown. It requires
+published sparse retrieval, the exact requested stage and zero validation
+issues. Every real native keyboard, supervisor, query/source CLI, positive hit,
+privacy, cancellation, terminal-restoration and descendant assertion remains.
+Input correction uses paths relative to the actual native/supervisor cwd,
+resolving to the original file and repository targets; realpath assertions prove
+the selected scope. This removes repeated author-path typing from the recovery
+budget. The ineffective Windows bracketed-paste diagnostic remains a failed
+observation and is removed from the fixture.
+
+The first strict native batch passes13/15. Focused repairs resolve both remaining
+cases; all15 native-search cases now have passing observations. First-failure
+recovery passes17.2s at80 columns and16.9s at32 columns; scope switching passes
+21.9s. The handshake denial and subsequent real query pass. Fifteen additional
+failure-owner controls pass, including actual supervisor/CLI cause contracts,
+successful empty/nonempty responses, malicious projection, original pending
+resources, truncated capture and recovery after a failed command. The machine
+receipt retains each original failure and the affected recheck, rather than
+claiming a repeated final-tree full-suite pass.
+
+Windows CI now explicitly runs the entire native-search family after building
+the actual candidate binary. It retains serial30-second bounds, zero retries,
+disabled native-status redo and terminal/binary/process evidence uploads.
+The44-case gate and all preceding publication checks pass. Command-surface
+validation initially inherits a nonexistent trusted-config path; clearing that
+selection only in the validation process permits the unchanged authority guard
+to pass. Both observations are recorded.
+
+[CI2357](https://github.com/doublemover/PairOfCleats/actions/runs/42415823849) at
+`8d91e0634b4c594070393977bac4f6e9395f7720` passes the gate, Rust, all native-inspection
+jobs,22 Windows native-index and seven actual TS7.1 cases, and40 Windows authority
+cases. Its general jobs are still running at this observation. That checkpoint
+precedes this batch. The remaining16 local failures are four revision deadlines
+and12 native-index cases; snapshot-list-populated is the sole outer timeout.
