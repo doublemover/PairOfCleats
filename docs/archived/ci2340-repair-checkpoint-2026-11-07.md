@@ -32,6 +32,18 @@ installation owner: an `ok:false` result was discarded. `9c9aa28c4` preserves
 that original result as the cause and verification context, with a negative
 control alongside the existing positive verifier control.
 
+The broad Windows log records `tooling/ci/run-suite-script-coverage-plan` at
+40.3 seconds despite its reported pass. That observation exceeds the current
+30-second focused-fixture requirement. The subsequent source repair reuses
+identical discovery observations within the unchanged fixture invocation and
+defers unused execution/reporting imports in list requests. Every original
+dispatch, exclusion, canonical retirement and unique-owner assertion remains.
+All distinct selectors still cross the actual CLI boundary in fresh children;
+repeated identical calls had the same arguments, cwd, environment and source,
+and neither intervening assertions nor receipt reads modified those inputs.
+The resulting fixture still needs a bounded runtime recheck; no deadline increase
+or measured improvement is claimed.
+
 Artifact `13568722454` (`ci-artifacts-windows`, 12,963,890 bytes) has SHA256
 `aa11eb78156b7e707740f17727ac1eb8f03088c1beb18dac620527a34b3050ad`.
 Its directly spawned failure receipts record ordinary exit 1, no timeout and

@@ -12,26 +12,34 @@ const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), syncProcess: fals
   extraEnv: { PAIROFCLEATS_HOME: path.join(dir, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const result = runNode([path.join(root, 'tools/ci/run-suite.js'), '--mode', 'nightly', '--dry-run',
   '--skip-prechecks', '--diagnostics', path.join(dir, 'diagnostics'), '--log-dir', path.join(dir, 'logs'),
-  '--junit', path.join(dir, 'logs/junit.xml')], 'nightly coverage plan', root, env, { stdio: 'pipe' });
+  '--junit', path.join(dir, 'logs/junit.xml')], 'nightly coverage plan', root, env, { stdio: 'pipe', timeoutMs: 30000 });
 const lines = String(result.stderr).split(/\r?\n/).filter(line => line.startsWith('[dry-run] Script coverage ('));
 const planLines = String(result.stderr).split(/\r?\n/);
+// Reuse only the same exact CLI selector within this one immutable source/env
+// observation. Distinct selectors still use the actual runner in fresh children.
+// All dispatch, overlap, retirement and unique-owner assertions remain below.
+const observations = new Map();
+const listSelectors = selectors => {
+  const identity = JSON.stringify(selectors);
+  if (!observations.has(identity)) observations.set(identity, Object.freeze(runNode(['tests/run.js', ...selectors, '--list'],
+    'resolve actual nightly selection', root, env, { stdio: 'pipe', timeoutMs: 30000 }).stdout.trim().split(/\r?\n/)));
+  return observations.get(identity);
+};
 const listInvocation = line => {
   const args = line.slice(line.indexOf('tests/run.js')).trim().split(/\s+/);
   const selectors = [];
   for (let index = 1; index < args.length; index++) {
     if (['--lane', '--match', '--exclude', '--tag', '--exclude-tag'].includes(args[index])) selectors.push(args[index], args[++index]);
   }
-  return runNode(['tests/run.js', ...selectors, '--list'], 'resolve actual nightly selection',
-    root, env, { stdio: 'pipe' }).stdout.trim().split(/\r?\n/);
+  return listSelectors(selectors);
 };
 const mainIds = new Set(listInvocation(planLines.find(line => line.startsWith('[dry-run] CI test lane:'))));
 const soak = planLines.find(line => line.startsWith('[dry-run] Operational soak and recovery suites:'));
 assert.ok(soak);
 for (const expected of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000',
   '--retries 0', '--native-status-redo=false']) assert.ok(soak.includes(expected), `${expected}: ${soak}`);
-const selectedSoak = runNode(['tests/run.js', '--lane', 'all', '--match', 'services/soak/operational-recovery', '--list'],
-  'resolve exact supplemental soak selector', root, env, { stdio: 'pipe' });
-assert.deepEqual(selectedSoak.stdout.trim().split(/\r?\n/), ['services/soak/operational-recovery']);
+const selectedSoak = listSelectors(['--lane', 'all', '--match', 'services/soak/operational-recovery']);
+assert.deepEqual(selectedSoak, ['services/soak/operational-recovery']);
 assert.ok(planLines.indexOf(soak) < planLines.findIndex(line => line.startsWith('[dry-run] Bench harness')));
 assert.ok(planLines.findIndex(line => line.startsWith('[dry-run] Bench harness')) < planLines.indexOf(lines[0]));
 assert.equal(lines.length, SCRIPT_COVERAGE_GROUPS.length);
@@ -58,8 +66,7 @@ for (const line of planLines.filter(line => line.startsWith('[dry-run] ') && lin
 }
 const retirement = JSON.parse(await fs.readFile(path.join(root,
   'docs/archived/script-coverage-retirement-2026-10-20.json'), 'utf8'));
-const discoveredIds = runNode(['tests/run.js', '--lane', 'all', '--list'],
-  'resolve current canonical fixture cases', root, env, { stdio: 'pipe' }).stdout.trim().split(/\r?\n/);
+const discoveredIds = listSelectors(['--lane', 'all']);
 for (const entry of retirement.delegations) {
   const replacements = discoveredIds.filter(id => id === entry.canonicalOwner || id.startsWith(entry.canonicalOwner + '/'));
   assert.ok(replacements.length, `retirement requires a discovered replacement for ${entry.canonicalOwner}`);
@@ -68,5 +75,5 @@ for (const entry of retirement.delegations) {
     `retired wrapper remains scheduled: ${entry.wrapperId}`);
 }
 console.log(JSON.stringify({ retainedCanonicalOwners: retirement.delegations.length,
-  plannedCases: plannedOwners.size, repeatedCases: 0 }));
+  plannedCases: plannedOwners.size, repeatedCases: 0, actualDiscoveryProcesses: observations.size }));
 console.log('Nightly coverage dispatches every group through bounded discovered process cases');

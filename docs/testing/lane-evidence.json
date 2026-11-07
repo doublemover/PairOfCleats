@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T09:34:38.087Z",
+  "generatedAt": "2026-11-07T09:40:44.602Z",
   "summary": {
     "lanes": 5,
-    "tests": 3408,
+    "tests": 3409,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 436,
+    "families": 437,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3334
+      "missingTests": 3335
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 3087,
+      "totalTests": 3088,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 3038
+        "missing": 3039
       }
     },
     {
@@ -1844,6 +1844,12 @@
     },
     {
       "key": "runner/discovery-complete-inventory",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "runner/list-runtime-import-boundary",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 2922,
     "matrix": 110,
-    "meta": 54,
+    "meta": 55,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -18537,6 +18537,12 @@
       "order": 3087,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "runner/list-runtime-import-boundary",
+      "order": 3088,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }

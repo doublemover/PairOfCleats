@@ -7,6 +7,16 @@ timestamp ordering while retaining only the requested newest K full payloads
 plus the active candidate; archives remain intact. This working-set bound does
 not imply fewer files read or a measured startup speedup.
 
+List-only requests return before loading execution, report, coverage and stability
+owners. Actual runs load those original owners and validators after selection.
+The actual CLI boundary control rejects those imports in plain/JSON discovery
+and requires their activation for execution. It is authored and locally unrun.
+The nightly-plan fixture reuses each exact selector's first CLI list result
+within its unchanged source/environment observation. Distinct selectors retain
+fresh processes, every overlap/retirement assertion remains, and each child is
+bounded to 30 seconds. This removes duplicate discovery work; elapsed-time
+qualification remains pending.
+
 ## Context / problem
 Historically the test surface was flat and dominated by many one-off scripts under `tests/*.js`. The suite now lives under subsystem folders with `*.test.js` files, but the same discovery and triage issues remain without a stable runner entrypoint. This causes:
 
