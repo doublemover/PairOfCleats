@@ -167,7 +167,9 @@ export const generateRelationalRevisionScenario = ({ world, family, seed = 0 }) 
     'group-partial-domain', 'selected-partial-domain', 'anti-join-partial-domain', 'selected-sparse-maintenance', 'join-sparse-maintenance'].includes(family)
     || !Number.isInteger(seed) || seed < 0 || seed > 4294967295) throw fail('Unsupported relational revision generator or seed.');
   const row = (id, from, to, multiplicity = '1') => ({ occurrenceId: 'o-' + id, supportId: id, from, to, multiplicity, sourceRef: null });
-  const nextWorld = revision => ({ ...world, generation: { ...world.generation, semanticRevision: revision } });
+  const nextWorld = revision => ({ ...world, generation: {
+    baseBuildId: world.generation.baseBuildId + ':revision-' + revision, semanticRevision: 0
+  } });
   if (family.startsWith('group-') || family.startsWith('selected-')) {
     const grouped = family.startsWith('group-'), partial = family.endsWith('partial-domain'), sparse = family === 'selected-sparse-maintenance';
     const parents = sparse ? [row('wanted', 'g', 'a'), ...Array.from({ length: 7 }, (_, index) => row('other-' + index, 'h', 'b'))]

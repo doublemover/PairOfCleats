@@ -113,7 +113,6 @@ const persisted = JSON.parse(JSON.stringify(registered.payloads.map((row, id) =>
 const validation = validateArtifact('chunk_meta', persisted); assert.equal(validation.ok, true, validation.errors?.join('; '));
 assert.ok(persisted.every(row => /^partial-projection-budget:/u.test(row.codeRelations.callCoverage)));
 assert.ok(registered.projected.every(row => !row.calls?.length));
-assert.equal(SEMANTIC_ANALYSIS_VERSIONS.sourceChunking, '54');
-assert.notEqual(semanticAnalysisPolicyIdentity({ enrichment: {}, storage: {} }),
-  semanticAnalysisPolicyIdentity({ enrichment: {}, storage: {} }, { ...SEMANTIC_ANALYSIS_VERSIONS, sourceChunking: '53' }));
+for (const old of ['53', '54']) assert.notEqual(semanticAnalysisPolicyIdentity({ enrichment: {}, storage: {} }),
+  semanticAnalysisPolicyIdentity({ enrichment: {}, storage: {} }, { ...SEMANTIC_ANALYSIS_VERSIONS, sourceChunking: old }));
 console.log(JSON.stringify({ selected, samples, scope: 'original native parser/metadata APIs; bounded projection only, native parse work excluded' }));
