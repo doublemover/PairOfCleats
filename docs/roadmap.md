@@ -66,7 +66,7 @@ authorized. Work continues solo. Frontload
 implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-[Revision oracles](contracts/revision-oracle.md) (#1528) add finite checks and minimization. [Finite views](contracts/selected-adjacency.md) (#1516) retain weighted supports, projections and grouped alternatives. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) preserve original owners and admit work before tokenization. Broader adapters/runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
+[Revision oracles](contracts/revision-oracle.md) (#1528) check finite revisions and minimize failures. [Finite views](contracts/selected-adjacency.md) (#1516) update selected supports and affected groups for sparse edits, with dense recomputation and retained alternatives. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) preserve original owners and admit tokenization. Broader adapters/runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
 
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
 current-source acceptance. The intake above owns remaining scope; current schemas
@@ -94,16 +94,12 @@ and producer constants own format identities.
    do not repeat the full campaign without a new user request. Preserve
    original assertions, 30-second limits, zero retries and native redo disabled.
 
-Many earlier authored regressions remain unrun; current targeted acceptance is
-limited to the exact cases in the receipt. No current-head deep-suite pass, issue
-closure or measured speedup is claimed. Fresh native/patch verification passed
-on Node 26.12.1 (eight patches, 26 targets, 61 hunks); setup activation is not
-runtime qualification. At historical frozen `245be5fc2`, 70 broad cases produced 60 passes,
-9 failures and 1 timeout; a subsequent focused selection produced 11 passes and
-3 wrapper timeouts. Source repairs followed and await execution. The
+Current-source runtime acceptance remains pending. The
 [Windows receipt](archived/windows-post-wave-validation-2026-10-22.md) preserves
-exact-source results. No Linux/WSL, elevation, security changes, worktrees or
-arbitrary physical-link creation are included.
+earlier failures, focused checks and source identities. Historical setup/native
+verification does not qualify later implementation. After source integration,
+verify current dependencies and affected controls. No Linux/WSL, elevation,
+security changes, worktrees or arbitrary physical-link creation are included.
 
 ### Historical source chronology
 

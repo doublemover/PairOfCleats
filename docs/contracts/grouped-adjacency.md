@@ -25,7 +25,7 @@ The bounded canonical encoder checks the supplied finite-view value guard before
 inspecting each nested container; input/delta-row/array proxies cannot execute
 traps during capture. Ordinary JSON encoding, content hashes and schemas retain
 their existing meaning. Other canonical consumers keep their existing policy.
-The original adjacency transition and full affected-view recomputation must
+The original adjacency transition and exact group maintenance must
 both succeed before a new private view is returned. Cancellation, work and
 retention limits preserve the previous view. Exact replays never reapply a bag.
 
@@ -41,3 +41,32 @@ extremum/last-support retraction, partial-domain transitions, atomic replay and
 original handles, cancellation/bounds, and an independent tiny occurrence-bag
 oracle with fresh relation-root parity at every revision. No latency or broader
 native/model acceptance is inferred from these authored controls.
+
+## Affected-group maintenance
+
+The original adjacency owner supplies coalesced signed support changes. A private
+index points to each immutable group's complete alternatives. Sparse revisions
+copy and update only affected groups, recount their exact weighted supports and
+distinct values, and choose min/max from every surviving alternative. Unchanged
+groups reuse their original aggregate/provenance identity. Removing an extremum
+or the last support cannot leave a stale winner. The final group count is admitted
+after every removal, so a same-size group replacement is independent of edit order.
+
+A deterministic cost estimate includes retained groups, affected alternatives and
+edits. Dense revisions use the full recomputation path. Both paths share report
+sealing, output relation construction, the original byte/work limits and exact
+logical identities. Coverage-only revisions update observed/exact statuses and
+actual emitted facts without re-aggregating parent alternatives. Hashes are reused
+only for unchanged groups from the same original operator owner; public copies
+cannot supply those identities.
+
+Work observations separate actual row/comparison visits, affected group count
+and newly computed group-provenance hashes. They exclude work still owned by
+input validation, canonical report sealing and factor construction. These are
+bounded operation counters, not end-to-end latency or memory measurements.
+Four additional locally unrun controls compare both endpoint directions, weighted
+and extremum retractions, dense fallback/resumption, partial-domain transitions,
+atomic replacement, budgets/replay/cancellation, every parent field, clean-rebuild
+relation roots and an independent tiny-copy aggregate oracle. A 200-support
+unchanged group makes accidental full recomputation observable. General elastic
+composition, calibrated cost history, spill and semantic invalidation remain open.

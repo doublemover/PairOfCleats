@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2798,
+    "hero": 2802,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17791,6 +17791,30 @@
     {
       "id": "indexing/semantic/selected-adjacency-maintenance/bounded-cancelled-and-replayed",
       "order": 2963,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/grouped-adjacency-maintenance/affected-extrema-and-coefficients",
+      "order": 2964,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/grouped-adjacency-maintenance/dense-fallback-and-sparse-resume",
+      "order": 2965,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/grouped-adjacency-maintenance/coverage-and-atomic-groups",
+      "order": 2966,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/grouped-adjacency-maintenance/bounded-cancelled-and-replayed",
+      "order": 2967,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
