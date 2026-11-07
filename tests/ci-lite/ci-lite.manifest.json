@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2990,
+    "hero": 3002,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18949,6 +18949,78 @@
     {
       "id": "shared/storage/lifecycle-query-use/original-close-refusal",
       "order": 3156,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/registered-closed-dag",
+      "order": 3157,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/select-join-group-chain",
+      "order": 3158,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/shared-source-self-join",
+      "order": 3159,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/unchanged-role-followup",
+      "order": 3160,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/replay-and-passive-capture",
+      "order": 3161,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/atomic-downstream-refusal",
+      "order": 3162,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/incomplete-negative-domain",
+      "order": 3163,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/independent-invalidation",
+      "order": 3164,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/prepared-receipt-authority",
+      "order": 3165,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/independent-flat-oracle",
+      "order": 3166,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/coefficient-without-expansion",
+      "order": 3167,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/view-composition/checkpoint-rebuild-parity",
+      "order": 3168,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

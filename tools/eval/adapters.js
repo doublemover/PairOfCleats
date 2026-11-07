@@ -1,5 +1,13 @@
 const loaded = new Map();
 const loaders = {
+  'finite-adjacency-composition-v1': async () => {
+    const owner = await import('../../src/index/semantic/views/composition.js');
+    return Object.freeze({ id: owner.VIEW_COMPOSITION_PROFILE, executionClass: 'supplied-original-finite-view-dag-only',
+      capabilities: Object.freeze(['bootstrap', 'apply', 'inspect', 'input', 'output', 'checkpoint', 'invalidate', 'work']),
+      bootstrap: owner.bootstrapViewComposition, apply: owner.applyViewCompositionDelta, inspect: owner.describeViewComposition,
+      input: owner.viewCompositionInput, output: owner.viewCompositionOutput, checkpoint: owner.checkpointViewComposition,
+      invalidate: owner.invalidateViewComposition, work: owner.viewCompositionWork });
+  },
   'typescript-api7-request-snapshot-v1': async () => {
     const [owner, pins, runtime] = await Promise.all([import('../tooling/managed-typescript-api7.js'), import('../../src/shared/typescript-api7-pins.js'),
       import('../../src/index/tooling/typescript/api7/runtime.js')]);

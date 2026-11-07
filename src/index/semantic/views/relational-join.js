@@ -3,7 +3,7 @@ import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { createOccurrenceRelation } from '../../../semantic/relations/factor.js';
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { isSemanticJsonBudgetError } from '../canonical-json-bounds.js';
-import { readAdjacencyViewInput, applyAdjacencyDelta } from './adjacency-delta.js';
+import { readAdjacencyViewInput, applyAdjacencyDelta, readAdjacencyTransition } from './adjacency-delta.js';
 import { RELATIONAL_JOIN_DEFINITION_SCHEMA, RELATIONAL_JOIN_LIMITS } from '../../../contracts/schemas/relational-join.js';
 import { finiteViewFields, captureFiniteViewJson, captureFiniteViewDefinition } from './finite-input.js';
 import { prepareInnerJoinMaintenance } from './inner-join-maintenance.js';
@@ -106,10 +106,13 @@ export const relationalJoinWork = handle => {
 
 /** Both original input transitions and the result must succeed before a new
  * private cohort is returned. Failed/bounded work never consumes the old cohort. */
-export const applyRelationalJoinDelta = (handle, value, options = {}) => {
+const runRelationalJoinDelta = (handle, value, options = {}, prepared = null) => {
   const state = get(handle);
   const batch = captureBatch(value, state.limits.retainedBytes);
   fields(batch, ['batchId', 'expectedRootId', 'left', 'right']);
+  const originals = prepared === null ? null : {
+    left: readAdjacencyTransition(prepared.left, state.left, batch.left), right: readAdjacencyTransition(prepared.right, state.right, batch.right)
+  };
   if (typeof batch.batchId !== 'string' || !batch.batchId.length || batch.batchId.length > 128) throw fail('Invalid relational batch identity.');
   const digest = hash(batch), previous = state.ledger.find(row => row.batchId === batch.batchId);
   if (previous) {
@@ -127,9 +130,9 @@ export const applyRelationalJoinDelta = (handle, value, options = {}) => {
       return { status: result.status, consumed: false, view: handle };
     };
     const inputOptions = { signal, maxWork: Math.min(state.limits.work, state.limits.inputSupports * 4) };
-    const left = applyAdjacencyDelta(state.left, batch.left, inputOptions), leftStop = stopped(left);
+    const left = originals?.left ?? applyAdjacencyDelta(state.left, batch.left, inputOptions), leftStop = stopped(left);
     if (leftStop) return leftStop;
-    const right = applyAdjacencyDelta(state.right, batch.right, inputOptions), rightStop = stopped(right);
+    const right = originals?.right ?? applyAdjacencyDelta(state.right, batch.right, inputOptions), rightStop = stopped(right);
     if (rightStop) return rightStop;
     const view = build({ ...state, left: left.view, right: right.view, ledger: [...state.ledger, { batchId: batch.batchId, digest }] }, signal,
       state, { left, right });
@@ -140,4 +143,8 @@ export const applyRelationalJoinDelta = (handle, value, options = {}) => {
     if (budgetErrors.has(error)) return { status: error.limit === 'work' ? 'work-budget' : 'retention-budget', consumed: false, view: handle, limit: error.limit };
     throw error;
   }
+};
+export const applyRelationalJoinDelta = (handle, value, options) => runRelationalJoinDelta(handle, value, options);
+export const applyRelationalJoinTransitions = (handle, value, inputs, options) => {
+  const originals = fields(inputs, ['left', 'right']); return runRelationalJoinDelta(handle, value, options, originals);
 };

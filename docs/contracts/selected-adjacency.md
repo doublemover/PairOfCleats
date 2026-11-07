@@ -45,8 +45,9 @@ operator's actual row/comparison visits and derived support hashes separately.
 Original adjacency validation and full report/relation sealing remain required;
 these counters do not claim total edit latency or a production speedup.
 
+The [composed view owner](view-composition.md) adds transactional operator DAGs.
 This supplies finite select/project maintenance under #1516; general relation
-arities, elastic operator composition and calibrated strategy history, spill,
+arities, calibrated strategy history, spill,
 source invalidation and production qualification remain.
 
 Six locally unrun cases cover the registered adapter, exact selection/swap,

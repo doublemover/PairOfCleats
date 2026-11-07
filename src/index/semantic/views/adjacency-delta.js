@@ -3,6 +3,7 @@ import { validateSemanticEnvelope } from '../../../contracts/validators/semantic
 import { createOccurrenceRelation } from '../../../semantic/relations/factor.js';
 
 const owned = new WeakMap();
+const transitions = new WeakMap();
 const key = canonicalSemanticJson;
 const text = value => typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= 4096;
 const fields = (value, names) => value && Object.getPrototypeOf(value) === Object.prototype
@@ -61,7 +62,7 @@ const make = ({ definition, world, rows, ledger, complete, maxBytes, supportPayl
   const handle = Object.freeze({ rootId: semanticHash('pairofcleats.adjacency-view.v2', immutable, { maxBytes }), version: ADJACENCY_VIEW_VERSION,
     world: immutable.world, definition: immutable.definition, relation, supportCount: rows.length, knownSupportCount: supportPayloads.size,
     capturedDomainComplete: complete, publication: 'private-unpublished', semanticClosure: 'not-implied' });
-  owned.set(handle, { ...immutable, supportPayloads, maxBytes });
+  owned.set(handle, { ...immutable, supportPayloads, maxBytes, retainedBytes: Buffer.byteLength(encoded) });
   return handle;
 };
 
@@ -149,9 +150,35 @@ export const applyAdjacencyDelta = (view, input, options = {}) => {
   for (const [id, value] of addedPayloads) supportPayloads.set(id, value);
   const nextView = make({ ...state, world: batch.toWorld, rows: [...next.values()],
     ledger: [...state.ledger, { batchId: batch.batchId, digest }], complete: batch.capturedDomainComplete, supportPayloads });
-  return { status: 'materialized-private', view: nextView, consumed: true,
+  const result = { status: 'materialized-private', view: nextView, consumed: true,
     supportChanges: freeze(sortRows(supportChanges)), membershipChanges: freeze(membershipChanges),
     maintenance: 'nonrecursive-signed-bag', publication: 'not-attempted' };
+  transitions.set(result, Object.freeze({ base: view, batch: freeze(batch), digest,
+    result: Object.freeze({ ...result }), inputWork: batch.edits.length + state.rows.length + state.supportPayloads.size }));
+  return result;
+};
+
+/** Original transition receipts let several maintainers consume one validated
+ * input advance. Copying or editing the returned public result cannot replace
+ * the privately captured base, batch, changes or destination handle. */
+export const readAdjacencyTransition = (receipt, base, batch) => {
+  const transition = transitions.get(receipt), state = owned.get(base);
+  if (!transition || !state || transition.base !== base || semanticHash('pairofcleats.adjacency-batch.v1', batch,
+    { maxBytes: state.maxBytes }) !== transition.digest) fail('original prepared input transition required');
+  return Object.freeze({ ...transition.result, inputWork: transition.inputWork, batch: transition.batch });
+};
+export const observeAdjacencyIdentity = view => {
+  const state = owned.get(view); if (!state) fail('owned identity input required');
+  const batch = freeze({ batchId: 'identity:' + view.rootId, definition: state.definition, fromWorld: state.world,
+    toWorld: state.world, baseRoot: view.rootId, edits: [], capturedDomainComplete: state.complete });
+  const result = Object.freeze({ status: 'original-identity-observation', view, consumed: true,
+    supportChanges: Object.freeze([]), membershipChanges: Object.freeze([]), publication: 'not-attempted' });
+  transitions.set(result, Object.freeze({ base: view, batch, result, inputWork: 0,
+    digest: semanticHash('pairofcleats.adjacency-batch.v1', batch, { maxBytes: state.maxBytes }) }));
+  return Object.freeze({ receipt: result, batch });
+};
+export const adjacencyViewRetainedBytes = view => {
+  const state = owned.get(view); if (!state) fail('owned retained input required'); return state.retainedBytes;
 };
 
 /** Empty lookup is about the declared captured domain, never global source/analysis closure. */

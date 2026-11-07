@@ -67,7 +67,7 @@ authorized. Work continues solo. Frontload
 implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-[Revision oracles](contracts/revision-oracle.md) (#1528) add real published chunk-index/rebuild cohorts to finite models and source extraction; broader adapters remain open. [Finite views](contracts/selected-adjacency.md) (#1516) maintain selected supports, groups and role-ordered joins with dense fallback. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) retain original owners. Runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
+[Revision oracles](contracts/revision-oracle.md) (#1528) add real published chunk-index/rebuild cohorts to finite models and source extraction; broader adapters remain open. [Finite views](contracts/view-composition.md) (#1516) compose selects, groups and role-ordered joins transactionally. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) retain original owners. Runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
 
 The [native workflow budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
 overlaps read-only console/catalog setup while retaining full seed verification.

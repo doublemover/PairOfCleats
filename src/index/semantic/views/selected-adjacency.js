@@ -100,5 +100,7 @@ export const describeSelectedAdjacency = handle => get(handle).report;
 export const selectedAdjacencyWork = handle => {
   const state = get(handle); return Object.freeze({ workUnits: state.work, derivedSupportHashes: state.supportHashes, strategy: state.strategy });
 };
-export const applySelectedAdjacencyDelta = createFiniteUnaryTransition({ getState: get, fail, hash, build, advance,
+const transitions = createFiniteUnaryTransition({ getState: get, fail, hash, build, advance,
   readBudget: error => budgets.has(error) ? { limit: error.limit } : null });
+export const applySelectedAdjacencyDelta = transitions.apply;
+export const applySelectedAdjacencyTransition = transitions.prepared;

@@ -3159,3 +3159,15 @@ shared/storage/lifecycle-query-use/changed-input-refusal
 shared/storage/lifecycle-query-use/writer-refusal
 shared/storage/lifecycle-query-use/lifecycle-preview-preserves-cache
 shared/storage/lifecycle-query-use/original-close-refusal
+indexing/semantic/view-composition/registered-closed-dag
+indexing/semantic/view-composition/select-join-group-chain
+indexing/semantic/view-composition/shared-source-self-join
+indexing/semantic/view-composition/unchanged-role-followup
+indexing/semantic/view-composition/replay-and-passive-capture
+indexing/semantic/view-composition/atomic-downstream-refusal
+indexing/semantic/view-composition/incomplete-negative-domain
+indexing/semantic/view-composition/independent-invalidation
+indexing/semantic/view-composition/prepared-receipt-authority
+indexing/semantic/view-composition/independent-flat-oracle
+indexing/semantic/view-composition/coefficient-without-expansion
+indexing/semantic/view-composition/checkpoint-rebuild-parity

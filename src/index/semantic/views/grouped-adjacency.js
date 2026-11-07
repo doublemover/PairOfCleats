@@ -135,5 +135,7 @@ export const groupedAdjacencyWork = handle => {
     derivedGroupHashes: state.groupHashes, strategy: state.strategy });
 };
 
-export const applyGroupedAdjacencyDelta = createFiniteUnaryTransition({ getState: get, fail, hash, build, advance,
+const transitions = createFiniteUnaryTransition({ getState: get, fail, hash, build, advance,
   readBudget: error => budgets.has(error) ? { limit: error.limit } : null });
+export const applyGroupedAdjacencyDelta = transitions.apply;
+export const applyGroupedAdjacencyTransition = transitions.prepared;
