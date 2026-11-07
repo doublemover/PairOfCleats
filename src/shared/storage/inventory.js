@@ -17,12 +17,16 @@ export const storageFileIdentity = stat => ({ dev: String(stat.dev), ino: String
 export const sameStorageFileIdentity = (left, right) => left && right
   && ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs', 'mode', 'nlink'].every(key => left[key] === right[key]);
 
-const allocatedBytes = stat => {
-  // Node's Windows stat does not establish compressed/sparse allocation.
-  if (process.platform === 'win32') return null;
-  if (stat.blocks == null) return null;
-  const bytes = Number(stat.blocks) * 512;
-  return Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : null;
+export const storageAllocatedBytes = stat => {
+  // Supported Node/libuv reports kernel per-file allocation in 512-byte units
+  // on Windows too. This is not logical length or proof of freed/shared blocks.
+  // Preserve exact arithmetic before crossing the JSON number boundary.
+  const value = stat.blocks;
+  const blocks = typeof value === 'bigint' ? value
+    : Number.isSafeInteger(value) ? BigInt(value) : null;
+  if (blocks === null || blocks < 0n) return null;
+  const bytes = blocks * 512n;
+  return bytes <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bytes) : null;
 };
 const physicalKey = stat => String(stat.ino) !== '0' ? `${stat.dev}:${stat.ino}` : null;
 const exactSum = values => {
@@ -137,7 +141,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
           item.filesCount += 1;
           item.logicalBytes += Number(stat.size);
           if (!Number.isSafeInteger(item.logicalBytes)) throw new Error('Storage logical byte sum exceeds exact accounting range.');
-          const bytes = allocatedBytes(stat);
+          const bytes = storageAllocatedBytes(stat);
           const key = physicalKey(stat);
           if (bytes === null || key === null) item.physicalBytesKnown = false;
           if (key === null) item.physicalIdentityKnown = false;
@@ -147,7 +151,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
             rootFiles.add(key);
             const existing = uniqueFiles.get(key);
             if (existing) {
-              if (!sameStorageFileIdentity(existing.identity, storageFileIdentity(stat))) {
+              if (!sameStorageFileIdentity(existing.identity, storageFileIdentity(stat)) || existing.allocatedBytes !== bytes) {
                 throw Object.assign(new Error('A shared physical file changed during storage inventory.'), { code: 'ERR_STORAGE_SCAN_CHANGED' });
               }
               existing.paths.add(current);

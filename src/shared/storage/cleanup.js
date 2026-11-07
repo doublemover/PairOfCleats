@@ -5,7 +5,7 @@ import { assertSafeCacheDeletion } from '../cache-deletion.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
 import { removeToolingCacheEntry } from '../../index/tooling/cache-storage.js';
 import { isOwnedCommandProbeCacheEntry } from '../../index/tooling/command-probe-persistent-cache.js';
-import { inspectStorageInventory, sameStorageFileIdentity, storageFileIdentity } from './inventory.js';
+import { inspectStorageInventory, sameStorageFileIdentity, storageFileIdentity, storageAllocatedBytes } from './inventory.js';
 import { inspectStorageAccess, withExclusiveStorageAccess } from './access.js';
 import { decideStorageLifecycle } from './policy.js';
 import { captureStorageAuthority, revalidateStorageAuthority } from './authority.js';
@@ -132,9 +132,8 @@ export const applyStorageCleanupPlan = async (plan, { authorityRoots = [], appro
         if (qualified.hash !== operation.sha256) throw new Error('Cleanup preview content changed.');
         control.check();
         const deleted = removeToolingCacheEntry(qualified.target, qualified.stat);
-        const blocks = qualified.stat.blocks;
         return { deleted, logicalBytes: qualified.identity.size,
-          allocatedBytes: process.platform !== 'win32' && Number.isSafeInteger(blocks) ? blocks * 512 : null };
+          allocatedBytes: storageAllocatedBytes(qualified.stat) };
       });
       results.push({ path: target, status: excluded.protected ? 'skipped' : excluded.result.deleted ? 'deleted' : 'skipped',
         reason: excluded.protected ? excluded.reason : excluded.result.deleted ? null : 'identity-changed',

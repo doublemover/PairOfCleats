@@ -3022,3 +3022,8 @@ shared/storage/inspection-phase-admission/category-policy-deadline
 shared/storage/inspection-phase-admission/category-original-lease-deadline
 shared/storage/inspection-phase-admission/managed-original-lease-deadline
 shared/storage/inspection-phase-admission/dictionary-manifest-deadline
+shared/storage/kernel-allocation-accounting/exact-block-domain
+shared/storage/kernel-allocation-accounting/unique-observed-allocation
+shared/storage/kernel-allocation-accounting/conflicting-alias-allocation
+shared/storage/kernel-allocation-accounting/reviewed-probe-unlink-estimate
+shared/storage/kernel-allocation-accounting/sparse-or-compressed-allocation

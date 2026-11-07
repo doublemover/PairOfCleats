@@ -50,8 +50,36 @@ actual deletion and a fresh observation establishes available space. Protected
 or insufficient allocations return `deny-space-needed`; incomplete accounting
 returns `defer-accounting-required`. No forced evidence eviction, recursive
 parent deletion, retry loop, quota-based lease release or physical reclamation
-claim is introduced here. Node's Windows stat still leaves sparse/compressed
-allocated bytes unknown; logical bytes are not substituted for that measurement.
+claim is introduced here. Supported Node/libuv supplies per-file kernel allocation
+through `stat.blocks` on Windows as well as POSIX. Missing/invalid allocation
+remains unknown; logical bytes never substitute for it.
+
+## Kernel allocation accounting
+
+Inventory and reviewed probe unlink estimates share one exact conversion from
+512-byte kernel blocks. Zero is valid for resident, empty or fully sparse files;
+negative, fractional, missing and unsafe values are unknown. BigInt multiplication
+precedes the JSON-safe integer check, so neither large block counts nor byte sums
+can round into admitted capacity. Overlapping aliases are counted once; conflicting
+allocation observations invalidate their scan even when other identity fields
+match. Existing link, lease, reference, retention and deletion checks remain.
+
+The Windows exclusion was incorrect for the pinned Node26.13.0/libuv1.52.1:
+its [Windows stat owner](https://github.com/nodejs/node/blob/v26.13.0/deps/uv/src/win/fs.c)
+converts the kernel `AllocationSize` into `st_blocks`. Reusing that observation
+adds no native binding, extra file opens, toolchain or elevated action. These are
+file-allocation observations; shared filesystem extents, metadata-container
+overhead and actual free-space recovery are separate measurements. An unlink
+still reports `actualReclaimedBytes: null`.
+
+Five authored, locally unrun cases cover exact conversion, real ordinary-file
+accounting across overlapping roots, conflicting original observations, reviewed
+producer-qualified probe cleanup, and actual Windows compression/POSIX sparse
+allocation. The Windows control compresses one4MiB disposable owned file with the
+system `compact.exe`; it requires the underlying filesystem feature and preserves
+the existing five-second child/30-second fixture bounds. No symlink, security
+change, machine-wide setting, path-based reclaim guess or skip substitutes for it.
+Real Windows execution remains pending.
 
 Five authored, locally unrun regressions cover invalid clocks/ages, epoch/tie/
 alias ordering, exact blocked reasons, conflicting/unknown allocation and

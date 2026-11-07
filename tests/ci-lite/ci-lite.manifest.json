@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2854,
+    "hero": 2859,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18127,6 +18127,36 @@
     {
       "id": "shared/storage/inspection-phase-admission/dictionary-manifest-deadline",
       "order": 3019,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/kernel-allocation-accounting/exact-block-domain",
+      "order": 3020,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/kernel-allocation-accounting/unique-observed-allocation",
+      "order": 3021,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/kernel-allocation-accounting/conflicting-alias-allocation",
+      "order": 3022,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/kernel-allocation-accounting/reviewed-probe-unlink-estimate",
+      "order": 3023,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/kernel-allocation-accounting/sparse-or-compressed-allocation",
+      "order": 3024,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
