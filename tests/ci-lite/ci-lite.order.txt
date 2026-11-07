@@ -3139,3 +3139,14 @@ tooling/install/managed-typescript-api7-components/sdk-real-fixture-exports
 tooling/install/managed-typescript-api7-components/sdk-invalid-fixture-exports
 tooling/install/managed-typescript-api7-components/original-before-fields
 tooling/install/managed-typescript-api7-components/guarded-activation-result
+tooling/typescript-api7-contract/closed-request
+tooling/typescript-api7-contract/passive-source-ownership
+tooling/typescript-api7-contract/path-and-project-authority
+tooling/typescript-api7-contract/query-authority
+tooling/typescript-api7-contract/finite-string-consumer
+tooling/typescript-api7-contract/aliases-overloads-and-docs
+tooling/typescript-api7-contract/unsupported-and-budget
+tooling/typescript-api7-contract/snapshot-and-source-identity
+tooling/typescript-api7-contract/configuration-closure
+tooling/typescript-api7-contract/receipt-rejection
+tooling/typescript-api7-contract/compiler-capability-inventory

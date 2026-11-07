@@ -297,12 +297,17 @@ jobs:
         run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
       - name: Serial Windows native index workflows
         run: node tests/run.js --lane all --match '/^tui\/(native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Prepare exact experimental TypeScript7.1 components
+        run: node tools/ci/typescript-api7-qualification.js
+      - name: Serial Windows TypeScript7.1 request and disposal qualification
+        run: node tests/run.js --lane all --match '/^tooling\/typescript-api7-native\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/typescript-api7/report.json
       - name: Upload native qualification evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: native-index-workflows-windows
           path: |
+            .diagnostics/typescript-api7/**
             .diagnostics/native-inspection/**
             .diagnostics/native-bootstrap/**
             .testLogs/**

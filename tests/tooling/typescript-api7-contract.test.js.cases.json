@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["closed-request", "passive-source-ownership", "path-and-project-authority", "query-authority", "finite-string-consumer", "aliases-overloads-and-docs", "unsupported-and-budget", "snapshot-and-source-identity", "configuration-closure", "receipt-rejection", "compiler-capability-inventory"]
+}

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
-import { TYPESCRIPT_API7_VERSION, TYPESCRIPT_API7_PROFILE, resolveManagedTypeScriptApi7Recipes,
-  verifyManagedTypeScriptApi7Sdk, verifyManagedTypeScriptApi7Native } from '../../../tools/tooling/managed-typescript-api7.js';
+import { TYPESCRIPT_API7_VERSION, TYPESCRIPT_API7_PROFILE, resolveManagedTypeScriptApi7Recipes } from '../../../src/shared/typescript-api7-pins.js';
+import { verifyManagedTypeScriptApi7Sdk, verifyManagedTypeScriptApi7Native } from '../../../tools/tooling/managed-typescript-api7.js';
 import { resolveManagedTypeScriptNativeRecipe } from '../../../tools/tooling/managed-typescript-native.js';
 import { validatePinnedInstallDescriptor } from '../../../tools/tooling/managed-install.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
@@ -38,7 +38,7 @@ try {
     for (const platform of ['linux', 'darwin', 'freebsd']) assert.equal(resolveManagedTypeScriptApi7Recipes({ platform, arch: 'x64' }), null);
     assert.equal(resolveManagedTypeScriptApi7Recipes({ platform: 'win32', arch: 'ia32' }), null);
   } else if (mode === 'closed-preparation') {
-    assert.deepEqual(adapter.capabilities, ['prepare']);
+    assert.deepEqual(adapter.capabilities, ['prepare', 'run']);
     const before = await fs.readdir(temporary), controller = new AbortController(); controller.abort(null);
     await assert.rejects(adapter.prepare({ toolingRoot, signal: controller.signal }), error => error?.name === 'AbortError' || error === null);
     for (const input of [{ toolingRoot: 'relative' }, { toolingRoot, install: true }, { toolingRoot, download: () => {} }, { toolingRoot, signal: {} }]) {

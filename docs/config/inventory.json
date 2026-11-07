@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T12:16:51.063Z",
+  "generatedAt": "2026-11-07T13:04:26.000Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5088,6 +5088,8 @@
         "tests/tooling/triage/inspector-index-filter-context-consumer.test.js",
         "tests/tooling/triage/record-id-native-io-admission.test.js",
         "tests/tooling/triage/record-publication.test.js",
+        "tests/tooling/typescript-api7-contract.test.js",
+        "tests/tooling/typescript-api7-native.test.js",
         "tests/tooling/typescript-loader-original-failure.test.js",
         "tests/tooling/vfs/consumer-storage-admission.test.js",
         "tests/tooling/vfs/cross-process-publication.test.js",

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T12:16:41.360Z",
+  "generatedAt": "2026-11-07T13:04:23.208Z",
   "summary": {
     "lanes": 5,
-    "tests": 3463,
+    "tests": 3474,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 437,
+    "families": 438,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3389
+      "missingTests": 3400
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 3136,
+      "totalTests": 3147,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 3087
+        "missing": 3098
       }
     },
     {
@@ -566,6 +566,12 @@
     },
     {
       "key": "tooling/architecture",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "tooling/typescript-api7-contract",
       "count": 11,
       "knownDurationMs": 0,
       "unknownDurationCount": 11

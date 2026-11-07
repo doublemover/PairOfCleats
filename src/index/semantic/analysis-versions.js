@@ -5,6 +5,7 @@ import { FLOW_METADATA_VERSION } from '../../shared/flow-evidence.js';
 import { SOURCE_OUTLINE_VERSION } from '../../shared/source-outline.js';
 import { JAVASCRIPT_RELATIONS_VERSION } from '../../lang/javascript/version.js';
 import { SCM_METADATA_PRODUCER_VERSION } from '../scm/version.js';
+import { TYPESCRIPT_API7_PRODUCER_VERSION } from '../../shared/typescript-api7-pins.js';
 
 /** Shared by producers and replay admission. Bump the affected producer when its
  * semantics change; syntax extraction and physical layout remain independent.
@@ -18,6 +19,7 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   sourceChunking: '55', typeNormalization: '15', vfsRouting: '8', complexityAnalysis: '3', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3', runtimeClaims: '2',
   compilerBindings: '31', lspBindings: '70', cfgFlow: '32', callFlow: '53',
+  typescriptApi7: TYPESCRIPT_API7_PRODUCER_VERSION,
   valueSlice: '10', storageFlow: '2', workerFlow: '11', boundaryFlow: '12', wasmStructure: '1', wasmFlow: '7', nativeFlow: '3'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must

@@ -451,6 +451,14 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
 }
 
 const ciWorkflow = readWorkflow('ci.yml');
+const api7Job = parse(ciWorkflow).jobs['native-index-workflows-windows'];
+assert.equal(api7Job['runs-on'], 'windows-latest');
+const api7PrepareIndex = api7Job.steps.findIndex(step => step.run === 'node tools/ci/typescript-api7-qualification.js');
+const api7RuntimeIndex = api7Job.steps.findIndex(step => String(step.run).includes('typescript-api7-native'));
+assert.ok(api7PrepareIndex >= 0 && api7RuntimeIndex > api7PrepareIndex, 'exact API7 components precede their serial Windows qualification');
+for (const flag of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000', '--retries 0', '--native-status-redo=false'])
+  assert.ok(api7Job.steps[api7RuntimeIndex].run.includes(flag), 'API7 qualification retains ' + flag);
+assert.ok(api7Job.steps.some(step => String(step.with?.path || '').includes('.diagnostics/typescript-api7/**')));
 const windowsJob = parse(ciWorkflow).jobs.windows;
 const ownershipStepIndex = windowsJob.steps.findIndex(step => step.name === 'Windows subprocess ownership');
 const ownershipCommand = windowsJob.steps[ownershipStepIndex]?.run || '';

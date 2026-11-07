@@ -1,9 +1,10 @@
 const loaded = new Map();
 const loaders = {
   'typescript-api7-request-snapshot-v1': async () => {
-    const owner = await import('../tooling/managed-typescript-api7.js');
-    return Object.freeze({ id: owner.TYPESCRIPT_API7_PROFILE, executionClass: 'explicit-experimental-api7-component-preparation',
-      capabilities: Object.freeze(['prepare']), prepare: owner.prepareManagedTypeScriptApi7 });
+    const [owner, pins, runtime] = await Promise.all([import('../tooling/managed-typescript-api7.js'), import('../../src/shared/typescript-api7-pins.js'),
+      import('../../src/index/tooling/typescript/api7/runtime.js')]);
+    return Object.freeze({ id: pins.TYPESCRIPT_API7_PROFILE, executionClass: 'explicit-experimental-api7-request-filesystem',
+      capabilities: Object.freeze(['prepare', 'run']), prepare: owner.prepareManagedTypeScriptApi7, run: runtime.runTypeScriptApi7Request });
   },
   'published-javascript-chunk-index-revisions-v1': async () => {
     const [scenario, owner] = await Promise.all([import('./revisions/source-scenario.js'), import('./revisions/index-runner.js')]);
