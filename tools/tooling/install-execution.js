@@ -2,6 +2,8 @@ import path from 'node:path';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { runManagedChildWithStorage } from '../../src/shared/storage/managed-child-session.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 import { normalizeInstallAllocationWrites } from './install-allocation-contract.js';
 export { resolveDeclaredInstallAdmission } from './install-allocation-contract.js';
@@ -36,6 +38,30 @@ export const resolveInstallEstimateDestinations = (estimates, { storagePlan, art
 export const bindDeclaredInstallAdmission = (declared, options = {}) => declared?.state === 'estimate-declared'
   ? resolveInstallEstimateDestinations(declared.writes, options) : null;
 
+// Projection neither grants settlement nor replaces a primary failure. Capture
+// each original before its fields, and recheck every enclosing owner per read.
+const installFields = (initial = [], primary = null) => {
+  const observations = [...initial];
+  const preserve = error => primary === null ? error : addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+  const requireSettled = () => {
+    try { for (const observation of observations) observation.requireSettled(); }
+    catch (error) { throw preserve(error); }
+  };
+  return { requireSettled,
+    observe(value) {
+      requireSettled(); const observation = observeStorageResource(value, { phase: 'tool-install-result' });
+      observations.push(observation); requireSettled(); return observation;
+    },
+    read(observation, field) {
+      requireSettled(); let value;
+      try { value = observation.read(field); } catch (error) { throw preserve(error); }
+      requireSettled(); return value;
+    }
+  };
+};
+const projectInstallResult = (reader, observation) => ({ exitCode: reader.read(observation, 'exitCode'),
+  signal: reader.read(observation, 'signal'), stdout: reader.read(observation, 'stdout') || '', stderr: reader.read(observation, 'stderr') || '' });
+
 /** Owned async child close/termination evidence controls storage-session release. */
 export const runToolInstallChild = async ({ command, args, options, storagePlan, layout, artifactRoot,
   admission = null, spawn = spawnResolvedSubprocess } = {}) => {
@@ -65,12 +91,22 @@ export const runToolInstallChild = async ({ command, args, options, storagePlan,
         maxOutputBytes: 1024 * 1024, rejectOnNonZeroExit: false,
         onSpawn: () => { spawned = true; } });
       // The existing async owner resolves this path only after the close event.
-      return { result, storage, closeObserved: true };
-    }, { settlement: ({ value, error, resourceId }) => {
-      const termination = error?.result?.termination;
-      const reconciled = error?.cacheOwnershipReleased?.() === true;
-      const settled = value?.closeObserved === true || !spawned || reconciled
-        || (termination?.closeObserved === true && termination.treeCleanupSettled === true && termination.treeCleanupFailed === false);
+      const reader = installFields(), observation = reader.observe(result);
+      const projected = projectInstallResult(reader, observation);
+      return Object.freeze(Object.defineProperties({ result: projected, storage, closeObserved: true }, {
+        cacheOwnershipPending: { value: true }, cacheOwnershipReleased: { value: () => { reader.requireSettled(); return true; } }
+      }));
+    }, { settlement: ({ value, error, resourceId, resourceObservation }) => {
+      const reader = installFields([resourceObservation], error);
+      reader.requireSettled();
+      const action = reader.observe(value);
+      if (reader.read(action, 'closeObserved') === true || !spawned) return { resourceId, settled: true, pending: false };
+      const failure = reader.observe(error);
+      if (failure.hasResourceObservation) return { resourceId, settled: true, pending: false };
+      const result = reader.observe(reader.read(failure, 'result'));
+      const termination = reader.observe(reader.read(result, 'termination'));
+      const settled = reader.read(termination, 'closeObserved') === true
+        && reader.read(termination, 'treeCleanupSettled') === true && reader.read(termination, 'treeCleanupFailed') === false;
       return { resourceId, settled, pending: !settled };
     } });
     const result = session.value.result;
@@ -79,10 +115,12 @@ export const runToolInstallChild = async ({ command, args, options, storagePlan,
       storage: { ...session.storage, settlement: { resourceId: session.resourceId, settled: true, pending: false } },
       settlement: { resourceId: session.resourceId, settled: true, pending: false } };
   } catch (error) {
-    if (error.cacheOwnershipPending) throw error;
-    const result = error.result || {};
-    return { ok: false, status: result.exitCode ?? null, signal: result.signal || null,
-      stdout: result.stdout || '', stderr: result.stderr || '', error,
+    const original = observeStorageResource(error, { phase: 'tool-install-failure' }); original.requireSettled();
+    const reader = installFields([original], original.primary);
+    if (reader.read(original, 'cacheOwnershipPending')) throw error;
+    const result = reader.observe(reader.read(original, 'result') || {}), projected = projectInstallResult(reader, result);
+    return { ok: false, status: projected.exitCode ?? null, signal: projected.signal || null,
+      stdout: projected.stdout, stderr: projected.stderr, error: original.primary,
       settlement: { settled: true, pending: false } };
   }
 };

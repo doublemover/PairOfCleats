@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T03:07:08.559Z",
+  "generatedAt": "2026-11-07T03:49:20.626Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5002,6 +5002,7 @@
         "tests/tooling/install/native-setup-failure-fence.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",
         "tests/tooling/install/node-pty-fresh-lifecycle.test.js",
+        "tests/tooling/install/original-result-observation.test.js",
         "tests/tooling/install/patch-stage-ownership.test.js",
         "tests/tooling/install/patch-summary-settlement.test.js",
         "tests/tooling/install/phpactor-download-authority.test.js",
@@ -7631,6 +7632,12 @@
         ]
       },
       {
+        "file": "tests/tooling/install/original-result-observation.test.js",
+        "flags": [
+          "cwd"
+        ]
+      },
+      {
         "file": "tests/tooling/script-coverage/script-coverage.runner.js",
         "flags": [
           "action",
@@ -9525,6 +9532,17 @@
         ]
       },
       {
+        "flag": "cwd",
+        "count": 5,
+        "files": [
+          "tests/tooling/install/estimate-destination-identity.test.js",
+          "tests/tooling/install/gopls-allocation-recipe.test.js",
+          "tests/tooling/install/managed-child-storage-settlement.test.js",
+          "tests/tooling/install/original-result-observation.test.js",
+          "tools/dicts/generate-repo-dict.js"
+        ]
+      },
+      {
         "flag": "iterations",
         "count": 5,
         "files": [
@@ -9596,16 +9614,6 @@
           "tools/config/reset.js",
           "tools/docs/script-inventory.js",
           "tools/reports/diagnostics-report.js"
-        ]
-      },
-      {
-        "flag": "cwd",
-        "count": 4,
-        "files": [
-          "tests/tooling/install/estimate-destination-identity.test.js",
-          "tests/tooling/install/gopls-allocation-recipe.test.js",
-          "tests/tooling/install/managed-child-storage-settlement.test.js",
-          "tools/dicts/generate-repo-dict.js"
         ]
       },
       {

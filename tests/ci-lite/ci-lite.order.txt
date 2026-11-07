@@ -2950,3 +2950,7 @@ indexing/semantic/adjacency-support-history/bounded-history-and-work
 indexing/semantic/adjacency-support-history/derived-owner-binding
 tooling/eval/relational-revision-oracle/unary-retractions-and-incomplete-domains
 tooling/eval/relational-revision-oracle/unary-independent-mapping-defects
+tooling/install/original-result-observation/returned-result-observation
+tooling/install/original-result-observation/error-before-diagnostics
+tooling/install/original-result-observation/field-interval-observation
+tooling/install/original-result-observation/ordinary-results-and-falsy-errors

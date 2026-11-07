@@ -141,6 +141,12 @@ export const observeStorageResource = (value, { phase = 'storage-failure', phase
     catch (inspection) { throw retain(inspection, { inspectionPresent: true }); }
     if (!confirmed) throw retain();
   };
+  const read = field => {
+    requireSettled(); let result;
+    try { result = primary[field]; }
+    catch (inspection) { throw retain(inspection, { inspectionPresent: true }); }
+    requireSettled(); return result;
+  };
   /** Keep a typed producer error and its exact cause while carrying the same
    * original observer/inspection prerequisites across a diagnostic boundary.
    * This grants no retry, native-close or metadata-release authority.
@@ -159,7 +165,7 @@ export const observeStorageResource = (value, { phase = 'storage-failure', phase
   };
   // Observation only, for an existing owner that must retain these original
   // prerequisites before another native operation. It grants no release proof.
-  return Object.freeze({ primary, retain, wrap, requireSettled, isSettled: originalSettled,
+  return Object.freeze({ primary, retain, wrap, requireSettled, read, isSettled: originalSettled,
     hasResourceObservation: observed });
 };
 
@@ -169,15 +175,7 @@ export const observeStorageResource = (value, { phase = 'storage-failure', phase
 export const describeStorageFailure = (value, { phase = 'storage-failure',
   defaultCode = 'ERR_STORAGE', defaultMessage = 'Storage observation failed.' } = {}) => {
   const observation = observeStorageResource(value, { phase });
-  const read = field => {
-    observation.requireSettled();
-    let result;
-    try { result = observation.primary[field]; }
-    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
-    observation.requireSettled();
-    return result;
-  };
-  const code = read('code'), message = read('message');
+  const code = observation.read('code'), message = observation.read('message');
   return { code: typeof code === 'string' && code ? code : defaultCode,
     message: typeof message === 'string' ? message : defaultMessage };
 };
