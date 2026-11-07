@@ -9,7 +9,7 @@ import { getTuiEnvConfig } from '../../../src/shared/env/tui.js';
 const dir = getTuiEnvConfig().eventLogDir;
 const supervisor = spawn(process.execPath,
   [fileURLToPath(new URL('../../../tools/tui/supervisor.js', import.meta.url))],
-  { stdio: ['pipe', 'pipe', 'inherit'] });
+  { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
 let held = [], ready = false;
 const forward = line => process.stdout.write(line + '\n');
 const gate = setInterval(() => {

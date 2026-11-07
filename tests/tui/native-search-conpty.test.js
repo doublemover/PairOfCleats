@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capture.js';
-import { reconstructTerminalScreen } from '../../tools/testing/terminal-screen.js';
+import { createTerminalScreen } from '../../tools/testing/terminal-screen.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { initGitRepo } from '../helpers/git-fixture.js';
@@ -114,8 +114,12 @@ try {
   rootDir: root, cwd: repo, cols: columns, rows: terminalRows, label: `native-search-${mode}`,
   logsRoot: path.join(dir, 'capture'), timeoutMs: 19000, env,
   onSpawn: async terminal => {
-    let output = '', screens = 0;
-    const subscription = terminal.onData(data => { output = (output + data).slice(-1024 * 1024); });
+    let output = '', screens = 0, revision = 0;
+    const terminalScreen = createTerminalScreen({ columns, rows: terminalRows });
+    const subscription = terminal.onData(data => {
+      output = (output + data).slice(-1024 * 1024);
+      terminalScreen.write(data); revision++;
+    });
     const deadline = Date.now() + 16000;
     const wait = async (predicate, witness) => {
       while (!await predicate()) {
@@ -123,7 +127,13 @@ try {
         await new Promise(resolve => setTimeout(resolve, 20));
       }
     };
-    const screen = () => reconstructTerminalScreen(output, { columns, rows: terminalRows }).text;
+    let paintedRevision = -1, paintedScreen = '';
+    const screen = () => {
+      if (paintedRevision !== revision) {
+        paintedRevision = revision; paintedScreen = terminalScreen.snapshot().text;
+      }
+      return paintedScreen;
+    };
     const rendered = async witness => {
       await wait(() => screen().includes(witness), witness);
       await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
@@ -141,14 +151,37 @@ try {
       assert.equal(end.status, 'done', JSON.stringify(end));
       return end.result.data;
     };
+    const nativeInputReady = async () => {
+      await wait(async () => {
+        let text;
+        try { text = await fs.readFile(path.join(dir, 'search-native.runtime.jsonl'), 'utf8'); }
+        catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+        // Native metrics are emitted on later event-loop turns. A completed
+        // rendered frame proves the actual input loop has started, even when
+        // handshake delivery is held or the connection label is clipped.
+        return text.slice(0, text.lastIndexOf('\n') + 1).split('\n').filter(Boolean)
+          .map(JSON.parse).some(row => row.runId === 'search-native' && row.renderMsEwma > 0);
+      }, 'native input loop after its first frame');
+    };
     try {
       await wait(async () => (await readEvents()).some(row => row.event === 'hello'), 'actual supervisor hello');
       if (mode === 'handshake') {
-        await rendered('Tab pane'); terminal.write('R');
-        await rendered('Read only: repository search requires a controllable local supervisor');
+        await rendered('Tab pane'); await nativeInputReady(); terminal.write('R');
+        // Global direct dispatch shares the palette's live-control denial.
+        // The passive SearchUi fallback is separately covered by Rust tests.
+        await rendered('requires live owned control');
         assert.equal((await readEvents()).some(row => row.internal && row.event === 'job:start'), false);
         await fs.writeFile(path.join(dir, 'release-hello'), 'explicit fixture handshake release\n');
-      } else terminal.write('R');
+        await wait(() => /\bconn\s+(?:connected|streaming)\b/.test(screen()), 'released handshake rendered');
+        terminal.write('R');
+      } else {
+        // The supervisor records hello before the native client receives it.
+        // Wait for the actual connected frame before sending a search key;
+        // otherwise the first cold case can lose its input during startup.
+        if (columns >= 80) await wait(() => /\bconn\s+(?:connected|streaming)\b/.test(screen()), 'native supervisor connection rendered');
+        else await nativeInputReady();
+        terminal.write('R');
+      }
       await rendered(columns < 40 ? 'Ready; Enter runs' : 'Ready; Enter runs a canonical search');
       const requestedQuery = ['pagination', 'truncated', 'modes', 'incompatible'].includes(mode) ? '' : mode === 'empty-error' ? 'unfindableNativeTerm' : query;
       const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
