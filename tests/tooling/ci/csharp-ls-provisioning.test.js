@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { provisionCiCsharpLs } from '../../../tools/ci/provision-csharp-ls.js';
-import { CSHARP_LS_VERSION } from '../../../tools/tooling/csharp-ls-recipe.js';
+import { CSHARP_LS_VERSION } from '../../../src/index/tooling/csharp-ls-profile.js';
 import { DOTNET_SDK_VERSION } from '../../../tools/tooling/managed-dotnet-sdk.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { isPathWithinRoot } from '../../../src/shared/file-paths.js';

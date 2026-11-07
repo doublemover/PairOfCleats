@@ -11,7 +11,7 @@ import { isTestingEnv } from '../../src/shared/env/testing.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM } from '../tooling/approved-artifacts.js';
 import { GOPLS_VERSION } from '../tooling/gopls-recipe.js';
-import { CSHARP_LS_VERSION } from '../tooling/csharp-ls-recipe.js';
+import { CSHARP_LS_VERSION } from '../../src/index/tooling/csharp-ls-profile.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 // Internal qualification recipes: no public CLI, configuration or execution grant.

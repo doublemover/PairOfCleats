@@ -2,6 +2,7 @@
 // physical bytes until shared child close or confirmed error reconciliation.
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { resolveManagedNodePackageLaunch } from '../../src/shared/managed-node-package.js';
+import { resolveToolingRuntimeLaunch } from '../../src/index/tooling/runtime-launch.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { resolveNoProvisionToolingEnvironment, isNonZeroToolingProbeSuccess } from '../../src/index/tooling/command-resolver.js';
@@ -15,7 +16,7 @@ import { AST_GREP_VERSION, identifyAstGrepVersion } from './managed-ast-grep.js'
 import { identifyOperationalTool, OPERATIONAL_TOOL_IDS } from './operational-probes.js';
 import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
 import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
-import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
+import { isApplicationOwnedCommand, isRepoTrusted, isResolvedCommandTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
 const sameExecutable = (actual, expected) => actual.path === expected.path && actual.sha256 === expected.sha256
@@ -194,9 +195,12 @@ const detectToolOwnedSelected = async (tool, { signal = null, env = process.env 
       let closeObserved = false;
       closureConfirmed = () => closeObserved || !spawned;
       try {
-        const launch = resolveManagedNodePackageLaunch({ command, args: [...prefix, ...args], providerId: tool.id, toolingRoot: tool.toolingRoot, baseEnv: env });
+        const launch = resolveToolingRuntimeLaunch({ command, args: [...prefix, ...args], providerId: tool.id, toolingRoot: tool.toolingRoot, baseEnv: env });
+        if (tool.authorityRepoRoot && !isResolvedCommandTrusted({ commandPath: launch.command, repoRoot: tool.authorityRepoRoot, toolRoot: cwd })) {
+          throw Object.assign(new Error('Selected runtime host requires repository command trust.'), { code: 'untrusted-repository-command' });
+        }
         const result = await (dependencies.spawn || spawnResolvedSubprocess)(launch.command, launch.args, { cwd, signal,
-          env: resolveNoProvisionToolingEnvironment(env, { command, providerId: tool.id, toolingRoot: tool.toolingRoot, cwd }),
+          env: resolveNoProvisionToolingEnvironment(launch.environment, { command: launch.command, providerId: tool.id, toolingRoot: tool.toolingRoot, cwd }),
           timeoutMs: 4000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false,
           onSpawn: () => { spawned = true; } });
         closeObserved = true;

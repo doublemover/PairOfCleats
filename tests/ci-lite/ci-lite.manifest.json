@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2862,
+    "hero": 2870,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18177,6 +18177,54 @@
       "order": 3027,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/canonical-prebuilt-closure",
+      "order": 3028,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/original-verification-observation",
+      "order": 3029,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/managed-publication-and-reuse",
+      "order": 3030,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/runtime-host-and-assembly-identity",
+      "order": 3031,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/external-host-does-not-adopt-managed-sdk",
+      "order": 3032,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/sync-probe-and-workspace-trust",
+      "order": 3033,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/external-host-requires-own-command-trust",
+      "order": 3034,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-csharp-package/framed-initialize-and-original-generation-lease",
+      "order": 3035,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

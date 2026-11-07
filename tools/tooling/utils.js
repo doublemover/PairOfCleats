@@ -5,7 +5,7 @@ import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
-import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
+import { isApplicationOwnedCommand, isRepoTrusted, isResolvedCommandTrusted } from '../../src/shared/config-authority.js';
 import { isNonZeroToolingProbeSuccess, resolveNoProvisionToolingEnvironment, validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
 import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
@@ -24,7 +24,7 @@ import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { CLANGD_STORAGE_ESTIMATE, CLANGD_RELEASE_INDEX_URL, CLANGD_MAX_DOWNLOAD_BYTES,
   resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
-import { CSHARP_LS_VERSION } from './csharp-ls-recipe.js';
+import { CSHARP_LS_VERSION, resolveManagedCsharpLsRecipe, verifyManagedCsharpLs } from './csharp-ls-recipe.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
 import { createToolProvisioningPlan, normalizeToolProvisioningDeclaration, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
@@ -36,6 +36,7 @@ import { createGoplsCacheRecipe, GOPLS_PACKAGE } from './gopls-recipe.js';
 import { resolveManagedPyrightRecipe, verifyManagedPyright } from './managed-pyright.js';
 import { resolveManagedTypeScriptNativeRecipe, verifyManagedTypeScriptNative } from './managed-typescript-native.js';
 import { resolveManagedNodePackageLaunch } from '../../src/shared/managed-node-package.js';
+import { resolveToolingRuntimeLaunch } from '../../src/index/tooling/runtime-launch.js';
 import { runWithManagedCommandInstallationSync } from '../../src/index/tooling/managed-command-lifetime.js';
 import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
@@ -201,12 +202,16 @@ export function resolveDetectArgCandidates(tool) {
   return candidates;
 }
 
-function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = null) {
+function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = null, repoRoot = null) {
   const attempts = [];
   for (const args of argCandidates) {
     const cwd = resolveToolRoot();
-    const launch = resolveManagedNodePackageLaunch({ command: cmd, args, providerId, toolingRoot });
-    const options = { timeoutMs: 4000, cwd, env: resolveNoProvisionToolingEnvironment(process.env, { command: launch.command, providerId, toolingRoot, cwd }) };
+    const launch = resolveToolingRuntimeLaunch({ command: cmd, args, providerId, toolingRoot });
+    if (repoRoot && !isResolvedCommandTrusted({ commandPath: launch.command, repoRoot, toolRoot: cwd })) return {
+      ok: false, outcome: 'untrusted-repository-command', attempts,
+      validationFailure: { reasonCode: 'untrusted-repository-command' }
+    };
+    const options = { timeoutMs: 4000, cwd, env: resolveNoProvisionToolingEnvironment(launch.environment, { command: launch.command, providerId, toolingRoot, cwd }) };
     let probe;
     if (!launch.managedRuntimeCommands.length) probe = probeCommand(launch.command, launch.args, options);
     else {
@@ -215,7 +220,7 @@ function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = nu
       const result = runWithManagedCommandInstallationSync({ command: launch.command, toolingRoot,
         managedRuntimeCommands: launch.managedRuntimeCommands }, () => spawnResolvedSubprocessSync(launch.command, launch.args,
         { ...options, stdio: ['ignore', 'pipe', 'pipe'], outputEncoding: 'utf8', maxOutputBytes: 16384, rejectOnNonZeroExit: false }));
-      const observed = observeStorageResource(result, { phase: 'managed-node-sync-probe' });
+      const observed = observeStorageResource(result, { phase: 'managed-runtime-sync-probe' });
       const status = observed.read('exitCode'), signal = observed.read('signal'), stdout = observed.read('stdout'), stderr = observed.read('stderr');
       probe = { ok: status === 0, status, signal, errorCode: null, stdout, stderr,
         outcome: status === 0 ? 'ok' : signal ? 'terminated' : status === 127 ? 'missing' : 'nonzero' };
@@ -396,6 +401,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   const typescriptPackage = `typescript@${packageMetadata.dependencies.typescript}`;
   const pyrightRecipe = resolveManagedPyrightRecipe();
   const nativeTypeScriptRecipe = resolveManagedTypeScriptNativeRecipe();
+  const csharpRecipe = resolveManagedCsharpLsRecipe();
   const absoluteToolingRoot = path.resolve(toolingRoot);
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
@@ -641,17 +647,20 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'csharp-ls',
       // The pinned 0.28.0 fsproj targets net10.0. Launch needs the runtime;
       // installation additionally needs the SDK, including on existing hosts.
-      prerequisites: [{ id: 'dotnet-runtime', command: 'dotnet', family: 'dotnet-runtime', versionRange: '>=10.0.0 <11.0.0',
+      prerequisites: [...(csharpRecipe ? [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0 <11.0.0',
+        kind: 'sdk', phase: 'launch', dependsOn: [] }] : []),
+      { id: 'dotnet-runtime', command: 'dotnet', family: 'dotnet-runtime', versionRange: '>=10.0.0 <11.0.0',
         requiredComponents: ['Microsoft.NETCore.App'], kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'C# LSP (Roslyn)',
       languages: ['csharp'],
       detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
-        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
+        cache: csharpRecipe || { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
           prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] },
         user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
           prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] }
       },
+      ...(csharpRecipe ? { version: CSHARP_LS_VERSION, verifyManagedInstall: verifyManagedCsharpLs } : {}),
       docs: TOOL_DOCS['csharp-ls']
     },
     {
@@ -876,19 +885,19 @@ export function detectTool(tool) {
   };
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates, tool.id, tool.toolingRoot));
+    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates, tool.id, tool.toolingRoot, tool.authorityRepoRoot));
     rememberProbe(probe);
     if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates, tool.id, tool.toolingRoot));
+  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates, tool.id, tool.toolingRoot, tool.authorityRepoRoot));
   rememberProbe(probe);
   if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const pathFound = findBinaryInDirs(detectCmd, pathEntries);
   if (pathFound) {
-    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates, tool.id, tool.toolingRoot));
+    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates, tool.id, tool.toolingRoot, tool.authorityRepoRoot));
     rememberProbe(pathProbe);
     if (pathProbe.ok === true) {
       return { found: true, path: pathFound, source: 'path', probe: pathProbe };

@@ -71,7 +71,7 @@ refresh the PR overview at least every 20 commits.
 
 The [native workflow budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
 overlaps read-only console/catalog setup while retaining full seed verification.
-[Windows Pyright](contracts/managed-node-package.md) and [native TypeScript](contracts/typescript-native-lsp.md)
+[Windows Pyright](contracts/managed-node-package.md), [C#](contracts/managed-dotnet-package.md) and [native TypeScript](contracts/typescript-native-lsp.md)
 use pinned prebuilt packages and existing admission/leases. Native TypeScript adds
 an explicit source/profile route and bounded pull diagnostics; runtime checks await.
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await

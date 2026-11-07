@@ -14,7 +14,7 @@ import {
 import { pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { createRetainedLspClient } from '../../integrations/tooling/lsp/managed-client.js';
 import { runWithManagedCommandInstallationSync } from './managed-command-lifetime.js';
-import { resolveToolingRuntimeLaunch } from './runtime-launch.js';
+import { resolveToolingRuntimeLaunch, managedRuntimeProbePrefix } from './runtime-launch.js';
 import { resolveTypeScriptNativeCommand } from './typescript-native-profile.js';
 import { createBinaryDiscovery, classifyBinaryDiscoverySelection } from './binary-utils.js';
 import {
@@ -556,9 +556,14 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig,
   return '';
 };
 
-const runtimeSourceCommand = (requested, resolved, providerId) => requested === 'dotnet' ? requested
-  : !isExplicitCommandPath(requested) && (normalizeCommandToken(requested) === 'pyright-langserver'
-    || !requested && ['pyright', 'lsp-pyright'].includes(providerId)) ? 'pyright-langserver' : resolved;
+const runtimeSourceCommand = (requested, resolved, providerId) => {
+  if (requested === 'dotnet') return requested;
+  if (!isExplicitCommandPath(requested)) {
+    if (normalizeCommandToken(requested) === 'pyright-langserver' || !requested && ['pyright', 'lsp-pyright'].includes(providerId)) return 'pyright-langserver';
+    if (normalizeCommandToken(requested) === 'csharp-ls' || !requested && ['csharp-ls', 'lsp-csharp-ls'].includes(providerId)) return 'csharp-ls';
+  }
+  return resolved;
+};
 
 const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig, cwd = process.cwd() }) => {
   let probeCwd = path.resolve(cwd);
@@ -568,7 +573,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
       providerId, toolingRoot: toolingConfig?.dir || null }) });
   command = launch.command;
   launchArgs = launch.args;
-  const scriptPrefix = launch.command === process.execPath && launch.managedRuntimeCommands.some(selection => selection.toolId === 'pyright') ? launchArgs.slice(0, 1) : [];
+  const scriptPrefix = managedRuntimeProbePrefix(launch);
   const probeEnv = launch.environment;
   const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv);
   const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}\u0000${normalizeComparablePath(probeCwd)}\u0000${environmentIdentity}`;
@@ -984,7 +989,7 @@ export const probeLspInitializeHandshake = async (input) => {
         providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }) });
     // No managed selection: retain the already discovered external executable.
     // A damaged selection throws above and cannot reach this fallback.
-    if (runtimeCommand === 'pyright-langserver' && !launch.managedRuntimeCommands.length) launch = { ...launch, command: cmd };
+    if (['pyright-langserver', 'csharp-ls'].includes(runtimeCommand) && !launch.managedRuntimeCommands.length) launch = { ...launch, command: cmd };
     cmd = launch.command;
   } catch (error) {
     if (!['ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE', 'ERR_TOOLING_NODE_RUNTIME_UNAVAILABLE'].includes(error?.code)) throw error;

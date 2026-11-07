@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T06:58:10.789Z",
+  "generatedAt": "2026-11-07T07:15:31.399Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3814,6 +3814,7 @@
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
         "tests/tooling/install/managed-archive-digest-authority.test.js",
+        "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-directory-resource-recovery.test.js",
         "tests/tooling/install/managed-dotnet-sdk-verification.test.js",
         "tests/tooling/install/managed-explicit-repair-ownership.test.js",
@@ -5007,6 +5008,7 @@
         "tests/tooling/install/checkout-stage-journal.test.js",
         "tests/tooling/install/clangd-owned-acquisition.test.js",
         "tests/tooling/install/estimate-destination-identity.test.js",
+        "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
@@ -5552,6 +5554,7 @@
         "tests/tooling/install/gopls-allocation-recipe.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
+        "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
@@ -5657,6 +5660,7 @@
         "tests/tooling/install/gopls-sdk-version-contract.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
+        "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-typescript-native.test.js",

@@ -3030,3 +3030,11 @@ shared/storage/kernel-allocation-accounting/sparse-or-compressed-allocation
 shared/storage/embedding-delta-reference-inventory
 shared/storage/embedding-inventory-publication-race/reference-before-mode-baseline
 shared/storage/embedding-inventory-publication-race/publication-during-physical-inventory
+tooling/install/managed-csharp-package/canonical-prebuilt-closure
+tooling/install/managed-csharp-package/original-verification-observation
+tooling/install/managed-csharp-package/managed-publication-and-reuse
+tooling/install/managed-csharp-package/runtime-host-and-assembly-identity
+tooling/install/managed-csharp-package/external-host-does-not-adopt-managed-sdk
+tooling/install/managed-csharp-package/sync-probe-and-workspace-trust
+tooling/install/managed-csharp-package/external-host-requires-own-command-trust
+tooling/install/managed-csharp-package/framed-initialize-and-original-generation-lease

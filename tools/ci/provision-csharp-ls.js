@@ -8,7 +8,7 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { requireBootstrap } from '../../src/shared/bootstrap-readiness.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { bindManagedDotnetEnvironment } from '../tooling/dotnet-environment.js';
-import { CSHARP_LS_VERSION } from '../tooling/csharp-ls-recipe.js';
+import { CSHARP_LS_VERSION } from '../../src/index/tooling/csharp-ls-profile.js';
 import { DOTNET_SDK_VERSION } from '../tooling/managed-dotnet-sdk.js';
 
 /** A fresh CI-owned NuGet tool install is distinct from the application's

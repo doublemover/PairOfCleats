@@ -46,6 +46,9 @@ export const resolveDotnetRuntimeLaunch = ({ command, args = [], cwd = process.c
       }
     }
   }
+  if (host && path.isAbsolute(command || '') && !managedCommand) {
+    return { command, environment, managedRuntimeCommands };
+  }
   const sdk = resolveManagedToolInstallation(toolingRoot, 'dotnet-sdk');
   if (!sdk) {
     if (managedCommand || managedRuntimeCommands.length || fs.existsSync(path.join(installs, 'dotnet-sdk', 'current.json'))) {
@@ -54,9 +57,6 @@ export const resolveDotnetRuntimeLaunch = ({ command, args = [], cwd = process.c
     return { command, environment, managedRuntimeCommands };
   }
   if (token(sdk.command) !== 'dotnet' || path.dirname(sdk.command) !== sdk.root) throw fail('Selected dotnet-sdk does not expose its host at the SDK root.');
-  if (host && path.isAbsolute(command || '') && !managedCommand) {
-    return { command, environment, managedRuntimeCommands };
-  }
   if (host && managedCommand && path.resolve(command) !== path.resolve(sdk.command)) {
     throw fail('Selected managed dotnet host differs from the current dotnet-sdk generation.');
   }

@@ -77,7 +77,7 @@ the current reports and admits at most one fresh pass under the same budget;
 further refresh, bounds, malformed reports or ordinary request failure remain
 explicit incomplete diagnostics. Pending original resource failures propagate
 instead of becoming an ordinary diagnostic warning. Semantic producer
-`lspBindings`69 invalidates replay of the earlier collection meaning.
+`lspBindings`70 invalidates replay of the earlier collection meaning.
 
 Four managed/profile controls and six pull controls are authored and locally
 unrun. Their inert publication fixture and actual framed Node server test strict
