@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T02:45:39.200Z",
+  "generatedAt": "2026-11-07T02:57:06.304Z",
   "summary": {
     "lanes": 5,
-    "tests": 3256,
+    "tests": 3262,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 435,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3182
+      "missingTests": 3188
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2935,
+      "totalTests": 2941,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2886
+        "missing": 2892
       }
     },
     {
@@ -308,9 +308,9 @@
     },
     {
       "key": "indexing/semantic",
-      "count": 96,
+      "count": 102,
       "knownDurationMs": 0,
-      "unknownDurationCount": 96
+      "unknownDurationCount": 102
     },
     {
       "key": "cli/search",
@@ -2710,9 +2710,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 801,
+      "count": 807,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 760,
+      "unknownDurationCount": 766,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

@@ -1,5 +1,11 @@
 const loaded = new Map();
 const loaders = {
+  'finite-selected-adjacency-v1': async () => {
+    const owner = await import('../../src/index/semantic/views/selected-adjacency.js');
+    return Object.freeze({ id: 'finite-selected-adjacency-v1', executionClass: 'supplied-original-adjacency-view-only',
+      capabilities: Object.freeze(['bootstrap', 'apply', 'inspect', 'work']), bootstrap: owner.bootstrapSelectedAdjacency,
+      apply: owner.applySelectedAdjacencyDelta, inspect: owner.describeSelectedAdjacency, work: owner.selectedAdjacencyWork });
+  },
   'finite-grouped-adjacency-v1': async () => {
     const owner = await import('../../src/index/semantic/views/grouped-adjacency.js');
     return Object.freeze({ id: 'finite-grouped-adjacency-v1', executionClass: 'supplied-original-adjacency-view-only',

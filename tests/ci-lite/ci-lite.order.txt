@@ -2938,3 +2938,9 @@ indexing/semantic/grouped-adjacency/partial-domain-observations
 indexing/semantic/grouped-adjacency/atomic-replay-and-original-handles
 indexing/semantic/grouped-adjacency/bounded-and-cancelled-transitions
 indexing/semantic/grouped-adjacency/independent-expanded-bag
+indexing/semantic/selected-adjacency/projected-bags-and-parent-identity
+indexing/semantic/selected-adjacency/exact-selection-and-swap
+indexing/semantic/selected-adjacency/partial-domain-and-world-transitions
+indexing/semantic/selected-adjacency/atomic-replay-and-passive-input
+indexing/semantic/selected-adjacency/bounded-and-cancelled-transitions
+indexing/semantic/selected-adjacency/independent-expanded-bag

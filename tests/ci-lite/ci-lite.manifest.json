@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2770,
+    "hero": 2776,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17623,6 +17623,42 @@
     {
       "id": "indexing/semantic/grouped-adjacency/independent-expanded-bag",
       "order": 2935,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/selected-adjacency/projected-bags-and-parent-identity",
+      "order": 2936,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/selected-adjacency/exact-selection-and-swap",
+      "order": 2937,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/selected-adjacency/partial-domain-and-world-transitions",
+      "order": 2938,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/selected-adjacency/atomic-replay-and-passive-input",
+      "order": 2939,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/selected-adjacency/bounded-and-cancelled-transitions",
+      "order": 2940,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/selected-adjacency/independent-expanded-bag",
+      "order": 2941,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

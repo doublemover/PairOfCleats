@@ -1,10 +1,10 @@
 import { createAjv, compileSchema } from '../../../shared/validation/ajv-factory.js';
-import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { createOccurrenceRelation } from '../../../semantic/relations/factor.js';
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
-import { isSemanticJsonBudgetError } from '../canonical-json-bounds.js';
-import { applyAdjacencyDelta, readAdjacencyViewInput } from './adjacency-delta.js';
-import { finiteViewFields, captureFiniteViewJson, captureFiniteViewDefinition } from './finite-input.js';
+import { readAdjacencyViewInput } from './adjacency-delta.js';
+import { finiteViewFields, captureFiniteViewDefinition } from './finite-input.js';
+import { createFiniteUnaryTransition } from './finite-unary-transition.js';
 import { GROUPED_ADJACENCY_DEFINITION_SCHEMA, GROUPED_ADJACENCY_LIMITS } from '../../../contracts/schemas/grouped-adjacency.js';
 
 const owned = new WeakMap(), budgets = new WeakSet(), ajv = createAjv({ strict: true, allErrors: true });
@@ -76,31 +76,5 @@ export const bootstrapGroupedAdjacency = (value, options = {}) => {
 export const describeGroupedAdjacency = handle => get(handle).report;
 export const groupedAdjacencyWork = handle => Object.freeze({ workUnits: get(handle).work, strategy: 'full-affected-view-recomputation' });
 
-export const applyGroupedAdjacencyDelta = (handle, value, options = {}) => {
-  const state = get(handle), batch = captureFiniteViewJson(value, state.limits.retainedBytes, fail);
-  fields(batch, ['batchId', 'expectedRootId', 'input']);
-  if (typeof batch.batchId !== 'string' || !batch.batchId.length || batch.batchId.length > 128) throw fail('Invalid grouped adjacency batch identity.');
-  const digest = hash(batch), previous = state.ledger.find(entry => entry.batchId === batch.batchId);
-  if (previous) {
-    if (previous.digest !== digest) throw fail('Grouped adjacency replay changed content.');
-    return { status: 'replayed', consumed: false, view: handle };
-  }
-  if (batch.expectedRootId !== handle.rootId) throw fail('Grouped adjacency transition has the wrong original base.');
-  if (state.ledger.length >= 128) return { status: 'checkpoint-required', consumed: false, view: handle };
-  const { signal = null } = options;
-  if (signal?.aborted) return { status: 'cancelled', consumed: false, view: handle };
-  try {
-    const next = applyAdjacencyDelta(state.input, batch.input, { signal, maxWork: Math.min(state.limits.work, state.limits.inputSupports * 4) });
-    if (!next.consumed) {
-      if (!['cancelled', 'work-budget', 'retention-budget', 'checkpoint-required'].includes(next.status)) throw fail('Original input replay is not a new grouped transition.');
-      return { status: next.status, consumed: false, view: handle };
-    }
-    const view = build({ ...state, input: next.view, ledger: [...state.ledger, { batchId: batch.batchId, digest }] }, signal);
-    return { status: 'materialized-private', consumed: true, view, maintenance: 'full-affected-view-recomputation', publication: 'not-attempted' };
-  } catch (error) {
-    if (isAbortError(error)) return { status: 'cancelled', consumed: false, view: handle };
-    if (isSemanticJsonBudgetError(error)) return { status: 'retention-budget', consumed: false, view: handle, limit: 'retainedBytes' };
-    if (budgets.has(error)) return { status: error.limit === 'work' ? 'work-budget' : 'retention-budget', consumed: false, view: handle, limit: error.limit };
-    throw error;
-  }
-};
+export const applyGroupedAdjacencyDelta = createFiniteUnaryTransition({ getState: get, fail, hash, build,
+  readBudget: error => budgets.has(error) ? { limit: error.limit } : null });
