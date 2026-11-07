@@ -6,13 +6,12 @@ import { acquireStorageWriteReservation } from '../../src/shared/storage/admissi
 import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission } from './install-execution.js';
 import { settleInstallDownload } from './install-shared.js';
 import { getArchiveExtractionSession } from '../shared/archive-resource-owner.js';
+import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 
 const captureActionObservation = error => {
-  try {
-    const observe = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
-    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
+  const observation = createStorageObservationLedger(); observation.remember(error);
+  const snapshot = observation.snapshot();
+  return snapshot.observerCount || snapshot.contextCount || !snapshot.complete ? observation : null;
 };
 
 // The download producer retains its original error identity and records the
@@ -41,14 +40,30 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
   const authorizedRoots = Object.values(layout.descriptors).map(descriptor => descriptor.path);
   const reservations = [];
   let actionObservation = null;
+  const actionSettled = () => !actionObservation || actionObservation.isSettled();
+  const requireActionSettled = () => {
+    if (!actionSettled()) throw new Error('Actual install action resource observer remains pending.');
+  };
+  const retainActionInspections = value => {
+    let failure = value;
+    for (const inspection of actionObservation?.snapshot().inspectionErrors ?? []) {
+      failure = addStorageFailureContext(failure, {}, inspection, { secondaryPresent: true,
+        ownerMessage: 'Original install action observations remain retained.' });
+    }
+    return failure;
+  };
+  const actionReceipt = resourceId => Object.freeze({ resourceId, settled: true, pending: false,
+    cacheOwnershipPending: true, cacheOwnershipReleased: actionSettled });
   try {
     return await runWithStorageSession({ roots: [...new Set([toolingRoot, ...admission.writes.map(write => write.root)])],
       authorizedRoots, coordinationRoot, scope }, async session => {
       for (const write of admission.writes) reservations.push(await acquireStorageWriteReservation({ ...write,
         resourceId: session.resourceId, authorizedRoots, coordinationRoot }));
-      try { return await execute(session); }
+      try {
+        const value = await execute(session); actionObservation = captureActionObservation(value); return value;
+      }
       catch (value) {
-        const error = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+        const error = value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
         actionObservation = captureActionObservation(error);
         // Preserve a verifier's own child-storage handles before the outer
         // publication session adds its separate lifetime handle to the error.
@@ -59,15 +74,15 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
           ...(Array.isArray(error.installChildWriteReservations) ? error.installChildWriteReservations : []), ...error.storageWriteReservations];
         throw Object.keys(fields).length ? addStorageFailureContext(error, fields, null, { nonEnumerable: Object.keys(fields) }) : error;
       }
-    }, { settlement: async ({ resourceId, error }) => {
-      let settled = actionObservation ? actionObservation() : error?.cacheOwnershipPending !== true;
-      try {
-        const observe = error?.cacheOwnershipReleased;
-        if (typeof observe === 'function') settled = settled && observe.call(error) === true;
-      } catch { settled = false; }
+    }, { settlement: async ({ resourceId }) => {
+      const settled = actionSettled();
       const receipt = { resourceId, settled, pending: !settled };
-      if (settled) for (const reservation of reservations) await reservation.releaseAfterSettlement(receipt);
-      return receipt;
+      if (settled) for (const reservation of reservations) {
+        requireActionSettled();
+        await reservation.releaseAfterSettlement(actionReceipt(resourceId));
+        requireActionSettled();
+      }
+      return settled ? actionReceipt(resourceId) : receipt;
     } });
   } catch (error) {
     const outstanding = [...new Set([...reservations,
@@ -81,7 +96,7 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
         ...(cause?.storageSession && cause.storageSession !== storage ? [cause.storageSession] : [])])];
       const retained = { ...fields, ...(storage ? { storageSession: storage } : {}),
         ...(childSessions.length ? { installChildStorageSessions: childSessions } : {}) };
-      return addStorageFailureContext(retainDownloadCleanupFailure(cause), retained, error,
+      return addStorageFailureContext(retainActionInspections(retainDownloadCleanupFailure(cause)), retained, error,
         { nonEnumerable: Object.keys(retained) });
     };
     const reconcile = async action => {
@@ -89,13 +104,16 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
       catch (cause) { throw retainOuterFailure(cause); }
     };
     const settleOuter = async () => {
-      if (actionObservation && !actionObservation()) throw new Error('Actual install action resource observer remains pending.');
+      requireActionSettled();
       if (released) return true;
       if (!releasing) releasing = (async () => {
-        const receipt = { resourceId: storage.resourceId, settled: true, pending: false };
+        const receipt = actionReceipt(storage.resourceId);
         for (const reservation of reservations) {
+          requireActionSettled();
           if (await reservation.releaseAfterSettlement(receipt) !== true) throw new Error('Install allocation owner did not confirm exact release.');
+          requireActionSettled();
         }
+        requireActionSettled();
         if (await storage.releaseAfterSettlement(receipt) !== true) throw new Error('Install storage owner did not confirm exact release.');
         released = true;
         return true;
@@ -169,7 +187,7 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
       } });
       fields.installStorageMetadataSession = metadata;
     }
-    throw addStorageFailureContext(retainDownloadCleanupFailure(error), fields, null,
+    throw addStorageFailureContext(retainActionInspections(retainDownloadCleanupFailure(error)), fields, null,
       { nonEnumerable: Object.keys(fields) });
   }
 };

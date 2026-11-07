@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T11:01:51.719Z",
+  "generatedAt": "2026-11-07T11:10:38.824Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3813,6 +3813,7 @@
         "tests/tooling/install/go-sdk-input-ownership.test.js",
         "tests/tooling/install/go-sdk-publication-observation.test.js",
         "tests/tooling/install/gopls-allocation-recipe.test.js",
+        "tests/tooling/install/install-action-original-observation.test.js",
         "tests/tooling/install/install-allocation-admission.test.js",
         "tests/tooling/install/install-download-resource-lifetime.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
@@ -4923,6 +4924,7 @@
         "tests/shared/storage/sqlite-pending-admission.test.js",
         "tests/shared/storage/sqlite-probe-lifetime.test.js",
         "tests/shared/storage/storage-observation-ledger.test.js",
+        "tests/shared/storage/write-reservation-receipt-observation.test.js",
         "tests/shared/subprocess/original-failure-causes.test.js",
         "tests/shared/subprocess/raw-output-observers.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
@@ -5022,6 +5024,7 @@
         "tests/tooling/install/go-sdk-input-ownership.test.js",
         "tests/tooling/install/go-sdk-probe-original-observation.test.js",
         "tests/tooling/install/go-sdk-publication-observation.test.js",
+        "tests/tooling/install/install-action-original-observation.test.js",
         "tests/tooling/install/managed-csharp-package.test.js",
         "tests/tooling/install/managed-install-input-ownership.test.js",
         "tests/tooling/install/managed-install-phase-observation.test.js",

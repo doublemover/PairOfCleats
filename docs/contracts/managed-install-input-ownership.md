@@ -66,3 +66,32 @@ actual admission, selector, transaction and writer owners with inert archives
 and probes, preserving the old SDK selector and proving original lease/cleanup
 retirement. Vendor execution and package/build closure qualification remain
 separate.
+
+## Original action and reservation settlement
+
+Outer installer admission captures successful results and thrown functions or
+objects before settlement. The canonical bounded observation ledger retains
+original receivers, callback inspections and independent resource prerequisites.
+The former single-callback wrapper could forget an inspection failure on a later
+successful callback. Function failures retain their exact identity without
+string conversion. Normal settlement and explicit recovery check the captured
+observations around each reservation release and before lease retirement.
+
+Internal settlement receipts carry the same observation into the original
+reservation owner. That owner captures receipt and field-result observations
+before reading the next field, and includes them in its existing read, exact
+native-identity, unlink and coordinator-close checks. An affirmative ID/flag
+projection or later plain receipt cannot erase earlier prerequisites. The ledger
+adds no close/release authority. Its existing finite observer/context/inspection
+bounds remain binding; original metadata failures retain their own recovery.
+Failure diagnostics retain exact receipt/field/inspection objects through generic
+error edges without executing receipt message getters. Persisted reservation and
+installation formats, allocation limits and identity checks remain unchanged.
+
+Ten additional authored, locally unrun controls exercise real reservation,
+coordinator and outer lease owners: pending/revoked receipt fields, independent
+inspection work, revocation after the actual record FileHandle closes, guarded
+positive/invalid receipts, function failures, pending successful action results
+and original action revocation during reservation reads. No receipt-shaped
+caller input substitutes for original closure, and concurrent recovery shares
+the existing release flights.

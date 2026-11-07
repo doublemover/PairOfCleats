@@ -3121,3 +3121,13 @@ tooling/install/go-sdk-input-ownership/pending-archive-before-fields
 tooling/install/go-sdk-input-ownership/revoked-index-source
 tooling/install/go-sdk-input-ownership/invalid-index-bound
 tooling/install/go-sdk-input-ownership/intrinsic-buffer-view
+shared/storage/write-reservation-receipt-observation/original-before-fields
+shared/storage/write-reservation-receipt-observation/revoked-resource-id
+shared/storage/write-reservation-receipt-observation/pending-field-value
+shared/storage/write-reservation-receipt-observation/independent-callback-inspection
+shared/storage/write-reservation-receipt-observation/revoked-after-record-close
+shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid
+tooling/install/install-action-original-observation/function-failure
+tooling/install/install-action-original-observation/returned-pending-result
+tooling/install/install-action-original-observation/independent-inspection
+tooling/install/install-action-original-observation/revoked-during-reservation-read

@@ -11,8 +11,8 @@ import { atomicWriteJson } from '../io/atomic-write.js';
 import { inspectStorageFreeSpace } from './destination.js';
 import { inspectStorageInventory } from './inventory.js';
 import { withStorageDirectory, getStorageDirectorySession } from './directory.js';
-import { observeStorageResource } from './failure-observation.js';
-import { addStorageFailureContext } from './operation-error.js';
+import { observeStorageResource, createStorageObservationLedger } from './failure-observation.js';
+import { addStorageFailureContext, readStorageFailureContext } from './operation-error.js';
 
 const admissionFailures = new WeakMap();
 /** Exact producer association; copied fields and matching IDs grant no owner. */
@@ -163,7 +163,20 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     let settlementLock = null;
     const settlementErrors = [], settlementSeen = new WeakMap(), settlementFailures = new WeakSet();
     const settlementPrerequisites = new WeakMap();
+    const receiptObservation = createStorageObservationLedger({ isOwnFailure: error => settlementFailures.has(error) });
+    const receiptInputs = new Set();
     let settlementOverflow = false;
+    const retainReceiptInput = value => {
+      if (value === null || !['object', 'function'].includes(typeof value)) return;
+      if (receiptInputs.size === 128 && !receiptInputs.has(value)) settlementOverflow = true;
+      else receiptInputs.add(value);
+    };
+    const rememberReceiptInput = value => {
+      if (value === null || !['object', 'function'].includes(typeof value) || settlementFailures.has(value)) return false;
+      receiptObservation.remember(value);
+      if (!receiptObservation.originalObservation(value)?.required && !readStorageFailureContext(value)) return false;
+      retainReceiptInput(value); return true;
+    };
     const rememberSettlement = value => {
       const objectLike = value !== null && ['object', 'function'].includes(typeof value);
       if (objectLike && settlementFailures.has(value)) return value;
@@ -181,7 +194,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       settlementErrors.push(retained); if (objectLike) settlementSeen.set(value, retained);
       return retained;
     };
-    const settlementResourcesSettled = () => !settlementOverflow && settlementErrors.every(error => {
+    const settlementResourcesSettled = () => !settlementOverflow && receiptObservation.isSettled() && settlementErrors.every(error => {
       const independent = settlementPrerequisites.get(error);
       if (independent) return independent() === true;
       const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
@@ -191,6 +204,10 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       let error = preferred === null ? settlementErrors[0] || fail('reservation-settlement-unconfirmed') : preferred;
       for (const secondary of settlementErrors) if (secondary !== error) {
         error = addStorageFailureContext(error, {}, secondary, { secondaryPresent: true });
+      }
+      for (const secondary of [...receiptInputs, ...receiptObservation.snapshot().inspectionErrors]) if (secondary !== error) {
+        error = addStorageFailureContext(error, {}, secondary, { secondaryPresent: true,
+          ownerMessage: 'Original storage write settlement remains retained.' });
       }
       const files = [], directories = [];
       for (const original of settlementErrors) {
@@ -258,9 +275,17 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     admittedReservation = Object.freeze({ schemaVersion: 1, resourceId, root, requiredBytes, reservationId: id,
       admission: 'admitted-declared-write-estimate', metric: value.metric,
       releaseAfterSettlement: async receipt => {
-        let valid;
-        try { valid = receipt?.resourceId === resourceId && receipt.settled === true && receipt.pending === false; }
-        catch (error) { throw settlementFailure(rememberSettlement(error)); }
+        rememberReceiptInput(receipt);
+        const read = field => {
+          if (!settlementResourcesSettled()) throw settlementFailure();
+          let value;
+          try { value = receipt?.[field]; }
+          catch (error) { retainReceiptInput(receipt); throw settlementFailure(rememberSettlement(error)); }
+          if (rememberReceiptInput(value)) retainReceiptInput(receipt);
+          if (!settlementResourcesSettled()) throw settlementFailure();
+          return value;
+        };
+        const valid = read('resourceId') === resourceId && read('settled') === true && read('pending') === false;
         if (!valid) throw fail('resource-settlement-unconfirmed');
         if (!settlementResourcesSettled()) throw settlementFailure();
         if (released) return true;

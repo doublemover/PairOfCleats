@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2952,
+    "hero": 2962,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18721,6 +18721,66 @@
     {
       "id": "tooling/install/go-sdk-input-ownership/intrinsic-buffer-view",
       "order": 3118,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "shared/storage/write-reservation-receipt-observation/original-before-fields",
+      "order": 3119,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/write-reservation-receipt-observation/revoked-resource-id",
+      "order": 3120,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/write-reservation-receipt-observation/pending-field-value",
+      "order": 3121,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/write-reservation-receipt-observation/independent-callback-inspection",
+      "order": 3122,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/write-reservation-receipt-observation/revoked-after-record-close",
+      "order": 3123,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid",
+      "order": 3124,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/install-action-original-observation/function-failure",
+      "order": 3125,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/install-action-original-observation/returned-pending-result",
+      "order": 3126,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/install-action-original-observation/independent-inspection",
+      "order": 3127,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/install-action-original-observation/revoked-during-reservation-read",
+      "order": 3128,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
