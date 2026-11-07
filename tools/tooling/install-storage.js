@@ -150,6 +150,14 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
         })
       };
     }
+    // A release-index result can retain independent work without a transport
+    // or transaction handle. This retires only this outer session's metadata,
+    // after its captured original observer; it cannot close work or delete data.
+    if (!owned && !goOwned && !archiveOwned && !error.downloadSession && !error.storageAdmissionSession
+      && actionObservation && storage) {
+      fields.installActionSession = Object.freeze({ resourceId: storage.resourceId,
+        releaseAfterClosure: () => reconcile(settleOuter) });
+    }
     if (storage && (isStorageSessionReleaseFailure(error, storage)
       || isStorageSessionReleaseFailure(error.storageSettlementError, storage))) {
       const metadata = Object.freeze({ resourceId: storage.resourceId, releaseAfterSettlement: async receipt => {

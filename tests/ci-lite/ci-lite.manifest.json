@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2945,
+    "hero": 2952,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18679,6 +18679,48 @@
     {
       "id": "tooling/install/managed-install-input-ownership/pending-progress-before-acquisition",
       "order": 3111,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/sealed-archive-before-write",
+      "order": 3112,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/sealed-index-before-parse",
+      "order": 3113,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/pending-index-before-fields",
+      "order": 3114,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/pending-archive-before-fields",
+      "order": 3115,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/revoked-index-source",
+      "order": 3116,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/invalid-index-bound",
+      "order": 3117,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/go-sdk-input-ownership/intrinsic-buffer-view",
+      "order": 3118,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

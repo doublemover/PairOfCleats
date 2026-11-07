@@ -8,14 +8,15 @@ import {
   GO_SDK_ARCHIVE_LIMITS, GO_SDK_MAX_DOWNLOAD_BYTES
 } from '../../src/shared/managed-go.js';
 import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
-import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload, isInstallDownloadSession } from './install-shared.js';
+import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload, isInstallDownloadSession,
+  copyInstallDownloadBytes, copyPinnedArchiveBytes } from './install-shared.js';
 import { verifyInstallerRequirementProbe } from './install-requirements.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import { verifyOwnedResource, captureManagedVerificationFailure, retainManagedResourceFailure } from './managed-verification.js';
 import { createManagedVerificationObservation } from './managed-verification-observation.js';
-import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteChunks } from '../../src/shared/io/atomic-write.js';
 
 export { GO_SDK_ARCHIVE_LIMITS };
 const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
@@ -92,21 +93,25 @@ export const probeInstalledSdk = async (command, { cwd, env, signal, resourceId 
   }
 };
 
-const checkSdkLayout = async (goRoot, archive) => {
+const checkSdkLayout = async (goRoot, archive, check) => {
   const executable = archive.os === 'windows' ? '.exe' : '';
   const expectedFiles = ['VERSION', `bin/go${executable}`, `bin/gofmt${executable}`, 'src/runtime/runtime.go'];
   for (const relative of expectedFiles) {
+    check();
     const stat = await fs.lstat(path.join(goRoot, relative));
+    check();
     if (!stat.isFile() || stat.size <= 0 || stat.size > (relative === 'VERSION' ? 4096 : GO_SDK_ARCHIVE_LIMITS.maxEntryBytes)) {
       throw createInstallError('go_sdk_layout_invalid', `Go SDK is missing a regular ${relative} file.`);
     }
   }
   const version = readManagedGoText(path.join(goRoot, 'VERSION'), 4096);
+  check();
   if (version?.split('\n')[0].trim() !== archive.version) {
     throw createInstallError('go_sdk_version_mismatch', 'Go SDK VERSION disagrees with its official archive metadata.');
   }
   const toolsDir = path.join(goRoot, 'pkg', 'tool', `${archive.os}_${archive.arch}`);
   const tools = await fs.readdir(toolsDir, { withFileTypes: true });
+  check();
   if (!tools.length || tools.some((entry) => !entry.isFile())) {
     throw createInstallError('go_sdk_layout_invalid', 'Go SDK compiler tool directory is missing or contains unsupported entries.');
   }
@@ -114,7 +119,9 @@ const checkSdkLayout = async (goRoot, archive) => {
     // The shared archive reader intentionally strips executable permissions.
     // Restore them only on the official SDK's known executable directories.
     for (const relative of ['bin/go', 'bin/gofmt', ...tools.map((entry) => `pkg/tool/${archive.os}_${archive.arch}/${entry.name}`)]) {
+      check();
       await fs.chmod(path.join(goRoot, relative), 0o755);
+      check();
     }
   }
   return path.join(goRoot, `bin/go${executable}`);
@@ -127,7 +134,8 @@ const checkSdkLayout = async (goRoot, archive) => {
  */
 const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env,
   platform = process.platform, arch = process.arch, version = '', timeoutMs = 120_000,
-  signal = null, dependencies = {} } = {}) => {
+  signal = null, dependencies = {} } = {}, acquisition) => {
+  const resourceObservation = acquisition.observation;
   signal?.throwIfAborted();
   const target = resolveGoSdkTarget({ platform, arch });
   if (!target) throw createInstallError('go_sdk_unsupported_target', 'No portable Go SDK recipe for this platform/architecture.');
@@ -146,16 +154,19 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   if (pointerStat && !cached) {
     throw createInstallError('go_sdk_cache_unverified', 'Existing Go SDK cache is unverified; it was preserved instead of overwritten.');
   }
-  const download = dependencies.download || downloadToBuffer;
-  const index = await download({ url: GO_RELEASE_INDEX_URL, label: 'official Go release index',
+  const index = await acquisition.download({ url: GO_RELEASE_INDEX_URL, label: 'official Go release index',
     timeoutMs, maxBytes: 2 * 1024 * 1024, redirect: 'error', signal });
-  if (index.sourceUrl !== GO_RELEASE_INDEX_URL) throw createInstallError('go_sdk_source_mismatch', 'Go release index changed origin.');
-  const archive = selectOfficialGoSdkArchive(JSON.parse(index.body.toString('utf8')), target, version);
+  if (resourceObservation.read(index, 'sourceUrl') !== GO_RELEASE_INDEX_URL) throw createInstallError('go_sdk_source_mismatch', 'Go release index changed origin.');
+  const indexBody = copyInstallDownloadBytes(resourceObservation.read(index, 'body'), 2 * 1024 * 1024);
+  resourceObservation.check();
+  if (!indexBody) throw createInstallError('go_sdk_release_index_invalid', 'Go release index requires bounded buffer bytes.');
+  const archive = selectOfficialGoSdkArchive(JSON.parse(indexBody.toString('utf8')), target, version);
   const packageKey = `${archive.version}-${target.os}-${target.arch}`;
   const destination = path.join(cache, packageKey);
   if (await fs.lstat(destination).then(() => true, (error) => { if (error.code !== 'ENOENT') throw error; return false; })) {
     throw createInstallError('go_sdk_cache_conflict', 'The requested SDK cache slot already exists without a reusable receipt; it was preserved.');
   }
+  resourceObservation.check();
   const transaction = await fs.mkdtemp(path.join(cache, '.install-'));
   const transactionIdentity = await fs.lstat(transaction, { bigint: true });
   let pointerTemp = null;
@@ -166,7 +177,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   let cleaned = false, resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet();
   const archiveSessions = new Set();
-  const downloads = new Map(), resourceObservation = createManagedVerificationObservation(), recoveryObservation = createManagedVerificationObservation();
+  const downloads = new Map(), recoveryObservation = createManagedVerificationObservation();
   const resourceId = randomUUID();
   const observeFailure = error => {
     if (error === null || !['object', 'function'].includes(typeof error) || observed.has(error) || described.has(error)) return;
@@ -189,7 +200,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   const resourcesSettled = () => !observerOverflow && !resourcePending && resourceObservation.isSettled()
     && recoveryObservation.isSettled() && observers.every(observe => observe());
   const requireResourcesSettled = () => {
-    if (!resourcesSettled()) throw new Error('Actual Go SDK verifier child/tree closure remains pending.', { cause: probeResult ?? operationError });
+    if (!resourcesSettled()) throw new Error('Actual Go SDK acquisition/verifier resources remain pending.', { cause: probeResult ?? acquisition.result ?? operationError });
   };
   const cleanupTransaction = async () => {
     requireResourcesSettled();
@@ -239,23 +250,31 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
     catch (error) { observeFailure(error); throw retainFailure(operationError || error, error); }
   } });
   try {
-    const fetched = await download({ url: archive.sourceUrl, label: 'official Go SDK archive',
+    requireResourcesSettled();
+    const fetched = await acquisition.download({ url: archive.sourceUrl, label: 'official Go SDK archive',
       timeoutMs, maxBytes: GO_SDK_MAX_DOWNLOAD_BYTES, redirect: 'error', signal });
-    if (fetched.sourceUrl !== archive.sourceUrl || fetched.body.length !== archive.size
-      || computeSha256(fetched.body) !== archive.sha256) {
-      throw createInstallError('go_sdk_checksum_mismatch', 'Go SDK bytes disagree with official size/source/SHA256 metadata.');
+    observeFailure(fetched); requireResourcesSettled();
+    const sourceUrl = resourceObservation.read(fetched, 'sourceUrl'), borrowedBody = resourceObservation.read(fetched, 'body');
+    const archiveBody = sourceUrl === archive.sourceUrl ? copyPinnedArchiveBytes(borrowedBody, archive.size) : null;
+    requireResourcesSettled();
+    if (!archiveBody || computeSha256(archiveBody) !== archive.sha256) {
+      const error = createInstallError('go_sdk_checksum_mismatch', 'Go SDK bytes disagree with official size/source/SHA256 metadata.');
+      error.cause = fetched; throw error;
     }
     const archivePath = path.join(transaction, archive.filename);
     signal?.throwIfAborted();
-    await fs.writeFile(archivePath, fetched.body, { flag: 'wx' });
+    await atomicWriteChunks(archivePath, [archiveBody], { mkdir: false, createOnly: true, signal, beforeCommit: requireResourcesSettled });
+    requireResourcesSettled();
     const extracted = path.join(transaction, 'extracted');
     await (dependencies.extract || extractArchive)(archivePath, extracted, archive.archiveType, GO_SDK_ARCHIVE_LIMITS);
+    requireResourcesSettled();
     signal?.throwIfAborted();
     const goRoot = path.join(extracted, 'go');
     if (!(await fs.lstat(goRoot)).isDirectory() || await fs.realpath(goRoot) !== path.join(await fs.realpath(extracted), 'go')) {
       throw createInstallError('go_sdk_layout_invalid', 'Go SDK root must be an owned extracted directory.');
     }
-    const command = await checkSdkLayout(goRoot, archive);
+    requireResourcesSettled();
+    const command = await checkSdkLayout(goRoot, archive, requireResourcesSettled);
     const sdk = { goRoot, binDir: path.join(goRoot, 'bin') };
     const env = applyManagedGoEnvironment(baseEnv, { toolingRoot, sdk });
     env.GOENV = 'off';
@@ -325,7 +344,23 @@ export const ensureManagedGoSdk = async (options = {}) => {
   if (!options.toolingRoot || !path.isAbsolute(options.toolingRoot)) throw createInstallError('go_sdk_cache_path_invalid', 'Managed Go SDK installation requires an absolute tooling directory.');
   const cached = resolveManagedGoSdk(options.toolingRoot, { platform: options.platform || process.platform, arch: options.arch || process.arch });
   if (cached && (!options.version || cached.version === options.version)) return { ...cached, reused: true };
+  const observation = createManagedVerificationObservation();
+  const download = options.dependencies?.download || downloadToBuffer;
+  const acquisition = { observation, result: null, download: async request => {
+    observation.check();
+    try {
+      const result = await download(request);
+      acquisition.result = result; observation.remember(result); observation.check(); return result;
+    } catch (error) { observation.remember(error); throw error; }
+  } };
   const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
-    storageEstimate: options.storageEstimate, scope: 'managed-go-sdk-publication' }, () => ensureManagedGoSdkOwned(options));
+    storageEstimate: options.storageEstimate, scope: 'managed-go-sdk-publication' }, async () => {
+    try { return await ensureManagedGoSdkOwned(options, acquisition); }
+    catch (error) {
+      if (observation.isSettled()) throw error;
+      throw addStorageFailureContext(asError(error), { cacheOwnershipPending: true, cacheOwnershipReleased: observation.isSettled }, acquisition.result,
+        { secondaryPresent: acquisition.result !== null, ownerMessage: 'Original Go SDK acquisition remains retained.' });
+    }
+  });
   return publication.value;
 };

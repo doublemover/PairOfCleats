@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T10:51:50.903Z",
+  "generatedAt": "2026-11-07T11:01:47.382Z",
   "summary": {
     "lanes": 5,
-    "tests": 3432,
+    "tests": 3439,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 437,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3358
+      "missingTests": 3365
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 3111,
+      "totalTests": 3118,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 3062
+        "missing": 3069
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 270,
+      "count": 277,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 265
+      "unknownDurationCount": 272
     },
     {
       "key": "indexing/type-inference",

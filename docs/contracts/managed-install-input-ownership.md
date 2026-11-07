@@ -41,3 +41,28 @@ evaluation behavior, pending acquisition fields and pending progress before
 acquisition. They preserve exact descriptor/source content, the prior selector
 on refusal, original staging/lease retirement and download counts. They do not
 qualify a vendor binary, native lifecycle, latency or a complete package closure.
+
+## Portable Go SDK acquisition
+
+The same bounded copy owner handles the official Go release index (at most
+2 MiB) and the selected archive (its exact official byte count and SHA256).
+Neither parsing nor extraction invokes a downloaded buffer's conversion or
+length/offset hooks. The archive copy is hashed and passed to the original
+atomic chunk writer; mutation of the borrowed storage cannot alter that write.
+
+Index and archive results join the original observation ledger before metadata
+reads. A pending index stops before transaction creation. Its outer admission
+retains the actual reservations and leases through an internal action session;
+that session can retire only its own metadata after the captured original
+observations settle. It cannot close a response, remove a transaction or accept
+a supplied settlement receipt as evidence. Branded transport, archive and SDK
+transaction recoveries retain their existing closure/cleanup order. Concurrent
+retirement calls share the original outer release flight.
+
+Seven additional authored, locally unrun controls cover sealed archive/index
+inputs, pending index/archive results before fields, index revocation between
+fields, over-limit index rejection and exact intrinsic buffer slices. They use
+actual admission, selector, transaction and writer owners with inert archives
+and probes, preserving the old SDK selector and proving original lease/cleanup
+retirement. Vendor execution and package/build closure qualification remain
+separate.

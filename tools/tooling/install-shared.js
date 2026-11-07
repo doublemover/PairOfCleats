@@ -12,13 +12,17 @@ const bufferOf = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'buffer').
 export const isInstallDownloadSession = session => Boolean(session) && downloadSessions.has(session);
 const asDownloadError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
 
-/** Copy only an exact bounded Buffer view. Intrinsic accessors avoid caller
- * length/offset decorations; owned bytes cannot change during a later write. */
-export const copyPinnedArchiveBytes = (value, expectedBytes) => {
-  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) throw new TypeError('Pinned archive copy requires an exact positive byte bound.');
-  if (!Buffer.isBuffer(value) || byteLengthOf.call(value) !== expectedBytes) return null;
-  return Buffer.from(new Uint8Array(bufferOf.call(value), byteOffsetOf.call(value), expectedBytes));
+/** Own a bounded Buffer view without consulting decorated length/offset fields.
+ * A release index has a ceiling; a pinned archive also requires an exact size. */
+export const copyInstallDownloadBytes = (value, maxBytes, expectedBytes = null) => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || expectedBytes !== null
+    && (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0 || expectedBytes > maxBytes)) throw new TypeError('Install download copy requires finite positive byte bounds.');
+  if (!Buffer.isBuffer(value)) return null;
+  const size = byteLengthOf.call(value);
+  if (size <= 0 || size > maxBytes || expectedBytes !== null && size !== expectedBytes) return null;
+  return Buffer.from(new Uint8Array(bufferOf.call(value), byteOffsetOf.call(value), size));
 };
+export const copyPinnedArchiveBytes = (value, expectedBytes) => copyInstallDownloadBytes(value, expectedBytes, expectedBytes);
 
 export const toInt = (value, fallback, min = 0) => {
   const parsed = Number(value);

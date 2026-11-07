@@ -3114,3 +3114,10 @@ tooling/install/managed-install-input-ownership/borrowed-buffer-before-write
 tooling/install/managed-install-input-ownership/passive-contract
 tooling/install/managed-install-input-ownership/pending-acquisition-before-fields
 tooling/install/managed-install-input-ownership/pending-progress-before-acquisition
+tooling/install/go-sdk-input-ownership/sealed-archive-before-write
+tooling/install/go-sdk-input-ownership/sealed-index-before-parse
+tooling/install/go-sdk-input-ownership/pending-index-before-fields
+tooling/install/go-sdk-input-ownership/pending-archive-before-fields
+tooling/install/go-sdk-input-ownership/revoked-index-source
+tooling/install/go-sdk-input-ownership/invalid-index-bound
+tooling/install/go-sdk-input-ownership/intrinsic-buffer-view
