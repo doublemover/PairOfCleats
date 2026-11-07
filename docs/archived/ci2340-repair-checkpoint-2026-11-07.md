@@ -77,6 +77,12 @@ in the error graph, actual session closure, protected leases/staging, failed
 early retirement, successful original recovery and the unchanged old selector.
 No failure retry or resource-settlement assertion is removed.
 
-Windows broad execution is still running at this observation. No local POSIX
-execution occurred. Later recovery, repository quota, runner-discovery and Go
-SDK changes remain outside this checkpoint's acceptance.
+The [completed Windows broad job](https://github.com/doublemover/PairOfCleats/actions/runs/42359226633/job/128364328668)
+records 2,791 passed, one failed, zero timed out and three skipped ci-lite cases.
+All eight original CI2340 failures now pass, including all six C# cases. Its sole
+failure is the same transport-field assertion above. The nightly-plan fixture
+still takes39.6 seconds, exceeding the focused30-second requirement despite its
+reported pass; the discovery repair is later source, not qualified by this run.
+No local POSIX execution occurred. Later recovery, repository quota,
+runner-discovery and Go SDK/download changes remain outside this checkpoint's
+acceptance.
