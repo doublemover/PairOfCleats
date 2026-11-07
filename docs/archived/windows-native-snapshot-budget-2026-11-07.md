@@ -85,7 +85,8 @@ at `c5f4ac1e7896e7ac76140238261e5f79c8363044` passes all22 cases, zero failures,
 timeouts or skips. Published search passes at22.3 seconds; the slowest case is
 validate-published at25.6 seconds, within its original30-second deadline. Gate,
 Windows authority, Rust TUI and all three native-inspection jobs also pass at
-that checkpoint. Broad jobs are still running at this observation.
+that checkpoint. The [completed broad-job receipt](ci2340-repair-checkpoint-2026-11-07.md)
+records eight Windows failures, their source repairs and the remaining rechecks.
 
 This qualifies the original normal-settings cohort at that exact source. It
 does not establish a general latency improvement or qualify later edits. A
