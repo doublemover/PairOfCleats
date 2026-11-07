@@ -59,14 +59,16 @@ A cross-piece owner is explicitly unavailable for that legacy invocation join;
 the retained piecewise syntax/semantic facts remain available. This does not
 claim complete framework binding or runtime invocation semantics.
 
-Shared producer identities change with this meaning: source chunking 37,
-comment extraction/classification 6, JavaScript relations 3, type normalization
-14, VFS routing 6, compiler bindings 27 and LSP bindings 54. Existing strict
+Shared producer identities are owned by `src/index/semantic/analysis-versions.js`,
+`src/index/comments-policy.js` and the language version owners. Extraction,
+mapping and consumer meaning participate in replay invalidation. Existing strict
 canonical map checks, cache isolation and immutable metadata behavior remain.
 
-The 21 `indexing/segments/embedded-content-views/*` cases are **authored and
-unexecuted**. They cover actual comment-meta/discovery/chunking and VFS/token
+The 21 `indexing/segments/embedded-content-views/*` cases cover actual
+comment-meta/discovery/chunking and VFS/token
 handoffs, independent JSON/YAML/TOML content/key expectations, wrapper variants,
 CRLF/Unicode, invalid maps/policies/config, exact retained parent qualification
 and JavaScript projection. Scheduler/native parsing, persisted warm relocation,
-published navigation and current-head functional acceptance remain unqualified.
+published navigation retain their separate qualification owners. Exact source
+checkpoints and executed outcomes are in the
+[Windows validation receipt](../archived/windows-issue-validation-2026-11-07.md).

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T18:32:29.143Z",
+  "generatedAt": "2026-11-07T19:42:39.789Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3871,6 +3871,7 @@
         "tests/tooling/setup/windows-prerequisite-resource-recovery.test.js",
         "tests/tooling/vfs/consumer-storage-admission.test.js",
         "tests/tooling/vfs/cross-process-publication.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-install-generation-conpty.test.js",
         "tests/tui/operator-storage-locator-authority.test.js",
         "tests/tui/operator-storage-plan.test.js",

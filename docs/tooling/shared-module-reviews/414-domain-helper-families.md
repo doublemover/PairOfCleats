@@ -99,7 +99,6 @@ The main cleanup seams are concentrated in a handful of oversized files and two 
 | `src/shared/type-normalization.js` | `keep`, `document`, `test` | Keep as the type normalization contract surface. |
 | `src/shared/validation/ajv-factory.js` | `keep`, `document`, `test` | Keep as the shared Ajv factory helper. |
 
+## Current ownership inventory
 
-## 2026-10-24 inventory reconciliation
-
-The JSON companion now matches the current owned-file census (68 files). 7 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.
+The JSON companion matches all 69 current ledger-owned files and their static consumer counts. Native database lifetime and delegated authority share `src/shared/storage`; production cleanup no longer imports a tooling owner. Runtime and performance acceptance are recorded in the qualification matrix.

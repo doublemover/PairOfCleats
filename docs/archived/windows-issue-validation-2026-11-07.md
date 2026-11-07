@@ -7,16 +7,12 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Through the next indexing and tooling cohorts, the latest1886
-observations are1880 passes, five failed published-index cases and one Linux-only exclusion.
-No runner timeout or native crash is observed. The failed cases include actual
-25-second operation-deadline exhaustion; they are not accepted or omitted.
-The publication commands pass. The gate initially passes43/44; its failed
-Windows authority inventory check requires the exact eleven portable replacement
-IDs after the readiness split. Its focused recheck qualifies that owner; the other
-43 cases retain their passing source observations. Its initial documentation failure was a missing explicit
-roadmap reconciliation label; the matching date label is restored and freshness
-passes without changing the drift assertion.
+Latest observations cover **2,435 distinct cases:2,417 pass,17 fail and one
+Linux-only fixture is excluded on Windows**. Two failures reach the outer30-second
+limit. Four published-index transition cases and13 native TUI timing cases remain
+unqualified. Original failures and unsuccessful diagnostic controls are retained;
+no retry or relaxed deadline counts as acceptance. Current publication checks are
+recorded with the fourth repair batch below.
 
 Node **26.13.0**, Windows x64, ABI147: native verification exits0 with all37
 required probes successful. Eight patched packages,30 target files and81 hunks
@@ -249,3 +245,50 @@ and Ubuntu serial runtime budgets each pass189 and fail four revision deadlines;
 both original-world reader ownership cases now pass. Earlier Ubuntu encoding-child
 failures do not recur. macOS passes32 compiler cases and times out one API CLI
 child; its source qualification remains open after the measured coupling repair.
+
+## Current validation and closeout wave
+
+Cohort23 passes163/164; moving native lifetime/authority into the shared runtime
+repairs its production-to-tooling boundary. Cohort24 passes210/220 initially; all
+120 affected rechecks pass after retaining exact LMDB inspection failures and
+repairing current manifest, path, tier, error-wrapper and inventory fixtures.
+Neither native close nor resource release is retried or inferred from metadata.
+
+The content/TUI cohort passes70/86. All21 logical content/source-piece cases pass.
+Twelve native-index cold workflows and the native query/source case fail their
+existing timing bounds; two initially hit the outer fixture limit. Separate
+portable file/export/escape and explicit alias-classification controls pass. The
+original physical link assertions move unchanged to their capable Windows owner;
+its new identity remains explicitly unexecuted locally. Isolating application
+home does not resolve native report/workspace timing and is not closure evidence.
+
+All138 serial performance cases pass across the original cohort and one focused
+scheduler recheck. The scheduler and actual triage context CLI use supported
+lexical seeds for their lexical consumers, preserving every original positive
+queue/source/identity assertion. SQLite raw20-sample warm p95 is164.9ms against the
+unchanged7500ms Windows bound; both original queries retrieve the indexed source
+before sampling and on every sample. Work/resource and import-count results do
+not establish a general latency gain.
+
+Published-index profile v3 overlaps exactly two independent original build worlds
+while preserving ordered candidate revisions, normal workers, original command
+inputs and25s/30s limits. Its join retains both failures and original resource
+observations. Actual validation must have zero issues and exactly the six declared
+optional omissions, matching terminal warning count and generation. Recheck20.0s
+and pending-reader16.7s pass; the four transition cases still exhaust admission.
+
+Full original/follow-up reviews close **#1646/#1654/#1657/#1699**, with exact
+CLOSED/COMPLETED and body readback. #1643/#1707/#1722 have concrete remaining
+provider-lifetime, source-occurrence and persisted-reference gaps; #1528 records
+the v3 execution proof and remaining failures. A complete fresh GitHub census
+contains **345 open issues**;16 partial issues now have current evidence/gap
+summaries. Of2190 selected IDs,2187 have observations. The only unexecuted
+selections are deferred Tantivy, optional sqlite-vec and the conserved hosted
+physical-alias qualifier. This does not claim all open issues or the full suite pass.
+
+The fourth repair batch passes format, configuration/environment, generated
+freshness, command/workflow contracts,44/44 gate cases and diff checks. Fresh
+native/patch verification passes37 required probes and eight packages/30 files/
+81 hunks with zero unexpected warnings or errors. The JSON receipt binds exact
+source blobs, check logs and hashes; earlier observations remain source-bound.
+No new native crash is observed. The17 timing failures above remain open.

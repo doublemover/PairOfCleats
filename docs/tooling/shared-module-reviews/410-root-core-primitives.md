@@ -164,7 +164,6 @@ The JSON companion now includes 44 later-added active modules. Static consumer e
 - `src/shared/xml-structure.js`: 2 direct consumers; retain and document the owner.
 - `src/shared/yaml-structure.js`: 2 direct consumers; retain and document the owner.
 
+## Current ownership inventory
 
-## 2026-10-24 inventory reconciliation
-
-The JSON companion now matches the current owned-file census (204 files). 82 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.
+The JSON companion matches all 251 current ledger-owned files and their static consumer counts. Native database lifetime and delegated authority share `src/shared/storage`; production cleanup no longer imports a tooling owner. Runtime and performance acceptance are recorded in the qualification matrix.

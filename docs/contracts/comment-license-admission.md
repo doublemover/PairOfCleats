@@ -1,6 +1,6 @@
 # Comment license admission
 
-Default classification version2 recognizes structured notice lines inside the
+The default classifier recognizes structured notice lines inside the
 existing header window: SPDX-License-Identifier fields, copyright/symbol notices,
 standalone MIT/Apache license titles, known License: identifiers, explicit
 "Licensed under" notices and the standard permission grant. It does not classify
@@ -31,13 +31,15 @@ receive independent clones. Unbranded author/stale entries are misses. Consuming
 passes tokenize and admit segments using their current dictionary/config, so
 dictionary-dependent tokens cannot leak from an earlier paired pass. Prose
 priming extracts source once without prematurely tokenizing an unused product.
-Incremental parse/token identities include the classification version, and shared
-sourceChunking advances from33 to34 to invalidate changed derived meaning.
+Incremental parse/token identities include the effective classification version
+from `COMMENT_CLASSIFICATION_VERSION` in `src/index/comments-policy.js`; the shared
+semantic producer version invalidates derived data when extraction meaning changes.
 
-Unrun regression owners are comment-license-admission and
+Regression owners are comment-license-admission and
 comment-policy-extras-cache, covering actual buildCommentMeta/tokenizeComments,
 positive notices, ordinary and Unicode prose, header boundaries, mixed content,
 custom/worker-restored matchers, exclusion receipts, stale/fresh/warm caches,
 immutable cached data and current-dictionary/current-token admission. Existing
-matcher, join/boundary and LRU coverage remains intact. Static checks do not
-qualify runtime behavior or a full index.
+matcher, join/boundary and LRU coverage remains intact. Their Windows execution
+and exact source checkpoints are recorded in the
+[issue validation receipt](../archived/windows-issue-validation-2026-11-07.md).

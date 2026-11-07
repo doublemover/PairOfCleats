@@ -22,7 +22,11 @@
     131,
     1597,
     1701,
-    1682
+    1682,
+    1646,
+    1654,
+    1657,
+    1699
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -5016,15 +5020,16 @@
       "title": "Bind VFS disk-cache hits to verified content and the current document root",
       "batch": "shared-architecture-and-product",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Partial implementation or follow-up acceptance remains.",
+      "review": "partial",
+      "recordedDisposition": "Request/session lifetime through outstanding provider file-URI use, generation replacement and cancellation.",
       "owners": [
         "src/index/tooling/vfs/disk.js",
         "src/index/tooling/vfs/cold-start.js",
         "src/integrations/tooling/providers/lsp/vfs-batching.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1644,
@@ -5046,15 +5051,16 @@
       "title": "Retire indexer workers after fatal out-of-task errors instead of only logging the crash",
       "batch": "operator-native-services-and-contracts",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Original and October29 follow-up: fake-owner active/idle/shutdown/late/failed-stop controls, actual thread/process asynchronous exception/rejection, single settlement, actual close reservations, PID/thread identity, bounded future replacements and no inline replay.",
       "owners": [
         "src/index/build/workers/indexer-worker.js",
         "src/index/build/workers/process-pool.js",
         "src/index/build/workers/pool/worker-coordination.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1647,
@@ -5121,15 +5127,16 @@
       "title": "Preserve the validated content and source pieces of comment-derived config fences",
       "batch": "shared-architecture-and-product",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "All21 actual logical parser/source-piece, exact JSON-key, nested YAML/TOML, wrapper/CRLF/Unicode, VFS/token, retained-map/projection and malformed/policy/budget controls satisfy original and October29 follow-up.",
       "owners": [
         "src/index/comments.js",
         "src/index/build/file-processor/cpu/meta.js",
         "src/index/segments.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1656,
@@ -5151,15 +5158,16 @@
       "title": "Stop classifying ordinary documentation words as license comments",
       "batch": "shared-architecture-and-product",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Original and October29 follow-up: actual prose token admission, ordinary/Unicode negatives, qualified notice positives, header/mixed/custom policy, retained role/reason and policy-qualified current cache replay.",
       "owners": [
         "src/index/comments.js",
         "src/index/build/file-processor/cpu/tokenizer.js",
         "src/index/build/file-processor/process-chunks/limits.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1659,
@@ -5256,15 +5264,16 @@
       "title": "[Enhancement] Distinguish exact triage decision lineage from related precedents",
       "batch": "shared-architecture-and-product",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "All17 actual bounded lineage/continuation/failure/serialization cases and original actual ingest/decision/context CLI assertions pass. Supported lexical seed preserves all code/prose/comment source and identity comparisons; no Stage2 semantic qualification claimed.",
       "owners": [
         "tools/triage/history.js",
         "tools/triage/context-pack.js",
         "src/integrations/triage/render.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1701,
@@ -5286,15 +5295,16 @@
       "title": "[Enhancement] Preserve source and policy witnesses in actionable architecture reports",
       "batch": "shared-architecture-and-product",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "partial",
+      "recordedDisposition": "Generation-bound call-site/occurrence hydration plus independent real-source, policy-identity, projection and bounded-work qualification.",
       "owners": [
         "src/graph/architecture.js",
         "src/retrieval/output/architecture.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md",
         "tests/tooling/architecture/forbidden-call-edge.test.js"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1708,
@@ -5361,15 +5371,16 @@
       "title": "[Enhancement] Add source-qualified RST and AsciiDoc reference navigation without expanding includes",
       "batch": "shared-architecture-and-product",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-gap",
+      "recordedDisposition": "Typed RST/AsciiDoc reference observations/resolution and canonical persisted navigation, with explicit unsupported/ambiguous/authority/budget states.",
       "owners": [
         "src/index/chunking/formats/rst-asciidoc.js",
         "src/index/chunking/dispatch.js",
         "src/index/language-registry/descriptors.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "22c624f7229a99d6932a6f68ac394f937774610f"
     },
     {
       "number": 1723,
@@ -5447,7 +5458,7 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-07",
-    "openCount": 349,
+    "openCount": 345,
     "closedAfterCapture": [
       1767,
       672,
@@ -5466,8 +5477,12 @@
       131,
       1597,
       1701,
-      1682
+      1682,
+      1646,
+      1654,
+      1657,
+      1699
     ],
-    "method": "Fresh complete350-ID census after source-qualified#131/#1597/#1701 closures; GitHub state and body readback verified."
+    "method": "Fresh complete345-issue GitHub CLI census; four source-qualified closures and four precise partial/gap updates have exact state/body readback. Current source-bound execution details are in the November7 Windows validation receipt."
   }
 }

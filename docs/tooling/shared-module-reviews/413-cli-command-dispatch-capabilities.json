@@ -47,7 +47,7 @@
   "entries": [
     {
       "path": "src/shared/capabilities.js",
-      "consumerCount": 8,
+      "consumerCount": 21,
       "classifications": [
         "keep",
         "document",
@@ -58,7 +58,7 @@
     },
     {
       "path": "src/shared/cli-options.js",
-      "consumerCount": 12,
+      "consumerCount": 16,
       "classifications": [
         "split",
         "document",
@@ -69,7 +69,7 @@
     },
     {
       "path": "src/shared/cli.js",
-      "consumerCount": 150,
+      "consumerCount": 165,
       "classifications": [
         "keep",
         "document",
@@ -80,7 +80,7 @@
     },
     {
       "path": "src/shared/cli/ansi-utils.js",
-      "consumerCount": 6,
+      "consumerCount": 19,
       "classifications": [
         "keep",
         "document",
@@ -102,7 +102,7 @@
     },
     {
       "path": "src/shared/cli/display.js",
-      "consumerCount": 1,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -157,7 +157,7 @@
     },
     {
       "path": "src/shared/cli/display/frame.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -168,7 +168,7 @@
     },
     {
       "path": "src/shared/cli/display/human-log.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "document",
         "test"
@@ -178,7 +178,7 @@
     },
     {
       "path": "src/shared/cli/display/layout.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -211,7 +211,7 @@
     },
     {
       "path": "src/shared/cli/display/render.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -222,7 +222,7 @@
     },
     {
       "path": "src/shared/cli/display/state.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -255,7 +255,7 @@
     },
     {
       "path": "src/shared/cli/display/text.js",
-      "consumerCount": 6,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -277,7 +277,7 @@
     },
     {
       "path": "src/shared/cli/noop-task.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -298,7 +298,7 @@
     },
     {
       "path": "src/shared/cli/progress-events.js",
-      "consumerCount": 8,
+      "consumerCount": 22,
       "classifications": [
         "keep",
         "document",
@@ -309,7 +309,7 @@
     },
     {
       "path": "src/shared/cli/progress-stream.js",
-      "consumerCount": 3,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -320,7 +320,7 @@
     },
     {
       "path": "src/shared/cli/stdout-guard.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -331,7 +331,7 @@
     },
     {
       "path": "src/shared/command-aliases.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -342,7 +342,7 @@
     },
     {
       "path": "src/shared/dispatch/registry.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -364,7 +364,7 @@
     },
     {
       "path": "src/shared/runtime-capability-manifest.js",
-      "consumerCount": 7,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -397,7 +397,7 @@
     },
     {
       "path": "src/shared/tooling-bin-dirs.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -408,9 +408,9 @@
     }
   ],
   "inventoryReview": {
-    "date": "2026-10-24",
-    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
-    "newlyReviewedFiles": 2,
-    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
+    "date": "2026-11-07",
+    "scope": "Current ledger-owned files, captured static consumers and exported ownership boundaries. Runtime, performance and platform qualification remain separate.",
+    "newlyReviewedFiles": 0,
+    "evidence": "Current source census from tools/docs/shared-module-ledger.js; native command lifecycle and authority moved together into src/shared/storage."
   }
 }

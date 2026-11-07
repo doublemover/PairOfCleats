@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared artifact, cache, IO, bundle, and serialization helpers assigned to #411 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 114,
+    "ownedFileCount": 117,
     "overallAssessment": "This shared surface is broadly useful and already owns many of the repo's right low-level seams, but it must stay deliberately layered. Recent work made manifest.js and bundle-io.js facade-oriented, moved manifest entry selection and columnar rows into narrow artifact owners, split bundle behavior, separated generic binary-columnar frame reading from the async chunk_meta adapter, and kept sync token_postings binary decode local to preserve the sync API. The remaining cleanup opportunities are the larger loader cores, the deleted files facade handoff, atomic persistence, cache layering documentation, and generic JSON-stream boundaries; compression pooling and byte accounting now have their own JSON-stream owners, binary-columnar JSON row decode has its own loader leaf, and core streaming row dispatch has its own loader leaf.",
     "clusterFindings": [
       {
@@ -112,7 +112,7 @@
   "entries": [
     {
       "path": "src/shared/artifact-io.js",
-      "consumerCount": 0,
+      "consumerCount": 90,
       "classifications": [
         "keep",
         "document",
@@ -122,8 +122,18 @@
       "recommendation": "Keep the facade stable while migrating internal storage/indexing consumers to narrower owner modules; push family logic down into narrower modules."
     },
     {
+      "path": "src/shared/artifact-io/backend-payload-inventory.js",
+      "consumerCount": 6,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/index/build/stage-directory.js, src/shared/tantivy-receipt.js, tools/build/embeddings/backend-payload-copy.js, tools/build/tantivy-generation.js.",
+      "recommendation": "Enumerate qualified backend payload families without conflating roots or native publication identity."
+    },
+    {
       "path": "src/shared/artifact-io/binary-columnar.js",
-      "consumerCount": 5,
+      "consumerCount": 26,
       "classifications": [
         "keep",
         "document",
@@ -134,7 +144,7 @@
     },
     {
       "path": "src/shared/artifact-io/cache.js",
-      "consumerCount": 9,
+      "consumerCount": 12,
       "classifications": [
         "keep",
         "document",
@@ -145,7 +155,7 @@
     },
     {
       "path": "src/shared/artifact-io/checksum.js",
-      "consumerCount": 4,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -156,7 +166,7 @@
     },
     {
       "path": "src/shared/artifact-io/chunk-meta-presence.js",
-      "consumerCount": 13,
+      "consumerCount": 17,
       "classifications": [
         "keep",
         "document",
@@ -167,7 +177,7 @@
     },
     {
       "path": "src/shared/artifact-io/columnar-rows.js",
-      "consumerCount": 6,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -178,7 +188,7 @@
     },
     {
       "path": "src/shared/artifact-io/compression.js",
-      "consumerCount": 9,
+      "consumerCount": 12,
       "classifications": [
         "keep",
         "document",
@@ -189,7 +199,7 @@
     },
     {
       "path": "src/shared/artifact-io/constants.js",
-      "consumerCount": 62,
+      "consumerCount": 68,
       "classifications": [
         "keep",
         "document"
@@ -199,7 +209,7 @@
     },
     {
       "path": "src/shared/artifact-io/contained-path.js",
-      "consumerCount": 11,
+      "consumerCount": 15,
       "classifications": [
         "document",
         "test"
@@ -220,7 +230,7 @@
     },
     {
       "path": "src/shared/artifact-io/graph.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -231,7 +241,7 @@
     },
     {
       "path": "src/shared/artifact-io/json.js",
-      "consumerCount": 50,
+      "consumerCount": 58,
       "classifications": [
         "keep",
         "document",
@@ -242,7 +252,7 @@
     },
     {
       "path": "src/shared/artifact-io/json/fallback.js",
-      "consumerCount": 7,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -252,8 +262,18 @@
       "recommendation": "Keep internal to the artifact JSON family."
     },
     {
-      "path": "src/shared/artifact-io/json/line-scan.js",
+      "path": "src/shared/artifact-io/json/line-framer.js",
       "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/shared/artifact-io/json/line-scan.js.",
+      "recommendation": "Scan only admitted new JSONL fragments, preserving exact row and decoder boundaries."
+    },
+    {
+      "path": "src/shared/artifact-io/json/line-scan.js",
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -275,7 +295,7 @@
     },
     {
       "path": "src/shared/artifact-io/json/read-jsonl-array.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -286,7 +306,7 @@
     },
     {
       "path": "src/shared/artifact-io/json/read-jsonl-stream.js",
-      "consumerCount": 2,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -308,7 +328,7 @@
     },
     {
       "path": "src/shared/artifact-io/json/row-queue.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -319,7 +339,7 @@
     },
     {
       "path": "src/shared/artifact-io/jsonl.js",
-      "consumerCount": 10,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -341,7 +361,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders.js",
-      "consumerCount": 31,
+      "consumerCount": 74,
       "classifications": [
         "keep",
         "document",
@@ -363,7 +383,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/binary-columnar.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -374,7 +394,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/chunk-meta.js",
-      "consumerCount": 11,
+      "consumerCount": 22,
       "classifications": [
         "keep",
         "document",
@@ -385,7 +405,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/core-array-payload.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -396,7 +416,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -462,7 +482,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/core-source-resolution.js",
-      "consumerCount": 5,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -473,7 +493,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/core.js",
-      "consumerCount": 19,
+      "consumerCount": 32,
       "classifications": [
         "keep",
         "document",
@@ -484,7 +504,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/graph.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -495,7 +515,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/minhash.js",
-      "consumerCount": 5,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -506,7 +526,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/per-file.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -517,7 +537,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/shared.js",
-      "consumerCount": 14,
+      "consumerCount": 15,
       "classifications": [
         "keep",
         "document",
@@ -528,7 +548,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/token-postings.js",
-      "consumerCount": 5,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -550,7 +570,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest-paths.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -561,7 +581,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest-read.js",
-      "consumerCount": 9,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -572,7 +592,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest-sources.js",
-      "consumerCount": 2,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -583,7 +603,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest.js",
-      "consumerCount": 44,
+      "consumerCount": 52,
       "classifications": [
         "keep",
         "document",
@@ -594,7 +614,7 @@
     },
     {
       "path": "src/shared/artifact-io/offsets.js",
-      "consumerCount": 9,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -605,7 +625,7 @@
     },
     {
       "path": "src/shared/artifact-io/optional-fallback.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -615,8 +635,18 @@
       "recommendation": "Keep optional-artifact fallback behavior under the artifact IO family."
     },
     {
+      "path": "src/shared/artifact-io/payload-admission.js",
+      "consumerCount": 6,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/shared/artifact-io/columnar-rows.js, src/shared/artifact-io/loaders/chunk-meta.js, src/shared/artifact-io/loaders/core-array-payload.js, src/shared/artifact-io/loaders/core-file-meta.js, src/shared/artifact-io/loaders/core-row-stream.js.",
+      "recommendation": "Admit bounded payload shape before retaining or decoding artifact rows."
+    },
+    {
       "path": "src/shared/artifact-io/telemetry.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -627,7 +657,7 @@
     },
     {
       "path": "src/shared/artifact-io/varint.js",
-      "consumerCount": 7,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -638,7 +668,7 @@
     },
     {
       "path": "src/shared/artifact-io/verified-read-scope.js",
-      "consumerCount": 7,
+      "consumerCount": 16,
       "classifications": [
         "document",
         "test"
@@ -648,7 +678,7 @@
     },
     {
       "path": "src/shared/artifact-io/with-opened-readers.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "document",
         "test"
@@ -658,7 +688,7 @@
     },
     {
       "path": "src/shared/bundle-checksum.js",
-      "consumerCount": 8,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -669,7 +699,7 @@
     },
     {
       "path": "src/shared/bundle-contract.js",
-      "consumerCount": 6,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -680,7 +710,7 @@
     },
     {
       "path": "src/shared/bundle-io.js",
-      "consumerCount": 7,
+      "consumerCount": 35,
       "classifications": [
         "keep",
         "document",
@@ -691,7 +721,7 @@
     },
     {
       "path": "src/shared/bundle-io/patch.js",
-      "consumerCount": 2,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -713,7 +743,7 @@
     },
     {
       "path": "src/shared/bundle-io/support.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -724,7 +754,7 @@
     },
     {
       "path": "src/shared/bundle-io/transform-owner.js",
-      "consumerCount": 2,
+      "consumerCount": 4,
       "classifications": [
         "document",
         "test"
@@ -745,7 +775,7 @@
     },
     {
       "path": "src/shared/cache-cas/gc.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -756,7 +786,7 @@
     },
     {
       "path": "src/shared/cache-cas/leases.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -767,7 +797,7 @@
     },
     {
       "path": "src/shared/cache-cas/metadata.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -778,7 +808,7 @@
     },
     {
       "path": "src/shared/cache-cas/objects.js",
-      "consumerCount": 0,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -789,7 +819,7 @@
     },
     {
       "path": "src/shared/cache-cas/paths.js",
-      "consumerCount": 5,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -811,7 +841,7 @@
     },
     {
       "path": "src/shared/cache-key.js",
-      "consumerCount": 23,
+      "consumerCount": 30,
       "classifications": [
         "keep",
         "document",
@@ -822,7 +852,7 @@
     },
     {
       "path": "src/shared/cache-roots.js",
-      "consumerCount": 25,
+      "consumerCount": 57,
       "classifications": [
         "keep",
         "document",
@@ -833,7 +863,7 @@
     },
     {
       "path": "src/shared/cache/fifo-budget.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document"
@@ -844,7 +874,7 @@
     },
     {
       "path": "src/shared/cache/json-file.js",
-      "consumerCount": 4,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -855,7 +885,7 @@
     },
     {
       "path": "src/shared/cache/layers.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -866,7 +896,7 @@
     },
     {
       "path": "src/shared/cache/lru.js",
-      "consumerCount": 11,
+      "consumerCount": 16,
       "classifications": [
         "keep",
         "document",
@@ -877,7 +907,7 @@
     },
     {
       "path": "src/shared/cache/policy.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -888,7 +918,7 @@
     },
     {
       "path": "src/shared/cache/repo-access-delegation-guard.js",
-      "consumerCount": 4,
+      "consumerCount": 6,
       "classifications": [
         "document",
         "test"
@@ -908,17 +938,17 @@
     },
     {
       "path": "src/shared/cache/repo-access-delegation.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
       ],
-      "consumerNotes": "Static production imports: src/shared/cache/repo-access-delegation-preload.js, tools/shared/native-database-lifetime.js, tools/tui/operator/cache-maintenance.js.",
+      "consumerNotes": "Static production imports: src/shared/cache/repo-access-delegation-preload.js, src/shared/storage/native-database-lifetime.js, tools/tui/operator/cache-maintenance.js.",
       "recommendation": "Keep actual ChildProcess and IPC settlement with the delegation owner; disconnect and timeout are insufficient release evidence."
     },
     {
       "path": "src/shared/cache/repo-access-owner.js",
-      "consumerCount": 3,
+      "consumerCount": 8,
       "classifications": [
         "document",
         "test"
@@ -928,7 +958,7 @@
     },
     {
       "path": "src/shared/cache/repo-access-reader.js",
-      "consumerCount": 4,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -940,7 +970,7 @@
     },
     {
       "path": "src/shared/cache/repo-access.js",
-      "consumerCount": 17,
+      "consumerCount": 73,
       "classifications": [
         "keep",
         "document"
@@ -951,7 +981,7 @@
     },
     {
       "path": "src/shared/cache/size.js",
-      "consumerCount": 13,
+      "consumerCount": 18,
       "classifications": [
         "keep",
         "document",
@@ -962,7 +992,7 @@
     },
     {
       "path": "src/shared/chunk-meta-cold.js",
-      "consumerCount": 2,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -973,7 +1003,7 @@
     },
     {
       "path": "src/shared/encoding.js",
-      "consumerCount": 12,
+      "consumerCount": 14,
       "classifications": [
         "keep",
         "document",
@@ -984,7 +1014,7 @@
     },
     {
       "path": "src/shared/eol.js",
-      "consumerCount": 2,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -995,7 +1025,7 @@
     },
     {
       "path": "src/shared/file-signature.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -1006,7 +1036,7 @@
     },
     {
       "path": "src/shared/file-stats.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -1017,7 +1047,7 @@
     },
     {
       "path": "src/shared/io/append-writer.js",
-      "consumerCount": 5,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -1028,7 +1058,7 @@
     },
     {
       "path": "src/shared/io/atomic-write.js",
-      "consumerCount": 82,
+      "consumerCount": 148,
       "classifications": [
         "keep",
         "document",
@@ -1039,7 +1069,7 @@
     },
     {
       "path": "src/shared/io/directory-identity.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "document",
         "test"
@@ -1049,7 +1079,7 @@
     },
     {
       "path": "src/shared/io/directory-sync.js",
-      "consumerCount": 5,
+      "consumerCount": 11,
       "classifications": [
         "document",
         "test"
@@ -1059,7 +1089,7 @@
     },
     {
       "path": "src/shared/io/file-identity.js",
-      "consumerCount": 5,
+      "consumerCount": 14,
       "classifications": [
         "document",
         "test"
@@ -1069,7 +1099,7 @@
     },
     {
       "path": "src/shared/io/persistence-helpers.js",
-      "consumerCount": 23,
+      "consumerCount": 24,
       "classifications": [
         "keep",
         "document",
@@ -1080,7 +1110,7 @@
     },
     {
       "path": "src/shared/io/read-exact.js",
-      "consumerCount": 20,
+      "consumerCount": 24,
       "classifications": [
         "document",
         "test"
@@ -1090,7 +1120,7 @@
     },
     {
       "path": "src/shared/io/remove-path-with-retry.js",
-      "consumerCount": 9,
+      "consumerCount": 26,
       "classifications": [
         "keep",
         "document",
@@ -1101,7 +1131,7 @@
     },
     {
       "path": "src/shared/io/replace-dir.js",
-      "consumerCount": 2,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -1112,7 +1142,7 @@
     },
     {
       "path": "src/shared/io/replace-file.js",
-      "consumerCount": 3,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -1134,7 +1164,7 @@
     },
     {
       "path": "src/shared/json-stream/atomic.js",
-      "consumerCount": 11,
+      "consumerCount": 20,
       "classifications": [
         "keep",
         "document",
@@ -1167,7 +1197,7 @@
     },
     {
       "path": "src/shared/json-stream/compress.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -1178,7 +1208,7 @@
     },
     {
       "path": "src/shared/json-stream/consume-rows.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
@@ -1188,7 +1218,7 @@
     },
     {
       "path": "src/shared/json-stream/encode.js",
-      "consumerCount": 11,
+      "consumerCount": 17,
       "classifications": [
         "keep",
         "document",
@@ -1199,7 +1229,7 @@
     },
     {
       "path": "src/shared/json-stream/json-writers.js",
-      "consumerCount": 48,
+      "consumerCount": 92,
       "classifications": [
         "keep",
         "document",
@@ -1210,7 +1240,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-batch.js",
-      "consumerCount": 5,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -1232,7 +1262,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-compression-pool.js",
-      "consumerCount": 3,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -1243,7 +1273,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-compression-scope.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "document",
         "test"
@@ -1253,7 +1283,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-sharded.js",
-      "consumerCount": 18,
+      "consumerCount": 30,
       "classifications": [
         "keep",
         "document",
@@ -1264,7 +1294,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-write.js",
-      "consumerCount": 24,
+      "consumerCount": 60,
       "classifications": [
         "keep",
         "document",
@@ -1275,7 +1305,7 @@
     },
     {
       "path": "src/shared/json-stream/offsets.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -1286,7 +1316,7 @@
     },
     {
       "path": "src/shared/json-stream/prepared-row.js",
-      "consumerCount": 8,
+      "consumerCount": 11,
       "classifications": [
         "document",
         "test"
@@ -1307,7 +1337,7 @@
     },
     {
       "path": "src/shared/json-stream/streams.js",
-      "consumerCount": 11,
+      "consumerCount": 15,
       "classifications": [
         "keep",
         "document",
@@ -1318,7 +1348,7 @@
     },
     {
       "path": "src/shared/jsonc.js",
-      "consumerCount": 13,
+      "consumerCount": 20,
       "classifications": [
         "keep",
         "document",
@@ -1329,7 +1359,7 @@
     },
     {
       "path": "src/shared/provenance.js",
-      "consumerCount": 6,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -1340,7 +1370,7 @@
     },
     {
       "path": "src/shared/stable-json.js",
-      "consumerCount": 127,
+      "consumerCount": 233,
       "classifications": [
         "keep",
         "document",
@@ -1361,9 +1391,9 @@
     ]
   },
   "inventoryReview": {
-    "date": "2026-10-24",
-    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
-    "newlyReviewedFiles": 15,
-    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
+    "date": "2026-11-07",
+    "scope": "Current ledger-owned files, captured static consumers and exported ownership boundaries. Runtime, performance and platform qualification remain separate.",
+    "newlyReviewedFiles": 3,
+    "evidence": "Current source census from tools/docs/shared-module-ledger.js; native command lifecycle and authority moved together into src/shared/storage."
   }
 }

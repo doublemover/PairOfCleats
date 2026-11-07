@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared domain helper families assigned to #414 in the shared-module ledger, including embeddings-cache, indexing, filter, fs, hash, perf, text, validation, safe-regex, and root-level domain-specific utilities.",
   "summary": {
-    "ownedFileCount": 68,
+    "ownedFileCount": 69,
     "overallAssessment": "Most of this surface is genuinely shared and domain-specific rather than a random grab-bag. The strongest parts are the small normalization helpers, backend/config facades, embeddings-cache family, safe-regex backend structure, and low-level perf/text/validation helpers. The main weaknesses are a handful of oversized mixed-responsibility modules and two cross-layer ownership seams: src/shared/dict-utils.js is only a re-export of tools/shared/dict-utils.js, and token-id.js mixes 64-bit token hashing with a specialized typed posting map implementation.",
     "runtimeRisks": [
       {
@@ -104,7 +104,7 @@
   "entries": [
     {
       "path": "src/shared/ann-similarity.js",
-      "consumerCount": 6,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -115,7 +115,7 @@
     },
     {
       "path": "src/shared/bloom.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -137,7 +137,7 @@
     },
     {
       "path": "src/shared/chargram-hash.js",
-      "consumerCount": 7,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -148,7 +148,7 @@
     },
     {
       "path": "src/shared/code-dictionaries.js",
-      "consumerCount": 7,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -159,7 +159,7 @@
     },
     {
       "path": "src/shared/dense-vector-artifacts.js",
-      "consumerCount": 13,
+      "consumerCount": 23,
       "classifications": [
         "split",
         "document",
@@ -181,7 +181,7 @@
     },
     {
       "path": "src/shared/dict-utils.js",
-      "consumerCount": 75,
+      "consumerCount": 154,
       "classifications": [
         "move",
         "document",
@@ -192,7 +192,7 @@
     },
     {
       "path": "src/shared/dictionary-wordlists.js",
-      "consumerCount": 3,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -214,7 +214,7 @@
     },
     {
       "path": "src/shared/dockerfile.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -225,7 +225,7 @@
     },
     {
       "path": "src/shared/embedding-adapter.js",
-      "consumerCount": 7,
+      "consumerCount": 46,
       "classifications": [
         "split",
         "document",
@@ -236,7 +236,7 @@
     },
     {
       "path": "src/shared/embedding-batch.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -247,7 +247,7 @@
     },
     {
       "path": "src/shared/embedding-identity.js",
-      "consumerCount": 5,
+      "consumerCount": 30,
       "classifications": [
         "keep",
         "document",
@@ -258,7 +258,7 @@
     },
     {
       "path": "src/shared/embedding-input-format.js",
-      "consumerCount": 6,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -269,7 +269,7 @@
     },
     {
       "path": "src/shared/embedding-utils.js",
-      "consumerCount": 11,
+      "consumerCount": 22,
       "classifications": [
         "split",
         "document",
@@ -280,7 +280,7 @@
     },
     {
       "path": "src/shared/embedding.js",
-      "consumerCount": 7,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -291,7 +291,7 @@
     },
     {
       "path": "src/shared/embeddings-cache/format.js",
-      "consumerCount": 1,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -302,7 +302,7 @@
     },
     {
       "path": "src/shared/embeddings-cache/index.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -313,7 +313,7 @@
     },
     {
       "path": "src/shared/embeddings-cache/layout.js",
-      "consumerCount": 3,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -356,7 +356,7 @@
     },
     {
       "path": "src/shared/fs/find-upwards.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -367,7 +367,7 @@
     },
     {
       "path": "src/shared/fs/ignore.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -378,7 +378,7 @@
     },
     {
       "path": "src/shared/hash.js",
-      "consumerCount": 110,
+      "consumerCount": 218,
       "classifications": [
         "keep",
         "document",
@@ -389,7 +389,7 @@
     },
     {
       "path": "src/shared/hash/xxhash-backend.js",
-      "consumerCount": 10,
+      "consumerCount": 14,
       "classifications": [
         "keep",
         "document",
@@ -400,7 +400,7 @@
     },
     {
       "path": "src/shared/hnsw.js",
-      "consumerCount": 11,
+      "consumerCount": 20,
       "classifications": [
         "keep",
         "document",
@@ -411,7 +411,7 @@
     },
     {
       "path": "src/shared/indexing/build-generation.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -421,8 +421,18 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/indexing/build-pointer-references.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/index/build/native-backend-cleanup.js, src/index/build/watch/retention.js.",
+      "recommendation": "Enumerate canonical published references for retention and cleanup before mutation."
+    },
+    {
       "path": "src/shared/indexing/build-pointer-roots.js",
-      "consumerCount": 10,
+      "consumerCount": 15,
       "classifications": [
         "keep",
         "document",
@@ -433,7 +443,7 @@
     },
     {
       "path": "src/shared/indexing/build-pointer.js",
-      "consumerCount": 7,
+      "consumerCount": 13,
       "classifications": [
         "split",
         "document",
@@ -477,7 +487,7 @@
     },
     {
       "path": "src/shared/indexing/progress-timeout-policy.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "split",
         "document",
@@ -488,7 +498,7 @@
     },
     {
       "path": "src/shared/indexing/selected-mode-roots.js",
-      "consumerCount": 4,
+      "consumerCount": 8,
       "classifications": [
         "document",
         "test"
@@ -498,7 +508,7 @@
     },
     {
       "path": "src/shared/indexing/stage1-watchdog-policy.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -509,7 +519,7 @@
     },
     {
       "path": "src/shared/indexing/stages.js",
-      "consumerCount": 7,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -531,7 +541,7 @@
     },
     {
       "path": "src/shared/lancedb.js",
-      "consumerCount": 10,
+      "consumerCount": 17,
       "classifications": [
         "keep",
         "document",
@@ -542,7 +552,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings.js",
-      "consumerCount": 10,
+      "consumerCount": 19,
       "classifications": [
         "split",
         "document",
@@ -553,7 +563,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/cache-lifetime.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "document",
         "test"
@@ -563,7 +573,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/config.js",
-      "consumerCount": 9,
+      "consumerCount": 17,
       "classifications": [
         "keep",
         "document",
@@ -574,7 +584,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/output.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "document",
         "test"
@@ -584,7 +594,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/qualification.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
@@ -594,7 +604,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/resource-lifetime.js",
-      "consumerCount": 1,
+      "consumerCount": 7,
       "classifications": [
         "document",
         "test"
@@ -604,7 +614,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/run-queue.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -615,7 +625,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/tensor-lifetime.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "document",
         "test"
@@ -625,7 +635,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings/tokenization.js",
-      "consumerCount": 1,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -647,7 +657,7 @@
     },
     {
       "path": "src/shared/packed-postings.js",
-      "consumerCount": 4,
+      "consumerCount": 14,
       "classifications": [
         "keep",
         "document",
@@ -658,7 +668,7 @@
     },
     {
       "path": "src/shared/perf/eta.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -669,7 +679,7 @@
     },
     {
       "path": "src/shared/perf/histogram.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -680,7 +690,7 @@
     },
     {
       "path": "src/shared/perf/percentiles.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -691,7 +701,7 @@
     },
     {
       "path": "src/shared/postings-config.js",
-      "consumerCount": 8,
+      "consumerCount": 19,
       "classifications": [
         "keep",
         "document",
@@ -702,7 +712,7 @@
     },
     {
       "path": "src/shared/risk-filters.js",
-      "consumerCount": 8,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -713,7 +723,7 @@
     },
     {
       "path": "src/shared/safe-regex.js",
-      "consumerCount": 6,
+      "consumerCount": 11,
       "classifications": [
         "split",
         "document",
@@ -746,7 +756,7 @@
     },
     {
       "path": "src/shared/seed-ref.js",
-      "consumerCount": 5,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -757,7 +767,7 @@
     },
     {
       "path": "src/shared/tantivy.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -768,7 +778,7 @@
     },
     {
       "path": "src/shared/text/escape-regex.js",
-      "consumerCount": 2,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -779,7 +789,7 @@
     },
     {
       "path": "src/shared/token-id.js",
-      "consumerCount": 11,
+      "consumerCount": 19,
       "classifications": [
         "split",
         "document",
@@ -790,7 +800,7 @@
     },
     {
       "path": "src/shared/tokenize.js",
-      "consumerCount": 12,
+      "consumerCount": 14,
       "classifications": [
         "split",
         "document",
@@ -801,7 +811,7 @@
     },
     {
       "path": "src/shared/truncation.js",
-      "consumerCount": 8,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -812,7 +822,7 @@
     },
     {
       "path": "src/shared/type-entry-utils.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -823,7 +833,7 @@
     },
     {
       "path": "src/shared/type-normalization.js",
-      "consumerCount": 16,
+      "consumerCount": 25,
       "classifications": [
         "keep",
         "document",
@@ -834,7 +844,7 @@
     },
     {
       "path": "src/shared/validation/ajv-factory.js",
-      "consumerCount": 44,
+      "consumerCount": 105,
       "classifications": [
         "keep",
         "document",
@@ -845,9 +855,9 @@
     }
   ],
   "inventoryReview": {
-    "date": "2026-10-24",
-    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
-    "newlyReviewedFiles": 7,
-    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
+    "date": "2026-11-07",
+    "scope": "Current ledger-owned files, captured static consumers and exported ownership boundaries. Runtime, performance and platform qualification remain separate.",
+    "newlyReviewedFiles": 1,
+    "evidence": "Current source census from tools/docs/shared-module-ledger.js; native command lifecycle and authority moved together into src/shared/storage."
   }
 }

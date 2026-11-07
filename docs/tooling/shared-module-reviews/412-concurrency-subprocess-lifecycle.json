@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared concurrency, queue, subprocess, lifecycle, lock, worker, and progress helpers assigned to #412 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 71,
+    "ownedFileCount": 75,
     "overallAssessment": "This shared surface contains several of the repo's most correctness-critical runtime helpers. The main risks are not duplication alone; they are policy and mechanism being entangled inside lock ownership, tracked subprocess cleanup, adaptive scheduling, and progress/logging helpers. The strongest cleanup opportunities are splitting the correctness-critical large files while preserving stable facades and removing a few root-level wrappers that are too caller-specific.",
     "runtimeRisks": [
       {
@@ -85,7 +85,7 @@
   "entries": [
     {
       "path": "src/shared/abort.js",
-      "consumerCount": 344,
+      "consumerCount": 511,
       "classifications": [
         "keep",
         "document",
@@ -107,7 +107,7 @@
     },
     {
       "path": "src/shared/concurrency/ordered-completion.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -118,7 +118,7 @@
     },
     {
       "path": "src/shared/concurrency/queue-adapter.js",
-      "consumerCount": 1,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -129,7 +129,7 @@
     },
     {
       "path": "src/shared/concurrency/queue-recovery.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
@@ -139,7 +139,7 @@
     },
     {
       "path": "src/shared/concurrency/run-with-queue.js",
-      "consumerCount": 24,
+      "consumerCount": 50,
       "classifications": [
         "keep",
         "document",
@@ -183,7 +183,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core-telemetry-capture.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -194,7 +194,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core.js",
-      "consumerCount": 4,
+      "consumerCount": 70,
       "classifications": [
         "keep",
         "document",
@@ -216,7 +216,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/adaptive-signals.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -249,7 +249,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/adaptive-token-controller.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -260,7 +260,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/config.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -271,7 +271,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/dispatch.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -282,7 +282,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/index.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -293,7 +293,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/queue-lifecycle.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -304,7 +304,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core/shutdown.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -315,7 +315,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-dispatch-replay.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "document",
         "test"
@@ -325,7 +325,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-task-scope.js",
-      "consumerCount": 16,
+      "consumerCount": 40,
       "classifications": [
         "document",
         "test"
@@ -345,6 +345,16 @@
       "recommendation": "Keep as the scheduler telemetry support layer."
     },
     {
+      "path": "src/shared/concurrency/scheduler-workload-observation.js",
+      "consumerCount": 6,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/index/build/runtime/scheduler-autotune-policy.js, src/index/build/runtime/scheduler-autotune-profile.js, src/shared/concurrency/scheduler-core/index.js.",
+      "recommendation": "Keep workload observations non-authoritative and scope autotuning to the original scheduler."
+    },
+    {
       "path": "src/shared/concurrency/task-queues.js",
       "consumerCount": 1,
       "classifications": [
@@ -357,7 +367,7 @@
     },
     {
       "path": "src/shared/concurrency/weighted-batches.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document"
@@ -368,7 +378,7 @@
     },
     {
       "path": "src/shared/kill-tree.js",
-      "consumerCount": 9,
+      "consumerCount": 31,
       "classifications": [
         "keep",
         "document",
@@ -379,7 +389,7 @@
     },
     {
       "path": "src/shared/lifecycle/registry.js",
-      "consumerCount": 8,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -387,6 +397,26 @@
       ],
       "consumerNotes": "Heartbeat, patch queue, task-lifecycle, and service worker flows use it as the lifecycle registry.",
       "recommendation": "Keep as the lifecycle registration surface."
+    },
+    {
+      "path": "src/shared/lifecycle/run-scope.js",
+      "consumerCount": 14,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/index/build/runtime/runtime.js, src/index/tooling/preflight-manager.js, src/index/tooling/preflight/manager-state.js, src/integrations/tooling/providers/lsp/session-pool.js, src/lang/css.js, src/lang/lua.js, src/lang/python/pool.js, src/lang/tree-sitter/chunking.js, src/lang/tree-sitter/worker.js, src/shared/lifecycle/shared-resource.js.",
+      "recommendation": "Retain actual run-owned resource work through cancellation and confirmed drain."
+    },
+    {
+      "path": "src/shared/lifecycle/shared-resource.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Current production consumers: src/lang/python/pool.js, src/lang/tree-sitter/worker.js.",
+      "recommendation": "Share resource implementations while retaining independent original run-scope ownership."
     },
     {
       "path": "src/shared/locks/file-lock-constants.js",
@@ -401,7 +431,7 @@
     },
     {
       "path": "src/shared/locks/file-lock-info.js",
-      "consumerCount": 12,
+      "consumerCount": 20,
       "classifications": [
         "keep",
         "document",
@@ -423,7 +453,7 @@
     },
     {
       "path": "src/shared/locks/file-lock-owner.js",
-      "consumerCount": 4,
+      "consumerCount": 34,
       "classifications": [
         "keep",
         "document",
@@ -434,7 +464,7 @@
     },
     {
       "path": "src/shared/locks/file-lock-producer-observations.js",
-      "consumerCount": 2,
+      "consumerCount": 9,
       "classifications": [
         "document",
         "test"
@@ -444,7 +474,7 @@
     },
     {
       "path": "src/shared/locks/file-lock-publication.js",
-      "consumerCount": 5,
+      "consumerCount": 8,
       "classifications": [
         "document",
         "test"
@@ -486,7 +516,7 @@
     },
     {
       "path": "src/shared/locks/file-lock-stale.js",
-      "consumerCount": 1,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -508,7 +538,7 @@
     },
     {
       "path": "src/shared/locks/file-lock.js",
-      "consumerCount": 43,
+      "consumerCount": 95,
       "classifications": [
         "keep",
         "document",
@@ -519,7 +549,7 @@
     },
     {
       "path": "src/shared/piscina-cleanup.js",
-      "consumerCount": 3,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -530,7 +560,7 @@
     },
     {
       "path": "src/shared/process-signals.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -541,7 +571,7 @@
     },
     {
       "path": "src/shared/promise-keepalive.js",
-      "consumerCount": 9,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -552,7 +582,7 @@
     },
     {
       "path": "src/shared/promise-timeout.js",
-      "consumerCount": 18,
+      "consumerCount": 31,
       "classifications": [
         "keep",
         "document",
@@ -563,7 +593,7 @@
     },
     {
       "path": "src/shared/retry.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -585,7 +615,7 @@
     },
     {
       "path": "src/shared/sleep.js",
-      "consumerCount": 4,
+      "consumerCount": 16,
       "classifications": [
         "keep",
         "document",
@@ -596,7 +626,7 @@
     },
     {
       "path": "src/shared/subprocess/command-invocation.js",
-      "consumerCount": 18,
+      "consumerCount": 31,
       "classifications": [
         "keep",
         "document",
@@ -607,7 +637,7 @@
     },
     {
       "path": "src/shared/subprocess/errors.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -629,7 +659,7 @@
     },
     {
       "path": "src/shared/subprocess/options.js",
-      "consumerCount": 7,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -640,7 +670,7 @@
     },
     {
       "path": "src/shared/subprocess/runner-async.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -662,7 +692,7 @@
     },
     {
       "path": "src/shared/subprocess/runner.js",
-      "consumerCount": 48,
+      "consumerCount": 156,
       "classifications": [
         "keep",
         "document",
@@ -672,8 +702,18 @@
       "recommendation": "Keep as the public subprocess runner surface and preserve focused implementation leaves for async, sync, and error behavior."
     },
     {
+      "path": "src/shared/subprocess/signal-dispatch.js",
+      "consumerCount": 0,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "No static production importer; dynamic entry and signal ownership require their existing contract checks.",
+      "recommendation": "Keep explicit signal delivery with the existing subprocess owner; a zero static census does not prove obsolescence."
+    },
+    {
       "path": "src/shared/subprocess/signals.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -684,7 +724,7 @@
     },
     {
       "path": "src/shared/subprocess/snapshot.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -695,7 +735,7 @@
     },
     {
       "path": "src/shared/subprocess/sync-command.js",
-      "consumerCount": 6,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -706,7 +746,7 @@
     },
     {
       "path": "src/shared/subprocess/termination-receipt.js",
-      "consumerCount": 1,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
@@ -716,7 +756,7 @@
     },
     {
       "path": "src/shared/subprocess/tracking-register.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -727,7 +767,7 @@
     },
     {
       "path": "src/shared/subprocess/tracking-runtime.js",
-      "consumerCount": 7,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -738,7 +778,7 @@
     },
     {
       "path": "src/shared/subprocess/tracking-scope.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -760,7 +800,7 @@
     },
     {
       "path": "src/shared/subprocess/tracking.js",
-      "consumerCount": 3,
+      "consumerCount": 38,
       "classifications": [
         "keep",
         "document",
@@ -792,7 +832,7 @@
     },
     {
       "path": "src/shared/subprocess/windows-cmd.js",
-      "consumerCount": 5,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -803,7 +843,7 @@
     },
     {
       "path": "src/shared/threads.js",
-      "consumerCount": 2,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -814,7 +854,7 @@
     },
     {
       "path": "src/shared/workers/bounded-object-pool.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -836,7 +876,7 @@
     },
     {
       "path": "src/shared/workers/heap-contract.js",
-      "consumerCount": 6,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document"
@@ -847,7 +887,7 @@
     },
     {
       "path": "src/shared/workers/node-argv.js",
-      "consumerCount": 10,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -866,9 +906,9 @@
     ]
   },
   "inventoryReview": {
-    "date": "2026-10-24",
-    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
-    "newlyReviewedFiles": 8,
-    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
+    "date": "2026-11-07",
+    "scope": "Current ledger-owned files, captured static consumers and exported ownership boundaries. Runtime, performance and platform qualification remain separate.",
+    "newlyReviewedFiles": 4,
+    "evidence": "Current source census from tools/docs/shared-module-ledger.js; native command lifecycle and authority moved together into src/shared/storage."
   }
 }
