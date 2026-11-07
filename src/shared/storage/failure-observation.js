@@ -169,11 +169,15 @@ export const observeStorageResource = (value, { phase = 'storage-failure', phase
 export const describeStorageFailure = (value, { phase = 'storage-failure',
   defaultCode = 'ERR_STORAGE', defaultMessage = 'Storage observation failed.' } = {}) => {
   const observation = observeStorageResource(value, { phase });
-  observation.requireSettled();
-  let code, message;
-  try { code = observation.primary.code; message = observation.primary.message; }
-  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
-  observation.requireSettled();
+  const read = field => {
+    observation.requireSettled();
+    let result;
+    try { result = observation.primary[field]; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return result;
+  };
+  const code = read('code'), message = read('message');
   return { code: typeof code === 'string' && code ? code : defaultCode,
     message: typeof message === 'string' ? message : defaultMessage };
 };

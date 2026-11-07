@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["each-field-has-its-own-boundary", "recorded-source-refusal-retains-work"]
+}

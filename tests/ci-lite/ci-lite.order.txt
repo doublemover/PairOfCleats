@@ -2878,3 +2878,5 @@ tooling/reports/throughput-kind-observation/same-stamp-and-owned-counts
 tooling/reports/throughput-kind-observation/original-descriptor-settlement
 tooling/reports/throughput-analysis-materialization/old-producer-reconstructs
 tooling/reports/throughput-analysis-materialization/old-producer-source-unavailable
+shared/storage/diagnostic-field-settlement/each-field-has-its-own-boundary
+shared/storage/diagnostic-field-settlement/recorded-source-refusal-retains-work

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { TextDecoder } from 'node:util';
 import { readVerifiedContainedFileSync } from '../../../../src/shared/contained-file.js';
-import { observeStorageResource } from '../../../../src/shared/storage/failure-observation.js';
+import { describeStorageFailure } from '../../../../src/shared/storage/failure-observation.js';
 import { stableStringifyForSignature } from '../../../../src/shared/stable-json.js';
 
 import { BENCH_MEASUREMENT_DERIVATION_VERSION, BENCH_MEASUREMENT_SNAPSHOT_VERSION } from './recorded-contract.js';
@@ -43,8 +43,8 @@ const readSnapshot = (reference, sourceRoot, attemptId) => {
     return { value, receipt: { state: 'qualified-attempt-snapshot', attemptId: value.attemptId,
       path: reference.path, bytes: read.buffer.length, sha256: read.hash } };
   } catch (error) {
-    observeStorageResource(error, { phase: 'benchmark-recorded-measurements' }).requireSettled();
-    return { value: null, receipt: { state: 'unavailable', reason: typeof error.code === 'string' ? error.code : 'ERR_BENCH_MEASUREMENT_PARSE' } };
+    const { code } = describeStorageFailure(error, { phase: 'benchmark-recorded-measurements', defaultCode: 'ERR_BENCH_MEASUREMENT_PARSE' });
+    return { value: null, receipt: { state: 'unavailable', reason: code } };
   }
 };
 

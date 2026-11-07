@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2710,
+    "hero": 2712,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17263,6 +17263,18 @@
     {
       "id": "tooling/reports/throughput-analysis-materialization/old-producer-source-unavailable",
       "order": 2875,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/diagnostic-field-settlement/each-field-has-its-own-boundary",
+      "order": 2876,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/diagnostic-field-settlement/recorded-source-refusal-retains-work",
+      "order": 2877,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -72,3 +72,10 @@ secondary observations, falsey getter failures, cycles, identity deduplication,
 limits, reentrancy, composed contexts and both real adapter recovery paths.
 Runtime and cost qualification remain required; fewer copied policy lines are
 not a measured performance gain.
+
+Ordinary diagnostic projection checks original settlement separately before and
+after `code` and `message`. A later presentation getter cannot erase an observed
+pending interval or qualify an earlier field. Historical benchmark-source refusal
+uses this same one-read projection rather than repeated code getters. Two authored
+unrun controls preserve that boundary and exact original read failures; context
+retention still preserves presentation/inspection causes under its existing policy.
