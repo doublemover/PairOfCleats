@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } from '../../../src/shared/contained-file.js';
+import { assertNoSymlinkPath, withContainedFile } from '../../../src/shared/contained-file.js';
 import { readExactAt } from '../../../src/shared/io/read-exact.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
-import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { withStorageDirectory } from '../../../src/shared/storage/directory.js';
-import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
+import { describeStorageFailure, observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const READ_BYTES = 64 * 1024;
 const REPORT_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -103,86 +103,87 @@ export const readReportStream = async (inventory, entry, onLine, {
   if (!Number.isSafeInteger(maxLineBytes) || maxLineBytes < 1 || maxLineBytes > REPORT_MAX_LINE_BYTES) throw new RangeError('Invalid report line bound.');
   const result = { path: entry.path, capturedBytes: entry.bytes, bytesRead: 0, oversizedLines: 0,
     unterminatedFinalLine: false, incomplete: false, reason: null };
-  let handle = null;
-  let primary = null;
-  let primaryPresent = false;
   let consumerFailed = false;
   try {
     throwIfAborted(signal);
-    handle = await openContainedFile(inventory.root, entry.path, { expectedFileIdentity: entry.identity });
-    if (metrics) metrics.fileOpens = (metrics.fileOpens || 0) + 1;
-    if (!sameStamp(entry.stamp, stamp(await handle.stat({ bigint: true })))) {
-      result.incomplete = true; result.reason = 'changed-before-read'; return result;
-    }
-    const buffer = Buffer.alloc(Math.min(READ_BYTES, Math.max(1, entry.bytes)));
-    let chunks = [];
-    let lineBytes = 0;
-    let oversized = false;
-    const append = (span) => {
-      lineBytes += span.length;
-      if (lineBytes > maxLineBytes) { oversized = true; chunks = []; }
-      else if (!oversized && span.length) chunks.push(Buffer.from(span));
-    };
-    const emit = () => {
-      if (oversized) {
-        result.oversizedLines += 1; result.incomplete = true; result.reason ||= 'line-too-large';
-      } else if (lineBytes) {
-        const line = REPORT_UTF8_DECODER.decode(Buffer.concat(chunks, lineBytes)).trim();
-        if (line) {
-          try {
-            const completion = onLine(line);
-            if (completion && typeof completion.then === 'function') return Promise.resolve(completion).catch(error => { consumerFailed = true; throw error; });
-            return completion;
-          } catch (error) { consumerFailed = true; throw error; }
-        }
+    return await withContainedFile(inventory.root, entry.path, async handle => {
+      if (metrics) metrics.fileOpens = (metrics.fileOpens || 0) + 1;
+      if (!sameStamp(entry.stamp, stamp(await handle.stat({ bigint: true })))) {
+        result.incomplete = true; result.reason = 'changed-before-read'; return result;
       }
-      return null;
-    };
-    let position = 0;
-    while (position < entry.bytes) {
-      throwIfAborted(signal);
-      const length = Math.min(buffer.length, entry.bytes - position);
-      const { bytesRead } = await readExactAt(handle, buffer, 0, length, position, { signal });
-      result.bytesRead += bytesRead;
-      if (metrics) metrics.bytesRead = (metrics.bytesRead || 0) + bytesRead;
-      if (bytesRead !== length) { result.incomplete = true; result.reason = 'truncated-during-read'; break; }
-      position += bytesRead;
-      let start = 0;
-      for (let index = 0; index < bytesRead; index += 1) {
-        if (buffer[index] !== 10) continue;
-        append(buffer.subarray(start, index));
+      const buffer = Buffer.alloc(Math.min(READ_BYTES, Math.max(1, entry.bytes)));
+      let chunks = [];
+      let lineBytes = 0;
+      let oversized = false;
+      const append = (span) => {
+        lineBytes += span.length;
+        if (lineBytes > maxLineBytes) { oversized = true; chunks = []; }
+        else if (!oversized && span.length) chunks.push(Buffer.from(span));
+      };
+      const emit = () => {
+        if (oversized) {
+          result.oversizedLines += 1; result.incomplete = true; result.reason ||= 'line-too-large';
+        } else if (lineBytes) {
+          const line = REPORT_UTF8_DECODER.decode(Buffer.concat(chunks, lineBytes)).trim();
+          if (line) {
+            try {
+              const completion = onLine(line);
+              if (completion && typeof completion.then === 'function') return Promise.resolve(completion).catch(error => { consumerFailed = true; throw error; });
+              return completion;
+            } catch (error) { consumerFailed = true; throw error; }
+          }
+        }
+        return null;
+      };
+      let position = 0;
+      while (position < entry.bytes) {
+        throwIfAborted(signal);
+        const length = Math.min(buffer.length, entry.bytes - position);
+        const { bytesRead } = await readExactAt(handle, buffer, 0, length, position, { signal });
+        result.bytesRead += bytesRead;
+        if (metrics) metrics.bytesRead = (metrics.bytesRead || 0) + bytesRead;
+        if (bytesRead !== length) { result.incomplete = true; result.reason = 'truncated-during-read'; break; }
+        position += bytesRead;
+        let start = 0;
+        for (let index = 0; index < bytesRead; index += 1) {
+          if (buffer[index] !== 10) continue;
+          append(buffer.subarray(start, index));
+          const completion = emit();
+          if (completion && typeof completion.then === 'function') await completion;
+          chunks = []; lineBytes = 0; oversized = false; start = index + 1;
+        }
+        append(buffer.subarray(start, bytesRead));
+      }
+      if (lineBytes && result.reason !== 'truncated-during-read') {
+        result.unterminatedFinalLine = true;
         const completion = emit();
         if (completion && typeof completion.then === 'function') await completion;
-        chunks = []; lineBytes = 0; oversized = false; start = index + 1;
       }
-      append(buffer.subarray(start, bytesRead));
-    }
-    if (lineBytes && result.reason !== 'truncated-during-read') {
-      result.unterminatedFinalLine = true;
-      const completion = emit();
-      if (completion && typeof completion.then === 'function') await completion;
-    }
-    throwIfAborted(signal);
-    verifyContainedFileHandle(handle, inventory.root, entry.path);
-    if (!sameStamp(entry.stamp, stamp(await handle.stat({ bigint: true })))) {
-      result.incomplete = true; result.reason = 'changed-during-read';
-    }
-    return result;
+      throwIfAborted(signal);
+      handle.verify();
+      if (!sameStamp(entry.stamp, stamp(await handle.stat({ bigint: true })))) {
+        result.incomplete = true; result.reason = 'changed-during-read';
+      }
+      return result;
+    }, { expectedFileIdentity: entry.identity });
   } catch (error) {
-    primary = error; primaryPresent = true;
-    if (consumerFailed || signal?.aborted || error?.name === 'AbortError') throw error;
-    result.incomplete = true; result.reason = error?.code || 'ERR_REPORT_READ';
+    // The original descriptor owner closes only after every read/consumer
+    // prerequisite settles. Unknown work must not become a parse diagnostic.
+    const observation = observeStorageResource(error, { phase: 'bench-report-stream-read' });
+    const retain = value => addStorageFailureContext(value, { reportStreamPath: entry.path });
+    const requireSettled = () => { try { observation.requireSettled(); } catch (pending) { throw retain(pending); } };
+    requireSettled();
+    if (consumerFailed || signal?.aborted) throw error;
+    const read = field => {
+      requireSettled(); let value;
+      try { value = error?.[field]; }
+      catch (inspection) { throw retain(observation.retain(inspection, { inspectionPresent: true })); }
+      requireSettled(); return value;
+    };
+    if (read('name') === 'AbortError') throw error;
+    const code = read('code');
+    result.incomplete = true; result.reason = typeof code === 'string' && code ? code : 'ERR_REPORT_READ';
     return result;
-  } finally {
-    if (handle) {
-      try { await handle.close(); } catch (error) {
-        result.incomplete = true; result.reason ||= 'original-close-failed';
-        // A failed original close is not an ignorable parse observation. Keep
-        // the real resource failure, including a falsey original consumer error.
-        throw primaryPresent ? addStorageFailureContext(primary, { reportStreamPath: entry.path }, error,
-          { secondaryPresent: true }) : error;
-      }
-    }
   }
 };
 

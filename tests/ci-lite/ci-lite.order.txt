@@ -2871,3 +2871,5 @@ tooling/eval/finite-feasibility-claims/offline-adapter-and-versioned-state
 indexing/embeddings/cache-only-enumeration-bound/unselected-chunk-rows
 indexing/embeddings/cache-only-enumeration-bound/duplicate-file-metadata-rows
 indexing/embeddings/cache-only-enumeration-bound/original-iterator-return-pending
+tooling/reports/bench-stream-close-failure/pending-read-blocks-close
+tooling/reports/bench-stream-close-failure/late-diagnostic-observation

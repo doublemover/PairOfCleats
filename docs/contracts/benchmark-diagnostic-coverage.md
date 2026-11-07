@@ -62,11 +62,18 @@ command or path. The actual frontdoor supplies this snapshot to the report;
 Raw captured-file report generation may omit this observation and cannot claim
 run-wide producer delivery. This metadata does not grant resource retirement.
 
-An original report-stream close failure propagates instead of returning apparently
-usable parse metadata. If reduction already failed, the existing storage failure
-context owner preserves both original errors, including frozen and falsey values.
-It does not mutate the original error, inspect an unsafe close-error code getter,
-retry an unknown close or claim physical release from a parse result.
+Report streams borrow original read/stat/verification operations through
+`withContainedFile`. The existing descriptor owner awaits admitted operations,
+retains original error observations and refuses native close while independent
+work is pending. A failed close propagates with its original close-only recovery
+capability; parsing is never replayed by recovery. Frozen/falsey consumer failures
+and exact original close errors remain in the retained cause graph.
+
+Only confirmed settled errors can become incomplete-input diagnostics. Before
+and after each diagnostic getter, the reader checks the captured original resource
+observation. Pending work and fallible/falsey inspections retain the exact report
+path and propagate. No automatic retry, physical-release inference or partial
+report follows from an unconfirmed original read/close.
 
 The comparison contract checks coverage count/state consistency, explicit
 incompleteness and the current parity version before normalizing a summary.
@@ -88,3 +95,7 @@ files, entry/byte/path/directory/depth bounds, cancellation and an explicit
 unconfirmed-close owner model. The original diagnostics-summary fixture now
 rejects its deliberately malformed row, then removes only that row to retain
 the matching-event clean positive control and all original counts.
+Two descriptor-owner cases additionally retain a pending read without native
+close and a late falsey diagnostic failure after physical close. Explicit original
+recovery waits for the captured prerequisite and never repeats a read or consumer.
+These are finite owner models, separate from actual native retirement acceptance.
