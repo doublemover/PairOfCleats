@@ -14,6 +14,7 @@ import { resolveToolingCommandSelection, probeLspInitializeHandshake } from '../
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
 import { spawnResolvedSubprocess } from '../../../src/shared/subprocess/command-invocation.js';
 import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+import { writeRuntimeCommandFixture } from '../../helpers/runtime-command-fixture.js';
 import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/managed-pyright-package/')[1];
@@ -41,6 +42,20 @@ try {
       assert.equal(resolveDeclaredInstallAdmission(tool.install.cache).state, process.platform === 'win32' ? 'estimate-declared' : 'deferred-unknown-allocation');
       assert.equal(tool.prerequisites.find(row => row.id === 'node').command, process.execPath);
       assert.equal(tool.install.user.cmd, 'npm', 'explicit user package scope retains its existing selected owner');
+      return;
+    }
+    if (mode === 'external-default-without-managed-selection') {
+      const binDir = path.join(project, 'node_modules/.bin');
+      const command = await writeRuntimeCommandFixture({ binDir, name: 'pyright-langserver' });
+      const stub = new URL('../../fixtures/lsp/stub-lsp-server.js', import.meta.url).href;
+      await fs.writeFile(path.join(binDir, 'pyright-langserver.fixture.js'), 'import(' + JSON.stringify(stub) + ');\n');
+      const selection = resolveToolingCommandSelection({ providerId: 'pyright', cmd: 'pyright-langserver', args: ['--stdio'],
+        repoRoot: project, toolingConfig: { dir: toolingRoot } });
+      assert.equal(selection.resolved.cmd, command); assert.equal(selection.resolved.mode, 'direct');
+      const handshake = await probeLspInitializeHandshake({ providerId: 'pyright', cmd: 'pyright-langserver', args: ['--stdio'],
+        cwd: project, toolingConfig: { dir: toolingRoot }, timeoutMs: 4000 });
+      assert.equal(handshake.ok, true, JSON.stringify(handshake));
+      assert.equal(resolveManagedToolInstallation(toolingRoot, 'pyright'), null);
       return;
     }
     if (mode === 'verification-observation-and-cancellation') {
@@ -103,8 +118,22 @@ try {
       assert.throws(() => resolveManagedNodePackageLaunch({ ...launchInput, command: path.join(selected.owner, 'generations', '0'.repeat(64), 'langserver.index.js') }), /selected physical generation/);
       assert.throws(() => resolveManagedNodePackageLaunch({ ...launchInput, command: path.join(temporary, 'node.exe'), args: launch.args }), /different Node runtime/);
       assert.throws(() => resolveManagedNodePackageLaunch({ ...launchInput, command: path.join(temporary, 'another-host.exe'), args: launch.args }), /different Node runtime/);
+      assert.throws(() => resolveManagedNodePackageLaunch({ ...launchInput, command: process.execPath, args: ['--inspect=0', ...launch.args] }), /first Node argument/);
+      assert.throws(() => resolveManagedNodePackageLaunch({ ...launchInput, command: process.execPath, args: [path.join(project, 'external.js'), ...launch.args] }), /first Node argument/);
       const profile = resolveToolingCommandSelection({ providerId: 'pyright', cmd: selected.command, args: ['--stdio'], repoRoot: project, toolingConfig: { dir: toolingRoot } });
       assert.equal(profile.resolved.cmd, process.execPath); assert.deepEqual(profile.resolved.args, launch.args); assert.equal(profile.probe.ok, null);
+      const selector = path.join(selected.owner, 'current.json'), selectorBytes = await fs.readFile(selector);
+      const ambient = path.join(project, 'node_modules/.bin', process.platform === 'win32' ? 'pyright-langserver.cmd' : 'pyright-langserver');
+      await fs.mkdir(path.dirname(ambient), { recursive: true }); await fs.writeFile(ambient, 'explicit external command; never executed', { mode: 0o755 });
+      await fs.writeFile(selector, '{}');
+      try {
+        const blocked = resolveToolingCommandSelection({ providerId: 'pyright', cmd: 'pyright-langserver', args: ['--stdio'], repoRoot: project, toolingConfig: { dir: toolingRoot } });
+        assert.equal(blocked.resolved.mode, 'blocked'); assert.equal(blocked.resolved.reason, 'ERR_TOOLING_NODE_RUNTIME_UNAVAILABLE');
+        const bare = { id: 'pyright', toolingRoot, detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [path.dirname(ambient)] } };
+        await assert.rejects(detectToolOwned(bare), /missing or changed/); assert.throws(() => detectTool(bare), /missing or changed/);
+        const explicit = resolveToolingCommandSelection({ providerId: 'pyright', cmd: ambient, args: [], repoRoot: project, toolingConfig: { dir: toolingRoot } });
+        assert.equal(explicit.resolved.cmd, ambient); assert.equal(explicit.resolved.mode, 'direct', 'an explicit external selection keeps its own authority');
+      } finally { await fs.writeFile(selector, selectorBytes); }
     } else if (mode === 'owned-probe-and-generation-lease') {
       let spawned = 0;
       const coordinationRoot = path.join(home, 'state', 'storage-access');

@@ -33,12 +33,17 @@ commands keep their existing selection. Damaged/unreadable selectors, stale
 managed entries and another Node host cannot silently become an unmanaged
 fallback. The selected original package is included in the existing managed
 command closure and stays leased through actual probe/client child retirement.
+Unsupported host-flag/preceding-script argv shapes referencing the managed package
+are refused before they can fall back to an unleased external Node launch.
+Bare default selection checks the selected package before ambient executable
+fallback; an unreadable/damaged selector cannot silently choose a PATH/repository
+tool. Explicit external command paths retain their separate authority.
 
 Read-only selection, synchronous/owned probes, initialize handshakes, pooled LSP
 sessions and workspace-health identity share the launch's actual command/argv.
 The script prefix appears once and actual attempted child arguments are retained.
 The Node prerequisite uses the application's exact executable, with no PATH or
-system installation. Producer `lspBindings`67 prevents prior derived replay from
+system installation. Producer `lspBindings`68 prevents prior derived replay from
 assuming the old launch meaning. Native/.NET recipes retain their active contracts.
 
 Version verification runs the pinned CLI entry through the original async child
@@ -47,7 +52,7 @@ preserves cancellation and pending work. Its level is explicitly
 `pinned-node-entry-and-cli-version`; protocol and source analysis require their
 own real consumer qualification.
 
-Six cases are authored and locally unrun. An explicitly selected inert archive
+Seven cases are authored and locally unrun. An explicitly selected inert archive
 uses real managed storage/publication, Node children, generation leases and LSP
 framing. Controls cover reuse, stale/damaged selection, changed Node host,
 unqualified external commands, checksum refusal with the previous generation

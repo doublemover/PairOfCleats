@@ -26,9 +26,15 @@ export const resolveManagedNodePackageLaunch = ({ command, args = [], providerId
   const nodeEntry = path.basename(String(command || '')) !== entryName && args.length && path.isAbsolute(args[0] || '')
     && (token(command) === 'node' || currentNode || path.basename(args[0]) === entryName);
   const provider = ['pyright', 'lsp-pyright'].includes(providerId);
-  if (!defaultCommand && !nodeEntry && !provider) return unchanged(command, args, environment);
+  const nodeHost = token(command) === 'node' || currentNode;
+  if (!defaultCommand && !nodeEntry && !provider && !nodeHost) return unchanged(command, args, environment);
   toolingRoot ||= resolveStorageLayout().descriptors.tooling.path;
   const installs = path.join(path.resolve(toolingRoot), 'installs');
+  const packageOwner = path.join(installs, 'pyright');
+  const packageArgument = nodeHost && args.some(argument => typeof argument === 'string' && path.isAbsolute(argument) && isPathWithinRoot(argument, packageOwner));
+  if (packageArgument && (!nodeEntry || !isPathWithinRoot(args[0], packageOwner))) {
+    throw fail('Managed Pyright requires its canonical entry as the first Node argument; unsupported host flags cannot bypass package ownership.');
+  }
   const entry = nodeEntry ? args[0] : command;
   const managedEntry = path.isAbsolute(entry || '') && isPathWithinRoot(entry, installs);
   if (!defaultCommand && !managedEntry) return unchanged(command, args, environment);

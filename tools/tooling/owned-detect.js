@@ -48,6 +48,12 @@ export const detectToolOwned = async (tool, { signal = null, env = process.env }
 
 const detectToolOwnedSelected = async (tool, { signal = null, env = process.env } = {}, dependencies = {}) => {
   signal?.throwIfAborted();
+  if (tool?.id === 'pyright' && !path.isAbsolute(tool.detect?.cmd || '') && !/[\\/]/u.test(tool.detect?.cmd || '')) {
+    const launch = resolveManagedNodePackageLaunch({ command: tool.detect?.cmd, providerId: tool.id, toolingRoot: tool.toolingRoot, baseEnv: env });
+    const selected = launch.managedRuntimeCommands[0];
+    if (selected) tool = { ...tool, managedInstallation: { ...selected, args: [] },
+      detect: { ...tool.detect, cmd: selected.command, binDirs: [] } };
+  }
   const located = (dependencies.locate || locateToolExecutable)(tool);
   if (!located.found || !located.path) return located;
   signal?.throwIfAborted();

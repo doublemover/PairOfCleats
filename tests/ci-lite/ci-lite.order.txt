@@ -3007,3 +3007,4 @@ tooling/install/managed-pyright-package/runtime-selection-and-stale-entry
 tooling/install/managed-pyright-package/owned-probe-and-generation-lease
 tooling/install/managed-pyright-package/strict-digest-and-previous-generation
 tooling/install/managed-pyright-package/verification-observation-and-cancellation
+tooling/install/managed-pyright-package/external-default-without-managed-selection

@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["canonical-windows-bundle-bound", "managed-publication-and-reuse", "runtime-selection-and-stale-entry", "owned-probe-and-generation-lease", "strict-digest-and-previous-generation", "verification-observation-and-cancellation"]
+  "cases": ["canonical-windows-bundle-bound", "managed-publication-and-reuse", "runtime-selection-and-stale-entry", "owned-probe-and-generation-lease", "strict-digest-and-previous-generation", "verification-observation-and-cancellation", "external-default-without-managed-selection"]
 }

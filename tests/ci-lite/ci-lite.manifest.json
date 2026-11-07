@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2839,
+    "hero": 2840,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18037,6 +18037,12 @@
     {
       "id": "tooling/install/managed-pyright-package/verification-observation-and-cancellation",
       "order": 3004,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-pyright-package/external-default-without-managed-selection",
+      "order": 3005,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

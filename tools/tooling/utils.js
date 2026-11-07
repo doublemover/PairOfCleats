@@ -842,6 +842,10 @@ export function locateToolExecutable(tool) {
 }
 
 export function detectTool(tool) {
+  if (tool?.id === 'pyright' && !path.isAbsolute(tool.detect?.cmd || '') && !/[\\/]/u.test(tool.detect?.cmd || '')) {
+    const launch = resolveManagedNodePackageLaunch({ command: tool.detect?.cmd, providerId: tool.id, toolingRoot: tool.toolingRoot });
+    if (launch.managedRuntimeCommands.length) tool = { ...tool, detect: { ...tool.detect, cmd: launch.managedRuntimeCommands[0].command, binDirs: [] } };
+  }
   const located = locateToolExecutable(tool);
   if (located.source === 'blocked' || !tool?.detect?.cmd) return located;
   const detectCmd = String(tool?.detect?.cmd || '');

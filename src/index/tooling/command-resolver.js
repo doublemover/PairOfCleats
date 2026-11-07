@@ -554,6 +554,10 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig,
   return '';
 };
 
+const runtimeSourceCommand = (requested, resolved, providerId) => requested === 'dotnet' ? requested
+  : !isExplicitCommandPath(requested) && (normalizeCommandToken(requested) === 'pyright-langserver'
+    || !requested && ['pyright', 'lsp-pyright'].includes(providerId)) ? 'pyright-langserver' : resolved;
+
 const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig, cwd = process.cwd() }) => {
   let probeCwd = path.resolve(cwd);
   try { probeCwd = fsSync.realpathSync(probeCwd); } catch {}
@@ -815,7 +819,7 @@ const selectToolingCommand = (input) => {
     // Bind a bare dotnet selection to the canonical SDK host before any PATH
     // fallback can choose a different installation. Explicit external hosts
     // remain separately selected and carry no managed-runtime qualification.
-    const runtimeSelection = resolveToolingRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : resolvedCmd, args: requestedArgs, cwd: repoRoot,
+    const runtimeSelection = resolveToolingRuntimeLaunch({ command: runtimeSourceCommand(requestedCmd, resolvedCmd, providerId), args: requestedArgs, cwd: repoRoot,
       providerId, toolingRoot: toolingConfig?.dir || null });
     if (runtimeSelection.managedRuntimeCommands.length) { resolvedCmd = runtimeSelection.command; resolvedArgs = runtimeSelection.args; }
   } catch (error) {
@@ -970,11 +974,15 @@ export const probeLspInitializeHandshake = async (input) => {
   const cwd = input?.cwd || process.cwd();
   let launch;
   try {
-    launch = resolveToolingRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : cmd,
+    const runtimeCommand = runtimeSourceCommand(requestedCmd, cmd, input?.providerId);
+    launch = resolveToolingRuntimeLaunch({ command: runtimeCommand,
       args: input?.args || [], cwd,
       providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null,
       baseEnv: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
         providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }) });
+    // No managed selection: retain the already discovered external executable.
+    // A damaged selection throws above and cannot reach this fallback.
+    if (runtimeCommand === 'pyright-langserver' && !launch.managedRuntimeCommands.length) launch = { ...launch, command: cmd };
     cmd = launch.command;
   } catch (error) {
     if (!['ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE', 'ERR_TOOLING_NODE_RUNTIME_UNAVAILABLE'].includes(error?.code)) throw error;
