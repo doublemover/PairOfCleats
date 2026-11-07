@@ -26,6 +26,8 @@ import { isCanonicalChunkUid } from '../../../src/shared/identity.js';
 import { INDEX_REVISION_PROFILE, INDEX_REVISION_RECEIPT_SCHEMA } from '../../../src/contracts/schemas/revision-index.js';
 import { createAjv, compileSchema } from '../../../src/shared/validation/ajv-factory.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
+import { validateIndexArtifacts } from '../../../src/index/validate.js';
+import { settleIndexBuildPair } from './index-build-pair.js';
 
 export { INDEX_REVISION_PROFILE };
 const validateReceipt = compileSchema(createAjv({ strict: true, allErrors: true }), INDEX_REVISION_RECEIPT_SCHEMA);
@@ -33,6 +35,11 @@ const TOOL_ROOT = fileURLToPath(new URL('../../../', import.meta.url)), runs = n
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 const get = handle => { const run = runs.get(handle); if (!run) throw new TypeError('Original published-index revision execution required.'); return run; };
 const sameIdentity = (left, right) => left.dev === right.dev && left.ino === right.ino;
+const EXPECTED_OPTIONAL_WARNINGS = Object.freeze([
+  '[code] optional risk_flows missing', '[code] optional risk_partial_flows missing',
+  '[code] optional dense_vectors missing', '[code] optional dense_vectors_doc missing',
+  '[code] optional dense_vectors_code missing', '[lmdb/code] db missing'
+].sort());
 const scalar = (value, field) => {
   if (typeof value !== 'string' || !value.length || value.length > 16384) throw sourceScenarioError('Invalid published chunk ' + field); return value;
 };
@@ -122,6 +129,16 @@ const inspectPublished = async (run, repo, config, files, expectedPointerHash = 
       const generation = resolveCurrentBuildGeneration(data, { repoCacheRoot, buildsRoot, preferredMode: 'code' });
       if (!generation.activeRoot || !generation.buildId || !isPathWithinRoot(generation.activeRoot, buildsRoot)) throw sourceScenarioError('A current published code generation is required.');
       const indexRoot = path.join(generation.activeRoot, 'index-code'); assertNoSymlinkPath(buildsRoot, indexRoot);
+      // This closed lexical profile intentionally omits these six optional
+      // surfaces. Compare actual validation evidence, not only a warning count
+      // or log level; any new warning or incomplete artifact fails qualification.
+      const validation = await validateIndexArtifacts({ root: repo, userConfig: config, indexRoot: generation.activeRoot,
+        modes: ['code'], sqliteEnabled: false, signal: run.signal });
+      checkRun(run);
+      if (!validation.ok || validation.issues.length || JSON.stringify([...validation.warnings].sort()) !== JSON.stringify(EXPECTED_OPTIONAL_WARNINGS)) {
+        throw Object.assign(new Error('Published-index validation differs from its exact closed-profile omissions.', { cause: validation }),
+          { code: 'ERR_REVISION_INDEX_VALIDATION' });
+      }
       const rows = [], byFile = new Map([...source.keys()].map(name => [name, []]));
       // Stream and bound rows before retaining them; the normal strict loader
       // owns all physical source/columnar/cold-file reads and closure.
@@ -184,6 +201,7 @@ const build = async (run, repo, cacheRoot, files, ordinal, incremental) => {
   if (result.exitCode !== 0 || result.signal) throw Object.assign(new Error('The original index build failed; its status and logs are retained.', { cause: result }), {
     code: 'ERR_REVISION_INDEX_BUILD_FAILED', command: process.execPath, args, cwd: repo, logPrefix
   });
+  let terminal = null;
   for (const stream of ['stdout', 'stderr']) for (const line of result[stream].split('\n')) {
     if (!line.trim()) continue;
     const event = parseProgressEventLine(line);
@@ -192,8 +210,20 @@ const build = async (run, repo, cacheRoot, files, ordinal, incremental) => {
         code: 'ERR_REVISION_INDEX_DIAGNOSTICS', stream, line: line.slice(0, 1024), logPrefix
       });
     }
+    if (event.meta?.kind === 'terminal-outcome') {
+      if (terminal) throw sourceScenarioError('One original terminal outcome is required per build.');
+      terminal = event.meta.outcome;
+    }
+  }
+  const stage = terminal?.stages?.find(entry => entry.stage === 'stage2');
+  if (terminal?.status !== 'index-published' || stage?.status !== 'completed' || stage.validation?.ok !== true
+    || stage.validation?.issueCount !== 0 || stage.validation?.warningCount !== EXPECTED_OPTIONAL_WARNINGS.length) {
+    throw sourceScenarioError('Original stage2 completion must report zero issues and exactly the declared optional omissions.');
   }
   const published = await inspectPublished(run, repo, config, files);
+  if (!terminal.generations?.some(generation => generation.buildId === published.generation.buildId)) {
+    throw sourceScenarioError('The original terminal outcome must name the inspected published generation.');
+  }
   return { ...published, execution: { executionId: randomUUID(), command: process.execPath, args, cwd: repo,
     configHash: sourceBytesHash(Buffer.from(configText)), exitCode: result.exitCode, signal: result.signal ?? null, elapsedMs: performance.now() - began,
     stdoutHash: sourceBytesHash(Buffer.from(result.stdout)), stderrHash: sourceBytesHash(Buffer.from(result.stderr)),
@@ -234,9 +264,13 @@ export const runIndexRevisionScenario = async (input, options = {}) => {
     for (const index of selected) {
       checkRun(run); const files = compiled.states[index], freshRepo = path.join(root, 'fresh-' + index), freshCache = path.join(root, 'fresh-cache-' + index);
       await writeState(run, candidateRepo, files, previous); previous = files.map(file => file.path);
-      const candidate = await build(run, candidateRepo, candidateCache, files, ordinal++, true);
       await fs.mkdir(freshRepo); await writeState(run, freshRepo, files);
-      const fresh = await build(run, freshRepo, freshCache, files, ordinal++, false);
+      const candidateOrdinal = ordinal++, freshOrdinal = ordinal++;
+      // Separate roots/caches can build together; the next candidate revision
+      // still waits for both original worlds and every retained observation.
+      const [candidate, fresh] = await settleIndexBuildPair(
+        () => build(run, candidateRepo, candidateCache, files, candidateOrdinal, true),
+        () => build(run, freshRepo, freshCache, files, freshOrdinal, false));
       run.snapshots.set(index, { repo: freshRepo, config: configFor(freshCache), files, pointerHash: fresh.generation.pointerHash,
         outputId: revisionScenarioId(fresh.rows), generationKey: fresh.generation.generationKey });
       const reference = referencePublishedSourceRevision(files, { signal: run.signal }), expected = reference.output;
@@ -257,8 +291,8 @@ export const runIndexRevisionScenario = async (input, options = {}) => {
       producer: { node: process.version, abi: process.versions.modules, sourceChunking: SEMANTIC_ANALYSIS_VERSIONS.sourceChunking,
         javascriptRelations: SEMANTIC_ANALYSIS_VERSIONS.javascriptRelations },
       scope: 'real-stage2-code-publication; constructed-javascript; no-embeddings-sqlite-enrichment-or-generated-source-execution',
-      strategy: 'serial-incremental-candidate-and-isolated-clean-build; production-default-worker-backend',
-      limits: { maxMs, sourceBytes: 65536, chunkRows: 128, receiptBytes: 262144, outputBytesPerStream: 1048576 } },
+      strategy: 'serial-candidate-revisions; paired-independent-builds; production-default-worker-backend',
+      limits: { maxMs, sourceBytes: 65536, chunkRows: 128, receiptBytes: 262144, outputBytesPerStream: 1048576, maxConcurrentBuilds: 2 } },
     { maxBytes: 262144, maxDepth: 32, maxItems: 65536 }));
     if (!validateReceipt(run.receipt)) throw sourceScenarioError('Invalid original published-index revision receipt.');
     return handle;

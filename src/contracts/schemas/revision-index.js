@@ -1,7 +1,7 @@
 import { semanticObject as object, semanticHashSchema as hash, semanticNullable as nullable } from './semantic-envelopes.js';
 import { SOURCE_REVISION_OUTPUT_SCHEMA } from './revision-source.js';
 
-export const INDEX_REVISION_PROFILE = 'published-javascript-chunk-index-revisions-v2';
+export const INDEX_REVISION_PROFILE = 'published-javascript-chunk-index-revisions-v3';
 const list = (items, maxItems) => ({ type: 'array', items, maxItems });
 const text = maximum => ({ type: 'string', minLength: 1, maxLength: maximum });
 const count = maximum => ({ type: 'integer', minimum: 0, maximum });
@@ -26,6 +26,6 @@ export const INDEX_REVISION_RECEIPT_SCHEMA = object({ schemaVersion: { const: 1 
   omittedCheckpoints: { ...list(count(16), 16), uniqueItems: true }, completeScenarioCoverage: { type: 'boolean' }, outcome: { enum: ['pass', 'fail', 'unknown'] },
   producer: object({ node: text(128), abi: text(128), sourceChunking: text(128), javascriptRelations: text(128) }),
   scope: { const: 'real-stage2-code-publication; constructed-javascript; no-embeddings-sqlite-enrichment-or-generated-source-execution' },
-  strategy: { const: 'serial-incremental-candidate-and-isolated-clean-build; production-default-worker-backend' },
+  strategy: { const: 'serial-candidate-revisions; paired-independent-builds; production-default-worker-backend' },
   limits: object({ maxMs: { type: 'integer', minimum: 1, maximum: 25000 }, sourceBytes: { const: 65536 }, chunkRows: { const: 128 },
-    receiptBytes: { const: 262144 }, outputBytesPerStream: { const: 1048576 } }) });
+    receiptBytes: { const: 262144 }, outputBytesPerStream: { const: 1048576 }, maxConcurrentBuilds: { const: 2 } }) });

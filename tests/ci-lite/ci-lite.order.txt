@@ -3131,6 +3131,7 @@ tooling/install/install-action-original-observation/function-failure
 tooling/install/install-action-original-observation/returned-pending-result
 tooling/install/install-action-original-observation/independent-inspection
 tooling/install/install-action-original-observation/revoked-during-reservation-read
+tooling/eval/published-index-build-pair
 tooling/eval/published-index-revision-oracle/closed-preflight
 tooling/install/managed-typescript-api7-components/exact-pins-and-targets
 tooling/install/managed-typescript-api7-components/versioned-component-owners

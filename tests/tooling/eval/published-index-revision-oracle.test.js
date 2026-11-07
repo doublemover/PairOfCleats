@@ -21,7 +21,7 @@ const open = fs.open, originalHome = process.env.PAIROFCLEATS_HOME;
 let handle, recovery, primary, denyClose = false, fileSession = null;
 try {
   if (mode === 'closed-preflight') {
-    await assert.rejects(getOfflineEvaluationAdapter('published-javascript-chunk-index-revisions-v1'),
+    for (const obsolete of [1, 2]) await assert.rejects(getOfflineEvaluationAdapter('published-javascript-chunk-index-revisions-v' + obsolete),
       { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
     const before = await fs.readdir(parent), controller = new AbortController(); controller.abort(null);
     await assert.rejects(adapter.run(scenario, { parent, signal: controller.signal }), error => error.name === 'AbortError' && error.cause === null);
@@ -55,10 +55,12 @@ try {
     assert.equal(validate(receipt), true);
     for (const mutate of [value => { value.completeScenarioCoverage = 'yes'; }, value => { value.limits.maxMs = 30000; },
       value => { value.checkpoints[0].candidate.execution.exitCode = -1073741819; }, value => { value.omittedCheckpoints.push(17); },
-      value => { value.checkpoints[0].claims[0].tier = 'universal-correctness'; }, value => { value.checkpoints[0].rebuild.extra = true; }]) {
+      value => { value.checkpoints[0].claims[0].tier = 'universal-correctness'; }, value => { value.checkpoints[0].rebuild.extra = true; },
+      value => { value.limits.maxConcurrentBuilds = 3; }, value => { value.profile = 'published-javascript-chunk-index-revisions-v2'; }]) {
       const invalid = structuredClone(receipt); mutate(invalid); assert.equal(validate(invalid), false);
     }
     assert.equal(receipt.completeScenarioCoverage, false); assert.equal(Object.isFrozen(receipt.checkpoints[0].claims[0]), true);
+    assert.equal(receipt.limits.maxConcurrentBuilds, 2);
     assert.throws(() => adapter.inspect({ ...handle }), /Original/); await assert.rejects(adapter.dispose({ ...handle }), /Original/);
     assert.match(receipt.strategy, /production-default-worker-backend/); assert.match(receipt.scope, /real-stage2-code-publication/);
     assert.equal(receipt.checkpoints.length, revisionCheckpoint ? 2 : 1);

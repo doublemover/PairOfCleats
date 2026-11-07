@@ -135,11 +135,15 @@ time and reference examinations; original bounds are unchanged.
 
 ## Published code-index revision cohorts
 
-The explicit `published-javascript-chunk-index-revisions-v2` adapter materializes
+The explicit `published-javascript-chunk-index-revisions-v3` adapter materializes
 the same inert construction grammar in a fresh task-owned workspace. It invokes
-the real `pairofcleats index build` stage2 owner in serial fresh children:
-one persistent incremental candidate and a new repository/cache for each clean
-rebuild. Each checkpoint starts from its exact declared source state. Selecting
+the real `pairofcleats index build` stage2 owner in fresh children. One persistent
+incremental candidate advances in revision order; each checkpoint pairs its build
+with an independent clean repository/cache. At most two builds run concurrently,
+one indexing thread each, under the original shared25-second deadline. The pair
+joins both original operations before failures propagate or worlds can retire.
+There is no retry, backend substitution or caller concurrency knob. Versions1/2
+are rejected. Each checkpoint starts from its exact declared source state. Selecting
 nonadjacent checkpoints models a batch edit; omitted checkpoints are enumerated,
 and `completeScenarioCoverage` stays false. No author cache or fixture-health
 stamp can substitute for a build.
@@ -171,7 +175,13 @@ Strict `revision-index.js` receipts retain actual commands, configuration hashes
 exit status, Node/ABI and producer versions, generation/pointer identities,
 per-stream log hashes/counts, checkpoint coverage, distinct oracle claims and
 counterexamples. Complete stdout/stderr is retained under the disposable marked
-workspace; truncated or lossy capture refuses qualification. Success does not
+workspace; truncated or lossy capture refuses qualification. Each original
+terminal outcome must report its inspected generation, completed stage2 and zero
+issues. The strict artifact validator independently asserts exactly six declared
+optional omissions: risk/partial-flow artifacts, the three disabled vector
+channels and LMDB. Any different warning, extra terminal outcome or incomplete
+artifact refuses qualification. Parallel correctness worlds do not qualify serial
+latency or throughput. Success does not
 establish semantic closure, SQLite/vector correctness, source execution, native
 backend activation or a general latency improvement.
 The canonical CLI emits structured progress on its normal streams. Every captured

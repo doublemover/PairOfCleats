@@ -21,7 +21,7 @@ const loaders = {
     return Object.freeze({ id: pins.TYPESCRIPT_API7_PROFILE, executionClass: 'explicit-experimental-api7-request-filesystem',
       capabilities: Object.freeze(['prepare', 'run']), prepare: owner.prepareManagedTypeScriptApi7, run: runtime.runTypeScriptApi7Request });
   },
-  'published-javascript-chunk-index-revisions-v2': async () => {
+  'published-javascript-chunk-index-revisions-v3': async () => {
     const [scenario, owner] = await Promise.all([import('./revisions/source-scenario.js'), import('./revisions/index-runner.js')]);
     return Object.freeze({ id: owner.INDEX_REVISION_PROFILE, executionClass: 'opt-in-constructed-source-real-stage2-publication',
       capabilities: Object.freeze(['generate', 'run', 'inspect', 'recheck', 'minimize', 'dispose']), generate: scenario.generateSourceRevisionScenario,
