@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 3029,
+    "hero": 3040,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -19185,6 +19185,72 @@
       "order": 3195,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/duplicate-retraction",
+      "order": 3196,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/negative-reactivation",
+      "order": 3197,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/cycle-shortcut",
+      "order": 3198,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/node-and-test-replacement",
+      "order": 3199,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/seeded-imports",
+      "order": 3200,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/independent-seeded-defects",
+      "order": 3201,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/stale-negative-and-retracted-witness",
+      "order": 3202,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/closed-preconditions-and-original-supports",
+      "order": 3203,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/passive-and-bounded-inputs",
+      "order": 3204,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/unknown-and-cancellation",
+      "order": 3205,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/suggestion-revision-oracle/original-handles-and-independent-reference",
+      "order": 3206,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

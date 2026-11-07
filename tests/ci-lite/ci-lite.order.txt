@@ -3198,3 +3198,14 @@ tooling/install/managed-verification-retention/api7-sdk-refusal
 tooling/install/managed-verification-retention/api7-native-positive
 tooling/install/managed-verification-retention/api7-native-refusal
 tooling/install/managed-verification-retention/probe-field-failure
+tooling/eval/suggestion-revision-oracle/duplicate-retraction
+tooling/eval/suggestion-revision-oracle/negative-reactivation
+tooling/eval/suggestion-revision-oracle/cycle-shortcut
+tooling/eval/suggestion-revision-oracle/node-and-test-replacement
+tooling/eval/suggestion-revision-oracle/seeded-imports
+tooling/eval/suggestion-revision-oracle/independent-seeded-defects
+tooling/eval/suggestion-revision-oracle/stale-negative-and-retracted-witness
+tooling/eval/suggestion-revision-oracle/closed-preconditions-and-original-supports
+tooling/eval/suggestion-revision-oracle/passive-and-bounded-inputs
+tooling/eval/suggestion-revision-oracle/unknown-and-cancellation
+tooling/eval/suggestion-revision-oracle/original-handles-and-independent-reference

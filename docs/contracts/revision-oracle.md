@@ -31,7 +31,8 @@ fresh-build parity remains separately visible. Cancellation preserves its origin
 reason and publishes no successful handle. All checkpoints remain represented
 after an admission stop. Eight fixture cases are authored and locally unrun;
 they include corrected controls and seeded stale/range/content/identity defects.
-Build-world, full-index, certificate-consumer and suggestion adapters remain open.
+Build-world, full-index and certificate-consumer adapters remain open. The
+finite import-graph suggestion adapter below covers the supplied-graph consumer.
 
 The closed offline adapter `finite-positive-support-revisions-v1` supplies the
 first bounded cross-revision profile for #1528. It drives the existing positive-rule
@@ -187,5 +188,50 @@ source/pointer/marker tampering, and refusal to remove a world while its actual
 source descriptor close is pending. Real builds have a25-second whole-run cap;
 the existing runner remains at30 seconds, zero retries and native redo disabled.
 The six build cases have one serial CI owner and no broad-lane overlap. Broader
-semantic/build-world, certificate/test-suggestion adapters and an asynchronous
-real-build minimizer remain required for #1528; this does not close that issue.
+semantic/build-world and certificate adapters, source-qualified suggestion
+integration and an asynchronous real-build minimizer remain required for #1528.
+
+## Test-suggestion revision consumer
+
+`finite-import-test-suggestion-revisions-v1` runs the real
+`buildSuggestTestsReport` consumer at every admitted revision and compares it
+with a fresh graph invocation. A separate reference uses forward all-pairs
+distances from each test to the changed files; production traverses reverse
+imports. The reference imports no production graph preparation, traversal,
+scoring, witness or cache implementation.
+
+The data-only grammar admits12 relative nodes,64 distinct edge-support IDs,
+eight selected tests, four changed paths and16 exact-hash revisions. Parallel
+supports share a logical edge but retain their original IDs. Deleting one
+support cannot retract another; a re-added ID cannot acquire a new payload.
+Edits may replace nodes, test membership and changed-file seeds. Every transition
+is validated before candidate execution, including endpoint authority and exact
+before/after identities. Scenarios supply no commands, callbacks or source code.
+
+Independent claims compare graph suggestion membership, shortest distances,
+scores, declared ordering and actual witness nodes/target/distance. Each witness
+must start at an admitted change and follow original reverse import edges to
+the selected test. Signature comparison retains the repository namespace and
+entire graph/support state; it is never normalized into rebuild parity.
+Heuristic fallback remains separately visible and cannot become graph evidence.
+This qualifies the supplied finite import-graph consumer, not import extraction,
+test execution coverage, published index correctness or project semantics.
+
+Closed receipts retain every checkpoint, original support IDs, output identities,
+distinct candidate/rebuild execution IDs and separate work/timing. The shared
+one-second cooperative allowance and4,096 reference-operation limit may only be
+tightened. Exhausted or incomplete work yields unknown; actual started consumer
+invocations retain their outcomes rather than disappearing behind a not-run row.
+Receipts remain bounded to256KiB. Graph builds, neighbor reads and witness links
+are resource observations, not latency improvements.
+
+Private original handles own runs and retirement. Diagnostic output comparison
+cannot create a qualified execution. The existing deletion minimizer requires
+the same named checkpoint's independently reproduced failure and retires every
+trial handle. Healthy, unknown or copied receipts cannot become a failure witness.
+
+Eleven authored, locally unrun cases cover duplicate-support retraction, empty
+lookup reactivation, cycles, shortcuts, node/test replacement, seeded graphs,
+source/signature and witness defects, stale preconditions, passive admission,
+unknown budgets, cancellation and original-handle retirement. No production
+failure or runtime pass is claimed from the seeded diagnostic counterexamples.

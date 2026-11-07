@@ -1,5 +1,12 @@
 const loaded = new Map();
 const loaders = {
+  'finite-import-test-suggestion-revisions-v1': async () => {
+    const [scenario, owner] = await Promise.all([import('./revisions/suggestion-scenario.js'), import('./revisions/suggestion-runner.js')]);
+    return Object.freeze({ id: 'finite-import-test-suggestion-revisions-v1', executionClass: 'supplied-finite-import-supports-real-suggestion-consumer',
+      capabilities: Object.freeze(['generate', 'run', 'inspect', 'compareDiagnostic', 'minimize', 'dispose']),
+      generate: scenario.generateSuggestionRevisionScenario, run: owner.runSuggestionRevisionScenario, inspect: owner.readSuggestionRevisionRun,
+      compareDiagnostic: owner.compareSuggestionRevisionOutput, minimize: owner.minimizeSuggestionRevisionFailure, dispose: owner.retireSuggestionRevisionRun });
+  },
   'finite-adjacency-composition-v1': async () => {
     const owner = await import('../../src/index/semantic/views/composition.js');
     return Object.freeze({ id: owner.VIEW_COMPOSITION_PROFILE, executionClass: 'supplied-original-finite-view-dag-only',
