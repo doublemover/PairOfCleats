@@ -2,6 +2,7 @@ import { createAjv, compileSchema } from '../../../src/shared/validation/ajv-fac
 import { captureSemanticRequest } from '../../../src/semantic/request-snapshot.js';
 import { SUGGESTION_REVISION_PROFILE, SUGGESTION_REVISION_SCENARIO_SCHEMA } from '../../../src/contracts/schemas/revision-suggestions.js';
 import { revisionScenarioId } from './scenario.js';
+import { snapshotPlainData } from '../../../src/shared/plain-data-snapshot.js';
 
 const validate = compileSchema(createAjv({ strict: true, allErrors: true }), SUGGESTION_REVISION_SCENARIO_SCHEMA);
 export const suggestionScenarioError = message => Object.assign(new TypeError(message), { code: 'ERR_SUGGESTION_REVISION_SCENARIO' });
@@ -25,7 +26,9 @@ const apply = (state, edit) => {
   return check({ nodes: [...nodes], edges: [...edges.values()], testPaths: edit.testPaths, changedPaths: edit.changedPaths });
 };
 export const compileSuggestionRevisionScenario = value => {
-  const scenario = captureSemanticRequest(value, SUGGESTION_REVISION_SCENARIO_SCHEMA);
+  const passive = snapshotPlainData(value, { maxBytes: 524288, maxDepth: 12, maxNodes: 20000, maxItems: 128,
+    code: 'ERR_SUGGESTION_REVISION_SCENARIO', label: 'Test-suggestion revision scenario', nullPrototype: false });
+  const scenario = captureSemanticRequest(passive, SUGGESTION_REVISION_SCENARIO_SCHEMA);
   if (!validate(scenario)) throw suggestionScenarioError('Invalid closed test-suggestion revision scenario.');
   const states = [check(scenario.initial)], ids = new Set(['base']), supports = new Map();
   const remember = state => {

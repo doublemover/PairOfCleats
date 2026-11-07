@@ -1,8 +1,14 @@
 # Source-pinned Scala SemanticDB evidence
 
-Status: **UNVALIDATED offline subset** for #1173, using the existing canonical
-source-linked evidence writer, provider sink and detail consumer. No compiler,
-Metals, build server, fixture, syntax check or gate ran for this source release.
+Decoder profile/adapter **4** uses exactly protobufjs **8.8.1**. Oversized wire
+lengths must reject before a valid embedded document can be adopted. Earlier
+adapter meaning requires regeneration under shared producer `protobufEvidence:4`;
+unreviewed decoder versions remain rejected.
+
+Status: the offline source-linked subset for #1173 passes its
+[Windows fixture](../archived/windows-issue-validation-2026-11-07.md), using the
+canonical evidence writer, provider sink and detail consumer. Actual Scala
+compiler, Metals and build-server qualification remains incomplete.
 
 `prepareSemanticdbReferenceEvidence` imports an explicitly supplied binary
 SemanticDB4 artifact of at most 256 KB against at most twenty original Scala

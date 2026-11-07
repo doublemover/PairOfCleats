@@ -4,6 +4,7 @@ import { canonicalSemanticJson } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { finalizeSourceLinkedReport } from './source-linked-report.js';
 import { captureSourceLinkedInput } from './source-linked-input.js';
+import { PROTOBUF_EVIDENCE_RUNTIME_VERSION, PROTOBUF_EVIDENCE_PRODUCER_VERSION } from '../../shared/protobuf-evidence-version.js';
 
 const require = createRequire(import.meta.url);
 const fail = message => Object.assign(new Error(message), { code: 'ERR_PROTO_DESCRIPTOR_EVIDENCE' });
@@ -14,7 +15,7 @@ const name = value => typeof value === 'string' && value.length <= 256 && /^[A-Z
 const same = (left, right) => canonicalSemanticJson(left, { maxBytes: 1024 * 1024 }) === canonicalSemanticJson(right, { maxBytes: 1024 * 1024 });
 
 export const PROTO_DESCRIPTOR_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'proto-descriptor-import', adapterVersion: '3', execution: 'report',
+  providerId: 'proto-descriptor-import', adapterVersion: PROTOBUF_EVIDENCE_PRODUCER_VERSION, execution: 'report',
   languages: [{ id: 'proto', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'symbols', evidence: 'provider-observation' },
     { family: 'diagnostics', evidence: 'provider-observation' }],
@@ -94,7 +95,7 @@ export const prepareProtoDescriptorEvidence = ({ bytes, producingReceipt, expect
     || typeof producingReceipt.tool.version !== 'string' || !producingReceipt.tool.version || producingReceipt.tool.version.length > 256
     || !Array.isArray(producingReceipt.sources) || producingReceipt.sources.length !== documents.size) throw fail('Proto artifact/tool/project/dependency/generation receipt mismatch.');
   const version = require('protobufjs/package.json').version;
-  if (version !== '8.8.0') throw fail('Proto decoder version is not qualified by this adapter.');
+  if (version !== PROTOBUF_EVIDENCE_RUNTIME_VERSION) throw fail('Proto decoder version is not qualified by this adapter.');
   const protobuf = require('protobufjs/light'), descriptor = require('protobufjs/ext/descriptor');
   if (!Number.isSafeInteger(protobuf.Reader.recursionLimit) || protobuf.Reader.recursionLimit < 1 || protobuf.Reader.recursionLimit > 100) throw fail('Proto decoder recursion bound is not admitted.');
   let decoded, set;
@@ -275,7 +276,7 @@ export const prepareProtoDescriptorEvidence = ({ bytes, producingReceipt, expect
           : candidate && !admitted ? 'type_not_visible_through_imports' : 'descriptor_target_source_unavailable' });
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'proto-descriptor-import', adapterVersion: '3',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'proto-descriptor-import', adapterVersion: PROTOBUF_EVIDENCE_PRODUCER_VERSION,
     method: 'proto/descriptor-set', evidenceKind: 'proto-descriptor-references', generation,
     runtime: { family: 'protobufjs-descriptor', version, profileHash: producingReceipt.profileHash, qualification: 'application-library-unqualified' },
     project: { configHash: producingReceipt.configHash, dependencyHash: producingReceipt.dependencyHash,

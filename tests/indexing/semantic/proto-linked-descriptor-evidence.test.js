@@ -34,8 +34,8 @@ const f = await createSourceLinkedEvidenceFixture([
 ]);
 try {
   assertProviderDeclaration(PROTO_DESCRIPTOR_PROVIDER_DECLARATION);
-  const prepare = (input = set, changes = {}) => {
-    const bytes = descriptor.FileDescriptorSet.encode(input).finish();
+  const prepare = (input = set, changes = {}, wireBytes = null) => {
+    const bytes = wireBytes ?? descriptor.FileDescriptorSet.encode(input).finish();
     const producingReceipt = { schemaVersion: 1, artifactHash: createHash('sha256').update(bytes).digest('hex'),
       generation: f.generation, profileHash: 'f'.repeat(64), configHash: 'a'.repeat(64), dependencyHash: 'b'.repeat(64),
       dependencyLockHash: 'c'.repeat(64), customOptionIdentity: 'd'.repeat(64), columnEncoding: 'protoc-byte-tab8-v1',
@@ -47,6 +47,20 @@ try {
       generation: f.generation, documents: f.sources, ...changes };
   };
   const options = prepare(), prepared = prepareProtoDescriptorEvidence(options), report = prepared.report;
+  assert.equal(report.adapterVersion, '4'); assert.equal(report.runtime.version, '8.8.1');
+  const metadata = require('protobufjs/package.json'), originalRuntime = metadata.version;
+  try {
+    for (const version of ['8.8.0', '8.8.2']) {
+      metadata.version = version;
+      assert.throws(() => prepareProtoDescriptorEvidence(options), /decoder version is not qualified/);
+    }
+  } finally { metadata.version = originalRuntime; }
+  const fileBytes = descriptor.FileDescriptorProto.encode(set.file[0]).finish(), length = [];
+  let overflow = 2 ** 32 + fileBytes.length;
+  do { const digit = overflow % 128; overflow = Math.floor(overflow / 128); length.push(digit | (overflow ? 128 : 0)); } while (overflow);
+  const malformed = Buffer.concat([Buffer.from([10, ...length]), Buffer.from(fileBytes)]);
+  assert.throws(() => prepareProtoDescriptorEvidence(prepare(set, {}, malformed)), /Malformed.*binary Proto descriptor/,
+    'an overflowing length with an otherwise valid original file cannot wrap into a valid artifact');
   assert.equal(prepared.status, 'partial');
   assert.equal(report.coverage.customOptionsInterpreted, false);
   assert.deepEqual(Buffer.from(report.descriptorArtifact.base64, 'base64'), Buffer.from(options.bytes));

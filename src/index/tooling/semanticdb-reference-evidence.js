@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { canonicalSemanticJson } from '../semantic/identity.js';
 import { exactLspRange } from '../semantic/lsp-locations.js';
 import { decodeSemanticdbEvidenceWire } from './semanticdb-wire.js';
+import { PROTOBUF_EVIDENCE_PRODUCER_VERSION } from '../../shared/protobuf-evidence-version.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { finalizeSourceLinkedReport } from './source-linked-report.js';
 import { captureSourceLinkedInput } from './source-linked-input.js';
@@ -14,7 +15,7 @@ const safePath = value => label(value) && !/[\\:]/u.test(value) && !value.starts
   && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const SEMANTICDB_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'scala-semanticdb-import', adapterVersion: '3', execution: 'report',
+  providerId: 'scala-semanticdb-import', adapterVersion: PROTOBUF_EVIDENCE_PRODUCER_VERSION, execution: 'report',
   languages: [{ id: 'scala', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'symbols', evidence: 'provider-observation' },
     { family: 'diagnostics', evidence: 'provider-observation' }],
@@ -172,7 +173,7 @@ export const prepareSemanticdbReferenceEvidence = ({ bytes, producingReceipt, ex
       reason: target ? null : candidates.length ? 'ambiguous_symbol_in_build_target' : 'external_or_missing_definition',
       evidence: entry.family === 'semanticdbSyntheticApplication' ? 'compiler-synthetic' : 'compiler-occurrence' });
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'scala-semanticdb-import', adapterVersion: '3',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'scala-semanticdb-import', adapterVersion: PROTOBUF_EVIDENCE_PRODUCER_VERSION,
     method: 'scala/semanticdb4', evidenceKind: 'scala-semanticdb-references', generation,
     runtime: { family: receipt.tool.family, version: receipt.tool.version, profileHash: receipt.profileHash,
       qualification: 'producing-receipt-and-application-decoder-unqualified', compilerVersion: receipt.tool.compilerVersion,

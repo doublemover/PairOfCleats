@@ -63,9 +63,9 @@ Its focused checks/front gate passed. Existing indexes need a normal rebuild.
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
 existing `main` base. Node is **26.13.0**. Publication is authorized; no merge is
-authorized. Work continues solo. Frontload
-implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
-refresh the PR overview at least every 20 commits.
+authorized. Work continues solo: validate mapped Windows cohorts, repair failures,
+and reconcile each issue against its full scope. [Current receipts](archived/windows-issue-validation-2026-11-07.md)
+separate results and blockers. Commit/push batches; refresh PR coverage every20 commits.
 
 [Revision oracles](contracts/revision-oracle.md) (#1528) cover published chunk-index/rebuild cohorts, finite models, source extraction and supplied-graph test suggestions; broader adapters remain open. [Finite views](contracts/view-composition.md) (#1516) compose selects, groups and role-ordered joins transactionally. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) retain original owners. Runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
 

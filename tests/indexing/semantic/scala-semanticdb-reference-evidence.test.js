@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { prepareSemanticdbReferenceEvidence, SEMANTICDB_PROVIDER_DECLARATION } from '../../../src/index/tooling/semanticdb-reference-evidence.js';
 import { writeSourceLinkedEvidence } from '../../../src/index/tooling/source-linked-evidence.js';
@@ -56,6 +57,18 @@ try {
       generation: f.generation, documents: f.sources, ...changes };
   };
   const options = prepare(), prepared = prepareSemanticdbReferenceEvidence(options), report = prepared.report;
+  assert.equal(report.adapterVersion, '4'); assert.equal(report.runtime.decoderVersion, '8.8.1');
+  const require = createRequire(import.meta.url), metadata = require('protobufjs/package.json'), originalRuntime = metadata.version;
+  try {
+    for (const version of ['8.8.0', '8.8.2']) {
+      metadata.version = version;
+      assert.throws(() => prepareSemanticdbReferenceEvidence(options), /decoder version differs/);
+    }
+  } finally { metadata.version = originalRuntime; }
+  const documentBytes = doc({ filename: 'A.scala', text: textA, occurrences: [occurrence(0, 15, 20, valueSymbol, 2)] });
+  const malformed = message(varint(10), varint(2 ** 32 + documentBytes.length), documentBytes);
+  assert.throws(() => prepareSemanticdbReferenceEvidence(prepare(malformed)), /Malformed SemanticDB binary/,
+    'overflowing lengths cannot wrap into an otherwise valid source-qualified document');
   const result = report.results.find(value => value.path === 'B.scala');
   assert.equal(prepared.status, 'partial');
   assert.equal(result.references.find(value => value.name === localSymbol).target, null, 'local symbols are document scoped');

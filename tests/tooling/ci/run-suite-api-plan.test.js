@@ -6,7 +6,7 @@ import { parse } from 'yaml';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const root = process.cwd(), env = applyTestEnv({ syncProcess: false });
+const root = process.cwd(), env = applyTestEnv({ syncProcess: false, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const providerAndParityIds = ['tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report'];
 const publicationIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/native-publication-cleanup/${id}`);

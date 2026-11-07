@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T14:41:09.029Z",
+  "generatedAt": "2026-11-07T15:42:09.931Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5560,6 +5560,7 @@
         "tests/tooling/architecture/caps-verdict-cli-consumers.test.js",
         "tests/tooling/architecture/rule-input-cli.test.js",
         "tests/tooling/cache/gc-modern-resource-ownership.test.js",
+        "tests/tooling/ci/run-suite-api-plan.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/dump-lazy-capability-imports.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",

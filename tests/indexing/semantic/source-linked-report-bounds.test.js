@@ -60,7 +60,7 @@ try {
     sources: [...proto.sources].map(([filename, item]) => ({ descriptorPath: filename, sourcePath: filename,
       sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash, syntaxPartitionId: item.syntax.partitionId,
       syntaxHash: item.syntax.canonicalHash, mappingIdentity: item.source.mapping?.identity ?? null })) };
-  assert.equal(PROTO_DESCRIPTOR_PROVIDER_DECLARATION.adapterVersion, '3');
+  assert.equal(PROTO_DESCRIPTOR_PROVIDER_DECLARATION.adapterVersion, '4');
   assert.throws(() => prepareProtoDescriptorEvidence({ bytes, producingReceipt,
     expectedReceiptHash: semanticHash('tooling.proto-descriptor-producing-receipt.v1', producingReceipt),
     generation: proto.generation, documents: proto.sources }), /Proto descriptor output byte budget/,
@@ -72,7 +72,7 @@ const graphql = await createSourceLinkedEvidenceFixture([
   { filename: 'schema.graphql', language: 'graphql', text: schema }, { filename: 'query.graphql', language: 'graphql', text: query }
 ]);
 try {
-  assert.equal(GRAPHQL_LINKED_PROVIDER_DECLARATION.adapterVersion, '2');
+  assert.equal(GRAPHQL_LINKED_PROVIDER_DECLARATION.adapterVersion, '3');
   assert.ok(Buffer.byteLength(schema + query) < 500 * 1024);
   assert.throws(() => collectGraphqlLinkedEvidence({ documents: graphql.sources, schemaPaths: ['schema.graphql'],
     documentPaths: ['query.graphql'], generation: graphql.generation, configHash: 'a'.repeat(64), dependencyHash: 'b'.repeat(64) }),

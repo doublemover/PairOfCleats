@@ -207,7 +207,9 @@ supports share a logical edge but retain their original IDs. Deleting one
 support cannot retract another; a re-added ID cannot acquire a new payload.
 Edits may replace nodes, test membership and changed-file seeds. Every transition
 is validated before candidate execution, including endpoint authority and exact
-before/after identities. Scenarios supply no commands, callbacks or source code.
+before/after identities. A 512 KiB passive snapshot rejects proxies and accessors
+before the shared schema capture; no proxy trap runs during this admission.
+Scenarios supply no commands, callbacks or source code.
 
 Independent claims compare graph suggestion membership, shortest distances,
 scores, declared ordering and actual witness nodes/target/distance. Each witness

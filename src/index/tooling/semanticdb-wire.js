@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { PROTOBUF_EVIDENCE_RUNTIME_VERSION } from '../../shared/protobuf-evidence-version.js';
 const require = createRequire(import.meta.url);
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTICDB_EVIDENCE' });
 
@@ -28,7 +29,7 @@ const fields = {
 
 export const decodeSemanticdbEvidenceWire = ({ bytes, check, maxNodes = 32768, maxDepth = 32 }) => {
   const version = require('protobufjs/package.json').version;
-  if (version !== '8.8.0') throw fail('SemanticDB decoder version differs from the adapter profile.');
+  if (version !== PROTOBUF_EVIDENCE_RUNTIME_VERSION) throw fail('SemanticDB decoder version differs from the adapter profile.');
   const { Reader } = require('protobufjs/minimal');
   let nodes = 0, fieldCount = 0;
   const read = (input, kind, depth) => {

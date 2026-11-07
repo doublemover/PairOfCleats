@@ -1,8 +1,15 @@
 # Linked Proto descriptor evidence
 
-Implementation status: UNVALIDATED. Source and a wire-format fixture are authored; no library invocation, protoc/Buf process, test, formatter, gate or published-consumer qualification was run. Issue #1191 remains partial.
+The offline wire/source/detail fixture passes in the
+[Windows qualification](../archived/windows-issue-validation-2026-11-07.md).
+Actual protoc/Buf producing-tool qualification remains incomplete; #1191 is partial.
 
-`prepareProtoDescriptorEvidence` accepts a complete binary `FileDescriptorSet`, capped at 256 KiB, decoded through the existing application protobufjs **8.8.0** descriptor schema. It requires an independently pinned producing receipt: artifact hash, actual producer family/version/profile hash, config/dependency/lock/custom-option identity, include roots, generation, descriptor-to-original-source mapping, source hashes and immutable parser hashes. Missing producing authority returns an explicit non-authoritative result with no report. Rehashing a current working tree cannot supply authority for an older descriptor artifact. No compiler, include loader, package resolver, hook or network is invoked.
+`prepareProtoDescriptorEvidence` accepts a complete binary `FileDescriptorSet`, capped at 256 KiB, decoded through the existing application protobufjs **8.8.1** descriptor schema. It requires an independently pinned producing receipt: artifact hash, actual producer family/version/profile hash, config/dependency/lock/custom-option identity, include roots, generation, descriptor-to-original-source mapping, source hashes and immutable parser hashes. Missing producing authority returns an explicit non-authoritative result with no report. Rehashing a current working tree cannot supply authority for an older descriptor artifact. No compiler, include loader, package resolver, hook or network is invoked.
+
+Decoder profile/adapter version **4** admits exactly8.8.1, including its
+overflowing-length rejection. Other runtime versions require explicit review.
+The shared `protobufEvidence` producer version invalidates derived replay from
+older decoder meaning. Regenerate old evidence; no compatibility decoder runs.
 
 The adapter retains fully qualified messages, fields, enums, services and methods; field numbers/labels, scalar type codes, streaming flags and known descriptor options stay evidence metadata. Exact descriptor paths select `SourceCodeInfo` name/type/import ranges. [Protoc defines source columns as byte counts with tab stops of eight](https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/io/tokenizer.h), so mapping walks original UTF-8 code points and rejects positions inside a character or tab expansion. The adapter does not treat those columns as LSP UTF-16 offsets. Preambles and CR/LF bytes remain part of the original source identity.
 
