@@ -69,8 +69,8 @@ refresh the PR overview at least every 20 commits.
 
 [Revision oracles](contracts/revision-oracle.md) (#1528) check finite models and real JS source extraction against independent references; full-index adapters remain open. [Finite views](contracts/selected-adjacency.md) (#1516) maintain selected supports, groups and role-ordered joins with dense fallback. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) retain original owners. Runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
 
-The [native snapshot budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
-overlaps console setup while retaining native admission and full seed verification.
+The [native workflow budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
+overlaps read-only console/catalog setup while retaining full seed verification.
 [Windows Pyright](contracts/managed-node-package.md) uses a pinned prebuilt bundle,
 existing archive admission and original Node/package leases; runtime checks await.
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await

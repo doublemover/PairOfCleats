@@ -45,8 +45,10 @@ if (fs.readFileSync(${JSON.stringify(fixture.target)}, 'utf8') !== ${JSON.string
 if (!fs.existsSync(${JSON.stringify(lockPath)})) process.exit(10);
 fs.appendFileSync(${JSON.stringify(markerPath)}, 'ran\\n');
 `);
-  assert.equal(run().status, 0, 'clean install should patch before rebuilding');
-  assert.equal(run({ npm_config_omit: 'dev' }).status, 0, 'reinstall should work without dev patch tooling');
+  const clean = run();
+  assert.equal(clean.status, 0, `clean install should patch before rebuilding\n${clean.stdout}\n${clean.stderr}`);
+  const repeat = run({ npm_config_omit: 'dev' });
+  assert.equal(repeat.status, 0, `reinstall should work without dev patch tooling\n${repeat.stdout}\n${repeat.stderr}`);
   assert.equal(await fs.readFile(markerPath, 'utf8'), 'ran\nran\n');
   assert.equal(fsSync.existsSync(lockPath), false, 'the original session retires after patch and actual child completion');
 

@@ -21,9 +21,8 @@ and output console modes. The parent still times out before final fixture
 settlement. These observations identify insufficient enclosing fixture budget;
 they do not establish a product deletion failure or successful full acceptance.
 
-The repair overlaps only PowerShell/ConPTY setup with the earlier canonical
-artifact-write phase. The launcher still waits for the existing stage4 admission
-(stage2 artifact output for the partial workspace seed). Full seed settlement,
+The repair overlaps PowerShell/ConPTY setup and the read-only scope/catalog with
+the canonical artifact-write phase, after parsing. Full seed settlement,
 backend assertions and snapshot preparation still gate every preview/read/launch.
 The actual keyboard, native binary, supervisor, public CLI, frozen removal and
 post-removal empty list remain. Every complete seed now explicitly checks its
@@ -35,5 +34,18 @@ omission was added. Both original seed and admission-file publication promises
 are observed and joined on operation and final cleanup paths; independent failures
 are retained together. Snapshot-input phases were added to distinguish subsequent
 setup from the build. Actual timing improvement and closure require the affected
-native cases on the resulting candidate; the later CI2328 workflow pass is a
-separate observation and does not qualify this repair.
+native cases on the resulting candidate.
+
+CI2330 at `255a96877488ff06f825dbaef372bd72dcc53610` passed snapshot removal in
+20.4 seconds and20 other cases, but published search timed out at30.2 seconds.
+[Original job](https://github.com/doublemover/PairOfCleats/actions/runs/42341850519/job/128311648236)
+retains artifact13562002518, SHA256
+`aaae34e5ae1353539e5eaa6c4dcf8d483fcc6eeb0545dfcccb11ec37c1ae93f9`.
+Its seed settles at24,213 ms; native readiness is18,890 ms after stage4 admission
+at16,682 ms. The search child starts at28.6 seconds and remains active when the
+parent deadline expires. There is no access-violation status. This motivated
+admitting only independent native/catalog initialization at the earlier
+chunk-metadata output (7,999 ms in that receipt), instead of waiting for stage4.
+The original build/snapshot join still fences every generation operation.
+Additional catalog/publication/search phase records expose subsequent costs.
+These changes remain unrun; the old workflow observations do not qualify them.

@@ -24,8 +24,8 @@ $seedName = if ($Mode -in @('validate-published', 'search-published', 'workspace
   else { $null }
 if ($seedName) {
   # PowerShell and console-mode setup can overlap artifact writes. Keep the
-  # original native-binary admission phase, then let the JS owner join the
-  # full build and snapshot inputs before every read, preview or launch.
+  # seed's artifact-output admission, then let the JS owner join the full
+  # build and snapshot inputs before every read, preview or launch.
   $seedDeadline = [DateTime]::UtcNow.AddSeconds(20)
   while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot $seedName))) {
     if ([DateTime]::UtcNow -gt $seedDeadline) { throw 'Canonical workflow seed did not complete' }

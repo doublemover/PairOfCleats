@@ -148,16 +148,16 @@ const prepareSnapshots = async () => {
 let consoleAdmission = Promise.resolve(), seedCompletion = null, nativeAdmissionReceipt = null;
 if (overlappedSeed) {
   const partialSeed = workspaceMode;
-  const admissionMessage = partialSeed ? '[chunk_meta] writing JSON' : 'Indexing stage4 (sqlite/ann pass) running.';
+  const admissionMessage = '[chunk_meta] writing JSON';
   let admitConsole, admitNative;
   consoleAdmission = new Promise(resolve => { admitConsole = resolve; });
   const nativeAdmission = new Promise(resolve => { admitNative = resolve; });
   const scope = createLoggerScope({ enabled: false });
   scope.setProgressHandlers({ log: message => {
     console.log(message);
-    // Start PowerShell/ConPTY setup during the existing artifact-write phase.
-    // The launcher still waits for the original native admission below; no
-    // extra native/catalog work competes with the earlier parser/worker phase.
+    // Both terminal setup and its read-only scope/catalog can start after
+    // parsing reaches artifact writes. Generation operations still join the
+    // complete original build below; this signal grants no read authority.
     if (message === '[chunk_meta] writing JSON') admitConsole();
     if (message === admissionMessage) admitNative();
   } });
@@ -172,7 +172,7 @@ if (overlappedSeed) {
   // together with the actual build before any operation and in final cleanup.
   nativeAdmissionReceipt = nativeAdmission.then(async () => {
     await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode,
-      owner: workspaceMode ? 'canonical-partial-seed-output-or-settlement' : 'canonical-seed-stage4-or-settlement' }));
+      owner: 'canonical-seed-artifact-output-or-settlement' }));
     await recordFixturePhase('seed-native-admission');
   }).then(() => ({ ok: true }), error => ({ ok: false, error }));
 } else await prepareSnapshots();
@@ -316,11 +316,13 @@ try {
           terminal.write(`${workspaceMode ? '\t' : ''}\x15${paste(target)}\r`);
         }
         catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical command catalog loaded; no work started.');
+        await recordFixturePhase('native-catalog:ready');
         assert.ok(catalog.commands.some(command => command.id === 'index.build' && !command.unsupportedReason));
         assert.equal(new Set(catalog.commands.map(command => command.id)).size, catalog.commands.length);
         assert.equal((await events()).some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
         if (publishedReadMode) {
           const status = await currentStatus(); assert.equal(status.publications[0].ready, true);
+          await recordFixturePhase('native-publication:ready');
           await backToCatalog();
           if (mode === 'validate-published') {
             const validation = await run('index.validate', { mode: 'code' });
@@ -330,9 +332,11 @@ try {
           } else {
             await closeCatalog(); terminal.write('R'); await rendered('Ready; Enter runs a canonical search');
             const searchAfter = await last('native-search-');
+            await recordFixturePhase('native-search:start');
             terminal.write('nativeWorkflowAnswer\t\x15code\t\x15memory\t\x155\t\t\t\x15{"ann":false}\r');
             const search = await settled('native-search-', 'query', searchAfter);
             assert.ok(search.hits.some(hit => hit.file === 'answer.js'), JSON.stringify(search));
+            await recordFixturePhase('native-search:complete');
             await rendered('answer.js'); terminal.write('\x1b'); await rendered('Tab pane'); terminal.write('q');
           }
         } else if (mode === 'stats-conflict') {
