@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T14:28:45.238Z",
+  "generatedAt": "2026-11-07T14:41:09.029Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5005,6 +5005,7 @@
         "tests/tooling/eval/relational-revision-oracle.test.js",
         "tests/tooling/eval/retrieval-training-cohort.test.js",
         "tests/tooling/eval/retrieval-training.test.js",
+        "tests/tooling/eval/revision-minimizer-async.test.js",
         "tests/tooling/eval/revision-oracle.test.js",
         "tests/tooling/eval/source-revision-oracle.test.js",
         "tests/tooling/eval/suggestion-revision-oracle.test.js",
@@ -6108,7 +6109,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 515,
+    "totalFlags": 516,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -6423,6 +6424,7 @@
       "maxCallsPerSymbol",
       "maxEdgeBytes",
       "maxFiles",
+      "maxMs",
       "maxNodeBytes",
       "maxOutputBytes",
       "maxPageBytes",
@@ -8498,6 +8500,12 @@
           "onnx",
           "onnx-path",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/eval/revisions/minimize.js",
+        "flags": [
+          "maxMs"
         ]
       },
       {

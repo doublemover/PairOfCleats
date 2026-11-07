@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["await-original-retirement", "predicate-and-witness-retention", "unknown-other-and-invalid", "read-and-retirement-failures",
+    "falsey-read-and-release-only-failures", "cancellation-after-retirement", "bounds-and-healthy-preflight", "shared-sync-owner-and-failure-graph"]
+}

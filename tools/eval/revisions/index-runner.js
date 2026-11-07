@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { compileSourceRevisionScenario, realizeSourceFile, sourceBytesHash, sourceStateId, sourceScenarioError } from './source-scenario.js';
+import { compileSourceRevisionScenario, realizeSourceFile, sourceBytesHash, sourceStateId, sourceScenarioError, sealSourceRevisionEdits } from './source-scenario.js';
+import { minimizeRevisionSequenceAsync } from './minimize.js';
 import { referencePublishedSourceRevision, captureSourceRevisionOutput } from './source-reference.js';
 import { revisionKey, revisionScenarioId } from './scenario.js';
 import { finiteViewFields } from '../../../src/index/semantic/views/finite-input.js';
@@ -197,7 +198,7 @@ export const runIndexRevisionScenario = async (input, options = {}) => {
   const physicalParent = await fs.realpath(parent); throwIfAborted(boundedSignal);
   const root = await fs.mkdtemp(path.join(parent, 'rev-')), identity = await fs.lstat(root, { bigint: true }), nonce = randomUUID();
   const handle = Object.freeze({ executionId: randomUUID(), scenarioId: compiled.scenarioId }), ownFailures = new WeakSet();
-  const run = { root, parent: physicalParent, identity, nonce, ownFailures, receipt: null, releasing: null, readers: new Map(), failurePresent: false, firstFailure: null,
+  const run = { root, parent: physicalParent, identity, nonce, ownFailures, compiled, receipt: null, releasing: null, minimizing: false, readers: new Map(), failurePresent: false, firstFailure: null,
     snapshots: new Map(), activeReads: new Map(), rechecks: 0, requestSignal: signal,
     signal: boundedSignal, deadline,
     observation: createStorageObservationLedger({ isOwnFailure: error => ownFailures.has(error) }) };
@@ -264,6 +265,8 @@ export const recheckIndexRevisionRun = (handle, index) => {
 };
 export const retireIndexRevisionRun = async handle => {
   const run = get(handle);
+  if (run.minimizing) throw Object.assign(new Error('Original revision minimization remains active.'), { code: 'ERR_REVISION_INDEX_MINIMIZATION_PENDING',
+    cacheOwnershipPending: true, cacheOwnershipReleased: () => !run.minimizing });
   if (!run.releasing) run.releasing = (async () => {
     if (run.activeReads.size) throw Object.assign(new Error('Original index rechecks remain active.'), {
       code: 'ERR_REVISION_INDEX_RECHECKS_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: () => run.activeReads.size === 0
@@ -283,4 +286,45 @@ export const retireIndexRevisionRun = async handle => {
     return Object.freeze({ executionId: handle.executionId, retired: true });
   })().catch(error => { throw retainRunFailure(run, handle, error); }).finally(() => { run.releasing = null; });
   return run.releasing;
+};
+
+/** Only an actual independently failing retained checkpoint can start real
+ * rebuild trials. Neither diagnostic outputs nor fresh-build disagreement alone
+ * supply that authority. Every trial uses the original cohort's checkpoint IDs. */
+export const minimizeIndexRevisionFailure = async (handle, options = {}) => {
+  const run = get(handle), { checkpointId, maxAttempts = 32, maxMs = 25000, signal = null } = finiteViewFields(
+    options, ['checkpointId'], ['maxAttempts', 'maxMs', 'signal'], sourceScenarioError);
+  const began = performance.now();
+  if (!Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 25000 || !Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 64
+    || signal !== null && !(signal instanceof AbortSignal) || run.releasing || run.minimizing || run.activeReads.size) throw sourceScenarioError('Bounded original idle revision run required.');
+  const matches = receipt => receipt.checkpoints.some(row => row.checkpointId === checkpointId && row.counterexample?.expected
+    && row.claims.some(claim => claim.tier === 'independent-source-construction-grammar' && claim.outcome === 'fail'));
+  if (!run.receipt || !matches(run.receipt)) throw sourceScenarioError('Original execution has no matching independent published-index failure.');
+  const checkpoint = run.receipt.checkpoints.find(row => row.checkpointId === checkpointId), cohort = new Set(run.receipt.checkpoints.map(row => row.checkpointId));
+  const boundedSignal = signal === null ? AbortSignal.timeout(maxMs) : AbortSignal.any([signal, AbortSignal.timeout(maxMs)]);
+  throwIfAborted(boundedSignal); run.minimizing = true;
+  try {
+    await recheckIndexRevisionRun(handle, checkpoint.index);
+    throwIfAborted(boundedSignal);
+    const remaining = Math.floor(maxMs - (performance.now() - began));
+    if (remaining < 1) throw sourceScenarioError('Original revision minimization allowance exhausted before a trial.');
+    const availableRechecks = 16 - run.rechecks;
+    if (availableRechecks < 1) throw sourceScenarioError('Original world recheck allowance exhausted; establish a fresh failing cohort before minimization.');
+    const result = await minimizeRevisionSequenceAsync({ originalScenario: run.compiled.scenario, originalReceipt: run.receipt,
+      maximumMs: 25000, matches, seal: sealSourceRevisionEdits, invalidScenario: error => error.code === 'ERR_SOURCE_REVISION_SCENARIO',
+      run: async (scenario, budget) => {
+        await recheckIndexRevisionRun(handle, checkpoint.index);
+        throwIfAborted(boundedSignal);
+        const time = Math.min(budget.maxMs, Math.floor(maxMs - (performance.now() - began)));
+        if (time < 1) throw sourceScenarioError('Original revision minimization allowance exhausted before a trial.');
+        return runIndexRevisionScenario(scenario, { parent: run.parent, ...budget, maxMs: time,
+          checkpoints: [0, ...scenario.revisions.flatMap((edit, index) => cohort.has(edit.id) ? [index + 1] : [])] });
+      },
+      read: readIndexRevisionRun, dispose: retireIndexRevisionRun,
+      captureWitness: receipt => receipt.checkpoints.find(row => row.checkpointId === checkpointId),
+      kind: 'published-index-revision-minimization', selection: { checkpointId },
+      predicate: 'same-checkpoint-independent-published-chunk-disagreement' }, { checkpointId, maxAttempts: Math.min(maxAttempts, availableRechecks), maxMs: remaining, signal: boundedSignal });
+    return freeze(snapshotPlainData({ ...result, elapsedMs: performance.now() - began,
+      trialWorlds: 'retired-through-original-owners; receipt-paths-are-diagnostic' }, { maxBytes: 524288, maxDepth: 48, maxItems: 65536 }));
+  } finally { run.minimizing = false; }
 };

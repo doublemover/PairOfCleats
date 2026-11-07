@@ -188,8 +188,9 @@ source/pointer/marker tampering, and refusal to remove a world while its actual
 source descriptor close is pending. Real builds have a25-second whole-run cap;
 the existing runner remains at30 seconds, zero retries and native redo disabled.
 The six build cases have one serial CI owner and no broad-lane overlap. Broader
-semantic/build-world and certificate adapters, source-qualified suggestion
-integration and an asynchronous real-build minimizer remain required for #1528.
+semantic/build-world and certificate adapters and source-qualified suggestion
+integration remain required for #1528. Real-build minimization is implemented
+below and remains unqualified.
 
 ## Test-suggestion revision consumer
 
@@ -200,8 +201,8 @@ distances from each test to the changed files; production traverses reverse
 imports. The reference imports no production graph preparation, traversal,
 scoring, witness or cache implementation.
 
-The data-only grammar admits12 relative nodes,64 distinct edge-support IDs,
-eight selected tests, four changed paths and16 exact-hash revisions. Parallel
+The data-only grammar admits 12 relative nodes, 64 distinct edge-support IDs,
+eight selected tests, four changed paths and 16 exact-hash revisions. Parallel
 supports share a logical edge but retain their original IDs. Deleting one
 support cannot retract another; a re-added ID cannot acquire a new payload.
 Edits may replace nodes, test membership and changed-file seeds. Every transition
@@ -219,10 +220,10 @@ test execution coverage, published index correctness or project semantics.
 
 Closed receipts retain every checkpoint, original support IDs, output identities,
 distinct candidate/rebuild execution IDs and separate work/timing. The shared
-one-second cooperative allowance and4,096 reference-operation limit may only be
+one-second cooperative allowance and 4,096 reference-operation limit may only be
 tightened. Exhausted or incomplete work yields unknown; actual started consumer
 invocations retain their outcomes rather than disappearing behind a not-run row.
-Receipts remain bounded to256KiB. Graph builds, neighbor reads and witness links
+Receipts remain bounded to 256 KiB. Graph builds, neighbor reads and witness links
 are resource observations, not latency improvements.
 
 Private original handles own runs and retirement. Diagnostic output comparison
@@ -235,3 +236,37 @@ lookup reactivation, cycles, shortcuts, node/test replacement, seeded graphs,
 source/signature and witness defects, stale preconditions, passive admission,
 unknown budgets, cancellation and original-handle retirement. No production
 failure or runtime pass is claimed from the seeded diagnostic counterexamples.
+
+## Asynchronous physical-world minimization
+
+The same revision-deletion proposal engine now supports awaited real worlds.
+Each started trial must finish its original receipt read and retirement before
+the next proposal. Unknown, invalid, corrected or differently failing outcomes
+cannot replace the named independent witness. Original read and retirement
+failures are retained together, including falsey failures and pending resource
+observers. Cancellation after retirement still prevents a successful result.
+
+The published-index adapter exposes `minimize` only for an actual retained run
+with the requested checkpoint's independent grammar disagreement. A clean-build
+parity failure, copied handle or diagnostic comparison cannot authorize builds.
+It rechecks the original named physical world before trial admission, preserves
+the original selected checkpoint identities as edits are deleted, and invokes
+the same real incremental-candidate/clean-rebuild owner. Every temporary world
+retires through its original reader, resource, native-identity and marker checks.
+An uncertain retirement stops the minimizer and retains the original recovery.
+
+One 25-second allowance bounds admission across preflight, rechecks and trials;
+original retirement remains mandatory. The existing 16-recheck cap also limits
+trial admission. The current original run
+cannot be retired while minimization is active. The final512KiB receipt retains
+the last accepted independent checkpoint witness and actual attempt identities;
+paths in retired trial receipts are diagnostic, not promised live files. This
+new minimization bound does not enlarge the 256 KiB original execution receipt or
+the 30-second fixture deadline.
+
+Eight authored, locally unrun boundary cases exercise asynchronous retirement,
+predicate preservation, retained witnesses, unknown/invalid proposals, independent
+read/release failures, falsey failures, cancellation and shared synchronous
+behavior. Real published-index controls additionally refuse healthy/copied
+executions without new builds. No actual producer disagreement or successful
+physical-world minimization has been demonstrated yet.

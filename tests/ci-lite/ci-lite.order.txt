@@ -3209,3 +3209,11 @@ tooling/eval/suggestion-revision-oracle/closed-preconditions-and-original-suppor
 tooling/eval/suggestion-revision-oracle/passive-and-bounded-inputs
 tooling/eval/suggestion-revision-oracle/unknown-and-cancellation
 tooling/eval/suggestion-revision-oracle/original-handles-and-independent-reference
+tooling/eval/revision-minimizer-async/await-original-retirement
+tooling/eval/revision-minimizer-async/predicate-and-witness-retention
+tooling/eval/revision-minimizer-async/unknown-other-and-invalid
+tooling/eval/revision-minimizer-async/read-and-retirement-failures
+tooling/eval/revision-minimizer-async/falsey-read-and-release-only-failures
+tooling/eval/revision-minimizer-async/cancellation-after-retirement
+tooling/eval/revision-minimizer-async/bounds-and-healthy-preflight
+tooling/eval/revision-minimizer-async/shared-sync-owner-and-failure-graph

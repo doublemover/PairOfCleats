@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 3040,
+    "hero": 3048,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -19249,6 +19249,54 @@
     {
       "id": "tooling/eval/suggestion-revision-oracle/original-handles-and-independent-reference",
       "order": 3206,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/await-original-retirement",
+      "order": 3207,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/predicate-and-witness-retention",
+      "order": 3208,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/unknown-other-and-invalid",
+      "order": 3209,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/read-and-retirement-failures",
+      "order": 3210,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/falsey-read-and-release-only-failures",
+      "order": 3211,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/cancellation-after-retirement",
+      "order": 3212,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/bounds-and-healthy-preflight",
+      "order": 3213,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/shared-sync-owner-and-failure-graph",
+      "order": 3214,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

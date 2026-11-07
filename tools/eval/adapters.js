@@ -24,8 +24,9 @@ const loaders = {
   'published-javascript-chunk-index-revisions-v1': async () => {
     const [scenario, owner] = await Promise.all([import('./revisions/source-scenario.js'), import('./revisions/index-runner.js')]);
     return Object.freeze({ id: owner.INDEX_REVISION_PROFILE, executionClass: 'opt-in-constructed-source-real-stage2-publication',
-      capabilities: Object.freeze(['generate', 'run', 'inspect', 'recheck', 'dispose']), generate: scenario.generateSourceRevisionScenario,
-      run: owner.runIndexRevisionScenario, inspect: owner.readIndexRevisionRun, recheck: owner.recheckIndexRevisionRun, dispose: owner.retireIndexRevisionRun });
+      capabilities: Object.freeze(['generate', 'run', 'inspect', 'recheck', 'minimize', 'dispose']), generate: scenario.generateSourceRevisionScenario,
+      run: owner.runIndexRevisionScenario, inspect: owner.readIndexRevisionRun, recheck: owner.recheckIndexRevisionRun,
+      minimize: owner.minimizeIndexRevisionFailure, dispose: owner.retireIndexRevisionRun });
   },
   'tiny-javascript-source-revisions-v1': async () => {
     const [scenario, runner, reference] = await Promise.all([import('./revisions/source-scenario.js'), import('./revisions/source-runner.js'), import('./revisions/source-reference.js')]);

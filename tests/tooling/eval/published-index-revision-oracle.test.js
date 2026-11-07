@@ -27,6 +27,7 @@ try {
       await assert.rejects(adapter.run(scenario, options));
     }
     await assert.rejects(adapter.run({ ...scenario, parser: 'acorn' }, { parent }));
+    await assert.rejects(adapter.minimize({ executionId: 'copied', scenarioId: 'f'.repeat(64) }, { checkpointId: 'edit-function' }), /Original published-index/);
     let getters = 0; const options = Object.defineProperty({}, 'parent', { enumerable: true, get() { getters++; return parent; } });
     await assert.rejects(adapter.run(scenario, options)); assert.equal(getters, 0);
     const reference = referencePublishedSourceRevision([{ path: 'empty.js', prefix: 'plain', declarations: [] },
@@ -39,6 +40,7 @@ try {
     catch (error) { recovery = error.sourceIndexRevisionSession; throw error; }
     const receipt = adapter.inspect(handle), workspace = receipt.workspace;
     assert.equal(receipt.outcome, 'pass'); assert.equal(receipt.profile, INDEX_REVISION_PROFILE);
+    await assert.rejects(adapter.minimize(handle, { checkpointId: receipt.checkpoints.at(-1).checkpointId }), /no matching independent published-index failure/);
     const validate = compileSchema(createAjv({ strict: true, allErrors: true }), INDEX_REVISION_RECEIPT_SCHEMA);
     assert.equal(validate(receipt), true);
     for (const mutate of [value => { value.completeScenarioCoverage = 'yes'; }, value => { value.limits.maxMs = 30000; },
