@@ -63,3 +63,23 @@ and configuration. They exercise actual aggregate and ledger callers, qualified
 snapshot admission, counter/clock pairing, native priority, unknown duration,
 invalid source authority and materialization round trips. No corpus indexing or
 model execution is required.
+
+Optional live repo-map kind counts observe a fresh opened descriptor on every
+call. File timestamp/size keys and a caller-mutable global count cache no longer
+authorize reuse. Compact `"kind":"..."` marker recognition spans native read
+and UTF-8 boundaries; it remains a literal-marker tally rather than a whole-JSON
+or source-analysis validator. A private Map admits names such as `constructor`
+without prototype inheritance, then returns caller-owned count data.
+
+The scan captures at most 256 MiB, retains at most 4,096 kinds of 4,096 UTF-16
+units each and uses a 64 KiB input buffer with a five-second cooperative work
+allowance. Bounds, malformed UTF-8, incomplete kind values, short reads or changed
+descriptor metadata make that optional breakdown unavailable. None establishes
+an immutable attempt snapshot or measured peak memory/latency.
+
+The existing contained-file resource owner retains original synchronous
+read/stat/close operations. Unconfirmed read/close failure propagates before it
+can become missing optional analysis; an unknown sync close is never retried by
+fd number. Three authored unrun cases add boundary, same-stamp/owned-result,
+prototype-name and original descriptor controls. Existing streaming and refresh
+assertions remain unchanged.

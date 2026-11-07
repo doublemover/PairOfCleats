@@ -20,7 +20,8 @@ import {
   loadJson,
   loadFeatureMetricsForPayload
 } from './load.js';
-import { readFileStamp, toCachePathKey } from './cache-identity.js';
+import { createContainedFileResource } from '../../../src/shared/contained-file-resource.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { resolveBuildRootFromArtifactReport } from './build-root.js';
 import {
   createAstGraphTotals,
@@ -36,9 +37,7 @@ export {
 
 const ANALYSIS_SCHEMA_VERSION = 1;
 const MATERIALIZATION_SCHEMA_VERSION = 1;
-const REPO_MAP_KIND_PATTERN = /"kind":"([^"]+)"/g;
-const REPO_MAP_KIND_SCAN_TAIL_BYTES = 256;
-const REPO_MAP_KIND_CACHE = new Map();
+const REPO_MAP_KIND_LIMITS = Object.freeze({ sourceBytes: 256 * 1024 * 1024, kinds: 4096, kindCodeUnits: 4096, workMs: 5000 });
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
 
 const KIND_CLASS_PATTERNS = [
@@ -58,50 +57,73 @@ const KIND_FUNCTION_PATTERNS = [
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
 
-const appendRepoMapKindCounts = (counts, text) => {
-  if (!text) return;
-  REPO_MAP_KIND_PATTERN.lastIndex = 0;
-  let match = REPO_MAP_KIND_PATTERN.exec(text);
-  while (match) {
-    const kind = String(match[1] || '').trim();
-    if (kind) counts[kind] = (counts[kind] || 0) + 1;
-    match = REPO_MAP_KIND_PATTERN.exec(text);
+/** Preserve the compact literal-marker tally, not a whole-JSON validator. The
+ * streaming state spans transport cuts without an arbitrary overlap window.
+ */
+const createRepoMapKindCounter = () => {
+  const marker = '"kind":"', counts = new Map(), decoder = new TextDecoder('utf-8', { fatal: true });
+  const fallback = new Array(marker.length).fill(0);
+  for (let index = 1, matched = 0; index < marker.length; index++) {
+    while (matched && marker[index] !== marker[matched]) matched = fallback[matched - 1];
+    if (marker[index] === marker[matched]) matched++;
+    fallback[index] = matched;
   }
+  let prefix = 0, value = null;
+  const consume = text => {
+    for (const character of text) {
+      if (value !== null) {
+        if (character === '"') {
+          const kind = value.trim(); prefix = value.length ? 0 : 1; value = null;
+          if (!kind) continue;
+          if (!counts.has(kind) && counts.size >= REPO_MAP_KIND_LIMITS.kinds) throw new RangeError('Repo-map kind cardinality exceeded.');
+          counts.set(kind, (counts.get(kind) || 0) + 1);
+        } else {
+          value += character;
+          if (value.length > REPO_MAP_KIND_LIMITS.kindCodeUnits) throw new RangeError('Repo-map kind length exceeded.');
+        }
+      } else {
+        while (prefix && character !== marker[prefix]) prefix = fallback[prefix - 1];
+        if (character === marker[prefix]) prefix++;
+        if (prefix === marker.length) { value = ''; prefix = 0; }
+      }
+    }
+  };
+  return { push: bytes => consume(decoder.decode(bytes, { stream: true })), finish: () => {
+    consume(decoder.decode());
+    if (value !== null) throw new Error('Incomplete repo-map kind value.');
+    return Object.fromEntries(counts);
+  } };
 };
 
 export const readRepoMapKindCountsSync = (repoMapPath) => {
-  if (!repoMapPath || !fs.existsSync(repoMapPath)) return null;
-  const cacheKey = toCachePathKey(repoMapPath);
-  const signature = readFileStamp(repoMapPath);
-  const cached = REPO_MAP_KIND_CACHE.get(cacheKey);
-  if (cached && cached.signature === signature) return cached.counts;
-  const counts = {};
-  let fd = null;
+  if (!repoMapPath) return null;
+  const began = performance.now();
   try {
-    fd = fs.openSync(repoMapPath, 'r');
-    const buffer = Buffer.allocUnsafe(1024 * 1024);
-    let tail = '';
-    while (true) {
-      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null);
-      if (!bytesRead) break;
-      const chunk = tail + buffer.toString('utf8', 0, bytesRead);
-      const scanUpto = Math.max(0, chunk.length - REPO_MAP_KIND_SCAN_TAIL_BYTES);
-      appendRepoMapKindCounts(counts, chunk.slice(0, scanUpto));
-      tail = chunk.slice(scanUpto);
-    }
-    appendRepoMapKindCounts(counts, tail);
-  } catch {
-    REPO_MAP_KIND_CACHE.set(cacheKey, { signature, counts: null });
-    if (fd != null) {
-      try { fs.closeSync(fd); } catch {}
-    }
+    // Capture original methods before opening. This owner supplies descriptor
+    // lifetime only; it does not mint a filesystem root or snapshot authority.
+    const methods = { receiver: fs, read: fs.readSync, stat: fs.fstatSync, close: fs.closeSync };
+    const owner = createContainedFileResource({ fd: fs.openSync(repoMapPath, 'r'), sync: true, methods });
+    const counts = owner.runSync(handle => {
+      const before = handle.stat({ bigint: true });
+      if (!before.isFile() || before.size < 0n || before.size > BigInt(REPO_MAP_KIND_LIMITS.sourceBytes)) throw new RangeError('Unsupported repo-map kind source.');
+      const identity = stat => ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].map(key => String(stat[key]));
+      const original = identity(before), length = Number(before.size), buffer = Buffer.allocUnsafe(65536), counter = createRepoMapKindCounter();
+      let position = 0;
+      while (position < length) {
+        if (performance.now() - began > REPO_MAP_KIND_LIMITS.workMs) throw new RangeError('Repo-map kind work allowance exceeded.');
+        const requested = Math.min(buffer.length, length - position), bytesRead = handle.read(buffer, 0, requested, position);
+        if (!Number.isSafeInteger(bytesRead) || bytesRead < 1 || bytesRead > requested) throw new Error('Repo-map source truncated or returned invalid read progress.');
+        counter.push(buffer.subarray(0, bytesRead)); position += bytesRead;
+      }
+      const counts = counter.finish(), after = identity(handle.stat({ bigint: true }));
+      if (after.some((value, index) => value !== original[index])) throw new Error('Repo-map source changed during kind observation.');
+      return counts;
+    });
+    return performance.now() - began <= REPO_MAP_KIND_LIMITS.workMs ? counts : null;
+  } catch (error) {
+    observeStorageResource(error, { phase: 'throughput-repo-map-kinds' }).requireSettled();
     return null;
   }
-  if (fd != null) {
-    try { fs.closeSync(fd); } catch {}
-  }
-  REPO_MAP_KIND_CACHE.set(cacheKey, { signature, counts });
-  return counts;
 };
 
 const topKinds = (kindCounts, limit = 8) => {

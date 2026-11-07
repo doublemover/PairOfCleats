@@ -2873,3 +2873,6 @@ indexing/embeddings/cache-only-enumeration-bound/duplicate-file-metadata-rows
 indexing/embeddings/cache-only-enumeration-bound/original-iterator-return-pending
 tooling/reports/bench-stream-close-failure/pending-read-blocks-close
 tooling/reports/bench-stream-close-failure/late-diagnostic-observation
+tooling/reports/throughput-kind-observation/token-and-utf8-boundaries
+tooling/reports/throughput-kind-observation/same-stamp-and-owned-counts
+tooling/reports/throughput-kind-observation/original-descriptor-settlement
