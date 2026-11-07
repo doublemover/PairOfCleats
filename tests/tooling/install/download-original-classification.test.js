@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { downloadToBuffer, isInstallDownloadSession } from '../../../tools/tooling/install-shared.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
@@ -9,7 +10,8 @@ const input = { url: 'https://fixture.invalid/original-download', label: 'explic
 if (mode === 'closed-positive-and-negative') {
   const body = Buffer.from('explicit bounded response bytes');
   const result = await downloadToBuffer({ ...input, fetchImpl: async () => new Response(body, { status: 200 }) });
-  assert.deepEqual(result.body, body); assert.equal(result.bytes, body.length); assert.equal(typeof result.sha256, 'string');
+  assert.deepEqual(result.body, body); assert.equal(result.body.byteLength, body.length);
+  assert.equal(result.sha256, createHash('sha256').update(body).digest('hex')); assert.equal(result.sourceUrl, input.url);
   await assert.rejects(downloadToBuffer({ ...input, fetchImpl: async () => new Response('denied', { status: 403 }) }), error => {
     assert.equal(error.reason, 'download_http_error'); assert.equal(error.statusCode, 403); assert.equal(error.retryable, false);
     assert.equal(Object.hasOwn(error, 'downloadSession'), false); return true;

@@ -19,7 +19,7 @@ assert.ok(['reviewed-subset-and-convergence', 'active-original-reader', 'mixed-e
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const scope = path.join(repositoryRoot, '.tmp', 'tests', 'lifecycle-repositories');
 assertNoSymlinkPath(repositoryRoot, scope, { allowMissing: true }); await fs.mkdir(scope, { recursive: true });
-const temporary = await fs.mkdtemp(path.join(scope, 'case-')), home = path.join(temporary, 'home');
+const temporary = await fs.mkdtemp(path.join(scope, 'case-')), home = path.join(temporary, 'home'), projectRoot = path.join(temporary, 'project');
 const layout = resolveStorageLayout({ home, env: {} }), cacheRoot = layout.descriptors.cache.path;
 const repoId = 'fixture-0123456789ab', root = path.join(cacheRoot, 'repos', repoId), controller = new AbortController();
 const files = [0, 1].map(index => path.join(root, 'tree-sitter-chunk-cache', `tree-sitter-chunk_lk1_${String(index).padStart(40, 'a')}.json`));
@@ -29,16 +29,19 @@ const nativePath = value => process.platform === 'win32' ? path.toNamespacedPath
 let lease = null;
 try {
   await withTemporaryEnv(ensureTestingEnv({ PAIROFCLEATS_HOME: home }), async () => {
+    await fs.mkdir(projectRoot);
     await fs.mkdir(path.dirname(files[0]), { recursive: true });
     await fs.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
     for (const filename of files) await fs.writeFile(filename, payload);
     const stat = await fs.stat(files[0], { bigint: true }); assert.equal(typeof stat.blocks, 'bigint');
     const allocated = Number(stat.blocks * 512n); assert.ok(allocated > 0);
     const configure = async hardBytes => {
-      const plan = await planStoragePolicy({ home, repoRoot: repositoryRoot, category: 'lifecycle',
+      const plan = await planStoragePolicy({ home, repoRoot: projectRoot, category: 'lifecycle',
         patch: { enabled: true, global: {}, scopes: [{ scope: 'repository', id: repoId, hardBytes }] } });
-      return applyStoragePolicy(plan, { home, repoRoot: repositoryRoot, category: 'lifecycle', approvedPlanId: plan.planId });
+      return applyStoragePolicy(plan, { home, repoRoot: projectRoot, category: 'lifecycle', approvedPlanId: plan.planId });
     };
+    await assert.rejects(planStoragePolicy({ home, repoRoot: temporary, category: 'lifecycle', patch: { enabled: true } }), /portable project/,
+      'machine policy inside the declared portable project stays forbidden');
     const selected = await configure(mode.endsWith('between-unlinks') ? 0 : allocated);
     const preview = () => planLifecycleCleanup({ layout, maxEntries: 1000, maxDurationMs: 10000, signal: controller.signal });
     const apply = plan => applyLifecycleCleanup(plan, { layout, approvedPlanId: plan.planId, signal: controller.signal });

@@ -100,3 +100,33 @@ now reflected in that audit date. The assertion and freshness checks remain.
 Bootstrap/runtime contracts, lint, config and environment checks passed in this
 run; subsequent command/gate, broad, native and authority jobs were skipped.
 This run provides no new runtime acceptance for the later repairs.
+
+## CI2342 source checkpoint and repairs
+
+[CI2342](https://github.com/doublemover/PairOfCleats/actions/runs/42367147745)
+runs `f293b749e92b0b89229d8ca9db504303243aa454`. Gate, Windows authority,
+Rust TUI and all native-inspection jobs pass. The
+[Windows native-index job](https://github.com/doublemover/PairOfCleats/actions/runs/42367147745/job/128387999182)
+passes22/22 with zero failures, timeouts or skips; build-search takes17.3 seconds,
+published search16.2 and validation16.1. This is source-bound elapsed evidence,
+not a general or paired speedup claim.
+
+The [Windows broad job](https://github.com/doublemover/PairOfCleats/actions/runs/42367147745/job/128387999179)
+records2,836 passed, eight failed, zero timed out and three skipped. The
+[macOS broad job](https://github.com/doublemover/PairOfCleats/actions/runs/42367147745/job/128387999142)
+records2,837/8/0/2 with the same eight failures. Ubuntu was cancelled; it supplies
+no completed acceptance. No local POSIX execution or replacement campaign ran.
+The former teardown-graph failure passes with both the original generic-edge
+assertion and exact transport-field check. The nightly CLI-plan fixture now
+takes16.2 seconds on Windows and24.1 on macOS, within its original30-second bound.
+Later published-index cohorts and TypeScript7.1 preparation are outside this run.
+
+| Original failing controls | Demonstrated owner and repair |
+| --- | --- |
+| Six `shared/storage/lifecycle-repository-cleanup` cases | Their machine home was inside the checkout they supplied as the portable project. The production policy guard correctly refused it. The fixture now supplies its own sibling project/home and explicitly asserts that placing home inside the declared project remains forbidden. Every original producer, pin/evidence, lease, stale-set, cancellation, partial-unlink and convergence assertion remains. |
+| `tooling/install/go-sdk-publication-observation/root-capability-revocation` | The shared field guard correctly blocked a revoked root observation but threw an internal pending error without the original result in its generic cause/error graph. Its own pending field/receipt error now retains that exact value. Genuine getter/producer throws keep their existing contract. Only the exact owner-created aggregate is excluded from its own ledger; independent native work/inspections remain binding. The original graph and resource/retirement assertions are unchanged. |
+| `tooling/install/download-original-classification/closed-positive-and-negative` | The fixture expected a `bytes` result field that the producer never returned. The actual successful DTO is `body`, `sha256`, `sourceUrl`. Length is now checked on the returned buffer, the digest is compared with the expected SHA256, and the exact source URL is asserted. The existing403 status/retryability and original teardown controls remain. No producer contract or digest check is weakened. |
+
+All24 managed-input, Go-input, reservation-receipt and outer-action cases pass
+at this checkpoint. The eight repairs above are later source and remain locally
+unrun; this receipt does not qualify them or the final candidate.

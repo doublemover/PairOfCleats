@@ -43,6 +43,13 @@ broad jobs expose one new transport-wrapping defect. Windows records2,791 passin
 one failing, zero timed-out and three skipped ci-lite cases: all eight former
 failures pass. The wrapping repair retains original descriptors, and the original
 teardown-graph assertion remains alongside an exact transport-field check.
+CI2342 at `f293b749e92b0b89229d8ca9db504303243aa454` passes those required jobs
+and22 native-index cases again. Windows ci-lite records2,836/8/0/3 and macOS
+2,837/8/0/2; Ubuntu was cancelled. All24 newer input/receipt/action controls and
+the original teardown assertion pass. The eight new failures map to six fixture
+authority errors, a lost original-result error edge and an unsupported fixture
+DTO-field assertion in the linked receipt. Those repairs remain unrun. The
+nightly-plan fixture is within30 seconds at16.2/24.1 seconds on Windows/macOS.
 These observations qualify their exact sources, not later edits.
 
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
