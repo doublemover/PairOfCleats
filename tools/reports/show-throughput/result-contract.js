@@ -3,7 +3,10 @@ import { BENCH_MEASUREMENT_SNAPSHOT_VERSION } from '../../bench/language/metrics
 import { readBenchSkipReceipt } from '../../bench/runner-outcome.js';
 export const THROUGHPUT_REPORT_VERSION = 3;
 export const THROUGHPUT_COMPARISON_VERSION = 3;
-export const THROUGHPUT_INPUT_VERSION = 1;
+export const THROUGHPUT_INPUT_VERSION = 2;
+export const THROUGHPUT_INPUT_LIMITS = Object.freeze({ fileBytes: 32 * 1024 * 1024,
+  readBytes: 512 * 1024 * 1024, retainedBytes: 128 * 1024 * 1024, metadataBytes: 8 * 1024 * 1024,
+  files: 10000, entries: 65536, folders: 1024 });
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const measured = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -51,6 +54,21 @@ export const admitThroughputReport = value => {
     || !['discovered', 'selected', 'admitted', 'processed', 'excluded'].every(key => Number.isSafeInteger(input[key]) && input[key] >= 0)
     || input.processed !== input.admitted || input.admitted !== input.selected) return { ok: false, reason: 'incomplete-input-cohort' };
   if (!Array.isArray(input.folders) || !input.folders.every(folder => object(folder) && folder.inventoryComplete === true && Array.isArray(folder.files))) return { ok: false, reason: 'incomplete-input-inventory' };
+  const root = input.rootInventory;
+  if (!object(root) || root.path !== value.root || root.complete !== true || root.cause !== null
+    || !Number.isSafeInteger(root.selected) || root.selected < 0 || root.inventoried !== root.selected
+    || root.inventoried !== input.folders.length || !Number.isSafeInteger(input.entriesVisited) || input.entriesVisited < input.discovered) {
+    return { ok: false, reason: 'incomplete-root-inventory' };
+  }
+  const budget = input.budget, limits = budget?.limits;
+  if (!object(budget) || !object(limits) || Object.keys(limits).length !== Object.keys(THROUGHPUT_INPUT_LIMITS).length
+    || !Object.entries(THROUGHPUT_INPUT_LIMITS).every(([key, maximum]) => Number.isSafeInteger(limits[key]) && limits[key] >= 1 && limits[key] <= maximum)
+    || !['observedReadBytes', 'readAllowanceConsumed', 'retainedPayloadBytes', 'retainedMetadataBytes'].every(key => Number.isSafeInteger(budget[key]) && budget[key] >= 0)
+    || budget.observedReadBytes > budget.readAllowanceConsumed || budget.readAllowanceConsumed > limits.readBytes
+    || budget.retainedPayloadBytes > limits.retainedBytes || budget.retainedMetadataBytes > limits.metadataBytes
+    || input.discovered > limits.files || input.entriesVisited > limits.entries || root.selected > limits.folders) {
+    return { ok: false, reason: 'invalid-input-budget-observation' };
+  }
   const files = input.folders.flatMap(folder => folder.files);
   if (input.excluded !== input.discovered - input.selected || files.length !== input.discovered || files.some(file => !object(file) || !['supported-run', 'recognized-non-run'].includes(file.state))
     || files.some(file => file.selected === true ? file.state !== 'supported-run' || !file.admitted || !file.processed : file.admitted || file.processed)

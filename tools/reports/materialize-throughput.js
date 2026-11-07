@@ -5,9 +5,6 @@ import path from 'node:path';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import {
-  listResultFolders
-} from './show-throughput/load.js';
-import {
   resolveThroughputMaterializeOptions,
   validateResultsRoot
 } from './show-throughput/options.js';
@@ -33,10 +30,13 @@ if (!validateResultsRoot(resultsRoot)) {
   process.exit(1);
 }
 
-const folders = listResultFolders(resultsRoot, { includeUsrGuardrails });
+const inputSession = createThroughputInputSession({ listenForSignals: true });
+const folders = await inputSession.listFolders(resultsRoot, { includeUsrGuardrails });
 if (!folders.length) {
+  const admission = inputSession.snapshot(); inputSession.close();
   console.error('No benchmark results folders found.');
-  process.exit(0);
+  if (!admission.complete) console.error(`Root inventory incomplete: ${admission.rootInventory?.cause?.code || 'unaccounted-folders'}.`);
+  process.exit(admission.complete ? 0 : 1);
 }
 
 let changedFiles = 0;
@@ -52,7 +52,6 @@ console.error(color.bold(color.cyan('Materialize Throughput Artifacts')));
 console.error(color.gray(`Root: ${resultsRoot}`));
 console.error(color.gray(`Deep analysis: ${deepAnalysis ? 'enabled' : 'disabled'}`));
 
-const inputSession = createThroughputInputSession({ listenForSignals: true });
 for (const dir of folders) {
   const folderPath = path.join(resultsRoot, dir.name);
   for await (const { file, payload } of inputSession.folder(folderPath)) {
@@ -113,6 +112,7 @@ inputSession.close();
 if (!inputAdmission.complete) process.exitCode = 1;
 console.error('');
 console.error(`Input admission: ${inputAdmission.state}; discovered=${inputAdmission.discovered}, selected=${inputAdmission.selected}, processed=${inputAdmission.processed}, failures=${inputAdmission.failures}.`);
+if (inputAdmission.rootInventory?.cause) console.error(`  root inventory: ${inputAdmission.rootInventory.cause.code}`);
 for (const folder of inputAdmission.folders) for (const file of folder.files) {
   if (!['supported-run', 'recognized-non-run'].includes(file.state)) console.error(`  input ${file.state}: ${file.path} (${file.cause?.code || 'unknown'})`);
 }

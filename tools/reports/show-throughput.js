@@ -29,7 +29,6 @@ import {
   summarizeThroughputDistribution
 } from './show-throughput/aggregate.js';
 import {
-  listResultFolders,
   loadJson
 } from './show-throughput/load.js';
 import {
@@ -125,10 +124,8 @@ if (refreshJson) {
 }
 
 const folderNameFilter = String(folderFilter || '').trim().toLowerCase();
-const folders = listResultFolders(resultsRoot, { includeUsrGuardrails })
-  .filter((dir) => (
-    !folderNameFilter || String(dir.name || '').toLowerCase().includes(folderNameFilter)
-  ));
+const inputSession = createThroughputInputSession({ listenForSignals: true });
+const folders = await inputSession.listFolders(resultsRoot, { includeUsrGuardrails, folderFilter: folderNameFilter });
 
 /**
  * Cross-run throughput totals grouped by modality; each bucket stores raw
@@ -581,7 +578,6 @@ if (refreshJson && shouldRenderTextOverview) {
   console.log(color.gray(`Refresh mode: writing benchmark JSON summaries (${depthLabel}).`));
 }
 
-const inputSession = createThroughputInputSession({ listenForSignals: true });
 for (const dir of folders) {
   const folderPath = path.join(resultsRoot, dir.name);
   /** @type {ThroughputRunRecord[]} */

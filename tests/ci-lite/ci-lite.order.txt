@@ -2880,3 +2880,7 @@ tooling/reports/throughput-analysis-materialization/old-producer-reconstructs
 tooling/reports/throughput-analysis-materialization/old-producer-source-unavailable
 shared/storage/diagnostic-field-settlement/each-field-has-its-own-boundary
 shared/storage/diagnostic-field-settlement/recorded-source-refusal-retains-work
+tooling/reports/throughput-root-inventory/real-selected-root-cohort
+tooling/reports/throughput-root-inventory/ignored-entries-and-folder-bounds
+tooling/reports/throughput-root-inventory/original-root-close-observation
+tooling/reports/throughput-root-inventory/root-link-refusal-model

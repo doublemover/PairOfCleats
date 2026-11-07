@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T00:47:20.319Z",
+  "generatedAt": "2026-11-07T00:54:57.295Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5021,6 +5021,7 @@
         "tests/tooling/reports/throughput-analysis-materialization.test.js",
         "tests/tooling/reports/throughput-kind-observation.test.js",
         "tests/tooling/reports/throughput-ledger-observations.test.js",
+        "tests/tooling/reports/throughput-root-inventory.test.js",
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",
         "tests/tooling/triage/history-lineage.test.js",

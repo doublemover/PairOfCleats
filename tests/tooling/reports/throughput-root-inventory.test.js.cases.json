@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["real-selected-root-cohort", "ignored-entries-and-folder-bounds", "original-root-close-observation", "root-link-refusal-model"]
+}

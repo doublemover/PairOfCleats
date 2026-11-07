@@ -73,6 +73,23 @@ snapshot admission, counter/clock pairing, native priority, unknown duration,
 invalid source authority and materialization round trips. No corpus indexing or
 model execution is required.
 
+Throughput input admission version 2 includes the original results-root inventory.
+Both rendering and materialization await the same owned incremental directory
+reader. Across root and folder discovery, at most 65,536 entries are examined
+before filename filtering and at most 1,024 folders are admitted. Root/folder
+metadata uses the existing shared allowance; original file/read/retention limits
+remain. The fixed limits now live with the authoritative input contract, which
+checks their bounds and observed counters before accepting a report.
+
+A selected folder remains pending until its original inventory runs. Duplicate
+or out-of-cohort folder requests fail; linked root folders, cancellation and
+incomplete discovery cannot become a complete empty report. Missing/old root
+receipts require report regeneration. Four unrun cases retain actual ordinary
+root/file positives, filtered-entry limits and explicit directory/link owner
+models. They create no symlinks or native-release qualification. The old two
+synchronous discovery wrappers are removed after both CLI callers moved; no
+public command or filter option changed.
+
 Optional live repo-map kind counts observe a fresh opened descriptor on every
 call. File timestamp/size keys and a caller-mutable global count cache no longer
 authorize reuse. Compact `"kind":"..."` marker recognition spans native read

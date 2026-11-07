@@ -3,13 +3,12 @@ import { TextDecoder } from 'node:util';
 import { setImmediate } from 'node:timers/promises';
 import { withStorageDirectory } from '../../../src/shared/storage/directory.js';
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../../../src/shared/contained-file.js';
-import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
-import { classifyThroughputInput, THROUGHPUT_INPUT_VERSION } from './result-contract.js';
+import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
+import { classifyThroughputInput, THROUGHPUT_INPUT_VERSION, THROUGHPUT_INPUT_LIMITS } from './result-contract.js';
 import { selectThroughputRunInputs } from './selection.js';
 import { resolveRepoIdentity, resolveRepoHistoryKey } from './run-identity.js';
+import { includeResultsFolder } from './load.js';
 
-export const THROUGHPUT_INPUT_LIMITS = Object.freeze({ fileBytes: 32 * 1024 * 1024,
-  readBytes: 512 * 1024 * 1024, retainedBytes: 128 * 1024 * 1024, metadataBytes: 8 * 1024 * 1024, files: 10000 });
 const fail = (state, code) => ({ state, cause: { code: typeof code === 'string' ? code.slice(0, 128) : null } });
 
 /** Sequential bounded metadata admission, followed by exact selected-file reads.
@@ -17,6 +16,7 @@ const fail = (state, code) => ({ state, cause: { code: typeof code === 'string' 
  * explicit and conservative; they are not a JavaScript heap/RSS measurement. */
 export const createThroughputInputSession = ({ signal = null, limits = {}, listenForSignals = false } = {}) => {
   const bounds = { ...THROUGHPUT_INPUT_LIMITS, ...limits };
+  if (Object.keys(bounds).some(key => !Object.hasOwn(THROUGHPUT_INPUT_LIMITS, key))) throw new TypeError('Unknown private throughput input limit.');
   for (const [key, maximum] of Object.entries(THROUGHPUT_INPUT_LIMITS)) {
     if (!Number.isSafeInteger(bounds[key]) || bounds[key] < 1 || bounds[key] > maximum) throw new TypeError('Private input limits may only lower the fixed allowances.');
   }
@@ -25,6 +25,8 @@ export const createThroughputInputSession = ({ signal = null, limits = {}, liste
   if (listenForSignals) { process.on('SIGINT', cancel); process.on('SIGTERM', cancel); }
   const cancelled = () => abort.signal.aborted || signal?.aborted === true;
   const folders = [], receipts = new Map();
+  const rootFolders = new Map(), folderPaths = new Set();
+  let rootInventory = null, entriesVisited = 0;
   let discovered = 0, readAllowance = 0, observedReadBytes = 0, retainedBytes = 0, metadataBytes = 0, inventoryIncomplete = false;
   const checkpoint = async () => { await setImmediate(); return !cancelled(); };
   const read = (root, file, expected = null) => {
@@ -39,10 +41,10 @@ export const createThroughputInputSession = ({ signal = null, limits = {}, liste
       value = readVerifiedContainedFileSync(root, file, { maxBytes: allowance,
         ...(expected ? { expectedBytes: expected.bytes, expectedHash: expected.sha256.slice(7), expectedFileIdentity: expected.fileIdentity } : {}) });
     } catch (error) {
-      observeStorageResource(error, { phase: 'throughput-result-input-read' }).requireSettled();
-      const state = error.code === 'ENOENT' ? 'missing' : expected ? 'changed-or-unreadable'
-        : error.code === 'ERR_FILE_TOO_LARGE' ? allowance < bounds.fileBytes ? 'budget-exhausted' : 'too-large' : 'unreadable';
-      return fail(state, error.code);
+      const { code } = describeStorageFailure(error, { phase: 'throughput-result-input-read', defaultCode: 'ERR_THROUGHPUT_READ' });
+      const state = code === 'ENOENT' ? 'missing' : expected ? 'changed-or-unreadable'
+        : code === 'ERR_FILE_TOO_LARGE' ? allowance < bounds.fileBytes ? 'budget-exhausted' : 'too-large' : 'unreadable';
+      return fail(state, code);
     }
     readAllowance -= allowance - value.buffer.length;
     observedReadBytes += value.buffer.length;
@@ -55,8 +57,47 @@ export const createThroughputInputSession = ({ signal = null, limits = {}, liste
   };
   return {
     checkpoint,
+    async listFolders(resultsRoot, { includeUsrGuardrails = false, folderFilter = '' } = {}) {
+      if (rootInventory || folders.length) throw new TypeError('Root discovery must run once before folder admission.');
+      if (typeof folderFilter !== 'string' || typeof includeUsrGuardrails !== 'boolean') throw new TypeError('Explicit typed throughput folder selection required.');
+      const root = path.resolve(resultsRoot), filter = folderFilter.trim().toLowerCase(), selected = [];
+      rootInventory = { path: root, complete: false, selected: 0, inventoried: 0, cause: null };
+      const stop = code => { inventoryIncomplete = true; rootInventory.cause ||= fail('unreadable-inventory', code).cause; };
+      const rootBytes = Buffer.byteLength(JSON.stringify(rootInventory)) + 1024;
+      if (metadataBytes + rootBytes > bounds.metadataBytes) { stop('ERR_THROUGHPUT_METADATA_BUDGET'); return selected; }
+      metadataBytes += rootBytes;
+      try {
+        assertNoSymlinkPath(path.dirname(root), root);
+        await withStorageDirectory(root, async directory => {
+          for (;;) {
+            if (!await checkpoint()) { stop('ABORT_ERR'); break; }
+            if (entriesVisited >= bounds.entries) { stop('ERR_THROUGHPUT_ENTRY_BUDGET'); break; }
+            const entry = await directory.read(); if (!entry) break;
+            entriesVisited++;
+            if (!includeResultsFolder(entry.name, { includeUsrGuardrails }) || filter && !entry.name.toLowerCase().includes(filter)) continue;
+            if (entry.isSymbolicLink()) { stop('ERR_THROUGHPUT_ROOT_LINK'); continue; }
+            if (!entry.isDirectory()) continue;
+            if (selected.length >= bounds.folders) { stop('ERR_THROUGHPUT_FOLDER_BUDGET'); break; }
+            const folderPath = path.join(root, entry.name), row = { name: entry.name };
+            const size = Buffer.byteLength(JSON.stringify({ path: folderPath, ...row, state: 'pending' })) + 128;
+            if (metadataBytes + size > bounds.metadataBytes) { stop('ERR_THROUGHPUT_METADATA_BUDGET'); break; }
+            metadataBytes += size; rootFolders.set(folderPath, 'pending'); selected.push(Object.freeze(row));
+          }
+        });
+      } catch (error) {
+        const { code } = describeStorageFailure(error, { phase: 'throughput-root-inventory', defaultCode: 'ERR_THROUGHPUT_ROOT_INVENTORY' });
+        stop(code);
+      }
+      rootInventory.selected = selected.length; rootInventory.complete = !rootInventory.cause && !cancelled();
+      return Object.freeze(selected.sort((a, b) => a.name.localeCompare(b.name)));
+    },
     lastInventoryStatus() { const folder = folders.at(-1); return { discovered: folder?.files.length || 0, complete: folder?.inventoryComplete === true }; },
     async *folder(folderPath, { repoFilter = null, latestCount = null, afterInventory } = {}) {
+      folderPath = path.resolve(folderPath);
+      if (folderPaths.has(folderPath) || rootInventory && rootFolders.get(folderPath) !== 'pending') throw new TypeError('Folder is duplicated or outside the original selected root cohort.');
+      if (folderPaths.size >= bounds.folders) { inventoryIncomplete = true; throw new RangeError('Throughput folder allowance exhausted.'); }
+      folderPaths.add(folderPath);
+      if (rootInventory) rootFolders.set(folderPath, 'started');
       const folder = { path: folderPath, files: [], inventoryComplete: true };
       folders.push(folder);
       try {
@@ -64,8 +105,13 @@ export const createThroughputInputSession = ({ signal = null, limits = {}, liste
         await withStorageDirectory(folderPath, async directory => {
           for (;;) {
             if (!await checkpoint()) { inventoryIncomplete = true; folder.inventoryComplete = false; break; }
+            if (entriesVisited >= bounds.entries) {
+              folder.stop = fail('budget-exhausted', 'ERR_THROUGHPUT_ENTRY_BUDGET');
+              inventoryIncomplete = true; folder.inventoryComplete = false; break;
+            }
             const entry = await directory.read();
             if (!entry) break;
+            entriesVisited++;
             if (!entry.name.endsWith('.json')) continue;
             if (discovered >= bounds.files) { inventoryIncomplete = true; folder.inventoryComplete = false; break; }
             discovered++;
@@ -92,10 +138,11 @@ export const createThroughputInputSession = ({ signal = null, limits = {}, liste
           }
         });
       } catch (error) {
-        observeStorageResource(error, { phase: 'throughput-result-inventory' }).requireSettled();
+        const { code } = describeStorageFailure(error, { phase: 'throughput-result-inventory', defaultCode: 'ERR_THROUGHPUT_INVENTORY' });
         folder.inventoryComplete = false; inventoryIncomplete = true;
-        folder.cause = fail('unreadable-inventory', error.code).cause;
+        folder.cause = fail('unreadable-inventory', code).cause;
       }
+      if (rootInventory) rootFolders.set(folderPath, 'inventoried');
       const selected = selectThroughputRunInputs(folder.files, { repoFilter, latestCount });
       for (const row of selected) row.selected = true;
       await afterInventory?.(selected.map(row => ({ file: row.file, path: row.path })));
@@ -114,10 +161,13 @@ export const createThroughputInputSession = ({ signal = null, limits = {}, liste
       const selected = files.filter(file => file.selected).length, admitted = files.filter(file => file.admitted).length;
       const processed = files.filter(file => file.processed).length;
       const failures = files.filter(file => !['supported-run', 'recognized-non-run'].includes(file.state)).length
-        + folders.filter(folder => folder.stop || folder.cause).length;
-      const complete = !cancelled() && !inventoryIncomplete && failures === 0 && processed === selected;
+        + folders.filter(folder => folder.stop || folder.cause).length + (rootInventory?.cause ? 1 : 0);
+      const inventoried = [...rootFolders.values()].filter(state => state === 'inventoried').length;
+      const rootComplete = !rootInventory || rootInventory.complete && inventoried === rootInventory.selected;
+      const complete = !cancelled() && !inventoryIncomplete && rootComplete && failures === 0 && processed === selected;
       return { version: THROUGHPUT_INPUT_VERSION, scope: 'selected-result-file-cohort', state: complete ? processed ? 'complete' : 'empty' : 'partial', complete,
-        cancelled: cancelled(), inventoryComplete: !inventoryIncomplete, discovered, selected, admitted, processed, failures,
+        cancelled: cancelled(), inventoryComplete: !inventoryIncomplete && rootComplete, discovered, selected, admitted, processed, failures,
+        rootInventory: rootInventory ? { ...rootInventory, inventoried } : null, entriesVisited,
         excluded: files.filter(file => !file.selected && ['supported-run', 'recognized-non-run'].includes(file.state)).length,
         budget: { limits: bounds, observedReadBytes, readAllowanceConsumed: readAllowance, retainedPayloadBytes: retainedBytes, retainedMetadataBytes: metadataBytes },
         folders: folders.map(folder => ({ ...folder, files: folder.files.map(({ inputKind, source, ...row }) => ({ ...row,
