@@ -7,12 +7,12 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Latest observations cover **2,499 distinct cases:2,482 pass,16 fail and one
+Latest observations cover **2,502 distinct cases:2,485 pass,16 fail and one
 Linux-only fixture is excluded on Windows**. Seven failures reach the outer30-second
 limit. Four published-index transition cases and12 native-index cases remain
 unqualified. Original failures and unsuccessful diagnostic controls are retained;
 no retry or relaxed deadline counts as acceptance. Current publication checks are
-recorded with the eighth qualification batch below.
+recorded with the ninth qualification batch below.
 
 Node **26.13.0**, Windows x64, ABI147: native verification exits0 with all37
 required probes successful. Eight patched packages,30 target files and81 hunks
@@ -478,3 +478,32 @@ freshness, command/workflow contracts,44 gate cases and diff checks pass.
 All89 earlier report records are retained unchanged. Issue #1272 is closed as
 completed with exact body/state readback; the fresh census has344 open issues.
 The final process audit finds no project Node or native TUI process running.
+
+## Ninth batch: native admission failures and safe recovery forms
+
+Three new80×24 real-terminal cases qualify missing-index, missing-capability and
+unsupported-format failures through the original native binary, supervisor and
+canonical search CLI. Exact failure reasons remain distinct from empty results;
+the native forms preserve trusted explanations, terminal restoration, descendant
+closure and query/source privacy. The published-artifact inputs are explicitly
+damaged or capability-unqualified fixtures, not evidence of native index production.
+Existing canonical build and positive-query cases remain intact.
+
+Keyboard setup inspection reports activation metadata only and leaves the
+original capability failure visible. Index-health and tooling recovery keys
+select their registered forms for the failed request's exact canonical repository.
+Opening/cancelling those forms spawns no command and starts no workflow job.
+All three cases pass in9.32/8.47/8.05 seconds with the original16-second witness,
+19-second terminal and30-second fixture bounds. The existing hosted Windows
+family selector automatically includes all18 cases; its earlier15-case success
+retains its exact20b92c986 source identity.
+
+Issue #1558 remains open for actual native timeout and held-cleanup keyboard
+qualification. The existing supervisor/model controls remain component evidence.
+The sixteen longer local pipeline failures are unchanged and are not rerun here.
+
+The exact source is `2719b2539c0a67dc63299755c83b6ceccd496bca`.
+Format leaves the tested fixture unchanged; all publication checks and44 gate
+cases pass. The receipt retains all91 earlier report records unchanged and
+embeds each actual terminal receipt, original source hashes and gate outcome.
+The final process audit finds zero project Node/native TUI processes.

@@ -4735,14 +4735,15 @@
       "title": "[TUI] Distinguish failed first searches from empty results and offer safe recovery",
       "batch": "operator-native-services-and-contracts",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-partial",
+      "recordedDisposition": "18 source-bound native search cases include actual missing-index/capability/format errors, keyboard setup metadata and registered original-scope recovery forms without command execution. All original assertions and bounds remain. Actual timeout/held-cleanup native keyboard qualification remains.",
       "owners": [
         "tools/tui/operator/search.js",
         "tools/tui/supervisor/jobs.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "reviewedSource": "2719b2539c0a67dc63299755c83b6ceccd496bca"
     },
     {
       "number": 1559,
