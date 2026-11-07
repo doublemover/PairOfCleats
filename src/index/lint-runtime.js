@@ -1,11 +1,12 @@
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { ESLint } from 'eslint';
+import { createRequire } from 'node:module';
 import { throwIfAborted } from '../shared/abort.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { LINT_PRODUCER, resolveLintPolicy, createLintSource, lintCacheKey, isReusableLintOutcome } from './lint-policy.js';
 
 const supported = new Set(['.js', '.jsx', '.mjs', '.cjs']);
+const require = createRequire(import.meta.url);
 const MAX_MESSAGES = 256, MAX_MESSAGE_BYTES = 65536;
 const projectFailure = error => {
   const output = { code: null, message: 'Lint operation failed.' };
@@ -39,7 +40,7 @@ const projectMessages = messages => {
 
 /** ESLint owns no closeable session API. Bound live runtimes, evict only idle
  * entries and keep active lintText work owned until its actual settlement. */
-export const createLintAnalyzer = ({ Eslint = ESLint, maxSessions = 8 } = {}) => {
+export const createLintAnalyzer = ({ Eslint, maxSessions = 8 } = {}) => {
   if (!Number.isSafeInteger(maxSessions) || maxSessions < 1 || maxSessions > 64) throw new TypeError('Invalid lint session bound.');
   const sessions = new Map();
   return async (text, relativePath, { root, policy: supplied = null, signal = null, enabled = true, reason = null, cache = null } = {}) => {
@@ -93,7 +94,11 @@ export const createLintAnalyzer = ({ Eslint = ESLint, maxSessions = 8 } = {}) =>
         }
         let instance;
         try {
-          instance = new Eslint({ cwd: policy.root, overrideConfigFile: true, allowInlineConfig: false,
+          // Disabled, unsupported and cached requests need policy metadata,
+          // not an activated ESLint runtime. Keep construction synchronous so
+          // the existing session admission cannot race another request.
+          const Constructor = Eslint === undefined ? require('eslint').ESLint : Eslint;
+          instance = new Constructor({ cwd: policy.root, overrideConfigFile: true, allowInlineConfig: false,
             ignore: false, fix: false, cache: false, flags: [],
             overrideConfig: [{ files: ['**/*.{js,jsx,mjs,cjs}'], languageOptions: { ecmaVersion: 'latest',
               sourceType: 'module', parserOptions: { ecmaFeatures: { jsx: true } } }, rules: { ...policy.rules } },

@@ -1,6 +1,6 @@
-import terminalKitModule from 'terminal-kit';
+import { createRequire } from 'node:module';
 
-const terminalKit = terminalKitModule?.default || terminalKitModule;
+const require = createRequire(import.meta.url);
 
 export const normalizeProgressMode = (value) => {
   if (value === false || value === 'false' || value === 'off' || value === 'none') return 'off';
@@ -11,6 +11,9 @@ export const normalizeProgressMode = (value) => {
 };
 
 export const resolveTerminal = (stream) => {
+  // Machine output and redirected logs do not acquire a terminal runtime.
+  const terminalKitModule = require('terminal-kit');
+  const terminalKit = terminalKitModule?.default || terminalKitModule;
   if (!terminalKit) return null;
   if (typeof terminalKit.createTerminal === 'function') {
     return terminalKit.createTerminal({

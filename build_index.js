@@ -24,7 +24,7 @@ const [
   { getToolVersion, loadUserConfig, resolveRepoRoot }
 ] = await Promise.all([
   './src/index/build/args.js',
-  './src/integrations/core/index.js',
+  './src/integrations/core/build-index.js',
   './src/integrations/core/build-index/outcome.js',
   './src/shared/cli/display.js',
   './src/shared/cli/display/stream.js',

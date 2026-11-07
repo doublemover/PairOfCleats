@@ -8,8 +8,9 @@ const hook = registerHooks({ load(url, context, next) {
     export const resolveWidth = term => term.width;
     export const resolveTerminal = stream => Object.assign(value=>stream.write(value), { hideCursor:()=>stream.write('hide\\n'), showCursor:()=>{stream.write('show\\n');if(globalThis.__throwTerminalCleanup)throw new Error('owned terminal cleanup failure');},
       eraseLine:()=>stream.write('erase\\n'), noFormat:text=>stream.write(text), up:()=>{}, width:80 });` };
-  if (url.endsWith('/src/integrations/core/index.js')) return { format: 'module', shortCircuit: true,
+  if (url.endsWith('/src/integrations/core/build-index.js')) return { format: 'module', shortCircuit: true,
     source: "export const buildIndex=async()=>{throw new Error('original build failure')};" };
+  if (url.endsWith('/src/integrations/core/build-index/index.js')) throw new Error('Fixture forbids production build runtime');
   return next(url, context);
 } });
 try {
@@ -39,5 +40,6 @@ try {
   assert.match(actualText, /original build failure/); assert.match(actualText, /owned terminal cleanup failure/);
   assert.doesNotMatch(actualText, /\[DONE\]/);
   assert.equal(stderr.listenerCount('error'), 0);
+  await assert.rejects(import('../../../src/integrations/core/build-index/index.js'), /Fixture forbids production build runtime/);
 } finally { hook.deregister(); delete globalThis.__throwTerminalCleanup; }
 console.log('Terminal cleanup precedes output retirement and repeated close is idempotent.');

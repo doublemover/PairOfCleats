@@ -3,10 +3,11 @@ import { registerHooks } from 'node:module';
 import { Writable } from 'node:stream';
 import { createBuildIndexOutcome } from '../../../src/integrations/core/build-index/outcome.js';
 
-const coreUrl = new URL('../../../src/integrations/core/index.js', import.meta.url).href;
+const coreUrl = new URL('../../../src/integrations/core/build-index.js', import.meta.url).href;
 const hook = registerHooks({ load(url, context, next) {
   if (url === coreUrl) return { format: 'module', shortCircuit: true,
     source: 'export const buildIndex = async () => { if(globalThis.__buildFailure) throw globalThis.__buildFailure; return globalThis.__buildResult; };' };
+  if (url.endsWith('/src/integrations/core/build-index/index.js')) throw new Error('Fixture forbids production build runtime');
   return next(url, context);
 } });
 try {
@@ -57,5 +58,6 @@ try {
     const destroyed = new Writable({ write(_chunk, _encoding, callback) { callback(); } }); destroyed.destroy();
     assert.equal(await main({ rawArgs: ['--repo', process.cwd(), '--stage', '4', '--progress', mode], stdout: destroyed, stderr: destroyed }), 0);
   }
+  await assert.rejects(import('../../../src/integrations/core/build-index/index.js'), /Fixture forbids production build runtime/);
 } finally { delete globalThis.__buildResult; delete globalThis.__buildFailure; hook.deregister(); }
 console.log('Actual build CLI emits exactly one framed terminal outcome before closing display.');
