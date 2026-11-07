@@ -11,6 +11,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { loadUserConfig, getRepoCacheRoot } from '../../src/shared/dict-utils.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { sameIdentityPath } from '../../src/shared/indexing/build-pointer-roots.js';
 
 // Ordinary metadata fixtures and injected child-owner settlement exercise the
 // native bridge. They do not qualify SQLite, LMDB, IPC or real process teardown.
@@ -47,7 +48,8 @@ const fixture = ({ ownerFailure = null, selectedEnv = env, commandId = 'sqlite.c
     }, cancelHandoff: () => { resumed += 1; },
     startOwner: async (cacheRoot, options) => {
       assert.equal(cacheRoot, root); assert.equal(options.coordinationRoot, null);
-      assert.ok(options.args.includes(`--index-root=${indexRoot}`));
+      const selectedRoot = options.args.find(arg => arg.startsWith('--index-root='));
+      assert.ok(selectedRoot && sameIdentityPath(selectedRoot.slice('--index-root='.length), indexRoot));
       assert.ok(options.args.includes('--progress=jsonl'));
       const entry = await fs.realpath(path.join(process.cwd(), commandId === 'sqlite.compact'
         ? 'tools/build/compact-sqlite-index.js' : 'tools/build/lmdb-index.js'));
@@ -69,7 +71,7 @@ const context = signal => ({ signal, env, jobId: 'owned-backend', launcherJob: {
   onSpawn: () => {}, onStdout: () => {}, onStderr: () => {}, onActivity: () => {} });
 {
   const f = fixture(), plan = await f.actor.prepare(preview);
-  assert.equal(plan.review.targets[0].path, database);
+  assert.ok(sameIdentityPath(plan.review.targets[0].path, database));
   const running = plan.execute(context(new AbortController().signal));
   await f.ownerStarted; await turn();
   assert.throws(f.actor.assertAdmission, { code: 'ERR_TUI_BACKEND_MAINTENANCE_ACTIVE' });
@@ -79,11 +81,12 @@ const context = signal => ({ signal, env, jobId: 'owned-backend', launcherJob: {
   assert.equal(f.actor.status().blocked, false); assert.equal(f.resumed, 0);
 }
 {
-  const command = describeIndexWorkflows({ backendDelegationEnabled: true }).find(row => row.id === 'lmdb.build');
+  const command = describeIndexWorkflows({ backendDelegationEnabled: true, includeExperimental: true }).find(row => row.id === 'lmdb.build');
   const values = { mode: 'all' }, f = fixture({ commandId: 'lmdb.build' });
   const plan = await f.actor.prepare({ scope, command, values, argv: buildIndexWorkflowArgv(command, values, scope) });
-  assert.deepEqual(plan.review.targets.map(row => row.path), ['code', 'prose']
-    .map(mode => path.join(indexRoot, 'index-lmdb', `index-${mode}`)));
+  assert.equal(plan.review.targets.length, 2);
+  for (const [index, mode] of ['code', 'prose'].entries()) assert.ok(sameIdentityPath(plan.review.targets[index].path,
+    path.join(indexRoot, 'index-lmdb', `index-${mode}`)));
   const running = plan.execute(context(new AbortController().signal));
   await f.ownerStarted; await turn(); f.finish();
   assert.equal((await running).exitCode, 0);

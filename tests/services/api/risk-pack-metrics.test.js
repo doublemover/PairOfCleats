@@ -275,6 +275,14 @@ const pack = assembleCompositeContextPack({
 });
 
 assert.equal(pack.risk?.analysisStatus?.code, 'capped', 'expected synthetic pack to exercise capped metrics');
+// Six candidates lose one flow at the count cap and another after its full
+// source evidence is hydrated. Metrics must account for both admission stages.
+assert.equal(pack.risk.flows.length, 4);
+assert.equal(pack.risk.caps.observed.candidateFlows, 6);
+assert.equal(pack.risk.caps.observed.selectedFlows, 4);
+assert.equal(pack.risk.caps.observed.omittedFlows, 2);
+assert.ok(pack.risk.caps.hits.includes('maxFlows'));
+assert.ok(pack.risk.caps.hits.includes('maxRiskTokens'));
 
 const router = createApiRouter({
   host: '127.0.0.1',
@@ -317,8 +325,8 @@ try {
   );
   assert.match(
     metricsBody,
-    /pairofcleats_risk_pack_dropped_flows_total\{status="capped",flow_kind="full"\} 1\b/,
-    'expected dropped full-flow metric'
+    /pairofcleats_risk_pack_dropped_flows_total\{status="capped",flow_kind="full"\} 2\b/,
+    'expected count-cap and hydrated-budget drops in the full-flow metric'
   );
   assert.match(
     metricsBody,

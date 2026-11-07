@@ -16,6 +16,8 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci/windows-au
 const required = findWindowsLinkFixtures(root, tests);
 const available = tests.map(test => test.id);
 const ids = validateAuthorityManifest(manifest, available, required);
+assert.ok(ids.includes('tui/operator-artifact-physical-alias'), 'physical file and destination alias checks retain their native owner');
+assert.equal(ids.includes('tui/operator-artifact-file-authority'), false, 'portable classification controls do not qualify physical Windows aliases');
 const readinessCases = available.filter(id => id.startsWith('tooling/install/bootstrap-readiness/'));
 assert.equal(readinessCases.length, 11);
 assert.ok(readinessCases.every(id => !ids.includes(id)), 'POSIX-only readiness link controls remain portable, not Windows file-link qualification');
@@ -38,7 +40,7 @@ assert.equal(ids.includes('services/api/runtime-evidence'), false,
 assert.ok(fs.readFileSync(path.join(root, 'tests/ci/ci.order.txt'), 'utf8').split(/\r?\n/).includes('services/api/runtime-evidence'),
   'portable runtime-evidence authority assertions retain an explicit ordinary CI execution owner');
 assert.ok(ids.includes('tui/operator-search-file-authority'), 'source previews and editor PATH aliases need actual file-link coverage');
-assert.ok(ids.includes('tui/operator-artifact-file-authority'), 'artifact reads and export destinations need actual link authority coverage');
+assert.ok(ids.includes('tui/operator-artifact-physical-alias'), 'artifact reads and export destinations retain actual link authority coverage');
 assert.ok(ids.includes('tooling/reports/map-selected-index-alias'), 'physical selected-index aliases retain their capable execution owner');
 assert.equal(ids.includes('tooling/reports/map-selected-index-identity'), false,
   'portable selected-root/cache identity creates no links and runs in ordinary CI');

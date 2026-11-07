@@ -73,13 +73,14 @@ try {
     const session = createTuiSearchSession({ toolRoot: process.cwd(), env,
       spawn: async () => { calls++; throw original; } });
     const request = { repoPath: repo, search: { query: 'needle', mode: 'code', backend: 'auto' } };
-    assert.equal(await rejected(() => session.query(request)), original);
+    const failure = await rejected(() => session.query(request));
+    assert.equal(failure.cause, original, 'typed search failure retains its original child failure');
     original.cacheOwnershipReleased = () => true;
-    assert.equal(await rejected(() => session.query(request)), original);
+    assert.equal(await rejected(() => session.query(request)), failure);
     assert.equal(calls, 1, 'a new query cannot acquire another child around a retained failure');
     let slot = session;
     const dispose = () => disposeTuiSessionSlot({ current: () => slot, replace: value => { slot = value; } });
-    assert.equal(await rejected(dispose), original); assert.equal(slot, session);
+    assert.equal(await rejected(dispose), failure); assert.equal(slot, session);
     settled = true; await dispose(); assert.equal(slot, null);
   }
   {
@@ -97,9 +98,10 @@ try {
     const running = session.query({ repoPath: repo, search: { query: 'needle' } });
     const requestFailure = rejected(() => running);
     await started;
-    assert.equal(await rejected(() => session.dispose()), original,
-      'disposal must capture the rejection caused by its own abort before returning a drain receipt');
-    assert.equal(await requestFailure, original);
+    const failure = await rejected(() => session.dispose());
+    assert.equal(failure.cause, original,
+      'disposal captures the original rejection caused by its own abort before returning a drain receipt');
+    assert.equal(await requestFailure, failure);
     nativeSettled = true; await session.dispose();
   }
 } finally {

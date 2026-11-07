@@ -85,9 +85,12 @@ runJson('decision', [
   '--meta', 'env=prod'
 ], { env });
 
+// This consumer checks lexical evidence in all three original source modes.
+// Stage1 publishes that complete artifact set; no-ANN retrieval below consumes
+// no Stage2 semantic enrichment. Keep every positive source/identity comparison.
 run('build-index', [
   path.join(root, 'build_index.js'),
-  '--stage', 'stage2',
+  '--stage', 'stage1',
   '--mode', 'all',
   '--stub-embeddings',
   '--repo', repoRoot
