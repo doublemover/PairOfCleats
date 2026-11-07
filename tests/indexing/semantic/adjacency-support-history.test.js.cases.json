@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["retracted-support-binding", "net-zero-support-binding", "bounded-history-and-work", "derived-owner-binding"]
+}

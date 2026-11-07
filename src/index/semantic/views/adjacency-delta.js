@@ -10,6 +10,8 @@ const fields = (value, names) => value && Object.getPrototypeOf(value) === Objec
   && names.every(name => Object.hasOwn(value, name) && Object.hasOwn(Object.getOwnPropertyDescriptor(value, name), 'value'));
 const fail = message => { throw new TypeError('Adjacency delta: ' + message); };
 const MAX_INPUT_BYTES = 64 * 1024 * 1024;
+const MAX_TRACKED_SUPPORTS = 16384;
+export const ADJACENCY_VIEW_VERSION = 2;
 const captureInput = (input, maxBytes) => JSON.parse(canonicalSemanticJson(input, {
   maxBytes,
   onObjectEncoded(original) {
@@ -46,8 +48,9 @@ const aggregates = rows => {
   }
   return result;
 };
-const make = ({ definition, world, rows, ledger, complete, maxBytes }) => {
-  const snapshot = { definition, world, rows: sortRows(rows), ledger, complete };
+const make = ({ definition, world, rows, ledger, complete, maxBytes, supportPayloads }) => {
+  const snapshot = { definition, world, rows: sortRows(rows), ledger, complete,
+    supportPayloads: [...supportPayloads].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0) };
   const encoded = key(snapshot, { maxBytes });
   const immutable = freeze(JSON.parse(encoded));
   const relation = createOccurrenceRelation({ world, relationId: definition.viewId,
@@ -55,10 +58,10 @@ const make = ({ definition, world, rows, ledger, complete, maxBytes }) => {
       { name: 'from', type: 'string', nullable: false }, { name: 'to', type: 'string', nullable: false }
     ], rows: immutable.rows.map(row => ({ occurrenceId: row.occurrenceId, supportId: row.supportId,
       tuple: [row.from, row.to], multiplicity: row.multiplicity, sourceRef: row.sourceRef })), complete, maxRetainedBytes: maxBytes });
-  const handle = Object.freeze({ rootId: semanticHash('pairofcleats.adjacency-view.v1', immutable),
-    world: immutable.world, definition: immutable.definition, relation, supportCount: rows.length,
+  const handle = Object.freeze({ rootId: semanticHash('pairofcleats.adjacency-view.v2', immutable, { maxBytes }), version: ADJACENCY_VIEW_VERSION,
+    world: immutable.world, definition: immutable.definition, relation, supportCount: rows.length, knownSupportCount: supportPayloads.size,
     capturedDomainComplete: complete, publication: 'private-unpublished', semanticClosure: 'not-implied' });
-  owned.set(handle, { ...immutable, maxBytes });
+  owned.set(handle, { ...immutable, supportPayloads, maxBytes });
   return handle;
 };
 
@@ -73,14 +76,15 @@ export const bootstrapAdjacencyView = input => {
   const names = ['definition', 'world', 'rows', 'complete', ...(Object.hasOwn(captured, 'maxBytes') ? ['maxBytes'] : [])];
   if (!fields(captured, names)) fail('invalid bootstrap fields');
   const { definition, world, rows, complete } = captured;
-  if (!definitionValid(definition) || !worldValid(world) || !Array.isArray(rows) || rows.length > 16384
+  if (!definitionValid(definition) || !worldValid(world) || !Array.isArray(rows) || rows.length > MAX_TRACKED_SUPPORTS
     || typeof complete !== 'boolean') fail('invalid bootstrap');
   const seen = new Set();
   for (const row of rows) {
     if (!rowValid(row, false) || seen.has(supportKey(row))) fail('invalid or duplicated support');
     seen.add(supportKey(row));
   }
-  return make({ definition, world, rows, ledger: [], complete, maxBytes });
+  return make({ definition, world, rows, ledger: [], complete, maxBytes,
+    supportPayloads: new Map(rows.map(row => [supportKey(row), payload(row)])) });
 };
 
 /** Atomic private transition. Batch transport may replay; identical replay never reapplies support. */
@@ -93,7 +97,7 @@ export const applyAdjacencyDelta = (view, input, options = {}) => {
   const { signal = null, maxWork = 32768 } = options;
   if (!fields(batch, ['batchId', 'definition', 'fromWorld', 'toWorld', 'baseRoot', 'edits', 'capturedDomainComplete'])
     || !text(batch.batchId) || !definitionValid(batch.definition) || !worldValid(batch.fromWorld)
-    || !worldValid(batch.toWorld) || !text(batch.baseRoot) || !Array.isArray(batch.edits) || batch.edits.length > 16384
+    || !worldValid(batch.toWorld) || !text(batch.baseRoot) || !Array.isArray(batch.edits) || batch.edits.length > MAX_TRACKED_SUPPORTS
     || typeof batch.capturedDomainComplete !== 'boolean' || !Number.isSafeInteger(maxWork) || maxWork < 0
     || key(batch.definition) !== key(state.definition)) fail('invalid typed batch or model identity; rebuild required');
   for (const edit of batch.edits) if (!rowValid(edit, true)) fail('invalid signed support edit');
@@ -106,7 +110,7 @@ export const applyAdjacencyDelta = (view, input, options = {}) => {
   if (batch.baseRoot !== view.rootId || key(batch.fromWorld) !== key(state.world)) fail('wrong base root/world');
   if (state.ledger.length >= 1024) return { status: 'checkpoint-required', view, consumed: false };
   if (signal?.aborted) return { status: 'cancelled', view, consumed: false };
-  if (batch.edits.length + state.rows.length > maxWork) return { status: 'work-budget', view, consumed: false };
+  if (batch.edits.length + state.rows.length + state.supportPayloads.size > maxWork) return { status: 'work-budget', view, consumed: false };
   // Coalesce by immutable producer support, not tuple membership or edit arrival order.
   const changes = new Map();
   for (const edit of batch.edits) {
@@ -115,19 +119,24 @@ export const applyAdjacencyDelta = (view, input, options = {}) => {
     changes.set(id, { row: edit, amount: (prior?.amount || 0n) + BigInt(edit.multiplicity) });
   }
   const next = new Map(state.rows.map(row => [supportKey(row), row]));
-  const supportChanges = [];
+  const supportChanges = [], addedPayloads = new Map();
   for (const [id, change] of changes) {
     if (signal?.aborted) return { status: 'cancelled', view, consumed: false };
     const prior = next.get(id);
-    if (prior && payload(prior) !== payload(change.row)) fail('support payload changed without new occurrence identity');
+    const observedPayload = state.supportPayloads.get(id), nextPayload = payload(change.row);
+    if (observedPayload !== undefined && observedPayload !== nextPayload) fail('support payload changed without new occurrence identity');
     const count = (prior ? BigInt(prior.multiplicity) : 0n) + change.amount;
     if (count < 0n) fail('negative accumulated support');
     if (count.toString().length > 128) fail('coefficient allowance exceeded');
+    if (observedPayload === undefined) {
+      if (state.supportPayloads.size + addedPayloads.size >= MAX_TRACKED_SUPPORTS) return { status: 'checkpoint-required', view, consumed: false };
+      addedPayloads.set(id, nextPayload);
+    }
     if (count === 0n) next.delete(id);
     else next.set(id, { ...change.row, multiplicity: count.toString() });
     if (change.amount !== 0n) supportChanges.push({ ...change.row, multiplicity: change.amount.toString() });
   }
-  if (next.size > 16384) return { status: 'retention-budget', view, consumed: false };
+  if (next.size > MAX_TRACKED_SUPPORTS) return { status: 'retention-budget', view, consumed: false };
   const oldCounts = aggregates(state.rows), newCounts = aggregates([...next.values()]), membershipChanges = [];
   for (const id of new Set([...oldCounts.keys(), ...newCounts.keys()])) {
     const oldPresent = (oldCounts.get(id) || 0n) > 0n, newPresent = (newCounts.get(id) || 0n) > 0n;
@@ -136,8 +145,10 @@ export const applyAdjacencyDelta = (view, input, options = {}) => {
     }
   }
   if (signal?.aborted) return { status: 'cancelled', view, consumed: false };
+  const supportPayloads = new Map(state.supportPayloads);
+  for (const [id, value] of addedPayloads) supportPayloads.set(id, value);
   const nextView = make({ ...state, world: batch.toWorld, rows: [...next.values()],
-    ledger: [...state.ledger, { batchId: batch.batchId, digest }], complete: batch.capturedDomainComplete });
+    ledger: [...state.ledger, { batchId: batch.batchId, digest }], complete: batch.capturedDomainComplete, supportPayloads });
   return { status: 'materialized-private', view: nextView, consumed: true,
     supportChanges: freeze(sortRows(supportChanges)), membershipChanges: freeze(membershipChanges),
     maintenance: 'nonrecursive-signed-bag', publication: 'not-attempted' };

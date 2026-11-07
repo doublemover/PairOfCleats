@@ -2,6 +2,7 @@
 
 Related operators: [join/anti-join](relational-join.md) and
 [grouped adjacency](grouped-adjacency.md).
+All consume the original [support-history binding](adjacency-support-history.md).
 
 The closed offline adapter `finite-selected-adjacency-v1` selects exact endpoint
 equality and projects either original endpoint into each output position. Both

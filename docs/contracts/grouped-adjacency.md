@@ -1,5 +1,7 @@
 # Finite grouped adjacency
 
+Input revisions preserve the original [support-history binding](adjacency-support-history.md).
+
 The closed offline adapter `finite-grouped-adjacency-v1` uses the original
 adjacency-view owner. It groups either endpoint and reports support count,
 natural-number weighted count, distinct opposite endpoints and code-unit

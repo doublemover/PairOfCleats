@@ -2944,3 +2944,7 @@ indexing/semantic/selected-adjacency/partial-domain-and-world-transitions
 indexing/semantic/selected-adjacency/atomic-replay-and-passive-input
 indexing/semantic/selected-adjacency/bounded-and-cancelled-transitions
 indexing/semantic/selected-adjacency/independent-expanded-bag
+indexing/semantic/adjacency-support-history/retracted-support-binding
+indexing/semantic/adjacency-support-history/net-zero-support-binding
+indexing/semantic/adjacency-support-history/bounded-history-and-work
+indexing/semantic/adjacency-support-history/derived-owner-binding

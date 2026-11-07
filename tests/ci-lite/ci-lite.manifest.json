@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2776,
+    "hero": 2780,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17659,6 +17659,30 @@
     {
       "id": "indexing/semantic/selected-adjacency/independent-expanded-bag",
       "order": 2941,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/adjacency-support-history/retracted-support-binding",
+      "order": 2942,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/adjacency-support-history/net-zero-support-binding",
+      "order": 2943,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/adjacency-support-history/bounded-history-and-work",
+      "order": 2944,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/adjacency-support-history/derived-owner-binding",
+      "order": 2945,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
