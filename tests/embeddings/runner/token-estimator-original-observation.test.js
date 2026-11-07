@@ -53,7 +53,9 @@ if (mode === 'counts-and-original-release') {
     processFileEmbeddings: async () => { published++; } });
   await assert.rejects(processor({ items: [{ index: 0 }], codeTexts: ['one'], docTexts: [], codeMapping: [0], docMapping: [] }),
     error => contains(error, primary) && isTerminalEmbeddingTokenEstimateFailure(error));
-  await processor.drain(); assert.equal(dispatches, 0); assert.equal(published, 0); assert.equal(codeReads, 0);
+  await assert.rejects(processor.drain(), error => contains(error, primary) && isTerminalEmbeddingTokenEstimateFailure(error),
+    'the preparation admission owner retains the same terminal failure at drain');
+  assert.equal(dispatches, 0); assert.equal(published, 0); assert.equal(codeReads, 0);
 } else if (mode === 'pending-result-and-each-field') {
   for (const trigger of ['initial', 'element', 'release']) {
     let ready = trigger !== 'initial', laterReads = 0, releases = 0;

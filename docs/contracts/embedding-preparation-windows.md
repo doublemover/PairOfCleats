@@ -12,6 +12,10 @@ vector validation and awaited original preparation release. Global collection
 does not acquire a second reservation. This prevents nested-admission deadlock
 and closes the gap between preparation and dispatch. Native/inspection failures
 retain their original observations through the shared estimator guard.
+Terminal estimator/provider/release failures also remain failures at queue drain
+in both direct and global modes. Ordinary advisory failures keep their existing
+policy. Claim, cancellation and unfinished-work fixtures assert both boundaries
+without retrying inference or marking an unfinished file complete.
 
 The source reservation is not a native allocation measurement. The ONNX row
 owner independently reserves conservative row geometry before tokenization:

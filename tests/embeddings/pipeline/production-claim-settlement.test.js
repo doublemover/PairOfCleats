@@ -67,7 +67,11 @@ for (const scenario of ['success', 'first', 'second', 'inference', 'estimate', '
   assert.equal(processor.batchingStats().activeProviderCalls, 0);
   if (scenario === 'second') assert.deepEqual(cache.get('alpha'), vector('alpha'), 'earlier committed success survives later failure');
   settled = true;
-  await processor.drain();
+  if (['inference', 'estimate', 'cleanup'].includes(scenario)) {
+    await assert.rejects(processor.drain(), error => errorGraphIncludes(error, primary)
+      && (scenario !== 'cleanup' || errorGraphIncludes(error, secondary)),
+    'admitted terminal work remains failed at drain without replaying inference');
+  } else await processor.drain();
 }
 const coalescer = createEmbeddingInFlightCoalescer();
 const old = coalescer.claim('replacement'); old.resolve([1]);

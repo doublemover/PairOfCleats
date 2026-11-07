@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createFileEmbeddingsProcessor } from '../../../tools/build/embeddings/pipeline.js';
 import { createEmbeddingInFlightCoalescer, createEmbeddingTextReuseCache } from '../../../tools/build/embeddings/runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 applyTestEnv({ testing: '1' });
 const deferred = () => {
@@ -73,14 +74,16 @@ for (const phase of ['inference', 'estimate', 'release']) {
   const terminal = Object.freeze(Object.assign(new Error(`terminal ${phase}`), phase === 'estimate'
     ? { name: 'AbortError', code: 'ABORT_ERR' } : {}));
   const claims = createEmbeddingInFlightCoalescer();
-  let calls = 0;
+  let calls = 0, preparation = null;
   const cache = createEmbeddingTextReuseCache();
   const processor = makeProcessor(cache, claims, {
     estimateEmbeddingTokensBatch: phase === 'estimate' ? async () => {
       ready.resolve(); await barrier.promise; throw terminal;
-    } : async texts => Object.assign(texts.map(text => text.length), {
-      release() { assert.ok(Array.isArray(this), 'original estimate release receiver is retained'); if (phase === 'release') throw terminal; }
-    }),
+    } : async texts => {
+      preparation = Object.assign(texts.map(text => text.length), {
+        release() { assert.equal(this, preparation, 'original estimate release receiver is retained'); if (phase === 'release') throw terminal; }
+      }); return preparation;
+    },
     getChunkEmbeddings: async texts => {
       calls += 1; ready.resolve(); await barrier.promise;
       if (phase === 'inference') throw terminal;
@@ -92,10 +95,15 @@ for (const phase of ['inference', 'estimate', 'release']) {
   const follower = processor(entry(['shared'])); follower.catch(() => {});
   barrier.resolve();
   for (const outcome of await Promise.allSettled([owner, follower])) {
-    assert.equal(outcome.status, 'rejected'); assert.equal(outcome.reason, terminal);
+    assert.equal(outcome.status, 'rejected');
+    if (phase === 'release') {
+      assert.ok(errorGraphIncludes(outcome.reason, terminal)); assert.ok(errorGraphIncludes(outcome.reason, preparation));
+    } else assert.equal(outcome.reason, terminal);
   }
   assert.equal(claims.stats().size, 0);
   assert.equal(calls, phase === 'estimate' ? 0 : 1);
+  if (phase === 'estimate' || phase === 'release') await assert.rejects(processor.drain(), error => errorGraphIncludes(error, terminal));
+  else await processor.drain();
 }
 
 const advisoryCache = createEmbeddingTextReuseCache({ persistentStore: { set() { throw new Error('ordinary advisory write'); } } });

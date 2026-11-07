@@ -46,7 +46,7 @@ for (const globalMicroBatching of [false, true]) {
         work.complete(id);
       };
       await assert.rejects(processEntry(), (actual) => actual === error);
-      if (globalMicroBatching && failure === 'cancelled') {
+      if (failure === 'cancelled') {
         await assert.rejects(processor.drain(), (actual) => actual === error,
           'draining retains the cancelled admission queue outcome');
       } else {
