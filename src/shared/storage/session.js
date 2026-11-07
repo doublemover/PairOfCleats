@@ -57,11 +57,8 @@ export const retainSessionFailure = (primary, settlementError, session, {
 
 export const captureSettlementReceipt = receipt => {
   const observation = observeStorageResource(receipt, { phase: 'storage-session-receipt' });
-  observation.requireSettled();
-  let captured;
-  try { captured = Object.freeze({ resourceId: receipt?.resourceId, settled: receipt?.settled, pending: receipt?.pending }); }
-  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
-  observation.requireSettled();
+  const captured = Object.freeze({ resourceId: observation.read('resourceId'),
+    settled: observation.read('settled'), pending: observation.read('pending') });
   return { receipt: captured, requireSettled: observation.requireSettled };
 };
 

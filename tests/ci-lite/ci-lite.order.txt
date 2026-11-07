@@ -2960,3 +2960,5 @@ shared/storage/coordinated-quota-scopes/scoped-retention-protects-all-aliases
 shared/storage/coordinated-quota-scopes/unknown-attribution-and-invalid-policy
 shared/storage/coordinated-quota-scopes/unsatisfied-protected-and-volume-pressure
 shared/storage/coordinated-quota-scopes/bounded-membership-accounting
+shared/storage/session-resource-observation/receipt-field-interval
+shared/storage/session-resource-observation/direct-field-interval

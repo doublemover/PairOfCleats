@@ -44,6 +44,13 @@ are never replayed. The added retirement case changes the original observer afte
 one real metadata removal and requires all remaining leases to stay protected.
 It is authored and unexecuted.
 
+Receipt projection uses `observeStorageResource.read` before and after each
+individual resource-id/settled/pending field. A later getter cannot erase an
+earlier pending interval during projection. Fields are still captured once;
+unknown observations prevent reaching later getters or metadata removal.
+Two additional locally unrun controls exercise direct and composed real session
+leases with inert original resource observations and guarded fixture cleanup.
+
 Semantic working-set inventory uses the same original directory read/close
 owner. Missing-file classification follows original resource observation; a
 diagnostic getter cannot erase pending work or return disk credits.
