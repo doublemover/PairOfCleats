@@ -25,6 +25,12 @@ selectors separately. Immutable-family, native-image, exact byte/read, pinned-re
 and pointer no-rewrite checks remain. That repair and later source changes await
 their affected runtime checks; these hosted results do not qualify the current head.
 
+[CI2327's Windows snapshot timeout](../archived/windows-native-snapshot-budget-2026-11-07.md)
+retains the complete original seed, successful removal event and restored terminal,
+while the enclosing fixture exceeds30 seconds. Earlier independent console setup
+is implemented with original native admission and all deadlines unchanged; affected
+native verification remains pending.
+
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
 implemented and **locally unrun**. Readiness v3 binds the original journal and
 probed generation. Prerequisite/install/native commands retain exact bounded

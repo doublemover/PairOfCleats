@@ -19,12 +19,13 @@ function Read-PocConsoleMode {
 }
 $beforeInput = Read-PocConsoleMode -10
 $beforeOutput = Read-PocConsoleMode -11
-$seedName = if ($Mode -in @('validate-published', 'search-published', 'workspace')) { 'seed-native-admission.json' }
+$seedName = if ($Mode -in @('validate-published', 'search-published', 'workspace', 'report', 'stats') -or $Mode -like 'snapshot-*') { 'seed-native-admission.json' }
   elseif ($Mode -eq 'build-search') { 'seed-partial-build.json' }
   else { $null }
 if ($seedName) {
-  # Catalog/form setup is independent of the final seed phase. The JS owner
-  # still joins the full seed before every read, preview or launch.
+  # PowerShell and console-mode setup can overlap artifact writes. Keep the
+  # original native-binary admission phase, then let the JS owner join the
+  # full build and snapshot inputs before every read, preview or launch.
   $seedDeadline = [DateTime]::UtcNow.AddSeconds(20)
   while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot $seedName))) {
     if ([DateTime]::UtcNow -gt $seedDeadline) { throw 'Canonical workflow seed did not complete' }

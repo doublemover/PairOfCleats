@@ -99,7 +99,7 @@ const seedBuild = async (stage, name) => {
   const options = { modes: ['code'], ...(stage ? { stage } : {}), threads: 1, stubEmbeddings: true, progress: 'off', log: () => {} };
   const started = Date.now(), result = await buildIndex(repo, options);
   assert.ok(['index-published', 'stage-completed'].includes(result.outcome.status), JSON.stringify(result.outcome));
-  if (publishedReadMode) {
+  if (needsCompleteSeed) {
     const indexDir = getIndexDir(repo, 'code', loadUserConfig(repo, { env }));
     const state = JSON.parse(await fs.readFile(path.join(indexDir, 'index_state.json'), 'utf8'));
     assert.equal(state.embeddings.backends.lancedb.enabled, true);
@@ -127,6 +127,7 @@ const seedSnapshot = async (snapshotId, name, metadata = {}) => {
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'createPointerSnapshot', input, result }, null, 2));
 };
 const prepareSnapshots = async () => {
+  await recordFixturePhase('snapshot-inputs:start');
   if (['snapshot-show', 'snapshot-list-populated'].includes(mode)) {
     await seedSnapshot('snap-native-created', 'seed-labeled-snapshot', { tags: ['native-test', 'operator'], label: 'native label' });
   }
@@ -142,20 +143,23 @@ const prepareSnapshots = async () => {
   if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
     await seedSnapshot('snap-native-new', 'seed-newer-snapshot');
   }
+  await recordFixturePhase('snapshot-inputs:complete');
 };
-let seedAdmission = Promise.resolve(), seedCompletion = null;
+let consoleAdmission = Promise.resolve(), seedCompletion = null, nativeAdmissionReceipt = null;
 if (overlappedSeed) {
   const partialSeed = workspaceMode;
   const admissionMessage = partialSeed ? '[chunk_meta] writing JSON' : 'Indexing stage4 (sqlite/ann pass) running.';
-  let admit;
-  seedAdmission = new Promise(resolve => { admit = resolve; });
+  let admitConsole, admitNative;
+  consoleAdmission = new Promise(resolve => { admitConsole = resolve; });
+  const nativeAdmission = new Promise(resolve => { admitNative = resolve; });
   const scope = createLoggerScope({ enabled: false });
   scope.setProgressHandlers({ log: message => {
     console.log(message);
-    // This signal schedules independent console/catalog work only. The actual
-    // build result, native-backend checks and snapshot seeds still gate every
-    // read, preview and launch; a status line grants no artifact authority.
-    if (message === admissionMessage) admit();
+    // Start PowerShell/ConPTY setup during the existing artifact-write phase.
+    // The launcher still waits for the original native admission below; no
+    // extra native/catalog work competes with the earlier parser/worker phase.
+    if (message === '[chunk_meta] writing JSON') admitConsole();
+    if (message === admissionMessage) admitNative();
   } });
   seedCompletion = scope.run(async () => {
     try {
@@ -163,18 +167,23 @@ if (overlappedSeed) {
       await prepareSnapshots();
     }
     finally { await scope.close(); }
-  }).then(() => ({ ok: true }), error => ({ ok: false, error })).finally(() => admit());
+  }).then(() => ({ ok: true }), error => ({ ok: false, error })).finally(() => { admitConsole(); admitNative(); });
+  // Observe publication failures immediately, then join this original promise
+  // together with the actual build before any operation and in final cleanup.
+  nativeAdmissionReceipt = nativeAdmission.then(async () => {
+    await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode,
+      owner: workspaceMode ? 'canonical-partial-seed-output-or-settlement' : 'canonical-seed-stage4-or-settlement' }));
+    await recordFixturePhase('seed-native-admission');
+  }).then(() => ({ ok: true }), error => ({ ok: false, error }));
 } else await prepareSnapshots();
-await seedAdmission;
-if (overlappedSeed) {
-  await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode,
-    owner: workspaceMode ? 'canonical-partial-seed-output-or-settlement' : 'canonical-seed-stage4-or-settlement' }));
-  await recordFixturePhase('seed-native-admission');
-}
+await consoleAdmission;
+if (overlappedSeed) await recordFixturePhase('terminal-setup-admission');
 const awaitSeed = async () => {
   if (!seedCompletion) return;
-  const result = await seedCompletion;
+  const [result, admission] = await Promise.all([seedCompletion, nativeAdmissionReceipt]);
+  if (!result.ok && !admission.ok) throw new AggregateError([result.error, admission.error], 'Canonical seed and native admission receipt failed.');
   if (!result.ok) throw result.error;
+  if (!admission.ok) throw admission.error;
 };
 const fixtureDeadline = Date.now() + 22000;
 let verifiedPublication = null;
