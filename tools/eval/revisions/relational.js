@@ -164,29 +164,36 @@ const reference = (state, { signal = null, check = () => true, maxReferenceWork 
  * generator is inferred from a supplied scenario/profile label. */
 export const generateRelationalRevisionScenario = ({ world, family, seed = 0 }) => {
   if (!['join-cross-term', 'anti-join-support-threshold', 'seeded-bags', 'group-extremum-retraction', 'selected-duplicate-projection',
-    'group-partial-domain', 'selected-partial-domain', 'anti-join-partial-domain'].includes(family)
+    'group-partial-domain', 'selected-partial-domain', 'anti-join-partial-domain', 'selected-sparse-maintenance', 'join-sparse-maintenance'].includes(family)
     || !Number.isInteger(seed) || seed < 0 || seed > 4294967295) throw fail('Unsupported relational revision generator or seed.');
   const row = (id, from, to, multiplicity = '1') => ({ occurrenceId: 'o-' + id, supportId: id, from, to, multiplicity, sourceRef: null });
   const nextWorld = revision => ({ ...world, generation: { ...world.generation, semanticRevision: revision } });
   if (family.startsWith('group-') || family.startsWith('selected-')) {
-    const grouped = family.startsWith('group-'), partial = family.endsWith('partial-domain');
-    const parents = [row('low', 'g', 'a', String(1 + seed % 3)), row('middle', 'g', 'm'), row('high', 'g', 'z')];
+    const grouped = family.startsWith('group-'), partial = family.endsWith('partial-domain'), sparse = family === 'selected-sparse-maintenance';
+    const parents = sparse ? [row('wanted', 'g', 'a'), ...Array.from({ length: 7 }, (_, index) => row('other-' + index, 'h', 'b'))]
+      : [row('low', 'g', 'a', String(1 + seed % 3)), row('middle', 'g', 'm'), row('high', 'g', 'z')];
     const selectedDefinition = { schemaVersion: 1, id: 'revision-unary', ruleVersion: '1', configHash: 'a'.repeat(64),
       domainId: 'revision-output', inputDomainId: 'revision-left', ...(grouped ? { operator: 'grouped-adjacency', groupBy: 'from' }
         : { operator: 'select-project-adjacency', whereField: 'from', whereEquals: 'g', projectFrom: 'from', projectTo: 'from' }) };
     const edit = (id, revision, left, leftComplete = true) => ({ id, toWorld: nextWorld(revision), left, right: [], leftComplete, rightComplete: true });
-    const edits = partial ? [edit('complete-domain', 1, []), edit('lose-domain', 2, [], false), edit('reconfirm-domain', 3, [])]
+    const edits = partial || sparse ? [edit('complete-domain', 1, []), edit('lose-domain', 2, [], false), edit('reconfirm-domain', 3, [])]
       : [edit('remove-low', 1, [{ ...parents[0], multiplicity: '-' + parents[0].multiplicity }]),
         edit('remove-high', 2, [{ ...parents[2], multiplicity: '-1' }]), edit('restore-low', 3, [parents[0]])];
     return seal({ schemaVersion: REVISION_RELATIONAL_VERSION, profile: REVISION_RELATIONAL_PROFILE, family, seed, world, definition: selectedDefinition,
-      initial: { left: parents, right: [], leftComplete: !partial, rightComplete: true }, revisions: [] }, edits);
+      initial: { left: parents, right: [], leftComplete: !(partial || sparse), rightComplete: true }, revisions: [] }, edits);
   }
   const operator = family.startsWith('anti-join-') ? 'left-anti-join' : 'inner-join';
   const left = [row('l', 'a', 'k', String(1 + seed % 3))], right = [row('r1', 'k', 'b'), row('r2', 'k', 'c', String(1 + (seed >>> 2) % 3))];
   const initial = { left: [], right: [], leftComplete: true, rightComplete: true };
   const edit = (id, index, l, r) => ({ id, toWorld: nextWorld(index), left: l, right: r, leftComplete: true, rightComplete: true });
   let edits;
-  if (family === 'anti-join-partial-domain') {
+  if (family === 'join-sparse-maintenance') {
+    initial.left = Array.from({ length: 8 }, (_, index) => row('padding-' + index, 'a', 'unmatched'));
+    initial.right = [right[0]];
+    edits = [edit('introduce-match', 1, [{ ...initial.left[0], multiplicity: '-1' }, left[0]], []),
+      edit('increase-match', 2, [{ ...left[0], multiplicity: '1' }], []),
+      edit('remove-match', 3, [{ ...left[0], multiplicity: '-' + String(Number(left[0].multiplicity) + 1) }], [])];
+  } else if (family === 'anti-join-partial-domain') {
     initial.left = left; initial.rightComplete = false;
     edits = [{ ...edit('complete-domain', 1, [], []), rightComplete: true }, edit('block-left', 2, [], [right[0]]),
       { ...edit('lose-domain', 3, [], []), rightComplete: false },

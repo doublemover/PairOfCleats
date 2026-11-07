@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T04:10:12.976Z",
+  "generatedAt": "2026-11-07T04:23:40.953Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4785,6 +4785,7 @@
         "tests/indexing/semantic/embedded-cache-prepared-handoff.test.js",
         "tests/indexing/semantic/grouped-adjacency-maintenance.test.js",
         "tests/indexing/semantic/grouped-adjacency.test.js",
+        "tests/indexing/semantic/inner-join-maintenance.test.js",
         "tests/indexing/semantic/positive-rule-view.test.js",
         "tests/indexing/semantic/prepared-embedded-parent.test.js",
         "tests/indexing/semantic/producer-entry-allocation.test.js",

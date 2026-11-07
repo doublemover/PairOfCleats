@@ -2970,3 +2970,9 @@ indexing/semantic/grouped-adjacency-maintenance/affected-extrema-and-coefficient
 indexing/semantic/grouped-adjacency-maintenance/dense-fallback-and-sparse-resume
 indexing/semantic/grouped-adjacency-maintenance/coverage-and-atomic-groups
 indexing/semantic/grouped-adjacency-maintenance/bounded-cancelled-and-replayed
+indexing/semantic/inner-join-maintenance/simultaneous-role-terms
+indexing/semantic/inner-join-maintenance/signed-products-and-atomic-coefficients
+indexing/semantic/inner-join-maintenance/dense-and-capacity-fallback
+indexing/semantic/inner-join-maintenance/partial-domain-and-replay
+indexing/semantic/inner-join-maintenance/independent-revision-oracle
+tooling/eval/relational-revision-oracle/maintenance-work-contracts

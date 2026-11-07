@@ -56,7 +56,7 @@ minimization. Seeded diagnostic defects must be detected while corrected outputs
 pass. The minimizer's injected finite boundary control tests its decision logic;
 it does not claim the real positive-rule owner currently fails.
 
-The `finite-relational-revisions-v2` adapter drives the original
+The `finite-relational-revisions-v3` adapter drives the original
 [join/anti-join cohort](relational-join.md), [select/project](selected-adjacency.md)
 and [grouped views](grouped-adjacency.md). It supports eight original supports
 per input, eight copies per support and sixteen exact-hash edits. Its reference
@@ -69,15 +69,15 @@ It imports no candidate arrangement, coefficient or delta helper. Fresh relation
 content is compared separately; private transition ledgers legitimately give
 different view roots. It does not normalize the actual relation content away.
 
-Scenario/receipt contracts are version 2 in `revision-relational.js`. The v1
-profile/scenarios/receipts and `maxReferencePairs` option are rejected; regenerate
+Scenario/receipt contracts are version 3 in `revision-relational.js`. Earlier
+profiles/scenarios/receipts and the `maxReferencePairs` option are rejected; regenerate
 them under the current contract. All original binary families/assertions remain.
 Reference pair/copy examinations use `maxReferenceWork`/`referenceOperations`,
 bounded to 4,096 per checkpoint and cooperative execution to 1,000 ms. Exhaustion
 is unknown even when rebuild parity passes. Receipts retain all checkpoints and
 at most the first full independent counterexample, with exact output hashes and
 failure outcomes for subsequent disagreements, under 256 KiB. Diagnostic data
-comparison does not create an original execution handle. Eight authored,
+comparison does not create an original execution handle. Nine authored,
 unrun cases cover actual registered operators, seeded cross-term/threshold and
 origin/multiplicity defects, unary retraction, false aggregate cardinality and
 partial-domain exactness, stale worlds, unknown and handle retirement. This
@@ -89,3 +89,12 @@ candidate/reference and retires its temporary execution handle. Unknown, invalid
 corrected or different failures cannot replace the witness. One additional authored,
 unrun finite boundary control exercises these decisions without forging a production
 execution or claiming either current candidate fails.
+
+Version 3 retains each operator's actual maintenance strategy and work counters.
+Join receipts include pair terms/support hashes; grouped receipts include affected
+groups/group hashes; selected receipts include support hashes. Their closed schemas
+are tied to the declared operator. No full-recomputation label is fabricated for
+incremental work, and a copied metric from another operator is rejected. Bounded
+generators exercise each real sparse owner through the existing independent and
+clean-rebuild comparisons. Operator work stays separate from measured elapsed
+time and reference examinations; original bounds are unchanged.

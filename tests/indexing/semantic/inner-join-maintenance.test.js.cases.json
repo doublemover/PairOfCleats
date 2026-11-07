@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["simultaneous-role-terms", "signed-products-and-atomic-coefficients", "dense-and-capacity-fallback", "partial-domain-and-replay", "independent-revision-oracle"]
+}

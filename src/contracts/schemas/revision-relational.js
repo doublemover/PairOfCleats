@@ -7,8 +7,8 @@ const list = (items, maximum) => ({ type: 'array', items, maxItems: maximum });
 const row = signed => object({ occurrenceId: text(64), supportId: text(64), from: text(32), to: text(32), sourceRef: { type: 'null' },
   multiplicity: { type: 'string', pattern: signed ? '^-?[1-8]$' : '^[1-8]$' } });
 const world = object({ generation: SEMANTIC_GENERATION_SCHEMA, repositoryNamespace: text(128), contextKey: text(128) });
-export const REVISION_RELATIONAL_VERSION = 2;
-export const REVISION_RELATIONAL_PROFILE = 'finite-relational-revisions-v2';
+export const REVISION_RELATIONAL_VERSION = 3;
+export const REVISION_RELATIONAL_PROFILE = 'finite-relational-revisions-v3';
 export const REVISION_RELATIONAL_SCHEMA = object({ schemaVersion: { const: REVISION_RELATIONAL_VERSION }, profile: { const: REVISION_RELATIONAL_PROFILE },
   family: text(64), seed: { type: 'integer', minimum: 0, maximum: 4294967295 }, definition: {
     oneOf: [RELATIONAL_JOIN_DEFINITION_SCHEMA, GROUPED_ADJACENCY_DEFINITION_SCHEMA, SELECTED_ADJACENCY_DEFINITION_SCHEMA] },
@@ -30,6 +30,20 @@ object({ ...outputFields, operator: { const: 'grouped-adjacency' }, rows: list(o
   distinctValueCount: { type: 'integer', minimum: 1, maximum: 8 }, minimum: text(32), maximum: text(32),
   status: { enum: ['exact-in-captured-domain', 'observed-in-incomplete-domain'] }, alternatives: list(row(false), 8) }), 8) })] };
 const milliseconds = { type: 'number', minimum: 0 };
+const count = maximum => ({ type: 'integer', minimum: 0, maximum });
+const workBase = { candidateMs: milliseconds, rebuildMs: milliseconds, referenceMs: milliseconds,
+  referenceOperations: count(4096), workUnits: count(65536) };
+const joinWork = { ...object({ ...workBase, strategy: { enum: ['full-affected-view-recomputation', 'role-ordered-inner-join'] },
+  derivedSupportHashes: count(1024), incrementalPairTerms: nullable(count(65536)) }),
+allOf: [{ if: { type: 'object', required: ['strategy'], properties: { strategy: { const: 'full-affected-view-recomputation' } } },
+  then: { type: 'object', properties: { incrementalPairTerms: { type: 'null' } } },
+  else: { type: 'object', properties: { incrementalPairTerms: count(65536) } } }] };
+const antiWork = object({ ...workBase, strategy: { const: 'full-affected-view-recomputation' },
+  derivedSupportHashes: count(1024), incrementalPairTerms: { type: 'null' } });
+const groupWork = object({ ...workBase, strategy: { enum: ['full-affected-view-recomputation', 'affected-group-recomputation'] },
+  recomputedGroups: count(256), derivedGroupHashes: count(256) });
+const selectedWork = object({ ...workBase, strategy: { enum: ['full-affected-view-recomputation', 'incremental-selected-supports'] },
+  derivedSupportHashes: count(256) });
 const checkpoint = { oneOf: [object({ index: { type: 'integer', minimum: 0, maximum: 16 }, checkpointId: text(64),
   outcome: { const: 'not-run' }, reason: text(128) }),
 object({ index: { type: 'integer', minimum: 0, maximum: 16 }, checkpointId: text(64), stateId: hash,
@@ -41,13 +55,15 @@ object({ index: { type: 'integer', minimum: 0, maximum: 16 }, checkpointId: text
     counterexampleState: { enum: ['not-applicable', 'retained', 'omitted-after-first; failure-retained'] } }),
   object({ tier: { const: 'same-implementation-clean-rebuild' }, outcome: { enum: ['pass', 'fail'] },
     identity: { const: 'relation-content; private-ledgers-are-invocation-specific' } })] } },
-  work: object({ candidateMs: milliseconds, rebuildMs: milliseconds, referenceMs: milliseconds,
-    referenceOperations: { type: 'integer', minimum: 0, maximum: 4096 }, workUnits: { type: 'integer', minimum: 0, maximum: 65536 },
-    strategy: { const: 'full-affected-view-recomputation' } }), capturedDomainComplete: { type: 'boolean' },
+  work: { oneOf: [joinWork, groupWork, selectedWork] }, capturedDomainComplete: { type: 'boolean' },
   unresolvedLeftSupports: { type: 'integer', minimum: 0, maximum: 8 } })] };
-export const REVISION_RELATIONAL_RECEIPT_SCHEMA = object({ schemaVersion: { const: REVISION_RELATIONAL_VERSION }, kind: { const: 'finite-relational-revision-run' },
+const workFor = (operators, work) => ({ if: { type: 'object', required: ['operator'], properties: { operator: { enum: operators } } },
+  then: { type: 'object', properties: { checkpoints: { type: 'array', items: { type: 'object', properties: { work } } } } } });
+export const REVISION_RELATIONAL_RECEIPT_SCHEMA = { ...object({ schemaVersion: { const: REVISION_RELATIONAL_VERSION }, kind: { const: 'finite-relational-revision-run' },
   scenarioId: hash, executionId: text(64), profile: { const: REVISION_RELATIONAL_PROFILE }, operator: { enum: operators }, outcome: { enum: ['pass', 'fail', 'unknown'] },
   checkpoints: { ...list(checkpoint, 17), minItems: 1 }, scope: { const: 'tiny-supplied-occurrence-bags-and-captured-domain-observations' },
   sourceAuthority: { const: 'not-established' }, semanticClosure: { const: 'not-implied' }, elapsedMs: milliseconds,
   limits: object({ maxMs: { type: 'integer', minimum: 1, maximum: 1000 }, maxReferenceWork: { type: 'integer', minimum: 0, maximum: 4096 },
-    inputSupportsPerSide: { const: 8 }, copiesPerSupport: { const: 8 }, checkpoints: { const: 17 }, receiptBytes: { const: 262144 } }) });
+    inputSupportsPerSide: { const: 8 }, copiesPerSupport: { const: 8 }, checkpoints: { const: 17 }, receiptBytes: { const: 262144 } }) }),
+allOf: [workFor(['inner-join'], joinWork), workFor(['left-anti-join'], antiWork), workFor(['grouped-adjacency'], groupWork),
+  workFor(['select-project-adjacency'], selectedWork)] };

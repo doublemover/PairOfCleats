@@ -6,6 +6,7 @@ import { isSemanticJsonBudgetError } from '../canonical-json-bounds.js';
 import { readAdjacencyViewInput, applyAdjacencyDelta } from './adjacency-delta.js';
 import { RELATIONAL_JOIN_DEFINITION_SCHEMA, RELATIONAL_JOIN_LIMITS } from '../../../contracts/schemas/relational-join.js';
 import { finiteViewFields, captureFiniteViewJson, captureFiniteViewDefinition } from './finite-input.js';
+import { prepareInnerJoinMaintenance } from './inner-join-maintenance.js';
 
 const owned = new WeakMap(), budgetErrors = new WeakSet(), ajv = createAjv({ strict: true, allErrors: true });
 const validate = compileSchema(ajv, RELATIONAL_JOIN_DEFINITION_SCHEMA);
@@ -31,36 +32,46 @@ const sourceKey = row => key([row.occurrenceId, row.supportId]);
 const compareRows = (a, b) => sourceKey(a) < sourceKey(b) ? -1 : sourceKey(a) > sourceKey(b) ? 1 : 0;
 const captureBatch = (value, maxBytes) => captureFiniteViewJson(value, maxBytes, fail);
 
-const build = ({ definition, left, right, limits, ledger }, signal) => {
+const build = ({ definition, left, right, limits, ledger }, signal, previous = null, changes = null) => {
   const l = readAdjacencyViewInput(left), r = readAdjacencyViewInput(right);
   if (key(l.world) !== key(r.world) || definition.leftDomainId !== l.definition.domainId || definition.rightDomainId !== r.definition.domainId) {
     throw fail('Join inputs must share an exact world and the declared original input domains.');
   }
   if (l.rows.length + r.rows.length > limits.inputSupports) throw budget('inputSupports');
-  let work = 0;
+  let work = 0, supportHashes = 0;
   const tick = () => { throwIfAborted(signal); if (++work > limits.work) throw budget('work'); };
-  const rightByKey = new Map(), rows = [];
-  for (const row of r.rows) { tick(); if (!rightByKey.has(row.from)) rightByKey.set(row.from, []); rightByKey.get(row.from).push(row); }
-  const emit = (a, b) => {
-    if (rows.length >= limits.outputSupports) throw budget('outputSupports');
-    const coefficient = BigInt(a.multiplicity) * (b ? BigInt(b.multiplicity) : 1n);
+  const project = (a, b, coefficient, prior = null) => {
     if (coefficient.toString().length > 128) throw budget('coefficientDigits');
     const parents = { left: { occurrenceId: a.occurrenceId, supportId: a.supportId, sourceRef: a.sourceRef },
       right: b ? { occurrenceId: b.occurrenceId, supportId: b.supportId, sourceRef: b.sourceRef } : null };
     const parentInput = row => ({ occurrenceId: row.occurrenceId, supportId: row.supportId, from: row.from, to: row.to, sourceRef: row.sourceRef });
-    const supportId = hash({ operator: definition.operator, parents: { left: parentInput(a), right: b ? parentInput(b) : null } });
-    rows.push({ occurrenceId: 'join:' + supportId, supportId, from: a.from, to: b ? b.to : a.to,
-      multiplicity: coefficient.toString(), sourceRef: null, parents });
+    const supportId = prior?.supportId ?? hash({ operator: definition.operator, parents: { left: parentInput(a), right: b ? parentInput(b) : null } });
+    return { occurrenceId: 'join:' + supportId, supportId, from: a.from, to: b ? b.to : a.to,
+      multiplicity: coefficient.toString(), sourceRef: null, parents };
   };
+  const prepared = previous && prepareInnerJoinMaintenance({ state: previous, left: changes.left, right: changes.right,
+    leftRows: l.rows, rightRows: r.rows, tick, key, project, fail, budget });
+  const rightByKey = prepared?.rightByKey ?? new Map(), leftByTo = prepared?.leftByTo ?? new Map(), rows = prepared?.rows ?? [];
+  supportHashes = prepared?.supportHashes ?? 0;
   let unresolvedLeftSupports = 0;
-  for (const row of l.rows) {
-    tick(); const matches = rightByKey.get(row.to) || [];
-    if (definition.operator === 'inner-join') for (const match of matches) { tick(); emit(row, match); }
-    else if (!matches.length) {
-      if (r.complete) emit(row, null); else unresolvedLeftSupports++;
+  if (!prepared) {
+    for (const row of r.rows) { tick(); if (!rightByKey.has(row.from)) rightByKey.set(row.from, []); rightByKey.get(row.from).push(row); }
+    if (definition.operator === 'inner-join') {
+      for (const row of l.rows) { tick(); if (!leftByTo.has(row.to)) leftByTo.set(row.to, []); leftByTo.get(row.to).push(row); }
+    }
+    const emit = (a, b) => {
+      if (rows.length >= limits.outputSupports) throw budget('outputSupports');
+      rows.push(project(a, b, BigInt(a.multiplicity) * (b ? BigInt(b.multiplicity) : 1n))); supportHashes++;
+    };
+    for (const row of l.rows) {
+      tick(); const matches = rightByKey.get(row.to) || [];
+      if (definition.operator === 'inner-join') for (const match of matches) { tick(); emit(row, match); }
+      else if (!matches.length) {
+        if (r.complete) emit(row, null); else unresolvedLeftSupports++;
+      }
     }
   }
-  rows.sort(compareRows);
+  rows.sort((a, b) => { tick(); return compareRows(a, b); });
   const snapshot = { schemaVersion: 1, definition, world: l.world, inputRoots: { left: left.rootId, right: right.rootId },
     rows, capturedDomainComplete: l.complete && r.complete, unresolvedLeftSupports, ledger };
   // Admit the complete result. Never publish a capped prefix as an exact view.
@@ -72,10 +83,11 @@ const build = ({ definition, left, right, limits, ledger }, signal) => {
       multiplicity: row.multiplicity, sourceRef: null })), complete: report.capturedDomainComplete, maxRetainedBytes: limits.retainedBytes });
   const handle = Object.freeze({ rootId: hash(report), relation, publication: 'private-unpublished', semanticClosure: 'not-implied' });
   throwIfAborted(signal);
-  owned.set(handle, { definition, left, right, limits, ledger, report, work }); return handle;
+  owned.set(handle, { definition, left, right, limits, ledger, report, work, supportHashes, leftByTo, rightByKey,
+    pairTerms: prepared?.pairTerms ?? null, strategy: prepared ? 'role-ordered-inner-join' : 'full-affected-view-recomputation' }); return handle;
 };
 
-/** Bounded arrangement plus exact full affected-view recomputation. This is an
+/** Bounded arrangements plus exact private maintenance/recomputation. This is an
  * in-memory finite operator, without source extraction or publication authority. */
 export const bootstrapRelationalJoin = (value, options = {}) => {
   const input = fields(value, ['definition', 'left', 'right'], ['limits']);
@@ -87,7 +99,10 @@ export const bootstrapRelationalJoin = (value, options = {}) => {
   return build({ definition, left: input.left, right: input.right, limits, ledger: [] }, options.signal);
 };
 export const describeRelationalJoin = handle => get(handle).report;
-export const relationalJoinWork = handle => Object.freeze({ workUnits: get(handle).work, strategy: 'full-affected-view-recomputation' });
+export const relationalJoinWork = handle => {
+  const state = get(handle); return Object.freeze({ workUnits: state.work, derivedSupportHashes: state.supportHashes,
+    incrementalPairTerms: state.pairTerms, strategy: state.strategy });
+};
 
 /** Both original input transitions and the result must succeed before a new
  * private cohort is returned. Failed/bounded work never consumes the old cohort. */
@@ -116,8 +131,9 @@ export const applyRelationalJoinDelta = (handle, value, options = {}) => {
     if (leftStop) return leftStop;
     const right = applyAdjacencyDelta(state.right, batch.right, inputOptions), rightStop = stopped(right);
     if (rightStop) return rightStop;
-    const view = build({ ...state, left: left.view, right: right.view, ledger: [...state.ledger, { batchId: batch.batchId, digest }] }, signal);
-    return { status: 'materialized-private', consumed: true, view, maintenance: 'full-affected-view-recomputation', publication: 'not-attempted' };
+    const view = build({ ...state, left: left.view, right: right.view, ledger: [...state.ledger, { batchId: batch.batchId, digest }] }, signal,
+      state, { left, right });
+    return { status: 'materialized-private', consumed: true, view, maintenance: get(view).strategy, publication: 'not-attempted' };
   } catch (error) {
     if (isAbortError(error)) return { status: 'cancelled', consumed: false, view: handle };
     if (isSemanticJsonBudgetError(error)) return { status: 'retention-budget', consumed: false, view: handle, limit: 'retainedBytes' };

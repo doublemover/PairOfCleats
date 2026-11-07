@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2802,
+    "hero": 2808,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17815,6 +17815,42 @@
     {
       "id": "indexing/semantic/grouped-adjacency-maintenance/bounded-cancelled-and-replayed",
       "order": 2967,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/inner-join-maintenance/simultaneous-role-terms",
+      "order": 2968,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/inner-join-maintenance/signed-products-and-atomic-coefficients",
+      "order": 2969,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/inner-join-maintenance/dense-and-capacity-fallback",
+      "order": 2970,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/inner-join-maintenance/partial-domain-and-replay",
+      "order": 2971,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/inner-join-maintenance/independent-revision-oracle",
+      "order": 2972,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/relational-revision-oracle/maintenance-work-contracts",
+      "order": 2973,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -34,8 +34,7 @@ does not advance the first input in the old cohort. Identical outer replay is a
 no-op; changed content under the same ID and stale/mixed worlds are rejected.
 The outer ledger holds at most 128 batches before requiring a checkpoint.
 
-The baseline strategy is full affected-view recomputation with a right-key
-arrangement, not delta-sized maintenance or a demonstrated speedup. Defaults bound
+The baseline strategy is full affected-view recomputation. Defaults bound
 total input supports to 256, output supports to 1,024, the serialized result/ledger
 to 1 MiB and join work to 65,536 units. Each original input transition additionally
 uses the existing work admission bounded by four times the input-support allowance.
@@ -51,3 +50,31 @@ resource bounds, cancellation and values above Number's exact integer range.
 New views remain private/unpublished. Existing publication/recovery owners must
 admit a future durable integration; this module adds no generation pointer or
 indexed semantic producer identity.
+
+## Sparse two-sided inner joins
+
+Each original cohort retains bounded left-to/right-from key arrangements. Sparse
+inner-join revisions can maintain retained parent pairs through the role-ordered
+partition `deltaLeft × oldRight + newLeft × deltaRight`. This includes the mixed
+new/new contribution exactly once, even when both roles refer to the same origin
+bag. Coefficients remain arbitrary-precision signed changes during calculation;
+only the final atomic nonnegative coefficient is checked against the existing
+128-digit output contract. Large intermediate products can legitimately cancel.
+
+Only affected arrangement buckets are copied; unchanged pair identities are
+reused. The strategy estimate includes arrangement copying, changed supports,
+matching terms and retained output ordering. Dense work, anti-joins, and staged
+pair inventories beyond the original output-support allowance use full
+recomputation. An atomic replacement at a full cap therefore remains valid.
+No trace/output/work/byte threshold is increased. Both strategies share final
+canonical report sealing and factor construction; their logical identities match
+clean rebuilds. Incomplete domains retain positive pairs with incomplete coverage.
+
+Work observations separate actual row/comparison visits, new pair-support hashes
+and incremental pair terms. Input-owner validation and full report/relation
+sealing remain required. Five additional locally unrun cases check the 2→3 bag
+self-role cardinality 4→9, signed deletions, cancelling 255-digit intermediate
+products with valid final coefficients, cap/dense/anti-join fallback, coverage-only
+revisions, replay/cancellation and independent occurrence-copy revision oracles.
+These are finite exact maintenance controls, not a measured latency gain or
+general elastic composition, spill, recursive or durable-source qualification.

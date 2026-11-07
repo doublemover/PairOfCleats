@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
-import { REVISION_RELATIONAL_VERSION, REVISION_RELATIONAL_PROFILE } from '../../../src/contracts/schemas/revision-relational.js';
+import { REVISION_RELATIONAL_VERSION, REVISION_RELATIONAL_PROFILE, REVISION_RELATIONAL_RECEIPT_SCHEMA } from '../../../src/contracts/schemas/revision-relational.js';
+import { createAjv, compileSchema } from '../../../src/shared/validation/ajv-factory.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/relational-revision-oracle/')[1];
 assert.ok(['actual-registered-operators', 'independent-cross-term-and-threshold-defects', 'multiplicity-and-origin-defects',
   'strict-revision-worlds', 'unknown-reference-budget', 'original-execution-retirement',
-  'unary-retractions-and-incomplete-domains', 'unary-independent-mapping-defects'].includes(mode));
+  'unary-retractions-and-incomplete-domains', 'unary-independent-mapping-defects', 'maintenance-work-contracts'].includes(mode));
 const adapter = await getOfflineEvaluationAdapter(REVISION_RELATIONAL_PROFILE);
 const world = { generation: { baseBuildId: 'relational-revision-base', semanticRevision: 0 }, repositoryNamespace: 'fixture', contextKey: 'declared-inputs' };
 const generate = (family, seed = 0) => adapter.generate({ world, family, seed });
@@ -79,8 +80,30 @@ if (mode === 'actual-registered-operators') {
     } finally { adapter.dispose(run); }
   }
   await assert.rejects(getOfflineEvaluationAdapter('finite-relational-revisions-v1'), { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
+  await assert.rejects(getOfflineEvaluationAdapter('finite-relational-revisions-v2'), { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
   const stale = structuredClone(generate('join-cross-term')); stale.schemaVersion = 1; stale.profile = 'finite-relational-revisions-v1';
   assert.throws(() => adapter.run(stale), /Invalid/);
+  stale.schemaVersion = 2; stale.profile = 'finite-relational-revisions-v2'; assert.throws(() => adapter.run(stale), /Invalid/);
+} else if (mode === 'maintenance-work-contracts') {
+  const validate = compileSchema(createAjv({ strict: true, allErrors: true }), REVISION_RELATIONAL_RECEIPT_SCHEMA);
+  for (const [family, strategy] of [['selected-sparse-maintenance', 'incremental-selected-supports'],
+    ['group-partial-domain', 'affected-group-recomputation'], ['join-sparse-maintenance', 'role-ordered-inner-join']]) {
+    const run = adapter.run(generate(family));
+    try {
+      const receipt = adapter.inspect(run); assert.equal(receipt.outcome, 'pass'); assert.equal(validate(receipt), true);
+      assert.ok(receipt.checkpoints.some(row => row.work?.strategy === strategy), family + ' exercises its actual incremental owner');
+      for (const mutate of [value => { value.checkpoints[0].work.workUnits = -1; }, value => { value.checkpoints[0].work.unownedMetric = 0; },
+        value => { value.checkpoints[0].work.strategy = 'pretend-fast'; },
+        value => { value.operator = value.operator === 'grouped-adjacency' ? 'inner-join' : 'grouped-adjacency'; }]) {
+        const wrong = structuredClone(receipt); mutate(wrong); assert.equal(validate(wrong), false, 'operator work remains a strict typed receipt');
+      }
+    } finally { adapter.dispose(run); }
+  }
+  const anti = adapter.run(generate('anti-join-support-threshold'));
+  try {
+    const wrong = structuredClone(adapter.inspect(anti)); wrong.checkpoints[0].work.strategy = 'role-ordered-inner-join';
+    wrong.checkpoints[0].work.incrementalPairTerms = 0; assert.equal(validate(wrong), false, 'anti-join cannot claim the positive join maintainer');
+  } finally { adapter.dispose(anti); }
 } else if (mode === 'unary-independent-mapping-defects') {
   for (const family of ['group-extremum-retraction', 'selected-duplicate-projection', 'group-partial-domain']) {
     const scenario = generate(family, 17), output = expected(scenario, 1);
