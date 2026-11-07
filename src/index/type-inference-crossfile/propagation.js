@@ -200,7 +200,7 @@ export async function runCrossFilePropagation({
       runtimeOnly
     });
     symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
-    symbolRefMaintenance.inserted(now);
+    symbolRefMaintenance.inserted(cacheKey, now);
     if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
       symbolRefMaintenance.prune(now);
     }
