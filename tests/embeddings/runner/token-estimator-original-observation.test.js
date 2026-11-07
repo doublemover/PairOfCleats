@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createEmbeddingTokenEstimator, isTerminalEmbeddingTokenEstimateFailure } from '../../../tools/build/embeddings/token-estimation.js';
 import { errorGraphSome } from '../../helpers/error-graph.js';
+import { createFileEmbeddingsProcessor } from '../../../tools/build/embeddings/pipeline.js';
+import { runBatched } from '../../../tools/build/embeddings/embed.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('embeddings/runner/token-estimator-original-observation/')[1];
 assert.ok(['counts-and-original-release', 'ordinary-fallback-and-terminal-errors', 'original-frozen-pending-error',
@@ -42,6 +44,16 @@ if (mode === 'counts-and-original-release') {
   assert.ok(contains(failure, primary)); assert.equal(codeReads, 0); assert.equal(failure.cacheOwnershipReleased(), false);
   ready = true; assert.equal(failure.cacheOwnershipReleased(), true);
   assert.equal(isTerminalEmbeddingTokenEstimateFailure(failure), true, 'late settlement cannot turn the original failure into heuristic fallback');
+  ready = false; let dispatches = 0, published = 0;
+  const processor = createFileEmbeddingsProcessor({ embeddingBatchSize: 1, mode: 'code', runBatched,
+    scheduleCompute: action => action(), getChunkEmbeddings: async () => { dispatches++; return [[1, 2]]; },
+    estimateEmbeddingTokensBatch: async texts => {
+      try { return await estimate(texts); } catch (error) { ready = true; throw error; }
+    }, estimateEmbeddingTokens: () => 1, assertVectorArrays: (vectors, count) => assert.equal(vectors.length, count),
+    processFileEmbeddings: async () => { published++; } });
+  await assert.rejects(processor({ items: [{ index: 0 }], codeTexts: ['one'], docTexts: [], codeMapping: [0], docMapping: [] }),
+    error => contains(error, primary) && isTerminalEmbeddingTokenEstimateFailure(error));
+  await processor.drain(); assert.equal(dispatches, 0); assert.equal(published, 0); assert.equal(codeReads, 0);
 } else if (mode === 'pending-result-and-each-field') {
   for (const trigger of ['initial', 'element', 'release']) {
     let ready = trigger !== 'initial', laterReads = 0, releases = 0;
