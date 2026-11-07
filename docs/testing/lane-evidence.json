@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T03:49:18.194Z",
+  "generatedAt": "2026-11-07T03:56:36.984Z",
   "summary": {
     "lanes": 5,
-    "tests": 3272,
+    "tests": 3278,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 435,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3198
+      "missingTests": 3204
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2951,
+      "totalTests": 2957,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2902
+        "missing": 2908
       }
     },
     {
@@ -313,13 +313,13 @@
       "unknownDurationCount": 106
     },
     {
-      "key": "cli/search",
-      "count": 88,
+      "key": "shared/storage",
+      "count": 94,
       "knownDurationMs": 0,
-      "unknownDurationCount": 88
+      "unknownDurationCount": 94
     },
     {
-      "key": "shared/storage",
+      "key": "cli/search",
       "count": 88,
       "knownDurationMs": 0,
       "unknownDurationCount": 88

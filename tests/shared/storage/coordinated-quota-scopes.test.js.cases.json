@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["overlapping-global-category-repository", "independent-scopes-and-order", "scoped-retention-protects-all-aliases", "unknown-attribution-and-invalid-policy", "unsatisfied-protected-and-volume-pressure", "bounded-membership-accounting"]
+}

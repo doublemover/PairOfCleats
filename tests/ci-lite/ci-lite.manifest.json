@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2786,
+    "hero": 2792,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17721,6 +17721,42 @@
       "order": 2951,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "shared/storage/coordinated-quota-scopes/overlapping-global-category-repository",
+      "order": 2952,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/coordinated-quota-scopes/independent-scopes-and-order",
+      "order": 2953,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/coordinated-quota-scopes/scoped-retention-protects-all-aliases",
+      "order": 2954,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/coordinated-quota-scopes/unknown-attribution-and-invalid-policy",
+      "order": 2955,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/coordinated-quota-scopes/unsatisfied-protected-and-volume-pressure",
+      "order": 2956,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/coordinated-quota-scopes/bounded-membership-accounting",
+      "order": 2957,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

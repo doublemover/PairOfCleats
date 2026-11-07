@@ -56,8 +56,47 @@ allocated bytes unknown; logical bytes are not substituted for that measurement.
 Five authored, locally unrun regressions cover invalid clocks/ages, epoch/tie/
 alias ordering, exact blocked reasons, conflicting/unknown allocation and
 same-volume reserves. Existing evidence-preservation controls remain. This is
-part of #1267; cross-category/operator composition, producer-qualified allocation
+part of #1267; category cleanup integration, producer-qualified allocation
 domains and real Windows pressure/convergence acceptance remain required.
+
+## Coordinated category and repository limits
+
+The same planner accepts at most 1,024 strict internal `scopes`, each naming a
+category or repository identity and optional soft/hard bytes, retention count
+and age. The authoritative flat schema lives beside the current storage-policy
+schema. Duplicate scopes, unknown fields and invalid bounds are rejected.
+This input is not a new CLI/configuration surface or persisted policy selection.
+
+One physical object is counted once globally and once in every applicable
+scope. Logical category/repository attribution can overlap; these scoped totals
+are not added into a second global footprint. A shared object is selected once,
+and its removal credits every applicable constraint. Missing category or
+repository attribution defers the entire proposal when those limits are selected;
+an explicit `repoId: null` identifies shared storage rather than an unknown repo.
+Conflicting allocation observations remain unknown in their scoped totals.
+
+Every alias must satisfy the existing lifecycle owner. Any applicable age or
+count retention protects the whole physical object, including aliases outside
+that scope. The proposal reports count-retention scope identities. Pins, saved
+evidence, original readers and incomplete references retain their original veto.
+
+Selection pays same-volume reserve debt first, then category/repository debts,
+then any remaining global debt. Mandatory local work therefore contributes to
+the global target before unrelated global eviction. Each pass uses the same
+oldest-use order; the plan is deterministic, not a minimum-byte/set-cover claim.
+Newest alias use is computed once before sorting. Scope membership is indexed
+from the bounded owner inventory; count policies consume the ordered membership
+lists rather than rescanning all items per scope.
+
+`scopePlans` separates each scope's measured allocation, required/planned reclaim,
+projected remaining bytes and satisfaction. Admission requires all scopes and the
+original global/reserve constraints. A proposed solution still needs reviewed
+category cleanup followed by fresh observations. No planned bytes authorize a
+write or count as actual reclaimed space. Six locally unrun controls retain an
+independent physical-set accounting audit, aliases across scopes, ordering,
+count/age protection, attribution failures, pinned evidence, reserve composition
+and 8,192 items across 64 policies. Connecting these proposals to every category's
+qualified cleanup owner and machine-local policy publication remains unfinished.
 
 ## Operator lifecycle review
 
@@ -82,5 +121,5 @@ counts and separate root-coverage/inventory-completeness fields. It does not sum
 overlapping category attribution into a false unique footprint. Three additional
 locally unrun cases cover root intent and unknown measurements, actual overlapping
 fixture inventory without mutation, original held-reader diagnosis, cancellation
-and bounded review output. Global/category/repository quota selection and eviction
-composition remain unfinished; this projection is observation only.
+and bounded review output. This projection does not invent category-qualified
+allocation or deletion authority; operator cleanup integration remains unfinished.

@@ -2954,3 +2954,9 @@ tooling/install/original-result-observation/returned-result-observation
 tooling/install/original-result-observation/error-before-diagnostics
 tooling/install/original-result-observation/field-interval-observation
 tooling/install/original-result-observation/ordinary-results-and-falsy-errors
+shared/storage/coordinated-quota-scopes/overlapping-global-category-repository
+shared/storage/coordinated-quota-scopes/independent-scopes-and-order
+shared/storage/coordinated-quota-scopes/scoped-retention-protects-all-aliases
+shared/storage/coordinated-quota-scopes/unknown-attribution-and-invalid-policy
+shared/storage/coordinated-quota-scopes/unsatisfied-protected-and-volume-pressure
+shared/storage/coordinated-quota-scopes/bounded-membership-accounting
