@@ -7,12 +7,12 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Latest observations cover **2,470 distinct cases:2,453 pass,16 fail and one
-Linux-only fixture is excluded on Windows**. One failure reaches the outer30-second
+Latest observations cover **2,497 distinct cases:2,480 pass,16 fail and one
+Linux-only fixture is excluded on Windows**. Seven failures reach the outer30-second
 limit. Four published-index transition cases and12 native-index cases remain
 unqualified. Original failures and unsuccessful diagnostic controls are retained;
 no retry or relaxed deadline counts as acceptance. Current publication checks are
-recorded with the sixth repair batch below.
+recorded with the seventh repair batch below.
 
 Node **26.13.0**, Windows x64, ABI147: native verification exits0 with all37
 required probes successful. Eight patched packages,30 target files and81 hunks
@@ -396,3 +396,42 @@ jobs,22 Windows native-index and seven actual TS7.1 cases, and40 Windows authori
 cases. Its general jobs are still running at this observation. That checkpoint
 precedes this batch. The remaining16 local failures are four revision deadlines
 and12 native-index cases; snapshot-list-populated is the sole outer timeout.
+
+## Windows contained admission and remaining deadlines
+
+The seventh batch is implemented at `9c8bf59c24a7d9da791eef325da2df6670592df3`.
+A bounded cold-seed parent profile attributes about6.25 seconds to contained
+ancestry checks. Windows asynchronous admission now awaits the same ordered
+root/component metadata and native canonicalization before and after opening.
+Each read retains its exact descriptor, final verification and original close.
+The change adds no ancestry cache, public option or weaker path policy.
+
+The four-reader held-admission regression fails before the repair. All29
+selected file/hash/manifest/publication controls pass afterward, including exact
+wide integer identities, content/digest changes, cancellation, original failed
+close/scheduler observations and independent publication evidence. New portable
+classification controls reject root/ancestor/leaf aliases and canonical escape
+before payload open. A held post-open probe retains its actual fd until the
+original failure settles, closes once and publishes no verification bytes.
+No local symbolic link or permission change is needed for these controls.
+
+Four serial original/async/async/original process invocations read64 distinct
+160-byte files with four readers and four trials each. Every read matches the
+same bytes, SHA256 and extent. Eight raw samples per arm give medians336.46ms
+and211.03ms; the observed maximum5ms-ticker gap is23.11ms versus8.40ms. This is
+a small metadata-heavy workload observation, not a full-pipeline latency claim.
+The receipt embeds every sample, source identity and original control command.
+
+All16 remaining local failures are attempted once after the change: nine fail
+their inner witness/deadline and seven reach the outer30-second limit. No retry,
+deadline increase or disabled backend is used. A separate500ms two-world startup
+abort retires correctly; the deeper TypeError visible in later deadline
+aggregates remains unclassified. Both bounded profiling timeouts are diagnostic
+failures and do not count as acceptance. The initial worker-overwritten profile
+is explicitly excluded from attribution.
+
+Format, all five publication checks and44 gate cases pass. All84 preceding
+report records and unrelated receipt fields remain unchanged. CI2358 at2c0d05182
+passes22 Windows native-index, all15 native-search and seven actual TS7.1 cases,
+plus gate, Rust, authority and all native-inspection jobs. Its general jobs are
+still running at the recorded observation; it predates this admission change.

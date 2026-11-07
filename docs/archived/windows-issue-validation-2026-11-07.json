@@ -29488,14 +29488,856 @@
           "skipReason": null
         }
       ]
+    },
+    {
+      "id": "cohort-contained-async-before",
+      "sourceState": "2c0d0518235f47a43cd4ecc52f7b924124a8a0b8 plus new held-admission regression: zero of four asynchronous probes observed.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-contained-async-before-report.json",
+        "sha256": "eee63f3d0d16b95f2aedf91f76e26adf20db2bb32c734829b7b810e37b394742",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 215,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "shared/contained-file-verified-read",
+          "status": "failed",
+          "durationMs": 200,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-contained-async-after",
+      "sourceState": "Windows async admission implemented; before restoring the exact synchronous non-Windows admission control flow. All four controls are repeated in the final29-case cohort.",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-contained-async-after-report.json",
+        "sha256": "1e3a5dabdb2e50585bd9bab254252612564ba4efd89987de87db7ee093680148",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 902,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "id": "shared/contained-file-pinned-identity",
+          "status": "passed",
+          "durationMs": 227,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-resource-lifetime",
+          "status": "passed",
+          "durationMs": 243,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-sync-resource-lifetime",
+          "status": "passed",
+          "durationMs": 181,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-verified-read",
+          "status": "passed",
+          "durationMs": 234,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-async-path-original-failures",
+      "sourceState": "9c8bf59c24a7d9da791eef325da2df6670592df3; final owner/test blobs in seventhFollowupRepairBatch",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-async-path-original-failures-report.json",
+        "sha256": "d58fb8a3456103637703049cf285af71e99ca8ed08e7467c4bfe73a8136e0d01",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 470621,
+        "failed": 16,
+        "passed": 0,
+        "skipped": 0,
+        "total": 16
+      },
+      "tests": [
+        {
+          "id": "tooling/eval/published-index-revision-oracle/delete-file",
+          "status": "failed",
+          "durationMs": 27636,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+          "status": "failed",
+          "durationMs": 26458,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/edit-only",
+          "status": "failed",
+          "durationMs": 27370,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/eval/published-index-revision-oracle/restore-file",
+          "status": "failed",
+          "durationMs": 27585,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/report",
+          "status": "failed",
+          "durationMs": 30029,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/search-published",
+          "status": "failed",
+          "durationMs": 30588,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-create",
+          "status": "failed",
+          "durationMs": 30532,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-freeze",
+          "status": "failed",
+          "durationMs": 30509,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-gc",
+          "status": "failed",
+          "durationMs": 29548,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "status": "failed",
+          "durationMs": 30550,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-prune",
+          "status": "failed",
+          "durationMs": 29319,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-remove",
+          "status": "failed",
+          "durationMs": 29527,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-show",
+          "status": "failed",
+          "durationMs": 29391,
+          "exitCode": 1,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/stats",
+          "status": "failed",
+          "durationMs": 30370,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/validate-published",
+          "status": "failed",
+          "durationMs": 30552,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        },
+        {
+          "id": "tui/native-index-workflows/workspace",
+          "status": "failed",
+          "durationMs": 30559,
+          "exitCode": 1,
+          "timedOut": true,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "cohort-contained-async-consumers",
+      "sourceState": "9c8bf59c24a7d9da791eef325da2df6670592df3; final owner/test blobs in seventhFollowupRepairBatch",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/cohort-contained-async-consumers-report.json",
+        "sha256": "82e1c14027ab913070676ac3ca8f9742ba99472097afc375755e65db4f1e52eb",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 9515,
+        "failed": 0,
+        "passed": 29,
+        "skipped": 0,
+        "total": 29
+      },
+      "tests": [
+        {
+          "id": "indexing/build/artifact-publication-identity-gate",
+          "status": "passed",
+          "durationMs": 1196,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/semantic/sealed-piece-manifest-work",
+          "status": "passed",
+          "durationMs": 1273,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "services/queue/artifact-path-authority",
+          "status": "passed",
+          "durationMs": 402,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/artifact-io/manifest-read-plan",
+          "status": "passed",
+          "durationMs": 368,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-pinned-identity",
+          "status": "passed",
+          "durationMs": 187,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-resource-lifetime",
+          "status": "passed",
+          "durationMs": 250,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-sync-resource-lifetime",
+          "status": "passed",
+          "durationMs": 196,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/contained-file-verified-read",
+          "status": "passed",
+          "durationMs": 233,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/coarse-time",
+          "status": "passed",
+          "durationMs": 170,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/contained",
+          "status": "passed",
+          "durationMs": 206,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/digest-cancel",
+          "status": "passed",
+          "durationMs": 184,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/digest-change",
+          "status": "passed",
+          "durationMs": 196,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/exact-stat-failure",
+          "status": "passed",
+          "durationMs": 214,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/exact-stat-untyped",
+          "status": "passed",
+          "durationMs": 200,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/frozen",
+          "status": "passed",
+          "durationMs": 172,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/high-identity",
+          "status": "passed",
+          "durationMs": 196,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/numeric-collision",
+          "status": "passed",
+          "durationMs": 164,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/plain",
+          "status": "passed",
+          "durationMs": 173,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/sha256-exact",
+          "status": "passed",
+          "durationMs": 165,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/exact-file-observation/sha256-noexact",
+          "status": "passed",
+          "durationMs": 186,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/file-close-lifetime",
+          "status": "passed",
+          "durationMs": 453,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/file-resource-lifetime",
+          "status": "passed",
+          "durationMs": 396,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/stat-work-bound-consumer/exact-work",
+          "status": "passed",
+          "durationMs": 238,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/stat-work-bound-consumer/native-exact-work",
+          "status": "passed",
+          "durationMs": 188,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/stat-work-bound-consumer/native-timestamp-race",
+          "status": "passed",
+          "durationMs": 171,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/stat-work-bound-consumer/native-unsafe-extent",
+          "status": "passed",
+          "durationMs": 177,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/stat-work-bound-consumer/timestamp-race",
+          "status": "passed",
+          "durationMs": 213,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/stat-work-bound-consumer/unsafe-extent",
+          "status": "passed",
+          "durationMs": 161,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "shared/hash/xxhash-backends",
+          "status": "passed",
+          "durationMs": 1126,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
+    },
+    {
+      "id": "gate-08",
+      "sourceState": "9c8bf59c24a7d9da791eef325da2df6670592df3; final owner/test blobs in seventhFollowupRepairBatch",
+      "report": {
+        "path": ".tmp/tasks/validation-20261107/gate-08-report.json",
+        "sha256": "f0d79a22aea988ad9532a3e6e075b0d2efa5783319335cb67c70e62dbfd02f15",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "summary": {
+        "durationMs": 54277,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "total": 44
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 99,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 99,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 107,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 96,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 99,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 101,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 434,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 96,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 111,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 225,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 2157,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 348,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 289,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 523,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 1212,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 1764,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 984,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 684,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 496,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 646,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 505,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 2086,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 1259,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 1067,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 1119,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 1054,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 821,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 1314,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 2090,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 114,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1992,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 1365,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 2091,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 1157,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 3062,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1620,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 559,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 848,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1791,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1938,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/ordered-lane-discovery",
+          "status": "passed",
+          "durationMs": 343,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "ci/gate-policy",
+          "status": "passed",
+          "durationMs": 197,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "passed",
+          "durationMs": 14906,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        },
+        {
+          "id": "tui/operator-command-dispositions",
+          "status": "passed",
+          "durationMs": 331,
+          "exitCode": 0,
+          "timedOut": false,
+          "skipReason": null
+        }
+      ]
     }
   ],
   "latestObserved": {
-    "uniqueCases": 2470,
-    "passed": 2453,
+    "uniqueCases": 2497,
+    "passed": 2480,
     "failed": 16,
     "skipped": 1,
-    "timeouts": 1,
+    "timeouts": 7,
     "note": "Latest source-bound local observations, not a final-tree/full-suite pass. Hosted results remain separate. Original failures, abandoned controls and targeted replacement observations are retained."
   },
   "repairs": [
@@ -29757,7 +30599,7 @@
       "remaining": "Typed RST/AsciiDoc reference observations/resolution and canonical persisted navigation, with explicit unsupported/ambiguous/authority/budget states."
     }
   ],
-  "remaining": "Sixteen current local failures remain: four revision-operation deadlines and twelve native-index cases. All fifteen native-search cases have passing source-bound observations after targeted repairs. Hosted8d91e0634 qualifies22 native-index, seven actual TS7.1 and40 authority cases separately. Full issue implementation/qualification and explicit editor/Tantivy/sqlite-vec exclusions remain open.",
+  "remaining": "Sixteen local failures remain: four revision-operation deadlines and twelve native-index cases, seven at the outer fixture limit. The29 focused file/hash/manifest/publication controls pass. The64-file admission diagnostic improves but does not close full-pipeline timing. CI2358 at2c0d05182 qualifies22 native-index,15 native-search, seven actual TS7.1, authority and native inspection separately; the new IO candidate still requires hosted execution. Full-scope implementation/qualification and editor/Tantivy/sqlite-vec exclusions remain open.",
   "publicationGate": {
     "status": "passed",
     "format": 0,
@@ -36079,5 +36921,594 @@
       "count": 0
     },
     "diagnosticInvocationError": "The first documentation follow-up used a nonexistent generated-surface ID. The canonical artifact-schema-index owner passes; no generator or drift assertion changed."
+  },
+  "seventhFollowupRepairBatch": {
+    "base": "2c0d0518235f47a43cd4ecc52f7b924124a8a0b8",
+    "sourceCandidate": "9c8bf59c24a7d9da791eef325da2df6670592df3",
+    "files": [
+      {
+        "path": "src/shared/contained-file.js",
+        "blob": "fcc2f865ea629195dc56ae36e43d7781f0e653d1",
+        "sha256": "5049ac5fb313e45139a70f7b516687ae06b6b5df03a150f85b891f4c2ffbb692"
+      },
+      {
+        "path": "tests/shared/contained-file-verified-read.test.js",
+        "blob": "e6e9aaa8574a770332c5983eb7d43c594d9245c3",
+        "sha256": "4ad457f0ff653dc50c611b622ee3ae2210a5f64daeaecccb773a20804e908aad"
+      }
+    ],
+    "status": "29-resource-consumer-and44-gate-controls-pass;16-long-local-failures-remain",
+    "repair": "Windows async contained-file admission awaits each original root/component lstat and native realpath in the same order before/after open. No ancestry cache or guard is removed. Exact fd/path identity, final read verification and original descriptor closure remain. Synchronous APIs and non-Windows admission retain their synchronous checks.",
+    "regression": {
+      "before": {
+        "path": ".tmp/tasks/validation-20261107/cohort-contained-async-before-report.json",
+        "sha256": "eee63f3d0d16b95f2aedf91f76e26adf20db2bb32c734829b7b810e37b394742",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "after": {
+        "path": ".tmp/tasks/validation-20261107/cohort-contained-async-consumers-report.json",
+        "sha256": "82e1c14027ab913070676ac3ca8f9742ba99472097afc375755e65db4f1e52eb",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "assertions": "Four independent readers reach their held original probes. Root/ancestor/leaf alias classifications and canonical escape reject before payload open. A held original post-open probe keeps its actual fd open until failure settlement, closes once and publishes no verification bytes. Exact identity, digest, cancellation, original scheduler/close failures, manifest admission and publication controls remain."
+    },
+    "workloadObservation": {
+      "scope": "Serial original/async/async/original actual Node invocations;64 distinct160-byte files;four readers;four trials per invocation. Original committed owner loaded in memory for reference arms; all other code/inputs/runtime match. Every read checks original bytes, SHA256 and extent. Workload diagnostic only, not universal or full-pipeline qualification.",
+      "script": {
+        "path": ".tmp/tasks/validation-20261107/measure-contained-admission.mjs",
+        "sha256": "c6bbf0b8cf0df74993799e9f74098623a52a254709db3e3d2c870b56c2bc6bef",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "runs": [
+        {
+          "arm": "original",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "files": 64,
+          "bytes": 160,
+          "concurrency": 4,
+          "digest": "681d7c7b5d2eeaebe3643173990b884b0828d1600336072ca73eb1c69a51e34b",
+          "samples": [
+            {
+              "trial": 0,
+              "durationMs": 338.0086000000001,
+              "maximumTickGapMs": 14.100100000000111,
+              "verified": 64
+            },
+            {
+              "trial": 1,
+              "durationMs": 344.7798,
+              "maximumTickGapMs": 10.673299999999927,
+              "verified": 64
+            },
+            {
+              "trial": 2,
+              "durationMs": 320.3239000000001,
+              "maximumTickGapMs": 9.824599999999919,
+              "verified": 64
+            },
+            {
+              "trial": 3,
+              "durationMs": 334.91550000000007,
+              "maximumTickGapMs": 10.45089999999982,
+              "verified": 64
+            }
+          ],
+          "receipt": {
+            "path": ".tmp/tasks/validation-20261107/authority-read-0-original.json",
+            "sha256": "6a860dc558142ec51a8411c51f71e2c6a4dcd3bcfa4295d2c267a1b020b40723",
+            "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+          }
+        },
+        {
+          "arm": "async",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "files": 64,
+          "bytes": 160,
+          "concurrency": 4,
+          "digest": "681d7c7b5d2eeaebe3643173990b884b0828d1600336072ca73eb1c69a51e34b",
+          "samples": [
+            {
+              "trial": 0,
+              "durationMs": 184.4601,
+              "maximumTickGapMs": 7.532199999999875,
+              "verified": 64
+            },
+            {
+              "trial": 1,
+              "durationMs": 240.70319999999992,
+              "maximumTickGapMs": 8.396900000000187,
+              "verified": 64
+            },
+            {
+              "trial": 2,
+              "durationMs": 223.17280000000005,
+              "maximumTickGapMs": 7.761199999999917,
+              "verified": 64
+            },
+            {
+              "trial": 3,
+              "durationMs": 207.32550000000015,
+              "maximumTickGapMs": 8.282000000000153,
+              "verified": 64
+            }
+          ],
+          "receipt": {
+            "path": ".tmp/tasks/validation-20261107/authority-read-1-async.json",
+            "sha256": "2e1091ff2c7da4590c62855afed5c8bab12a573df0b5aaa24e403feac37f43d7",
+            "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+          }
+        },
+        {
+          "arm": "async",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "files": 64,
+          "bytes": 160,
+          "concurrency": 4,
+          "digest": "681d7c7b5d2eeaebe3643173990b884b0828d1600336072ca73eb1c69a51e34b",
+          "samples": [
+            {
+              "trial": 0,
+              "durationMs": 216.8932000000001,
+              "maximumTickGapMs": 7.433099999999968,
+              "verified": 64
+            },
+            {
+              "trial": 1,
+              "durationMs": 204.49030000000016,
+              "maximumTickGapMs": 8.001200000000154,
+              "verified": 64
+            },
+            {
+              "trial": 2,
+              "durationMs": 214.7422999999999,
+              "maximumTickGapMs": 6.997299999999996,
+              "verified": 64
+            },
+            {
+              "trial": 3,
+              "durationMs": 204.42799999999988,
+              "maximumTickGapMs": 8.23479999999995,
+              "verified": 64
+            }
+          ],
+          "receipt": {
+            "path": ".tmp/tasks/validation-20261107/authority-read-2-async.json",
+            "sha256": "3450256b3cfcae5fee9b04cee2c1b6077b8cc161ff95218e461a6f10992e7539",
+            "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+          }
+        },
+        {
+          "arm": "original",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "files": 64,
+          "bytes": 160,
+          "concurrency": 4,
+          "digest": "681d7c7b5d2eeaebe3643173990b884b0828d1600336072ca73eb1c69a51e34b",
+          "samples": [
+            {
+              "trial": 0,
+              "durationMs": 331.52099999999996,
+              "maximumTickGapMs": 13.011000000000081,
+              "verified": 64
+            },
+            {
+              "trial": 1,
+              "durationMs": 417.5081,
+              "maximumTickGapMs": 18.004500000000007,
+              "verified": 64
+            },
+            {
+              "trial": 2,
+              "durationMs": 312.2021,
+              "maximumTickGapMs": 10.2808,
+              "verified": 64
+            },
+            {
+              "trial": 3,
+              "durationMs": 380.8334,
+              "maximumTickGapMs": 23.110599999999977,
+              "verified": 64
+            }
+          ],
+          "receipt": {
+            "path": ".tmp/tasks/validation-20261107/authority-read-3-original.json",
+            "sha256": "cd0ca4d09a71de116a9272fb62301314147d3a34d1f328ff39476bdfa3d68355",
+            "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+          }
+        }
+      ],
+      "originalMedianMs": 336.4620500000001,
+      "asyncMedianMs": 211.03390000000002,
+      "originalMaximumTickGapMs": 23.110599999999977,
+      "asyncMaximumTickGapMs": 8.396900000000187
+    },
+    "diagnostics": {
+      "source": "2c0d0518235f47a43cd4ecc52f7b924124a8a0b8 plus main-only profiling preload",
+      "profile": {
+        "path": ".tmp/tasks/validation-20261107/native-report-main-10ms.cpuprofile",
+        "sha256": "b83868e8bb838e6e02ca9007bbaf46e13cdbc18803e83ede4c59b662f8449780",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "result": {
+        "path": ".tmp/tasks/validation-20261107/native-report-main-10ms-result.json",
+        "sha256": "b8ee148bf07d352e0ed780c8cf2b4add8bdf1bb9463c9596ff6228c6e7986b7d",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "limitation": "27-second10ms-sampled parent profile; no latency acceptance. Main authority walk accounts for about6.25 seconds. The earlier profile was overwritten by an idle worker and is not attribution evidence. Both diagnostic30-second outer limits remain failures.",
+      "earlyAbort": {
+        "report": {
+          "path": ".tmp/tasks/validation-20261107/revision-abort-diagnostic.json",
+          "sha256": "f21edd57513f0b7206bc17f7e78c49e2b8fd748db3fa49d162926019176eac96",
+          "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+        },
+        "result": {
+          "parent": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\revision-abort-gnVi37",
+          "maximumMs": 500,
+          "failure": [
+            {
+              "name": "AbortError",
+              "message": "Published-index revision work or retirement failed; original evidence remains retained.",
+              "code": "ABORT_ERR"
+            },
+            {
+              "name": "AbortError",
+              "message": "Published-index revision work or retirement failed; original evidence remains retained.",
+              "code": "ABORT_ERR"
+            },
+            {
+              "name": "AbortError",
+              "message": "Both original index-build worlds failed.",
+              "code": "ABORT_ERR"
+            },
+            {
+              "name": "AbortError",
+              "message": "Operation aborted",
+              "code": "ABORT_ERR"
+            },
+            {
+              "name": "AbortError",
+              "message": "Operation aborted",
+              "code": "ABORT_ERR"
+            },
+            {
+              "name": "<not-own-data>",
+              "message": "<not-own-data>",
+              "code": "<not-own-data>"
+            }
+          ],
+          "retirement": {
+            "executionId": "ce437514-aaab-4f4b-993b-62df1eaf89f5",
+            "retired": true
+          },
+          "parentRemoved": true
+        },
+        "note": "A500ms original two-world startup abort retires correctly. This does not explain the deeper TypeError visible inside later deadline aggregates; that remains unclassified."
+      }
+    },
+    "publicationGate": {
+      "format": {
+        "path": ".tmp/tasks/validation-20261107/format-19.log",
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      },
+      "checks": [
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-08-config-budget.log",
+          "exitCode": 0,
+          "name": "config-budget"
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-08-env-check.log",
+          "exitCode": 0,
+          "name": "env-check"
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-08-generated-freshness.log",
+          "exitCode": 0,
+          "name": "generated-freshness"
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-08-command-surface.log",
+          "exitCode": 0,
+          "name": "command-surface"
+        },
+        {
+          "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\validation-20261107\\publication-08-workflow-contract.log",
+          "exitCode": 0,
+          "name": "workflow-contract"
+        }
+      ],
+      "gateLane": {
+        "durationMs": 54277,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "total": 44
+      },
+      "diffCheck": 0,
+      "finalDocumentationFreshness": {
+        "exitCode": 0,
+        "path": ".tmp/tasks/validation-20261107/generated-freshness-08-docs-final.log",
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "availability": "historical-author-workspace;not-promised-in-clean-checkouts"
+      }
+    },
+    "remainingFailureIds": [
+      "tooling/eval/published-index-revision-oracle/delete-file",
+      "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+      "tooling/eval/published-index-revision-oracle/edit-only",
+      "tooling/eval/published-index-revision-oracle/restore-file",
+      "tui/native-index-workflows/report",
+      "tui/native-index-workflows/search-published",
+      "tui/native-index-workflows/snapshot-create",
+      "tui/native-index-workflows/snapshot-freeze",
+      "tui/native-index-workflows/snapshot-gc",
+      "tui/native-index-workflows/snapshot-list-populated",
+      "tui/native-index-workflows/snapshot-prune",
+      "tui/native-index-workflows/snapshot-remove",
+      "tui/native-index-workflows/snapshot-show",
+      "tui/native-index-workflows/stats",
+      "tui/native-index-workflows/validate-published",
+      "tui/native-index-workflows/workspace"
+    ],
+    "hosted": {
+      "runId": 42417820986,
+      "runNumber": 2358,
+      "source": "2c0d0518235f47a43cd4ecc52f7b924124a8a0b8",
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42417820986",
+      "jobs": [
+        {
+          "id": 128539728144,
+          "name": "gate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128540194779,
+          "name": "windows-authority",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128540194817,
+          "name": "windows",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128540194819,
+          "name": "native-index-workflows (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128540194821,
+          "name": "ubuntu",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128540194851,
+          "name": "macos",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 128540194862,
+          "name": "native-inspection (macos-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128540194887,
+          "name": "native-inspection (windows-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128540194896,
+          "name": "native-inspection (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 128540194901,
+          "name": "rust-tui",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "nativeCases": [
+        {
+          "id": "tui/native-index-workflows/build-cancel",
+          "duration": "8.58s"
+        },
+        {
+          "id": "tui/native-index-workflows/build-search",
+          "duration": "14.3s"
+        },
+        {
+          "id": "tui/native-index-workflows/invalid-provider",
+          "duration": "5.23s"
+        },
+        {
+          "id": "tui/native-index-workflows/missing-model",
+          "duration": "5.41s"
+        },
+        {
+          "id": "tui/native-index-workflows/preview-cancel",
+          "duration": "5.32s"
+        },
+        {
+          "id": "tui/native-index-workflows/report",
+          "duration": "11.2s"
+        },
+        {
+          "id": "tui/native-index-workflows/search-published",
+          "duration": "13.1s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot",
+          "duration": "6.34s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-create",
+          "duration": "12.4s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-freeze",
+          "duration": "10.7s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-gc",
+          "duration": "10.9s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "duration": "10.7s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-prune",
+          "duration": "10.6s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-remove",
+          "duration": "10.7s"
+        },
+        {
+          "id": "tui/native-index-workflows/snapshot-show",
+          "duration": "10.6s"
+        },
+        {
+          "id": "tui/native-index-workflows/stale",
+          "duration": "6.58s"
+        },
+        {
+          "id": "tui/native-index-workflows/stats",
+          "duration": "10.6s"
+        },
+        {
+          "id": "tui/native-index-workflows/stats-conflict",
+          "duration": "9.33s"
+        },
+        {
+          "id": "tui/native-index-workflows/validate-published",
+          "duration": "12.8s"
+        },
+        {
+          "id": "tui/native-index-workflows/watch-cancel",
+          "duration": "9.13s"
+        },
+        {
+          "id": "tui/native-index-workflows/workspace",
+          "duration": "14.8s"
+        },
+        {
+          "id": "tui/native-index-workflows/workspace-status",
+          "duration": "11.3s"
+        },
+        {
+          "id": "tui/native-search-conpty/cancel",
+          "duration": "7.47s"
+        },
+        {
+          "id": "tui/native-search-conpty/empty-error",
+          "duration": "12.8s"
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first",
+          "duration": "9.85s"
+        },
+        {
+          "id": "tui/native-search-conpty/failed-first-narrow",
+          "duration": "10.0s"
+        },
+        {
+          "id": "tui/native-search-conpty/handshake",
+          "duration": "9.41s"
+        },
+        {
+          "id": "tui/native-search-conpty/incompatible",
+          "duration": "6.18s"
+        },
+        {
+          "id": "tui/native-search-conpty/interrupt",
+          "duration": "7.45s"
+        },
+        {
+          "id": "tui/native-search-conpty/modes",
+          "duration": "6.36s"
+        },
+        {
+          "id": "tui/native-search-conpty/narrow",
+          "duration": "8.74s"
+        },
+        {
+          "id": "tui/native-search-conpty/navigation",
+          "duration": "9.08s"
+        },
+        {
+          "id": "tui/native-search-conpty/pagination",
+          "duration": "9.38s"
+        },
+        {
+          "id": "tui/native-search-conpty/query-source",
+          "duration": "11.5s"
+        },
+        {
+          "id": "tui/native-search-conpty/replace",
+          "duration": "10.5s"
+        },
+        {
+          "id": "tui/native-search-conpty/scope",
+          "duration": "14.8s"
+        },
+        {
+          "id": "tui/native-search-conpty/truncated",
+          "duration": "5.46s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/cancellation",
+          "duration": "1.98s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/configured-dependency-authority",
+          "duration": "1.93s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/finite-strings-and-overloads",
+          "duration": "1.94s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/host-fallback-refused",
+          "duration": "1.93s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/invalid-config",
+          "duration": "1.92s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/original-snapshot-isolation",
+          "duration": "3.18s"
+        },
+        {
+          "id": "tooling/typescript-api7-native/retained-template-parity",
+          "duration": "2.06s"
+        }
+      ]
+    },
+    "originalRecordsPreserved": 84,
+    "processAudit": {
+      "path": ".tmp/tasks/validation-20261107/contained-admission-owned-process-audit.json",
+      "sha256": "f9792b4d5b7c20385ce11c00f786da948b1d1f2d17ae02f7e7908da8ec3c7574",
+      "availability": "historical-author-workspace;not-promised-in-clean-checkouts",
+      "scope": "Project Node/native TUI only; unrelated applications untouched",
+      "count": 0,
+      "processes": []
+    }
   }
 }
