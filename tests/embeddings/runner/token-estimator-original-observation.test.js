@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createEmbeddingTokenEstimator, isTerminalEmbeddingTokenEstimateFailure } from '../../../tools/build/embeddings/token-estimation.js';
+import { createEmbeddingTokenEstimator, isTerminalEmbeddingTokenEstimateFailure } from '../../../src/shared/embedding-token-estimation.js';
 import { errorGraphSome } from '../../helpers/error-graph.js';
 import { createFileEmbeddingsProcessor } from '../../../tools/build/embeddings/pipeline.js';
 import { runBatched } from '../../../tools/build/embeddings/embed.js';

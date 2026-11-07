@@ -1,6 +1,6 @@
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
-import { isTerminalEmbeddingTokenEstimateFailure } from './token-estimation.js';
+import { isTerminalEmbeddingTokenEstimateFailure } from '../../../src/shared/embedding-token-estimation.js';
 import { isAbortError } from '../../../src/shared/abort.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';

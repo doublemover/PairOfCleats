@@ -2914,3 +2914,6 @@ embeddings/runner/metadata-probe-observation/path-presence
 embeddings/runner/metadata-probe-observation/artifact-variants
 embeddings/runner/metadata-probe-observation/generation-inventory-and-stat
 embeddings/runner/metadata-probe-observation/maintenance-size
+indexing/embeddings/formatted-token-estimator-observation/formatted-counts-and-release
+indexing/embeddings/formatted-token-estimator-observation/ordinary-fallback-and-cancellation
+indexing/embeddings/formatted-token-estimator-observation/original-native-and-nested-terminal

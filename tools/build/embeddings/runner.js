@@ -1,5 +1,5 @@
 import { resolveEmbeddingsBatchTokenBudget } from '../../../src/shared/embedding-batch.js';
-import { createEmbeddingTokenEstimator } from './token-estimation.js';
+import { createEmbeddingTokenEstimator } from '../../../src/shared/embedding-token-estimation.js';
 import { buildEmbeddingChunkInputHash, EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import { digestBundleMappingInventory, observeBundleCoverageFiles, checkBundleCoverageReceipt,
   createBundleCoverageReceipt } from './runner/bundle-coverage-receipt.js';

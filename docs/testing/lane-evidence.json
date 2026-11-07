@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T02:02:47.640Z",
+  "generatedAt": "2026-11-07T02:17:18.904Z",
   "summary": {
     "lanes": 5,
-    "tests": 3231,
+    "tests": 3234,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 434,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3157
+      "missingTests": 3160
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2911,
+      "totalTests": 2914,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2862
+        "missing": 2865
       }
     },
     {
@@ -290,9 +290,9 @@
     },
     {
       "key": "indexing/embeddings",
-      "count": 83,
+      "count": 86,
       "knownDurationMs": 60,
-      "unknownDurationCount": 82
+      "unknownDurationCount": 85
     },
     {
       "key": "storage/semantic",
@@ -2732,9 +2732,9 @@
     },
     {
       "key": "embeddings-cache",
-      "count": 83,
+      "count": 86,
       "knownDurationMs": 60,
-      "unknownDurationCount": 82,
+      "unknownDurationCount": 85,
       "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
     },
     {

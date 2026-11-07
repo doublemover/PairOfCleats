@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2746,
+    "hero": 2749,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17479,6 +17479,24 @@
     {
       "id": "embeddings/runner/metadata-probe-observation/maintenance-size",
       "order": 2911,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/formatted-token-estimator-observation/formatted-counts-and-release",
+      "order": 2912,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/formatted-token-estimator-observation/ordinary-fallback-and-cancellation",
+      "order": 2913,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/formatted-token-estimator-observation/original-native-and-nested-terminal",
+      "order": 2914,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

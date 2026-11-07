@@ -1,5 +1,5 @@
-import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
-import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { observeStorageResource } from './storage/failure-observation.js';
+import { addStorageFailureContext } from './storage/operation-error.js';
 
 const terminalFailures = new WeakSet();
 const terminal = error => { if (error !== null && ['object', 'function'].includes(typeof error)) terminalFailures.add(error); return error; };
@@ -54,7 +54,7 @@ export const createEmbeddingTokenEstimator = ({ estimate, receiver = null, fallb
       release = null;
       return counts;
     } catch (error) {
-      if (boundaryFailed || inspectionFailed) throw error;
+      if (boundaryFailed || inspectionFailed || isTerminalEmbeddingTokenEstimateFailure(error)) throw error;
       requireOriginal();
       const observation = observeStorageResource(error, { phase: 'embedding-token-estimation' }); requireSettled(observation);
       if (error instanceof AggregateError || read(error, 'name', observation) === 'AbortError' || read(error, 'code', observation) === 'ABORT_ERR') {

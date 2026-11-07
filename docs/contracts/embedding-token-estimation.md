@@ -1,6 +1,7 @@
 # Optional embedding token estimates
 
-The build runner's optional estimator uses `token-estimation.js`. Counts remain
+The build runner and formatted passage wrapper share
+`src/shared/embedding-token-estimation.js`. Counts remain
 planning hints, not a target-tokenizer guarantee for complete rendered context.
 Ordinary estimator failures still permit heuristic fallback. Native ownership,
 cancellation, aggregate failures and failed inspection do not become a missing
@@ -22,9 +23,17 @@ independent cleanup failure. Unknown work grants no new automatic cleanup or ret
 Five authored, locally unrun cases cover receiver identity, safe counts, negative
 and malformed hints, ordinary/falsy fallback, native pending errors/results,
 per-field observations, inspection failures and cleanup failure preservation.
-This repairs the outer lifecycle boundary under #1765. The broader #779 requirement
+The formatted passage wrapper preserves model prefixes and empty-input behavior;
+it no longer catches terminal adapter failures as ordinary heuristic fallback.
+Nested estimator wrappers preserve terminal identity even after an original
+observation subsequently settles. This repairs lifecycle boundaries under #1765. The broader #779 requirement
 to reserve bounded preparation windows before tokenizer work remains separate;
 post-allocation retention limits do not establish that admission.
+
+Three additional, locally unrun cases exercise the actual `createEmbedder`
+adapter boundary: formatted counts and original release receiver, ordinary
+fallback versus cancellation, and original native failure through nested
+estimators after late settlement.
 
 Adjacent runner probes retain original failure observations before treating a
 path/artifact/generation as missing, omitting maintenance size, reporting a bundle

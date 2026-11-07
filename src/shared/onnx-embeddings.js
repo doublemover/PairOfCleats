@@ -18,7 +18,6 @@ import {
 import {
   LARGE_MODEL_BYTES,
   ONNX_TOKENIZATION_CACHE_DEFAULT_MAX_ENTRIES,
-  normalizeEmbeddingProvider,
   normalizeOnnxConfig,
   resolveOnnxModelPath,
   resolvePrewarmList,
