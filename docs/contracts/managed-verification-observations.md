@@ -48,3 +48,12 @@ The download control uses the real response-session owner with a deliberately
 blocked response cancel and a failed transaction-journal rename. Recovery retains
 the original session across error composition and awaits its actual closure.
 Actual vendor packages and native lifetime qualification remain separate.
+
+Recovery receipt validation uses the same field-by-field observation owner,
+separate from the outstanding work it may explicitly reconcile. Original receipt
+and inspection prerequisites are retained across recovery attempts. A later
+literal cannot replace them, and no resource lease releases until they settle.
+Five authored, locally unrun finite controls exercise the actual retained
+verification owner, including early and mid-field pending observations, field
+and shape inspection work, invalid identities and the original closed positive.
+Install, descriptor-close reconciliation and removal reuse this receipt guard.

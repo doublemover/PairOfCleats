@@ -25,16 +25,19 @@ export const createManagedVerificationObservation = () => {
     catch (error) { remember(error); throw error; }
     check(); return result;
   };
-  const settlement = (value, resourceId) => {
-    const receipt = read(value, 'settlement'); remember(receipt); check();
-    const shape = receipt && typeof receipt === 'object' && !Array.isArray(receipt)
-      && Object.keys(receipt).sort().join(',') === 'pending,resourceId,settled';
+  const exactReceipt = (receipt, resourceId) => {
+    remember(receipt); check();
+    let shape;
+    try { shape = receipt && typeof receipt === 'object' && !Array.isArray(receipt)
+      && Object.keys(receipt).sort().join(',') === 'pending,resourceId,settled'; }
+    catch (error) { remember(error); throw error; }
     check();
     if (!shape) return false;
     const captured = { resourceId: read(receipt, 'resourceId'), settled: read(receipt, 'settled'), pending: read(receipt, 'pending') };
     check(); return captured.resourceId === resourceId && captured.settled === true && captured.pending === false;
   };
-  return Object.freeze({ remember, check, read, settlement, isSettled: ledger.isSettled,
+  const settlement = (value, resourceId) => exactReceipt(read(value, 'settlement'), resourceId);
+  return Object.freeze({ remember, check, read, settlement, exactReceipt, isSettled: ledger.isSettled,
     rememberComposition(value) { ownFailures.add(value); ledger.remember(value); return value; },
     hasObservedResources() { const snapshot = ledger.snapshot(); return snapshot.observerCount > 0 || snapshot.contextCount > 0 || !snapshot.complete; } });
 };

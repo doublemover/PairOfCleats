@@ -3079,3 +3079,8 @@ tooling/install/managed-install-phase-observation/pending-progress-is-not-reente
 tooling/install/managed-install-phase-observation/late-nested-verification-retains-stage
 tooling/install/managed-install-phase-observation/function-original-observation
 tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure
+tooling/install/managed-recovery-receipt-observation/original-before-fields
+tooling/install/managed-recovery-receipt-observation/between-fields
+tooling/install/managed-recovery-receipt-observation/field-inspection
+tooling/install/managed-recovery-receipt-observation/shape-inspection
+tooling/install/managed-recovery-receipt-observation/closed-positive-and-invalid

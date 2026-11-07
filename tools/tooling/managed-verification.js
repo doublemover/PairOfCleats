@@ -19,9 +19,6 @@ const observePending = error => {
     return () => { try { return typeof original === 'function' && original.call(error) === true; } catch { return false; } };
   } catch { return () => false; }
 };
-const exactSettlement = (receipt, resourceId) => receipt && typeof receipt === 'object' && !Array.isArray(receipt)
-  && Object.keys(receipt).sort().join(',') === 'pending,resourceId,settled' && receipt.resourceId === resourceId
-  && receipt.settled === true && receipt.pending === false;
 const withPendingContext = (primary, descriptors, secondary = null) => {
   const additional = secondary && secondary !== primary ? secondary : null;
   try {
@@ -130,6 +127,7 @@ export const verifyOwnedInstallation = async (verify, input, resourceId) => {
 export const verifyRetainedManagedInstallation = async (held, verify, input, resourceId) => {
   let released = false, resourceSettled = false, firstFailure = null, observerOverflow = false;
   const storageRecoveries = new Set();
+  const recoveryObservation = createManagedVerificationObservation();
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
   const observeFailure = error => {
     if (!objectLike(error) || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
@@ -142,10 +140,11 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
       else observerOverflow = true;
     }
   };
-  const settled = () => !observerOverflow && resourceSettled && [...storageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
+  const settled = () => !observerOverflow && resourceSettled && recoveryObservation.isSettled()
+    && [...storageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
   const release = receipt => {
     if (receipt !== undefined) {
-      if (!exactSettlement(receipt, resourceId)) throw new Error('Managed verification remains pending.');
+      if (!recoveryObservation.exactReceipt(receipt, resourceId)) throw new Error('Managed verification remains pending.');
       resourceSettled = true;
     }
     if (!settled()) throw new Error('Managed verification remains pending.');
@@ -162,7 +161,7 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
   };
   const session = Object.freeze({ resourceId, releaseAfterSettlement: receipt => {
     try {
-      if (!exactSettlement(receipt, resourceId)) throw new Error('Managed verification remains pending.');
+      if (!recoveryObservation.exactReceipt(receipt, resourceId)) throw new Error('Managed verification remains pending.');
       for (const storage of storageRecoveries) storage.releaseAfterClosure();
       return release(receipt);
     }

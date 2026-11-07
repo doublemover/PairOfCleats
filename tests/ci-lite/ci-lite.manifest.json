@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2911,
+    "hero": 2916,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18469,6 +18469,36 @@
     {
       "id": "tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure",
       "order": 3076,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-recovery-receipt-observation/original-before-fields",
+      "order": 3077,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-recovery-receipt-observation/between-fields",
+      "order": 3078,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-recovery-receipt-observation/field-inspection",
+      "order": 3079,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-recovery-receipt-observation/shape-inspection",
+      "order": 3080,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-recovery-receipt-observation/closed-positive-and-invalid",
+      "order": 3081,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

@@ -45,9 +45,6 @@ const acquireManagedStorage = (toolingRoot, roots, scope, resourceId) => {
     authorizedRoots: [layout.descriptors.tooling.path, layout.descriptors.state.path],
     coordinationRoot: path.join(layout.descriptors.state.path, 'storage-access') });
 };
-const exactResourceReceipt = (receipt, resourceId) => receipt && typeof receipt === 'object' && !Array.isArray(receipt)
-  && Object.keys(receipt).sort().join(',') === 'pending,resourceId,settled' && receipt.resourceId === resourceId
-  && receipt.settled === true && receipt.pending === false;
 const safeId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9.-]{0,100}$/.test(value);
 const relativePath = value => typeof value === 'string' && value.length <= 4096 && value.split('/').every(part => part && part !== '.' && part !== '..'
   && !/[\\:\x00-\x1f]/.test(part)) && !path.posix.isAbsolute(value);
@@ -237,6 +234,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   const downloadWitnesses = new Map();
   const childStorageRecoveries = new Set();
   const resourceObservation = createManagedVerificationObservation();
+  const recoveryObservation = createManagedVerificationObservation();
   const observeFailure = error => {
     if (!objectLike(error) || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
@@ -264,7 +262,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     }
     if (captured.owned || captured.observe && !captured.observe()) resourcePending = true;
   };
-  const resourcesSettled = () => !observerOverflow && !resourcePending && resourceObservation.isSettled()
+  const resourcesSettled = () => !observerOverflow && !resourcePending && resourceObservation.isSettled() && recoveryObservation.isSettled()
     && [...childStorageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
   const requireResourcesSettled = () => {
     if (!resourcesSettled()) throw new Error('Managed install child/resource settlement is still pending.', { cause: verificationResult ?? primaryError });
@@ -320,12 +318,12 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     return true;
   };
   const recovery = Object.freeze({ resourceId: transactionId, stage, journal, releaseAfterSettlement: async receipt => {
-    if (!exactResourceReceipt(receipt, transactionId)) throw new Error('Managed install child settlement is still pending.');
+    if (!recoveryObservation.exactReceipt(receipt, transactionId)) throw new Error('Managed install child settlement is still pending.');
     if (!reconciling) reconciling = (async () => {
       for (const witness of downloadWitnesses.values()) await settleInstallDownload(witness);
       for (const session of [...archiveSessions, ...transferSessions, ...directorySessions]) {
         const closed = await session.releaseAfterClose();
-        if (!exactResourceReceipt(closed, session.resourceId) || !session.isSettled()) {
+        if (!recoveryObservation.exactReceipt(closed, session.resourceId) || !session.isSettled()) {
           throw new Error('Actual managed install descriptor owner did not confirm exact closure.');
         }
       }
@@ -552,7 +550,9 @@ export const removePinnedManagedTool = async (approved, { signal = null } = {}) 
   const resourceId = randomUUID();
   const categorySession = acquireManagedStorage(approved.toolingRoot, [approved.toolingRoot], 'managed-tool-removal-resource', resourceId);
   let primaryError = null, released = false, observe = null;
+  const recoveryObservation = createManagedVerificationObservation();
   const release = () => {
+    recoveryObservation.check();
     if (observe && !observe()) throw new Error('Actual managed removal resource remains pending.');
     if (released) return true;
     if (categorySession.releaseAfterSettlement({ resourceId, settled: true, pending: false }) !== true) {
@@ -562,9 +562,9 @@ export const removePinnedManagedTool = async (approved, { signal = null } = {}) 
     return true;
   };
   const retainFailure = (primary, cleanupError = null) => retainManagedResourceFailure(primary, { session: recovery,
-    field: 'managedRemovalSession', released: () => released && (!observe || observe()), cleanupError });
+    field: 'managedRemovalSession', released: () => released && recoveryObservation.isSettled() && (!observe || observe()), cleanupError });
   const recovery = Object.freeze({ resourceId, releaseAfterSettlement: receipt => {
-    if (!exactResourceReceipt(receipt, resourceId)) throw new Error('Managed removal requires its exact resource receipt and explicit pending:false.');
+    if (!recoveryObservation.exactReceipt(receipt, resourceId)) throw new Error('Managed removal requires its exact resource receipt and explicit pending:false.');
     try { return release(); }
     catch (cleanupError) { throw retainFailure(primaryError || cleanupError, cleanupError); }
   } });
