@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T10:15:44.596Z",
+  "generatedAt": "2026-11-07T10:51:55.078Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3822,6 +3822,7 @@
         "tests/tooling/install/managed-dotnet-sdk-verification.test.js",
         "tests/tooling/install/managed-explicit-repair-ownership.test.js",
         "tests/tooling/install/managed-hook-failure-values.test.js",
+        "tests/tooling/install/managed-install-input-ownership.test.js",
         "tests/tooling/install/managed-install-phase-observation.test.js",
         "tests/tooling/install/managed-install-publication-lifetime.test.js",
         "tests/tooling/install/managed-operational-probe-storage.test.js",
@@ -5020,6 +5021,7 @@
         "tests/tooling/install/go-sdk-probe-original-observation.test.js",
         "tests/tooling/install/go-sdk-publication-observation.test.js",
         "tests/tooling/install/managed-csharp-package.test.js",
+        "tests/tooling/install/managed-install-input-ownership.test.js",
         "tests/tooling/install/managed-install-phase-observation.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-recovery-receipt-observation.test.js",

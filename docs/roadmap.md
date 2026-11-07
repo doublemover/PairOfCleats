@@ -77,8 +77,8 @@ an explicit source/profile route and bounded pull diagnostics; runtime checks aw
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
 current-source acceptance. [Compiler selection](contracts/typescript-compiler-selection.md)
 retains original failures instead of substituting ambient compilers (producer31).
-The intake above owns remaining scope; current schemas
-and producer constants own format identities.
+[Installer inputs](contracts/managed-install-input-ownership.md) seal intent and
+archive bytes before I/O; runtime checks remain pending.
 
 ### Execution order
 

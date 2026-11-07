@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteChunks } from '../../src/shared/io/atomic-write.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../src/shared/locks/file-lock.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
@@ -11,7 +11,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
-import { downloadToBuffer, settleInstallDownload, isInstallDownloadSession } from './install-shared.js';
+import { downloadToBuffer, settleInstallDownload, isInstallDownloadSession, copyPinnedArchiveBytes } from './install-shared.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
@@ -21,11 +21,13 @@ import { getStorageDirectorySession, withStorageDirectory } from '../../src/shar
 import { verifyOwnedInstallation, verifyRetainedManagedInstallation, captureManagedVerificationFailure,
   getManagedVerificationStorageRecovery, retainManagedResourceFailure } from './managed-verification.js';
 import { createManagedVerificationObservation } from './managed-verification-observation.js';
+import { snapshotPlainData } from '../../src/shared/plain-data-snapshot.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
 const DEFAULT_LIMITS = Object.freeze({ maxBytes: 1024 * 1024 * 1024, maxEntryBytes: 128 * 1024 * 1024, maxEntries: 50000 });
+const capturedDescriptors = new WeakSet();
 const hash = value => createHash('sha256').update(value).digest('hex');
 const identity = value => hash(stableStringify(value));
 const objectLike = value => value !== null && ['object', 'function'].includes(typeof value);
@@ -55,6 +57,14 @@ const boundedJson = async file => {
 
 /** Canonical profiles supply exact source authority; no latest/version discovery here. */
 export const validatePinnedInstallDescriptor = (descriptor, { approvedOrigins = [], platform = process.platform, arch = process.arch } = {}) => {
+  if (!capturedDescriptors.has(descriptor)) {
+    descriptor = snapshotPlainData(descriptor, { maxBytes: 1024 * 1024, maxItems: DEFAULT_LIMITS.maxEntries,
+      code: 'ERR_MANAGED_INSTALL_DESCRIPTOR', label: 'Managed install descriptor', freeze: true, nullPrototype: false });
+    if (descriptor && typeof descriptor === 'object') capturedDescriptors.add(descriptor);
+  }
+  approvedOrigins = snapshotPlainData(approvedOrigins, { maxBytes: 65536, maxNodes: 256, maxDepth: 1, maxItems: 128,
+    code: 'ERR_MANAGED_INSTALL_DESCRIPTOR', label: 'Managed install origins', freeze: true });
+  if (!Array.isArray(approvedOrigins) || approvedOrigins.some(origin => typeof origin !== 'string')) throw new TypeError('Managed install requires bounded explicit origin strings.');
   if (!isKnownManagedInstallationDescriptor(descriptor) || !safeId(descriptor.toolId)
     || !safeId(descriptor.recipeId) || !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]{0,100}$/.test(descriptor.version || '')
     || /(?:latest|nightly|next)/i.test(descriptor.version)) throw new Error('Managed install needs a versioned canonical tool/profile/recipe descriptor.');
@@ -68,7 +78,7 @@ export const validatePinnedInstallDescriptor = (descriptor, { approvedOrigins = 
     || !Array.isArray(descriptor.requiredFiles) || !descriptor.requiredFiles.length
     || descriptor.requiredFiles.some(file => !relativePath(file)) || !descriptor.requiredFiles.includes(descriptor.command)) throw new Error('Managed recipe requires a contained command and complete declared layout checks.');
   if (!Array.isArray(descriptor.args || []) || (descriptor.args || []).some(argument => typeof argument !== 'string')) throw new Error('Managed consumer arguments must be a string argv.');
-  return { ...descriptor, descriptorId: identity(descriptor), approvedOrigins: [...approvedOrigins] };
+  return Object.freeze({ ...descriptor, descriptorId: identity(descriptor), approvedOrigins });
 };
 
 const resolveOwner = async (toolingRoot, toolId, { create = false } = {}) => {
@@ -226,6 +236,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   let pending = false;
   let released = false;
   let primaryError = null;
+  let acquisitionResult = null;
   let verificationResult = null;
   let verificationLease = null;
   let resourcePending = false, reconciling = null, observerOverflow = false;
@@ -265,7 +276,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   const resourcesSettled = () => !observerOverflow && !resourcePending && resourceObservation.isSettled() && recoveryObservation.isSettled()
     && [...childStorageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
   const requireResourcesSettled = () => {
-    if (!resourcesSettled()) throw new Error('Managed install child/resource settlement is still pending.', { cause: verificationResult ?? primaryError });
+    if (!resourcesSettled()) throw new Error('Managed install child/resource settlement is still pending.', { cause: verificationResult ?? acquisitionResult ?? primaryError });
   };
   const appendFailureContext = (field, failure) => {
     observeFailure(failure);
@@ -341,10 +352,18 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     }
   } });
   const checkpoint = async (extra, { emitProgress = true } = {}) => {
+    if (emitProgress) requireResourcesSettled();
     await atomicWriteJson(journal, { schemaVersion: MANAGED_INSTALL_VERSION, application: 'pairofcleats',
       toolId: pinned.toolId, descriptorId: pinned.descriptorId, transactionId, state, previousPreserved: true,
       ...extra }, { mkdir: true });
-    if (emitProgress) await onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
+    if (emitProgress) {
+      requireResourcesSettled();
+      const progressed = await onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
+      observeFailure(progressed);
+      if (!resourcesSettled()) throw new Error('Managed install progress result settlement is still pending.', {
+        cause: objectLike(progressed) ? progressed : verificationResult ?? acquisitionResult ?? primaryError
+      });
+    }
   };
   try {
     lock = await acquireFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 0, signal,
@@ -378,30 +397,41 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     await checkpoint({ expectedBytes: pinned.archive.bytes });
     const fetched = await download({ url: pinned.archive.url, label: pinned.toolId + ' pinned archive',
       timeoutMs: 120000, maxBytes: pinned.archive.bytes, redirect: 'error', signal });
+    acquisitionResult = fetched; observeFailure(fetched); requireResourcesSettled();
+    const readFetched = field => { requireResourcesSettled(); const value = resourceObservation.read(fetched, field); requireResourcesSettled(); return value; };
+    const sourceUrl = readFetched('sourceUrl'), borrowedBody = readFetched('body');
     signal?.throwIfAborted();
     const digestAlgorithm = Object.hasOwn(pinned.archive, 'sha512') ? 'sha512' : 'sha256';
-    if (fetched.sourceUrl !== pinned.archive.url || fetched.body.length !== pinned.archive.bytes
-      || createHash(digestAlgorithm).update(fetched.body).digest('hex') !== pinned.archive[digestAlgorithm]) throw new Error('Pinned tool archive source/size/immutable digest mismatch.');
+    const archiveBody = sourceUrl === pinned.archive.url ? copyPinnedArchiveBytes(borrowedBody, pinned.archive.bytes) : null;
+    requireResourcesSettled();
+    if (!archiveBody || createHash(digestAlgorithm).update(archiveBody).digest('hex') !== pinned.archive[digestAlgorithm]) throw new Error('Pinned tool archive source/size/immutable digest mismatch.', { cause: fetched });
     const archive = path.join(stage, 'archive.' + pinned.archive.type);
-    await fs.writeFile(archive, fetched.body, { flag: 'wx' });
+    await atomicWriteChunks(archive, [archiveBody], { mkdir: false, createOnly: true, signal, beforeCommit: requireResourcesSettled });
+    requireResourcesSettled();
     const extracted = path.join(stage, 'extracted');
     state = 'extracting';
-    await checkpoint({ downloadedBytes: fetched.body.length });
+    await checkpoint({ downloadedBytes: archiveBody.length });
+    requireResourcesSettled();
     await extract(archive, extracted, pinned.archive.type, DEFAULT_LIMITS);
+    requireResourcesSettled();
     signal?.throwIfAborted();
     const packageRoot = pinned.root ? path.join(extracted, pinned.root) : extracted;
     assertNoSymlinkPath(stage, packageRoot);
     for (const relative of pinned.requiredFiles) {
+      requireResourcesSettled();
       const file = path.join(packageRoot, relative);
       assertNoSymlinkPath(packageRoot, file);
       const stat = await fs.lstat(file);
+      requireResourcesSettled();
       if (!stat.isFile() || !stat.size) throw new Error('Pinned tool layout is missing required file: ' + relative);
     }
     if (process.platform !== 'win32') for (const relative of pinned.executables || [pinned.command]) {
+      requireResourcesSettled();
       if (!relativePath(relative)) throw new Error('Unsafe executable mode path.');
       await fs.chmod(path.join(packageRoot, relative), 0o755);
+      requireResourcesSettled();
     }
-    const files = await captureFiles(packageRoot, DEFAULT_LIMITS, { signal });
+    const files = await captureFiles(packageRoot, DEFAULT_LIMITS, { signal, check: requireResourcesSettled });
     state = 'verifying';
     await checkpoint({ files: files.length });
     admitVerification('managed-new-generation-verifier');
@@ -446,7 +476,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     await checkpoint({ root: destination });
     return { ok: true, state, root: destination, command: path.join(destination, pinned.command),
       args: pinned.args || [], descriptorId: pinned.descriptorId, installId, receipt, reused: false,
-      downloadedBytes: fetched.body.length, verification, previousPreserved: true };
+      downloadedBytes: archiveBody.length, verification, previousPreserved: true };
   } catch (value) {
     const error = asManagedError(value);
     primaryError = error;
@@ -486,6 +516,9 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
 export const installPinnedManagedTool = async options => {
   options.signal?.throwIfAborted();
   const pinned = validatePinnedInstallDescriptor(options.descriptor, { approvedOrigins: options.approvedOrigins });
+  const { descriptorId, approvedOrigins, ...descriptor } = pinned; void descriptorId;
+  Object.freeze(descriptor); capturedDescriptors.add(descriptor);
+  options = { ...options, descriptor, approvedOrigins };
   const selected = await inspectManagedInstallation({ toolingRoot: options.toolingRoot, toolId: pinned.toolId, descriptorId: pinned.descriptorId, signal: options.signal });
   if (selected.ok && !options.repair) return installPinnedManagedToolOwned(options);
   const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,

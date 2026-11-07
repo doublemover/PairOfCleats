@@ -3107,3 +3107,10 @@ tooling/install/download-original-classification/function-before-classification
 tooling/install/download-original-classification/independent-inspection-stops-fields
 tooling/install/download-original-classification/closed-positive-and-negative
 tooling/install/download-original-classification/callback-inspection-remains-required
+tooling/install/managed-install-input-ownership/descriptor-during-download
+tooling/install/managed-install-input-ownership/descriptor-during-selection
+tooling/install/managed-install-input-ownership/mutated-source-refusal
+tooling/install/managed-install-input-ownership/borrowed-buffer-before-write
+tooling/install/managed-install-input-ownership/passive-contract
+tooling/install/managed-install-input-ownership/pending-acquisition-before-fields
+tooling/install/managed-install-input-ownership/pending-progress-before-acquisition

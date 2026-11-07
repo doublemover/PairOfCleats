@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2938,
+    "hero": 2945,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18637,6 +18637,48 @@
     {
       "id": "tooling/install/download-original-classification/callback-inspection-remains-required",
       "order": 3104,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/descriptor-during-download",
+      "order": 3105,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/descriptor-during-selection",
+      "order": 3106,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/mutated-source-refusal",
+      "order": 3107,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/borrowed-buffer-before-write",
+      "order": 3108,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/passive-contract",
+      "order": 3109,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/pending-acquisition-before-fields",
+      "order": 3110,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-input-ownership/pending-progress-before-acquisition",
+      "order": 3111,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

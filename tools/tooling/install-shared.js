@@ -5,8 +5,20 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 
 const downloadSessions = new WeakSet();
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
+const byteLengthOf = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'byteLength').get;
+const byteOffsetOf = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'byteOffset').get;
+const bufferOf = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'buffer').get;
 export const isInstallDownloadSession = session => Boolean(session) && downloadSessions.has(session);
 const asDownloadError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
+
+/** Copy only an exact bounded Buffer view. Intrinsic accessors avoid caller
+ * length/offset decorations; owned bytes cannot change during a later write. */
+export const copyPinnedArchiveBytes = (value, expectedBytes) => {
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) throw new TypeError('Pinned archive copy requires an exact positive byte bound.');
+  if (!Buffer.isBuffer(value) || byteLengthOf.call(value) !== expectedBytes) return null;
+  return Buffer.from(new Uint8Array(bufferOf.call(value), byteOffsetOf.call(value), expectedBytes));
+};
 
 export const toInt = (value, fallback, min = 0) => {
   const parsed = Number(value);
