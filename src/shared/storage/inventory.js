@@ -30,10 +30,12 @@ const exactSum = values => {
   return sum <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(sum) : null;
 };
 
-export const inspectStorageOwnership = async root => {
+export const inspectStorageOwnership = async (root, { check = () => {}, signal = null } = {}) => {
+  check();
   const marker = path.join(root, CACHE_OWNER_FILE);
   try {
-    const { buffer } = await readVerifiedContainedFile(path.parse(root).root, marker, { maxBytes: 64 * 1024 });
+    const { buffer } = await readVerifiedContainedFile(path.parse(root).root, marker, { maxBytes: 64 * 1024, signal });
+    check();
     const record = JSON.parse(buffer.toString('utf8'));
     if (record?.owner !== 'pairofcleats' || record.layoutVersion !== 1) {
       return { status: 'incompatible', marker, record: null, deletionAuthority: false };
@@ -41,6 +43,7 @@ export const inspectStorageOwnership = async root => {
     return { status: 'marked', marker, record, deletionAuthority: false };
   } catch (error) {
     const diagnostic = failure(marker, error);
+    check();
     return { status: diagnostic.code === 'ENOENT' ? 'unmarked' : 'unreadable', marker,
       error: diagnostic, deletionAuthority: false };
   }

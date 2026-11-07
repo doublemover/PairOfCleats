@@ -8,11 +8,12 @@ import { readStorageProbePolicy } from './probe-policy-read.js';
 import { inspectStorageRootFailure } from './root-availability.js';
 import { describeStorageFailure } from './failure-observation.js';
 import { reviewStorageLifecycle } from './lifecycle-review.js';
+import { createStorageInspectionAdmission } from './inspection-admission.js';
 export { planStorageConfiguration, applyStorageConfiguration } from './configuration.js';
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
-export const inspectStorageLayout = async (layout, { exact = false, extraRoots = [], maxEntries = 100000,
-  maxDurationMs = 10000, signal = null, category = null } = {}) => {
+const inspectLayout = async (layout, { exact = false, extraRoots = [], maxEntries = 100000,
+  maxDurationMs = 10000, signal = null, category = null } = {}, originalAdmission = null) => {
   if (!Array.isArray(extraRoots) || !Number.isSafeInteger(maxEntries) || maxEntries < 1
     || !Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1) throw new TypeError('Invalid bounded storage inspection.');
   if (category !== null && !Object.hasOwn(layout.descriptors, category)) throw new TypeError('Unknown logical storage category filter.');
@@ -23,38 +24,52 @@ export const inspectStorageLayout = async (layout, { exact = false, extraRoots =
     return { ...inventory, lifecycle: reviewStorageLifecycle({ layout, inventory }) };
   }
   if (roots.length > 1024) throw new TypeError('Storage inspection requires at most 1024 registered roots.');
+  const admission = originalAdmission ?? createStorageInspectionAdmission(maxDurationMs, signal);
+  const checks = { check: admission.check, signal, stop: admission.stop };
   const items = [];
-  const started = Date.now();
   let visitedEntries = 0;
-  let stopReason = null;
   for (const root of roots) {
-    if (signal?.aborted) stopReason = 'cancelled';
-    else if (visitedEntries >= maxEntries) stopReason ||= 'entry-budget';
-    else if (Date.now() - started >= maxDurationMs) stopReason ||= 'time-budget';
-    if (stopReason) {
-      items.push({ id: root.id, category: root.category, path: root.path, registered: true,
-        status: 'unscanned', reason: stopReason, logicalBytes: null, allocatedBytes: null, complete: false });
-      continue;
-    }
-    visitedEntries++;
+    const unscanned = () => ({ id: root.id, category: root.category, path: root.path, registered: true,
+      status: 'unscanned', reason: admission.reason, logicalBytes: null, allocatedBytes: null, complete: false });
     try {
+      admission.check();
+      if (visitedEntries >= maxEntries) admission.stopFor('entry-budget');
+      visitedEntries++;
       assertNoSymlinkPath(path.parse(root.path).root, root.path);
+      admission.check();
       const stat = await fs.lstat(root.path, { bigint: true });
+      admission.check();
+      const physicalPath = await fs.realpath(root.path);
+      admission.check();
+      const ownership = stat.isDirectory() ? await inspectStorageOwnership(root.path, checks) : null;
+      admission.check();
       items.push({ id: root.id, category: root.category, path: root.path, registered: true,
         status: stat.isDirectory() ? 'present-unscanned' : 'unexpected-file',
-        physicalPath: await fs.realpath(root.path), ownership: stat.isDirectory() ? await inspectStorageOwnership(root.path) : null,
+        physicalPath, ownership,
         retention: root.retention || 'unknown', logicalBytes: null, allocatedBytes: null, complete: false });
-    } catch (error) { items.push({ id: root.id, category: root.category, path: root.path, registered: true,
-      ...await inspectStorageRootFailure(root.path, error), logicalBytes: null, allocatedBytes: null,
-      complete: false, error: describeStorageFailure(error, { phase: 'storage-layout-inspection',
-        defaultCode: 'ERR_STORAGE_INSPECTION' }) }); }
+    } catch (error) {
+      if (admission.isStop(error)) { items.push(unscanned()); continue; }
+      // Retain pending original resources before a stopped admission can turn
+      // an ordinary root failure into an unscanned observation.
+      const failure = describeStorageFailure(error, { phase: 'storage-layout-inspection', defaultCode: 'ERR_STORAGE_INSPECTION' });
+      try {
+        const availability = await inspectStorageRootFailure(root.path, error, checks);
+        admission.check();
+        items.push({ id: root.id, category: root.category, path: root.path, registered: true,
+          ...availability, logicalBytes: null, allocatedBytes: null, complete: false, error: failure });
+      } catch (inspection) {
+        if (!admission.isStop(inspection)) throw inspection;
+        items.push(unscanned());
+      }
+    }
   }
   const inventory = { schemaVersion: 1, scanMode: 'registered-roots-metadata-only', timestamp: new Date().toISOString(),
-    complete: false, cancelled: Boolean(signal?.aborted), items, stopReason, visitedEntries,
+    complete: false, cancelled: admission.reason === 'cancelled', items, stopReason: admission.reason, visitedEntries,
     limits: { maxEntries, maxDurationMs },
     accounting: 'registered-locations-are-not-measured-disk-usage' };
   return { ...inventory, lifecycle: reviewStorageLifecycle({ layout, inventory }) };
 };
+export const inspectStorageLayout = (layout, options = {}) => inspectLayout(layout, options);
 
 export const explainStorageLayout = layout => ({ schemaVersion: 1, layout,
   commandProbePolicy: readStorageProbePolicy(layout.home.path),
@@ -63,16 +78,18 @@ export const explainStorageLayout = layout => ({ schemaVersion: 1, layout,
   externalExceptions: STORAGE_CLASS_CATALOG.filter(entry => entry.category === null) });
 
 export const diagnoseStorageLayout = async (layout, options = {}) => {
-  const started = Date.now();
   const maxDurationMs = options.maxDurationMs ?? 10000;
   const maxEntries = options.maxEntries ?? 100000;
   if (!Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1 || !Number.isSafeInteger(maxEntries) || maxEntries < 1) {
     throw new TypeError('Storage diagnosis requires positive bounded limits.');
   }
-  const inventory = await inspectStorageLayout(layout, { ...options, exact: false });
+  const admission = createStorageInspectionAdmission(maxDurationMs, options.signal);
+  const inventory = await inspectLayout(layout, { ...options, exact: false }, admission);
   const findings = [...layout.diagnostics];
-  const commandProbePolicy = readStorageProbePolicy(layout.home.path);
-  if (commandProbePolicy.status === 'invalid') findings.push({ category: 'command-probes', code: 'invalid-machine-storage-policy',
+  let commandProbePolicy = null;
+  try { admission.check(); commandProbePolicy = readStorageProbePolicy(layout.home.path, { check: admission.check }); admission.check(); }
+  catch (error) { if (!admission.isStop(error)) throw error; }
+  if (commandProbePolicy?.status === 'invalid') findings.push({ category: 'command-probes', code: 'invalid-machine-storage-policy',
     path: commandProbePolicy.target, error: commandProbePolicy.error, operations: 'cache-use-bypassed; existing-bytes-preserved' });
   for (const item of inventory.items) {
     if (['inaccessible', 'unavailable-or-offline'].includes(item.status)) findings.push({ category: item.category,
@@ -107,10 +124,14 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
   const leaseInventory = [];
   let leaseStopReason = null;
   for (const root of roots.values()) {
-    if (options.signal?.aborted) { leaseStopReason = 'cancelled'; break; }
-    if (Date.now() - started >= maxDurationMs) { leaseStopReason = 'time-budget'; break; }
-    if (leaseInventory.length >= Math.min(1024, maxEntries)) { leaseStopReason = 'registered-root-budget'; break; }
-    const leases = await inspectStorageAccess(root.path, root.coordinationRoot ? { coordinationRoot: root.coordinationRoot } : {});
+    let leases;
+    try {
+      admission.check();
+      if (leaseInventory.length >= Math.min(1024, maxEntries)) admission.stopFor('registered-root-budget');
+      leases = await inspectStorageAccess(root.path, { ...(root.coordinationRoot ? { coordinationRoot: root.coordinationRoot } : {}),
+        check: admission.check, signal: options.signal });
+      admission.check();
+    } catch (error) { if (!admission.isStop(error)) throw error; leaseStopReason = admission.reason; break; }
     leaseInventory.push({ ...root, categories: [...root.categories], registeredIds: [...root.registeredIds], ...leases });
     if (leases.protected) findings.push({ category: [...root.categories].join(','), code: 'active-or-unknown-storage-owner',
       path: root.path, coordinationRoot: root.coordinationRoot, owners: leases.owners });
@@ -119,7 +140,7 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
     remainingRegisteredRoots: roots.size - leaseInventory.length, operations: 'uninspected-owners-remain-unknown' });
   return { schemaVersion: 1, timestamp: new Date().toISOString(), findings,
     inventory: { ...inventory, lifecycle: reviewStorageLifecycle({ layout, inventory, leaseInventory }) },
-    commandProbePolicy, leaseInventory, leaseStopReason,
+    commandProbePolicy, commandProbePolicyInspected: commandProbePolicy !== null, leaseInventory, leaseStopReason,
     leaseInspectionComplete: !leaseStopReason && leaseInventory.every(item => item.complete),
     leaseCoverage: 'existing-repo-access-protocol-only',
     leaseLimitation: 'Exact registered roots only; each existing owner scan has its own entry bound. Unadopted and CAS-specific protocols are not inferred.',

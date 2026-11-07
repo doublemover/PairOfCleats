@@ -35,3 +35,28 @@ between real unlinks, original reader close after cancellation, strict old-plan
 rejection and ordinary positive deletion. Fixture removal verifies its physical
 root and unique disposable marker. Existing lease, authority, replacement,
 resource-observation and saved-evidence negatives remain unchanged.
+# Diagnostic phase admission
+
+Metadata-only inspection and `storage doctor` share one original admission
+across root stats, physical-path resolution, ownership-marker reads, missing-root
+volume fallback, policy locator/selection reads and original lease enumeration.
+Pre-cancellation admits no filesystem work. Expiry stops the next phase rather
+than starting another independently timed inventory. Already admitted verified
+reads and directory iterators still close through their original owners.
+
+A stopped metadata root remains `unscanned` with unknown byte counts. If policy
+inspection was not admitted/completed, diagnosis returns `commandProbePolicy:
+null` and `commandProbePolicyInspected: false`; this is neither a missing policy
+nor a valid default selection. Uninspected leases and references remain protected.
+The exact inventory scanner retains its existing separate bounded scan contract.
+
+Cleanup and diagnosis reuse the same private stop owner. A cleanup failure can
+decorate that exact stop error with an original pending-resource observation.
+Stop identity therefore precedes an original settlement check, not an automatic
+timeout classification. A refused native close remains a retained failure;
+only actual settlement permits reporting the operation as stopped. No category
+deletion authority, forced lease release or resource-closure retry is introduced.
+
+Eight additional cases are authored and locally unrun. They cover pre-cancelled
+diagnosis, each root/policy/lease admission boundary, unknown volume absence,
+original directory close and explicit owner recovery after a refused native close.

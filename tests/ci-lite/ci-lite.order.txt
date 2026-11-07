@@ -2990,3 +2990,11 @@ tooling/eval/source-revision-oracle/strict-source-preconditions
 tooling/eval/source-revision-oracle/unknown-reference-bound
 tooling/eval/source-revision-oracle/original-execution-retirement
 tooling/eval/source-revision-oracle/cancellation-and-closed-contracts
+shared/storage/inspection-phase-admission/pre-cancelled-diagnosis
+shared/storage/inspection-phase-admission/deadline-after-root-stat
+shared/storage/inspection-phase-admission/deadline-after-realpath
+shared/storage/inspection-phase-admission/deadline-before-volume-fallback
+shared/storage/inspection-phase-admission/deadline-between-policy-files
+shared/storage/inspection-phase-admission/deadline-in-original-lease-reader
+shared/storage/inspection-phase-admission/pending-original-close-over-stop
+shared/storage/inspection-phase-admission/exact-stop-observation

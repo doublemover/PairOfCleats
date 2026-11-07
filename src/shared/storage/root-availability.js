@@ -33,16 +33,20 @@ const classifyObservedFailure = ({ code, observation }, volume) => {
  * reporting an observed missing path as zero bytes. This is an observation,
  * never mount continuity, ownership, writable-space or deletion authority.
  */
-export const observeStorageVolume = async root => {
+export const observeStorageVolume = async (root, { check = () => {} } = {}) => {
+  check();
   const volume = path.parse(path.resolve(root)).root;
+  let result;
   try {
     assertNoSymlinkPath(volume, volume);
+    check();
     const stat = await fs.lstat(volume, { bigint: true });
     if (!stat.isDirectory()) throw Object.assign(new Error('Storage volume root is not an ordinary directory.'), { code: 'ERR_STORAGE_VOLUME_TYPE' });
-    return { path: volume, status: 'observed-directory', dev: String(stat.dev), ino: String(stat.ino),
+    result = { path: volume, status: 'observed-directory', dev: String(stat.dev), ino: String(stat.ino),
       observedAt: new Date().toISOString(), mutationPerformed: false };
-  } catch (error) { return { path: volume, status: 'unavailable-or-offline', error: errorRecord(error),
+  } catch (error) { result = { path: volume, status: 'unavailable-or-offline', error: errorRecord(error),
     observedAt: new Date().toISOString(), mutationPerformed: false }; }
+  check(); return result;
 };
 
 /** Pure classification also serves failure-injection fixtures; serialized
@@ -50,10 +54,15 @@ export const observeStorageVolume = async root => {
  */
 export const classifyStorageRootFailure = (error, volume = null) => classifyObservedFailure(observeFailureCode(error), volume);
 
-export const inspectStorageRootFailure = async (root, error) => {
+export const inspectStorageRootFailure = async (root, error, { check = () => {}, stop } = {}) => {
   const captured = observeFailureCode(error);
+  check();
   let volume = null;
-  try { if (captured.code === 'ENOENT') volume = await observeStorageVolume(root); }
-  catch (inspection) { throw captured.observation.retain(inspection, { inspectionPresent: true }); }
+  try { if (captured.code === 'ENOENT') volume = await observeStorageVolume(root, { check }); }
+  catch (inspection) {
+    if (stop !== undefined && inspection === stop) { captured.observation.requireSettled(); throw inspection; }
+    throw captured.observation.retain(inspection, { inspectionPresent: true });
+  }
+  check();
   return classifyObservedFailure(captured, volume);
 };

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2822,
+    "hero": 2830,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17935,6 +17935,54 @@
     {
       "id": "tooling/eval/source-revision-oracle/cancellation-and-closed-contracts",
       "order": 2987,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/pre-cancelled-diagnosis",
+      "order": 2988,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/deadline-after-root-stat",
+      "order": 2989,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/deadline-after-realpath",
+      "order": 2990,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/deadline-before-volume-fallback",
+      "order": 2991,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/deadline-between-policy-files",
+      "order": 2992,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/deadline-in-original-lease-reader",
+      "order": 2993,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/pending-original-close-over-stop",
+      "order": 2994,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/exact-stop-observation",
+      "order": 2995,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

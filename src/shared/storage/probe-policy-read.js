@@ -12,13 +12,15 @@ const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.
 /** Machine-local policy only. Invalid metadata preserves cached bytes and
  * disables cache use until explicit repair; it never falls back to eviction.
  */
-export const readStorageProbePolicy = home => {
+export const readStorageProbePolicy = (home, { check = () => {} } = {}) => {
+  check();
   home = path.resolve(home);
   const target = path.join(home, 'config', STORAGE_POLICY_FILE);
   let locatorRead = false;
   try {
     const read = readVerifiedContainedFileSync(path.parse(target).root, target, { maxBytes: 1024 * 1024 });
     locatorRead = true;
+    check();
     const value = JSON.parse(read.buffer.toString('utf8'));
     if (!exactKeys(value, ['schemaVersion', 'kind', 'policies']) || value.schemaVersion !== STORAGE_POLICY_VERSION
       || value.kind !== 'pairofcleats-storage-policy-locator' || !value.policies || typeof value.policies !== 'object'
@@ -28,7 +30,9 @@ export const readStorageProbePolicy = home => {
       if (!exactKeys(entry, ['policy', 'selectionId', 'receiptHash']) || !hash(entry.selectionId) || !hash(entry.receiptHash)) throw new Error('Command-probe policy selection is invalid.');
       assertCommandProbeStoragePolicy(entry.policy);
       const receiptFile = path.join(home, 'config', 'storage-policy-selections', `${entry.selectionId}.json`);
+      check();
       const receiptRead = readVerifiedContainedFileSync(path.parse(receiptFile).root, receiptFile, { maxBytes: 1024 * 1024 });
+      check();
       const receipt = JSON.parse(receiptRead.buffer.toString('utf8'));
       if (receiptRead.hash !== entry.receiptHash || !exactKeys(receipt, ['schemaVersion', 'kind', 'selectionId', 'home', 'category', 'policy', 'priorSelection'])
         || receipt.schemaVersion !== STORAGE_POLICY_VERSION || receipt.kind !== 'pairofcleats-storage-policy-selection'
@@ -39,6 +43,7 @@ export const readStorageProbePolicy = home => {
       source: entry ? 'machine-local-reviewed-policy' : 'legacy-defaults', policyId: entry?.selectionId || null, mutationPerformed: false };
   } catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'storage-policy-read', defaultCode: 'ERR_STORAGE_POLICY' });
+    check();
     if (!locatorRead && diagnostic.code === 'ENOENT') return { status: 'missing', target,
       value: { schemaVersion: STORAGE_POLICY_VERSION, kind: 'pairofcleats-storage-policy-locator', policies: {} },
       sha256: null, policy: { ...COMMAND_PROBE_POLICY_DEFAULTS }, source: 'legacy-defaults', policyId: null, mutationPerformed: false };
