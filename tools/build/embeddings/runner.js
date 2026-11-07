@@ -47,14 +47,10 @@ import { createCrashEvidenceOwner } from '../../../src/index/build/crash-evidenc
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
-import { sha1 } from '../../../src/shared/hash.js';
-import {
-  isNonEmptyVector,
-  isVectorLike
-} from '../../../src/shared/embedding-utils.js';
+import { isVectorLike } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/file-paths.js';
+import { fromPosix, isPathWithinRoot } from '../../../src/shared/file-paths.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { createLruCache } from '../../../src/shared/cache/lru.js';
@@ -168,7 +164,6 @@ const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM = 2;
 const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_MAX_PARALLELISM = 16;
 const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES = 200000;
-const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES = 50000;
 const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 32768;
 const DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES = 200000;
@@ -341,16 +336,6 @@ export const resolveCrossFileChunkDedupeMaxEntries = (indexingConfig) => (
   || DEFAULT_EMBEDDINGS_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES
 );
 
-/**
- * Resolve max entries for source-hash cache.
- *
- * @param {object} indexingConfig
- * @returns {number}
- */
-export const resolveEmbeddingsSourceHashCacheMaxEntries = (indexingConfig) => (
-  coercePositiveIntMinOne(indexingConfig?.embeddings?.sourceHashCacheMaxEntries)
-  || DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES
-);
 
 /**
  * Resolve in-memory embedding text reuse cache entry cap.
@@ -547,28 +532,6 @@ export const createEmbeddingInFlightCoalescer = ({
       };
     }
   };
-};
-
-/**
- * Set map key/value while enforcing insertion-order LRU cap.
- *
- * @template K,V
- * @param {Map<K,V>} map
- * @param {K} key
- * @param {V} value
- * @param {number} maxEntries
- * @returns {void}
- */
-export const boundedMapSet = (map, key, value, maxEntries) => {
-  if (!(map instanceof Map)) return;
-  const limit = coercePositiveIntMinOne(maxEntries);
-  if (map.has(key)) map.delete(key);
-  map.set(key, value);
-  if (!limit) return;
-  while (map.size > limit) {
-    const oldestKey = map.keys().next().value;
-    map.delete(oldestKey);
-  }
 };
 
 /**
@@ -1955,8 +1918,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     name: 'stage3-cross-file-vector-reuse', maxEntries: crossFileChunkDedupeMaxEntries, maxMb: 16,
     sizeCalculation: value => Math.max(1, estimateRetainedBytes(value))
   }).cache : null;
-  const sourceFileHashCacheMaxEntries = resolveEmbeddingsSourceHashCacheMaxEntries(indexingConfig);
-  const sourceFileHashes = new Map();
   const hnswIsolateState = {
     disabled: false,
     reason: null
@@ -2634,7 +2595,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         let embeddingBatchMergedRequests = 0;
         let embeddingBatchMergedLabels = 0;
         let embeddingTextCacheHits = 0;
-        let embeddingTextCacheMisses = 0;
         let embeddingTextBatchDedupHits = 0;
         let embeddingInFlightJoinHits = 0;
         let embeddingInFlightClaims = 0;
@@ -3085,7 +3045,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             requested,
             embedded,
             cacheHits,
-            cacheMisses,
             batchDedupHits,
             inFlightJoined,
             inFlightOwned
@@ -3093,7 +3052,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             embeddingTextsResolved += Math.max(0, Math.floor(Number(requested) || 0));
             embeddingTextsEmbedded += Math.max(0, Math.floor(Number(embedded) || 0));
             embeddingTextCacheHits += Math.max(0, Math.floor(Number(cacheHits) || 0));
-            embeddingTextCacheMisses += Math.max(0, Math.floor(Number(cacheMisses) || 0));
             embeddingTextBatchDedupHits += Math.max(0, Math.floor(Number(batchDedupHits) || 0));
             embeddingInFlightJoinHits += Math.max(0, Math.floor(Number(inFlightJoined) || 0));
             embeddingInFlightClaims += Math.max(0, Math.floor(Number(inFlightOwned) || 0));
@@ -3215,12 +3173,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
              * @returns {string[]}
              */
             const candidates = [path.resolve(root, fromPosix(normalizedRel))];
-            let absPath = recordTextInfo?.absPath || candidates[0];
             let textInfo = recordTextInfo;
             let lastErr = null;
             try {
               for (const candidate of textInfo ? [] : candidates) {
-                absPath = candidate;
                 try {
                   const shouldReadWithHash = cacheEligible && !fileHash;
                   if (shouldReadWithHash) {
@@ -3549,7 +3505,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         || (useStubEmbeddings ? resolveStubDims(configuredDims) : DEFAULT_STUB_DIMS);
         if (finalDims !== cacheDims) throw new Error(`[embeddings] ${mode} spool dimensions changed after provider/cache identity selection.`);
 
-        const bundleRefreshStartedAtMs = Date.now();
         bundleTask.set(0, 1, { message: 'refreshing incremental bundles' });
         const refreshedBundles = await refreshIncrementalBundlesWithEmbeddings({
           mode,

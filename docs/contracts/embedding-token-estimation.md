@@ -40,3 +40,13 @@ forwarding hook is also removed: the real text store exposes no such method, and
 every cache-construction caller was inspected. Memory clear retains its existing
 coverage and performs no persistent mutation. Other live JSON readers and their
 coverage remain under their existing owners.
+
+A stricter unused-binding audit also retires the empty source-hash Map, its
+unconsumed cap/resolver and the old `boundedMapSet` helper. Repository callers had
+already moved to `createLruCache`; only the obsolete helper fixture remained.
+That fixture retains its ID/lane and now checks capacity, replacement and recency
+against the actual production LRU. Two assertions that merely echoed the unused
+hash-cap resolver are removed. Active file hashing, vector-source/cache identity,
+pipeline miss telemetry and their meaningful coverage remain. Unread diagnostic
+accumulators and unused imports/path/timestamp locals are removed without adding
+new public telemetry fields or changing cache thresholds.
