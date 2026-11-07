@@ -83,6 +83,15 @@ if (mode === 'simultaneous-join-and-provenance') {
   assert.throws(() => bootstrapRelationalJoin({ left: base.left, right: base.right, definition: proxyDefinition })); assert.equal(reads, 0);
   const decorated = batch(next.view, 'hidden', 2); Object.defineProperty(decorated.left.edits, 'hidden', { value: 1 });
   assert.throws(() => applyRelationalJoinDelta(next.view, decorated), /decorations/);
+  for (const part of ['input', 'edits', 'row']) {
+    const proxied = batch(next.view, 'proxy-' + part, 2, [row('new')]);
+    const wrap = value => new Proxy(value, { getPrototypeOf() { reads++; throw new Error('proxy inspected'); },
+      ownKeys() { reads++; throw new Error('proxy enumerated'); }, getOwnPropertyDescriptor() { reads++; throw new Error('proxy descriptor inspected'); } });
+    if (part === 'input') proxied.left = wrap(proxied.left);
+    else if (part === 'edits') proxied.left.edits = wrap(proxied.left.edits);
+    else proxied.left.edits[0] = wrap(proxied.left.edits[0]);
+    assert.throws(() => applyRelationalJoinDelta(next.view, proxied), /batch proxies/); assert.equal(reads, 0);
+  }
   const mutable = batch(base.view, 'capture', 1, [row('captured-l')], [row('captured-r', 'k', 'b')]);
   const captured = applyRelationalJoinDelta(base.view, mutable, { get signal() {
     mutable.left.edits[0].from = 'rewritten'; mutable.right.toWorld = world(99); return null;

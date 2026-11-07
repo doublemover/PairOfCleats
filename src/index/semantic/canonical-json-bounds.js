@@ -12,7 +12,7 @@ export const isSemanticJsonBudgetError = error => budgetErrors.has(error);
  * Charge strings and container metadata before allocating their encoded forms.
  * This bounds our output/snapshot work, not memory already owned by a caller.
  */
-export const encodeBoundedSemanticJson = (value, { maxBytes, onObjectEncoded, check }) => {
+export const encodeBoundedSemanticJson = (value, { maxBytes, onObjectEncoded, onValue, check }) => {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new TypeError('A positive canonical JSON byte allowance is required.');
   const chunks = [], active = new Set(), pending = [{ kind: 'value', value }];
   let bytes = 0;
@@ -61,6 +61,7 @@ export const encodeBoundedSemanticJson = (value, { maxBytes, onObjectEncoded, ch
       continue;
     }
     const item = task.value;
+    onValue?.(item);
     if (item === null || typeof item === 'boolean') {
       const encoded = item === null ? 'null' : item ? 'true' : 'false';
       charge(encoded.length); chunks.push(encoded); continue;

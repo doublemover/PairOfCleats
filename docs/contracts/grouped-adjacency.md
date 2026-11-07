@@ -19,6 +19,10 @@ semantic closure outside the declared input domain.
 Both initial state and revisions require original immutable handles and strict
 passive definitions/batches. Shared finite-view capture rejects accessors,
 proxies, hidden decorations, copied handles, stale bases and changed replays.
+The bounded canonical encoder checks the supplied finite-view value guard before
+inspecting each nested container; input/delta-row/array proxies cannot execute
+traps during capture. Ordinary JSON encoding, content hashes and schemas retain
+their existing meaning. Other canonical consumers keep their existing policy.
 The original adjacency transition and full affected-view recomputation must
 both succeed before a new private view is returned. Cancellation, work and
 retention limits preserve the previous view. Exact replays never reapply a bag.

@@ -72,6 +72,15 @@ if (mode === 'weighted-counts-and-provenance') {
   assert.throws(() => bootstrapGroupedAdjacency({ definition: proxy, input: passiveInput })); assert.equal(reads, 0);
   const decorated = batch(next.view, 'hidden', 2); Object.defineProperty(decorated.input.edits, 'hidden', { value: true });
   assert.throws(() => applyGroupedAdjacencyDelta(next.view, decorated), /decorations/);
+  for (const part of ['input', 'edits', 'row']) {
+    const proxied = batch(next.view, 'proxy-' + part, 2, [row('new')]);
+    const wrap = value => new Proxy(value, { getPrototypeOf() { reads++; throw new Error('proxy inspected'); },
+      ownKeys() { reads++; throw new Error('proxy enumerated'); }, getOwnPropertyDescriptor() { reads++; throw new Error('proxy descriptor inspected'); } });
+    if (part === 'input') proxied.input = wrap(proxied.input);
+    else if (part === 'edits') proxied.input.edits = wrap(proxied.input.edits);
+    else proxied.input.edits[0] = wrap(proxied.input.edits[0]);
+    assert.throws(() => applyGroupedAdjacencyDelta(next.view, proxied), /batch proxies/); assert.equal(reads, 0);
+  }
   const mutable = batch(original, 'capture', 1, [row('captured')]);
   const captured = applyGroupedAdjacencyDelta(original, mutable, { get signal() { mutable.input.edits[0].from = 'changed'; return null; } });
   assert.equal(describeGroupedAdjacency(captured.view).rows[0].key, 'g');

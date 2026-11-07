@@ -19,6 +19,11 @@ export const captureFiniteViewDefinition = (value, schema, fail) => captureSeman
   finiteViewFields(value, schema.required, Object.keys(schema.properties).filter(name => !schema.required.includes(name)), fail), schema);
 
 export const captureFiniteViewJson = (value, maxBytes, fail) => JSON.parse(canonicalSemanticJson(value, { maxBytes,
+  onValue(original) {
+    if (original !== null && ['object', 'function'].includes(typeof original) && types.isProxy(original)) {
+      throw fail('Finite-view batch proxies are unavailable.');
+    }
+  },
   onObjectEncoded(original) {
     if (Object.getOwnPropertyNames(original).length !== Object.keys(original).length + (Array.isArray(original) ? 1 : 0)) {
       throw fail('Hidden finite-view batch decorations are unavailable.');
