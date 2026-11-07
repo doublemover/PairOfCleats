@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T08:51:36.302Z",
+  "generatedAt": "2026-11-07T09:03:07.019Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3820,6 +3820,7 @@
         "tests/tooling/install/managed-dotnet-sdk-verification.test.js",
         "tests/tooling/install/managed-explicit-repair-ownership.test.js",
         "tests/tooling/install/managed-hook-failure-values.test.js",
+        "tests/tooling/install/managed-install-phase-observation.test.js",
         "tests/tooling/install/managed-install-publication-lifetime.test.js",
         "tests/tooling/install/managed-operational-probe-storage.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
@@ -5013,6 +5014,7 @@
         "tests/tooling/install/clangd-owned-acquisition.test.js",
         "tests/tooling/install/estimate-destination-identity.test.js",
         "tests/tooling/install/managed-csharp-package.test.js",
+        "tests/tooling/install/managed-install-phase-observation.test.js",
         "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",

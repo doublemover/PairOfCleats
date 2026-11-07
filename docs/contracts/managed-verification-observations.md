@@ -25,5 +25,26 @@ enclosing guards, capability revocation, independent inspection/callback errors,
 function failures, exact refusal and the original closed positive. These models
 do not qualify vendor packages, native handles or real child retirement.
 
-Broader publication/diagnostic phase integration and native execution remain in
-the installer acceptance scope.
+The installer carries those original observations through post-verification
+directory/file inventory, generation promotion, immutable receipt and selector
+publication, and each cleanup phase. Atomic publication checks the original
+prerequisites again at commit. Unknown work retains staging and the previous
+selector; it cannot become a following acquisition or successful publication.
+
+Pending failure journals use inert owner diagnostics and do not reenter the
+progress callback. Once diagnostic reads are admitted, each field rechecks the
+original ledger. Independent inspection failures join that ledger before error
+composition, so a later message getter cannot erase their interval. Owner-created
+error compositions retain their original causes and context without recursively
+adopting their own aggregate observer.
+
+Six further authored, locally unrun cases exercise actual managed publication,
+reservations, staging and original recovery with explicitly inert archive/verifier
+callbacks. They retain unread pending diagnostics, independent inspection work,
+function-valued originals, progress admission and nested receipt observations
+revoked during the original post-verification directory open. The preceding
+selected generation remains unchanged, and recovery does not repeat acquisition.
+The download control uses the real response-session owner with a deliberately
+blocked response cancel and a failed transaction-journal rename. Recovery retains
+the original session across error composition and awaits its actual closure.
+Actual vendor packages and native lifetime qualification remain separate.

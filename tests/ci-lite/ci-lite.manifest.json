@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2905,
+    "hero": 2911,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18433,6 +18433,42 @@
     {
       "id": "tooling/install/managed-verifier-original-observation/callback-inspection-original",
       "order": 3070,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-phase-observation/pending-diagnostics-remain-unread",
+      "order": 3071,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-phase-observation/independent-diagnostic-retains-stage",
+      "order": 3072,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-phase-observation/pending-progress-is-not-reentered",
+      "order": 3073,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-phase-observation/late-nested-verification-retains-stage",
+      "order": 3074,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-phase-observation/function-original-observation",
+      "order": 3075,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure",
+      "order": 3076,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

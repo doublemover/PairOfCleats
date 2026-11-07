@@ -11,7 +11,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveStorageLayout } from '../../src/shared/storage/layout.js';
 import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
-import { downloadToBuffer, settleInstallDownload } from './install-shared.js';
+import { downloadToBuffer, settleInstallDownload, isInstallDownloadSession } from './install-shared.js';
 import { runInstallWithStorageAdmission } from './install-storage.js';
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
 import { isKnownManagedInstallationDescriptor, isKnownManagedInstallationReceipt } from '../../src/shared/managed-installation-contract.js';
@@ -20,6 +20,7 @@ import { verifyStorageFile, isStorageTransferSession } from '../../src/shared/st
 import { getStorageDirectorySession, withStorageDirectory } from '../../src/shared/storage/directory.js';
 import { verifyOwnedInstallation, verifyRetainedManagedInstallation, captureManagedVerificationFailure,
   getManagedVerificationStorageRecovery, retainManagedResourceFailure } from './managed-verification.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync } from '../../src/shared/managed-installation.js';
 
 export const MANAGED_INSTALL_VERSION = 1;
@@ -27,12 +28,13 @@ const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
 const DEFAULT_LIMITS = Object.freeze({ maxBytes: 1024 * 1024 * 1024, maxEntryBytes: 128 * 1024 * 1024, maxEntries: 50000 });
 const hash = value => createHash('sha256').update(value).digest('hex');
 const identity = value => hash(stableStringify(value));
-const asManagedError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
-const failureDiagnostic = error => {
+const objectLike = value => value !== null && ['object', 'function'].includes(typeof value);
+const asManagedError = value => objectLike(value) ? value : new Error(String(value), { cause: value });
+const failureDiagnostic = (error, observation) => {
   const diagnostic = { code: null, message: 'Managed installation failed.' }, failures = [];
   for (const field of ['code', 'message']) {
-    try { const value = error[field]; if (typeof value === 'string') diagnostic[field] = value; }
-    catch (failure) { failures.push(asManagedError(failure)); }
+    try { const value = observation.read(error, field); if (typeof value === 'string') diagnostic[field] = value; }
+    catch (failure) { failures.push(asManagedError(failure)); if (!observation.isSettled()) break; }
   }
   return { diagnostic, failures };
 };
@@ -85,34 +87,37 @@ const resolveOwner = async (toolingRoot, toolId, { create = false } = {}) => {
   return owner;
 };
 
-const captureFiles = async (root, limits = DEFAULT_LIMITS, { signal = null } = {}) => {
+const captureFiles = async (root, limits = DEFAULT_LIMITS, { signal = null, check = () => {} } = {}) => {
   const rows = [];
   const pending = [''];
   let bytes = 0;
   let entries = 0;
   while (pending.length) {
-    signal?.throwIfAborted();
+    signal?.throwIfAborted(); check();
     const relative = pending.pop();
     const directory = path.join(root, relative);
     assertNoSymlinkPath(root, directory);
     await withStorageDirectory(directory, async handle => {
-      for (let entry = await handle.read(); entry; entry = await handle.read()) {
-        signal?.throwIfAborted();
+      for (;;) {
+        signal?.throwIfAborted(); check();
+        const entry = await handle.read(); check();
+        if (!entry) break;
         if (++entries > limits.maxEntries) throw new Error('Managed package inventory exceeds its entry limit.');
         const child = relative ? `${relative}/${entry.name}` : entry.name;
         if (!relativePath(child)) throw new Error('Unsafe managed installation file path.');
         if (entry.isDirectory()) pending.push(child);
         else {
           const file = path.join(root, child);
-          const stat = await fs.lstat(file, { bigint: true });
+          check(); const stat = await fs.lstat(file, { bigint: true }); check();
           if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1n || stat.size > BigInt(limits.maxEntryBytes)) throw new Error('Managed package contains an unsupported linked/oversized file.');
           bytes += Number(stat.size);
           if (bytes > limits.maxBytes || rows.length >= limits.maxEntries) throw new Error('Managed package inventory exceeds its byte/entry limit.');
-          const verified = await verifyStorageFile({ root, file, identity: storageFileIdentity(stat), maxBytes: limits.maxEntryBytes, signal });
+          check(); const verified = await verifyStorageFile({ root, file, identity: storageFileIdentity(stat), maxBytes: limits.maxEntryBytes, signal }); check();
           rows.push({ path: child, bytes: verified.bytes, sha256: verified.sha256 });
         }
       }
     });
+    check();
   }
   return rows.sort((left, right) => left.path.localeCompare(right.path));
 };
@@ -224,29 +229,55 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   let pending = false;
   let released = false;
   let primaryError = null;
+  let verificationResult = null;
   let verificationLease = null;
   let resourcePending = false, reconciling = null, observerOverflow = false;
   const observers = [], observed = new WeakSet(), described = new WeakSet(), ownedMetadataFailures = new WeakSet();
   const directorySessions = new Set(), transferSessions = new Set(), archiveSessions = new Set();
+  const downloadWitnesses = new Map();
   const childStorageRecoveries = new Set();
+  const resourceObservation = createManagedVerificationObservation();
   const observeFailure = error => {
-    if (!error || typeof error !== 'object' || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
+    if (!objectLike(error) || observed.has(error) || described.has(error) || ownedMetadataFailures.has(error)) return;
     observed.add(error);
+    const captured = captureManagedVerificationFailure(error, transactionId);
+    // The verifier's private missing-receipt phase is reconciled by its exact
+    // owner. Its independent originals remain in captured.observe; treating
+    // that phase's own marker as another foreign resource would self-block.
+    if (captured.owned) resourceObservation.rememberComposition(error); else resourceObservation.remember(error);
+    const download = Object.getOwnPropertyDescriptor(error, 'downloadSession')?.value;
+    if (isInstallDownloadSession(download) && !downloadWitnesses.has(download)) {
+      if (downloadWitnesses.size === 128) observerOverflow = true;
+      else downloadWitnesses.set(download, Object.freeze({ downloadSession: download, cacheOwnershipReleased: captured.observe }));
+    }
     const childStorage = getManagedVerificationStorageRecovery(error);
     if (childStorage) childStorageRecoveries.add(childStorage);
     const archive = getArchiveExtractionSession(error);
     if (archive) archiveSessions.add(archive);
     const directory = getStorageDirectorySession(error);
     if (directory) directorySessions.add(directory);
-    if (isStorageTransferSession(error.storageTransferSession)) transferSessions.add(error.storageTransferSession);
-    const captured = captureManagedVerificationFailure(error, transactionId);
+    const transfer = Object.getOwnPropertyDescriptor(error, 'storageTransferSession')?.value;
+    if (isStorageTransferSession(transfer)) transferSessions.add(transfer);
     if (captured.observe) {
       if (observers.length < 128) observers.push(captured.observe);
       else observerOverflow = true;
     }
     if (captured.owned || captured.observe && !captured.observe()) resourcePending = true;
   };
-  const resourcesSettled = () => !observerOverflow && !resourcePending && [...childStorageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
+  const resourcesSettled = () => !observerOverflow && !resourcePending && resourceObservation.isSettled()
+    && [...childStorageRecoveries].every(storage => storage.isReleased()) && observers.every(observe => observe());
+  const requireResourcesSettled = () => {
+    if (!resourcesSettled()) throw new Error('Managed install child/resource settlement is still pending.', { cause: verificationResult ?? primaryError });
+  };
+  const appendFailureContext = (field, failure) => {
+    observeFailure(failure);
+    const prior = primaryError;
+    // Aggregation may read the primary message. Pending originals stay on the
+    // exact cause while an inert owner message supplies the diagnostic context.
+    const base = resourcesSettled() ? prior : new Error('Original managed install failure remains retained.', { cause: prior });
+    primaryError = addStorageFailureContext(base, { [field]: failure }, failure);
+    if (primaryError !== prior) resourceObservation.rememberComposition(primaryError); else resourceObservation.remember(primaryError);
+  };
   const releaseSession = session => {
     try { return session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false }); }
     catch (error) { if (isStorageSessionReleaseFailure(error, session)) ownedMetadataFailures.add(error); throw error; }
@@ -263,23 +294,27 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     }
   };
   const releaseResources = async () => {
-    if (!resourcesSettled()) throw new Error('Managed install child/resource settlement is still pending.');
+    requireResourcesSettled();
     if (released) return true;
     if (verificationLease) {
       if (releaseSession(verificationLease) !== true) throw new Error('Managed retained-generation verification lease changed before release.');
       verificationLease = null;
     }
     if (stageIdentity) {
+      requireResourcesSettled();
       let actual;
       try { actual = await fs.lstat(stage, { bigint: true }); } catch (error) { if (error.code !== 'ENOENT') throw error; }
       if (actual) {
         if (actual.isSymbolicLink() || actual.dev !== stageIdentity.dev || actual.ino !== stageIdentity.ino || !isPathWithinRoot(stage, owner)) {
           throw new Error('Managed installer staging identity changed; unknown evidence is preserved.');
         }
+        requireResourcesSettled();
         await fs.rm(stage, { recursive: true, force: false });
       }
     }
+    requireResourcesSettled();
     if (lock) { await releaseFileLockOrThrow(lock); lock = null; }
+    requireResourcesSettled();
     if (releaseSession(categorySession) !== true) throw new Error('Managed installer category lease changed before release.');
     released = true;
     return true;
@@ -287,7 +322,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   const recovery = Object.freeze({ resourceId: transactionId, stage, journal, releaseAfterSettlement: async receipt => {
     if (!exactResourceReceipt(receipt, transactionId)) throw new Error('Managed install child settlement is still pending.');
     if (!reconciling) reconciling = (async () => {
-      if (primaryError?.downloadSession) await settleInstallDownload(primaryError);
+      for (const witness of downloadWitnesses.values()) await settleInstallDownload(witness);
       for (const session of [...archiveSessions, ...transferSessions, ...directorySessions]) {
         const closed = await session.releaseAfterClose();
         if (!exactResourceReceipt(closed, session.resourceId) || !session.isSettled()) {
@@ -307,11 +342,11 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       described.add(failure); throw failure;
     }
   } });
-  const checkpoint = async extra => {
+  const checkpoint = async (extra, { emitProgress = true } = {}) => {
     await atomicWriteJson(journal, { schemaVersion: MANAGED_INSTALL_VERSION, application: 'pairofcleats',
       toolId: pinned.toolId, descriptorId: pinned.descriptorId, transactionId, state, previousPreserved: true,
       ...extra }, { mkdir: true });
-    await onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
+    if (emitProgress) await onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
   };
   try {
     lock = await acquireFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 0, signal,
@@ -324,13 +359,16 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       const retained = await inspectGeneration(owner, pinned.toolId, resumable.receipt.installId, { signal });
       if (!retained.ok) throw new Error('Retained managed generation changed before verification admission.');
       const verification = await verifyOwnedInstallation(verify, { root: retained.root, command: retained.command, args: retained.args, descriptor: pinned, toolingRoot, env, signal }, transactionId);
+      verificationResult = verification;
+      observeFailure(verification); requireResourcesSettled();
       if (releaseSession(verificationLease) !== true) throw new Error('Retained-generation verification lease changed before publication.');
       verificationLease = null;
       const publication = await withExclusiveStorageAccess(owner, async () => {
         signal?.throwIfAborted();
         if (!(await inspectGeneration(owner, pinned.toolId, retained.receipt.installId, { signal })).ok) throw new Error('Retained managed generation changed before publication.');
+        requireResourcesSettled();
         await atomicWriteJson(path.join(owner, 'current.json'), { schemaVersion: MANAGED_INSTALL_VERSION,
-          toolId: pinned.toolId, descriptorId: pinned.descriptorId, installId: retained.receipt.installId }, { mkdir: false });
+          toolId: pinned.toolId, descriptorId: pinned.descriptorId, installId: retained.receipt.installId }, { mkdir: false, beforeCommit: requireResourcesSettled });
       }, accessOptions(toolingRoot));
       return { ...retained, ok: !publication.protected, state: publication.protected ? 'verified-awaiting-owner-release' : 'complete',
         reused: true, downloadedBytes: 0, previousPreserved: true, verification };
@@ -371,15 +409,20 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     admitVerification('managed-new-generation-verifier');
     const verification = await verifyOwnedInstallation(verify, { root: packageRoot, command: path.join(packageRoot, pinned.command),
       args: pinned.args || [], descriptor: pinned, toolingRoot, env, signal }, transactionId);
-    if (identity(await captureFiles(packageRoot, DEFAULT_LIMITS, { signal })) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
+    verificationResult = verification;
+    observeFailure(verification); requireResourcesSettled();
+    if (identity(await captureFiles(packageRoot, DEFAULT_LIMITS, { signal, check: requireResourcesSettled })) !== identity(files)) throw new Error('Tool verification mutated immutable installation bytes.');
+    requireResourcesSettled();
     if (releaseSession(verificationLease) !== true) throw new Error('New-generation verification lease changed before publication.');
     verificationLease = null;
     signal?.throwIfAborted();
+    requireResourcesSettled();
     await fs.mkdir(path.join(owner, 'generations'), { recursive: true });
     const destination = path.join(owner, 'generations', installId);
     assertNoSymlinkPath(owner, destination, { allowMissing: true });
     try { await fs.lstat(destination); throw new Error('An unselected existing generation occupies the requested immutable slot; preserve it for explicit repair.'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
+    requireResourcesSettled();
     await fs.rename(packageRoot, destination);
     promoted = destination;
     const selector = { schemaVersion: MANAGED_INSTALL_VERSION, toolId: pinned.toolId, descriptorId: pinned.descriptorId, installId };
@@ -387,12 +430,13 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
       descriptorId: pinned.descriptorId, installId, descriptor, root: destination, source: pinned.archive,
       files, filesIdentity: identity(files), selectorIdentity: identity(selector), verification,
       installedAt: new Date().toISOString(), ownership: 'managed', leaseProtocol: 'storage-asset-access-v1' };
-    await atomicWriteJson(path.join(owner, 'receipts', installId + '.json'), receipt, { mkdir: true, createOnly: true });
+    await atomicWriteJson(path.join(owner, 'receipts', installId + '.json'), receipt, { mkdir: true, createOnly: true, beforeCommit: requireResourcesSettled });
     state = 'publishing';
     await checkpoint({ root: destination });
     const publication = await withExclusiveStorageAccess(owner, async () => {
       signal?.throwIfAborted();
-      await atomicWriteJson(path.join(owner, 'current.json'), selector, { mkdir: false });
+      requireResourcesSettled();
+      await atomicWriteJson(path.join(owner, 'current.json'), selector, { mkdir: false, beforeCommit: requireResourcesSettled });
       return { selected: true };
     }, accessOptions(toolingRoot));
     if (publication?.protected) {
@@ -412,13 +456,14 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     pending = !resourcesSettled();
     state = signal?.aborted ? 'cancelled' : 'failed';
     if (lock) {
-      const { diagnostic, failures } = failureDiagnostic(error);
-      for (const failure of failures) primaryError = addStorageFailureContext(primaryError, { managedDiagnosticError: failure }, failure);
-      try { await checkpoint({ ...diagnostic, promotedRoot: promoted }); }
+      const { diagnostic, failures } = pending ? { diagnostic: { code: null, message: 'Original managed install work remains pending.' }, failures: [] }
+        : failureDiagnostic(error, resourceObservation);
+      for (const failure of failures) appendFailureContext('managedDiagnosticError', failure);
+      pending = !resourcesSettled();
+      try { await checkpoint({ ...diagnostic, promotedRoot: promoted }, { emitProgress: !pending }); }
       catch (journalError) {
         const journalFailure = asManagedError(journalError);
-        observeFailure(journalFailure);
-        primaryError = addStorageFailureContext(primaryError, { managedJournalError: journalFailure }, journalFailure);
+        appendFailureContext('managedJournalError', journalFailure);
       }
     }
     pending = !resourcesSettled();

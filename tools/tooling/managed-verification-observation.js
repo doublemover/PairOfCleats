@@ -35,5 +35,6 @@ export const createManagedVerificationObservation = () => {
     check(); return captured.resourceId === resourceId && captured.settled === true && captured.pending === false;
   };
   return Object.freeze({ remember, check, read, settlement, isSettled: ledger.isSettled,
+    rememberComposition(value) { ownFailures.add(value); ledger.remember(value); return value; },
     hasObservedResources() { const snapshot = ledger.snapshot(); return snapshot.observerCount > 0 || snapshot.contextCount > 0 || !snapshot.complete; } });
 };

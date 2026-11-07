@@ -3073,3 +3073,9 @@ tooling/install/managed-verifier-original-observation/inspection-retains-indepen
 tooling/install/managed-verifier-original-observation/function-failure-original
 tooling/install/managed-verifier-original-observation/closed-shape-and-control
 tooling/install/managed-verifier-original-observation/callback-inspection-original
+tooling/install/managed-install-phase-observation/pending-diagnostics-remain-unread
+tooling/install/managed-install-phase-observation/independent-diagnostic-retains-stage
+tooling/install/managed-install-phase-observation/pending-progress-is-not-reentered
+tooling/install/managed-install-phase-observation/late-nested-verification-retains-stage
+tooling/install/managed-install-phase-observation/function-original-observation
+tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure
