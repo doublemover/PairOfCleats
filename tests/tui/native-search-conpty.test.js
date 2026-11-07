@@ -7,7 +7,6 @@ import { createTerminalScreen } from '../../tools/testing/terminal-screen.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { initGitRepo } from '../helpers/git-fixture.js';
-import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../src/shared/kill-tree.js';
 import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture.js';
@@ -37,10 +36,11 @@ await fs.writeFile(path.join(dir, 'native-source-identity.json'), JSON.stringify
   node: process.version, abi: process.versions.modules, platform: process.platform,
   sources: Object.fromEntries(await Promise.all(['crates/pairofcleats-tui/src/main.rs',
     'crates/pairofcleats-tui/src/search.rs', 'crates/pairofcleats-tui/src/search_failure.rs',
-    'crates/pairofcleats-tui/src/search_failure_catalog.rs', 'src/contracts/tui-operation-failures.json',
+    'crates/pairofcleats-tui/src/search_failure_catalog.rs', 'crates/pairofcleats-tui/src/interaction.rs',
+    'tests/tui/native-search-conpty.test.js', 'src/integrations/core/build-index/index.js', 'src/contracts/tui-operation-failures.json',
     'tools/tui/operator/search.js', 'tools/tui/operator/operation-failure.js', 'tools/tui/supervisor/jobs.js', 'tools/tui/supervisor.js']
     .map(async file => [file, createHash('sha256').update(await fs.readFile(path.join(root, file))).digest('hex')])) ) }, null, 2));
-const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
+const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: { threads: 1, indexing: { scm: { provider: 'none' }, typeInference: false,
     typeInferenceCrossFile: false, riskAnalysis: false }, tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null, PAIROFCLEATS_TUI_NODE: process.execPath,
@@ -50,13 +50,36 @@ const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'
     PAIROFCLEATS_TUI_RUN_ID: 'search-native', PAIROFCLEATS_TUI_SNAPSHOT_PATH: path.join(dir, 'state.json'),
     PAIROFCLEATS_TUI_EVENT_LOG_DIR: dir } });
 const buildAt = async (target, name) => {
-  const build = await spawnSubprocess(process.execPath, [path.join(root, 'build_index.js'), '--repo', target,
-    '--mode', 'code', '--stage', 'stage1', '--stub-embeddings', '--threads', '1'], {
-    cwd: root, env, timeoutMs: 10000, stdio: ['ignore', 'pipe', 'pipe'], maxOutputBytes: 1024 * 1024,
-    rejectOnNonZeroExit: false
-  });
-  await fs.writeFile(path.join(dir, name), JSON.stringify(build, null, 2));
-  assert.equal(build.exitCode, 0);
+  // This is input preparation, not a build-CLI assertion. Keep the actual
+  // canonical Stage1 build and its original deadline, including import and
+  // teardown. The operations below still use the real native client,
+  // supervisor and search CLI; dedicated CLI owners cover build startup.
+  const started = performance.now(), controller = new AbortController();
+  const options = { modes: ['code'], stage: 'stage1', stubEmbeddings: true, threads: 1, progress: 'off' };
+  const timer = setTimeout(() => controller.abort(new Error('Native search seed exceeded its 10000ms deadline')), 10000);
+  let outcome, failure;
+  try {
+    const { buildIndex } = await import('../../src/integrations/core/build-index.js');
+    const result = await buildIndex(target, { ...options, abortSignal: controller.signal });
+    outcome = result.outcome;
+    assert.equal(controller.signal.aborted, false, 'The original seed deadline must cover completed teardown');
+    assert.ok(performance.now() - started < 10000, 'The complete actual seed must finish within its original deadline');
+    assert.equal(outcome.status, 'index-published', JSON.stringify(outcome));
+    assert.deepEqual(outcome.requestedStages, ['stage1']);
+    assert.equal(outcome.stages.length, 1);
+    assert.equal(outcome.stages[0].validation.ok, true);
+    assert.equal(outcome.stages[0].validation.issueCount, 0);
+    assert.equal(outcome.stages[0].publication.status, 'published');
+    assert.deepEqual(outcome.capabilities.map(({ capability, status }) => ({ capability, status })),
+      [{ capability: 'sparse-retrieval', status: 'completed' }]);
+  } catch (error) {
+    failure = error; throw error;
+  } finally {
+    clearTimeout(timer);
+    await fs.writeFile(path.join(dir, name), JSON.stringify({ owner: 'buildIndex', options,
+      durationMs: performance.now() - started, outcome,
+      error: failure ? { message: failure.message, code: failure.code } : null }, null, 2));
+  }
 };
 if (['modes', 'incompatible'].includes(mode)) {
   const inputs = [['code', 'src/answer.js', 'FunctionDeclaration'], ['prose', 'README.md', 'paragraph'],
@@ -108,6 +131,14 @@ const readEvents = async () => {
   }
   return rows;
 };
+// The real native/supervisor cwd is repo. Retain each exact filesystem target
+// without replaying the author's long checkout prefix through paced keyboard
+// ingress. Realpath assertions below independently prove the selected scope.
+const scopeInput = target => {
+  const relative = path.relative(repo, target) || '.';
+  assert.equal(path.resolve(repo, relative), path.resolve(target));
+  return relative;
+};
 try {
   const capture = await captureCommandTerminalRun({ command: 'pwsh.exe', args: ['-NoLogo', '-NoProfile',
     '-NonInteractive', '-File', path.join(root, 'tests/fixtures/tui/native-lifetime-conpty.ps1'), binary, dir, 'search'],
@@ -134,6 +165,7 @@ try {
       }
       return paintedScreen;
     };
+    const connectionRendered = () => /\bconn\s+(?:connected|streaming)\b|\bsupervised\s*\|\s*(?:connected|streaming)\b/.test(screen());
     const rendered = async witness => {
       await wait(() => screen().includes(witness), witness);
       await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
@@ -172,14 +204,13 @@ try {
         await rendered('requires live owned control');
         assert.equal((await readEvents()).some(row => row.internal && row.event === 'job:start'), false);
         await fs.writeFile(path.join(dir, 'release-hello'), 'explicit fixture handshake release\n');
-        await wait(() => /\bconn\s+(?:connected|streaming)\b/.test(screen()), 'released handshake rendered');
+        await wait(connectionRendered, 'released handshake rendered');
         terminal.write('R');
       } else {
         // The supervisor records hello before the native client receives it.
         // Wait for the actual connected frame before sending a search key;
         // otherwise the first cold case can lose its input during startup.
-        if (columns >= 80) await wait(() => /\bconn\s+(?:connected|streaming)\b/.test(screen()), 'native supervisor connection rendered');
-        else await nativeInputReady();
+        await wait(connectionRendered, 'native supervisor connection rendered');
         terminal.write('R');
       }
       await rendered(columns < 40 ? 'Ready; Enter runs' : 'Ready; Enter runs a canonical search');
@@ -187,7 +218,7 @@ try {
       const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
         : mode === 'truncated' ? { ann: false, type: 'FunctionDeclaration' }
           : ['modes', 'incompatible'].includes(mode) ? { ann: false, file: ['src/answer.js', 'README.md', 'records.json'] } : { ann: false };
-      if (firstFailure) terminal.write(`\x1b[Z\x15${path.join(repo, 'src/answer.js')}\t`);
+      if (firstFailure) terminal.write(`\x1b[Z\x15${scopeInput(path.join(repo, 'src/answer.js'))}\t`);
       terminal.write(`${requestedQuery}\t\x15${['modes', 'incompatible'].includes(mode) ? 'all' : 'code'}\t\x15memory\t\x15${mode === 'pagination' ? 1 : mode === 'truncated' ? 100 : 5}\t\t\t\x15${JSON.stringify(filters)}\r`);
       if (firstFailure) {
         let failed;
@@ -198,7 +229,7 @@ try {
         assert.equal(screen().includes('contains no hits'), false);
         assert.equal((await readEvents()).some(row => row.event === 'job:spawn'), false);
         const after = await lastJob();
-        terminal.write(`e\t\x15${repo}\t\x15${query}\r`);
+        terminal.write(`e\t\x15${scopeInput(repo)}\t\x15${query}\r`);
         const recovered = await settled('query', after);
         assert.equal(recovered.repoPath, await fs.realpath(repo));
         assert.ok(recovered.hits.some(hit => hit.file === 'src/answer.js'));
@@ -241,7 +272,7 @@ try {
         if (mode === 'cancel') terminal.write('\x1b');
         else if (mode === 'interrupt') terminal.write('\x03');
         else if (mode === 'replace') terminal.write('e\t\t\x15zzznevermatchzzz\r');
-        else terminal.write(`e\t\x15${alternate}\t\x15zzzdifferentzzz\r`);
+        else terminal.write(`e\t\x15${scopeInput(alternate)}\t\x15zzzdifferentzzz\r`);
         let end;
         await wait(async () => {
           end = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === spawn.jobId);

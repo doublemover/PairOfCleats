@@ -1,7 +1,7 @@
 # TUI Guide
 
 Status: active  
-Last updated: 2026-10-22T00:00:00Z
+Last updated: 2026-11-07T00:00:00Z
 
 ## Install and first use from a source checkout
 
@@ -45,6 +45,12 @@ that preview. The trusted editor launcher must be available; source inspection
 works independently. Esc returns to results. Press `q` outside overlays or
 Ctrl+C anywhere for graceful shutdown; the supervisor drains and reaps owned
 work before the terminal is restored.
+
+Control denials appear before long session identifiers or repository paths, in
+both the wide and compact headers. Before the live supervisor handshake, search
+reports `requires live owned control`; it cannot start a job. Wait for the live
+connection, then open search again. A rejected search has its own reason and
+correction actions; it is distinct from a successful search with no hits.
 
 Use `b` for a scoped index workflow when you need to build from the application:
 choose the target directory, choose `index.build`, set the desired mode, press

@@ -459,6 +459,20 @@ assert.ok(api7PrepareIndex >= 0 && api7RuntimeIndex > api7PrepareIndex, 'exact A
 for (const flag of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000', '--retries 0', '--native-status-redo=false'])
   assert.ok(api7Job.steps[api7RuntimeIndex].run.includes(flag), 'API7 qualification retains ' + flag);
 assert.ok(api7Job.steps.some(step => String(step.with?.path || '').includes('.diagnostics/typescript-api7/**')));
+const nativeSearchIndex = api7Job.steps.findIndex(step => step.name === 'Serial Windows native search workflows');
+const nativeSearchCommand = api7Job.steps[nativeSearchIndex]?.run || '';
+assert.ok(nativeSearchIndex > api7Job.steps.findIndex(step => step.name === 'Build actual native binary'),
+  'real Windows search qualification must follow the exact candidate native build');
+assert.ok(nativeSearchCommand.includes("--match '/^tui\\/native-search-conpty\\//'")
+  && nativeSearchCommand.includes('--report-file .diagnostics/native-search/report.json'),
+'the complete native search family must have an explicit hosted Windows owner');
+for (const flag of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000', '--retries 0', '--native-status-redo=false'])
+  assert.ok(nativeSearchCommand.includes(flag), 'native search qualification retains ' + flag);
+const nativeSearchUpload = api7Job.steps.find(step => String(step.with?.path || '').includes('.diagnostics/native-search/**'));
+assert.ok(nativeSearchUpload && nativeSearchUpload.if === 'always()'
+  && nativeSearchUpload.with.path.includes('native-search-*/terminal-receipt.json')
+  && nativeSearchUpload.with.path.includes('native-search-*/native-source-identity.json'),
+'successful and failed native search cases retain original binary and terminal evidence');
 const windowsJob = parse(ciWorkflow).jobs.windows;
 const ownershipStepIndex = windowsJob.steps.findIndex(step => step.name === 'Windows subprocess ownership');
 const ownershipCommand = windowsJob.steps[ownershipStepIndex]?.run || '';
