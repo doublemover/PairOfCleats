@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2737,
+    "hero": 2742,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17425,6 +17425,36 @@
     {
       "id": "tooling/eval/revision-minimizer-predicate",
       "order": 2902,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/token-estimator-original-observation/counts-and-original-release",
+      "order": 2903,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/token-estimator-original-observation/ordinary-fallback-and-terminal-errors",
+      "order": 2904,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/token-estimator-original-observation/original-frozen-pending-error",
+      "order": 2905,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/token-estimator-original-observation/pending-result-and-each-field",
+      "order": 2906,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/token-estimator-original-observation/inspection-failure-is-retained",
+      "order": 2907,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

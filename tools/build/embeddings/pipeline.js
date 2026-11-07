@@ -1,5 +1,6 @@
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
+import { isTerminalEmbeddingTokenEstimateFailure } from './token-estimation.js';
 import { isAbortError } from '../../../src/shared/abort.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
@@ -394,7 +395,7 @@ export const createFileEmbeddingsProcessor = ({
             }
           } catch (error) {
             observeStorageResource(error, { phase: 'embedding-token-estimation' }).requireSettled();
-            if (isAbortError(error) || error instanceof AggregateError) throw error;
+            if (isTerminalEmbeddingTokenEstimateFailure(error) || isAbortError(error) || error instanceof AggregateError) throw error;
             tokenEstimates = null;
           }
         }

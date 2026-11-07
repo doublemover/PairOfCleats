@@ -1,4 +1,5 @@
 import { resolveEmbeddingsBatchTokenBudget } from '../../../src/shared/embedding-batch.js';
+import { createEmbeddingTokenEstimator } from './token-estimation.js';
 import { buildEmbeddingChunkInputHash, EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import { digestBundleMappingInventory, observeBundleCoverageFiles, checkBundleCoverageReceipt,
   createBundleCoverageReceipt } from './runner/bundle-coverage-receipt.js';
@@ -2589,24 +2590,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           const chars = typeof text === 'string' ? text.length : 0;
           return Math.max(1, Math.ceil(chars / embeddingCharsPerToken));
         };
-        const estimateEmbeddingTokensBatch = typeof getChunkEmbeddings?.estimateTokensBatch === 'function'
-          ? async (texts) => {
-            try {
-              const estimated = await getChunkEmbeddings.estimateTokensBatch(texts);
-              if (!Array.isArray(estimated) || estimated.length !== texts.length) return null;
-              const counts = estimated.map((value, index) => {
-                const numeric = Math.floor(Number(value));
-                return Number.isFinite(numeric) && numeric > 0
-                  ? numeric
-                  : estimateEmbeddingTokensFallback(texts[index]);
-              });
-              if (typeof estimated.release === 'function') Object.defineProperty(counts, 'release', { value: estimated.release });
-              return counts;
-            } catch {
-              return null;
-            }
-          }
-          : null;
+        const estimateEmbeddingTokensBatch = createEmbeddingTokenEstimator({ estimate: getChunkEmbeddings?.estimateTokensBatch,
+          receiver: getChunkEmbeddings, fallback: estimateEmbeddingTokensFallback });
         const estimateEmbeddingTokens = (text) => estimateEmbeddingTokensFallback(text);
         const textReuseCacheEntries = resolveEmbeddingsTextReuseCacheEntries(indexingConfig);
         const textReuseMaxTextChars = resolveEmbeddingsTextReuseMaxTextChars(indexingConfig);

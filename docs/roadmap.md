@@ -66,15 +66,11 @@ authorized. Work continues solo. Frontload
 implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-[Revision oracles](contracts/revision-oracle.md) (#1528) add independent finite checks, rebuild parity and bounded minimization. [Finite joins](contracts/relational-join.md) (#1516) retain parent multiplicities and qualified anti-join absence. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) replaces staggered full scans with a bounded heap. Broader adapters/publication and runtime checks remain pending. CI2296 passes its front gate; semantic/native source repairs await rechecks.
+[Revision oracles](contracts/revision-oracle.md) (#1528) add finite checks, rebuild parity and bounded minimization. [Finite joins](contracts/relational-join.md) (#1516) retain multiplicities and qualified anti-join absence. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md) preserve native observations and original release. Broader adapters, preparation windows and runtime checks remain pending. CI2296 passes its front gate; repaired failures await rechecks.
 
-Earlier solo source batches repaired exact embedding/cache identities, sparse Boolean
-completion and execution-qualified result reuse, offsets/bitmap/signed ranking,
-transactional TUI installation, document/wire/lease/method LSP lifetimes, and
-original SQLite/profile/native-read failure propagation. Those historical
-counts are superseded by the current intake above. These implementations and their authored
-regressions remain unqualified; category cleanup/parent drain and the broader
-intake remain unfinished. LSP identity is 47/rq11; offline runtime parser is 4.
+Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
+current-source acceptance. The intake above owns remaining scope; current schemas
+and producer constants own format identities.
 
 ### Execution order
 

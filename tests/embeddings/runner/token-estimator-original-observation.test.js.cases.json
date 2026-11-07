@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["counts-and-original-release", "ordinary-fallback-and-terminal-errors", "original-frozen-pending-error", "pending-result-and-each-field", "inspection-failure-is-retained"]
+}

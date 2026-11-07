@@ -2905,3 +2905,8 @@ tooling/eval/relational-revision-oracle/strict-revision-worlds
 tooling/eval/relational-revision-oracle/unknown-reference-budget
 tooling/eval/relational-revision-oracle/original-execution-retirement
 tooling/eval/revision-minimizer-predicate
+embeddings/runner/token-estimator-original-observation/counts-and-original-release
+embeddings/runner/token-estimator-original-observation/ordinary-fallback-and-terminal-errors
+embeddings/runner/token-estimator-original-observation/original-frozen-pending-error
+embeddings/runner/token-estimator-original-observation/pending-result-and-each-field
+embeddings/runner/token-estimator-original-observation/inspection-failure-is-retained
