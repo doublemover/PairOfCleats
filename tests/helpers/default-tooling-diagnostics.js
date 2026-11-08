@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { __readToolingCommandProbeEvidenceForTests } from '../../src/index/tooling/command-resolver.js';
 
 // These sample-repository integrations exercise normal provider selection.
 // Absent optional compilation context/commands and project-loader trust rejections are expected;
@@ -22,6 +23,9 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
   const retained = path.resolve(process.env.PAIROFCLEATS_TEST_LOG_DIR || '.testLogs', `default-tooling-diagnostics-${process.pid}.json`);
   await fs.mkdir(path.dirname(retained), { recursive: true });
   await fs.writeFile(retained, JSON.stringify(report, null, 2) + '\n');
+  await fs.writeFile(path.join(path.dirname(retained), `default-tooling-command-probes-${process.pid}.json`),
+    JSON.stringify({ scope: 'original in-process outcomes; no diagnostic retries',
+      probes: __readToolingCommandProbeEvidenceForTests() }, null, 2) + '\n');
   assert.equal(report.schemaVersion, 1);
   assert.ok(Date.parse(report.generatedAt) >= startedAt, 'provider evidence was written by this build');
   assert.equal(report.truncated, false);

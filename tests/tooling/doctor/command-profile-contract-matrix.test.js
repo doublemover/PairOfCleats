@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import {
   __resetToolingCommandProbeCacheForTests,
+  __readToolingCommandProbeEvidenceForTests,
   __resolveToolingProbeTimeoutMsForTests,
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
@@ -512,6 +513,15 @@ const runProbeTimeoutCase = async () => {
   assert.equal(profile.probe.ok, false, 'expected hanging probe command to fail');
   assert.equal(profile.probe.attempted?.[0]?.args?.[0], '--version', 'expected default probe to start with --version');
   assert.equal(profile.probe.attempted?.[0]?.errorCode, 'SUBPROCESS_TIMEOUT', 'expected hanging probe to be classified as a timeout');
+  const evidence = __readToolingCommandProbeEvidenceForTests();
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].ok, false);
+  assert.equal(evidence[0].attempted[0].errorCode, 'SUBPROCESS_TIMEOUT');
+  assert.equal(evidence[0].attempted[0].exitCode, null);
+  assert.equal(evidence[0].attempted[0].form, '--version');
+  evidence[0].attempted[0].errorCode = 'modified diagnostic copy';
+  assert.equal(__readToolingCommandProbeEvidenceForTests()[0].attempted[0].errorCode, 'SUBPROCESS_TIMEOUT',
+    'reading original probe evidence neither mutates cached results nor retries the hanging command');
   assert.equal(elapsedMs < 2_000, true, `expected probe attempts to be bounded by timeout (elapsed=${elapsedMs}ms)`);
 };
 

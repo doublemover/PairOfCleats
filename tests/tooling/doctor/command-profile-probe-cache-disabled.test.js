@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   __getToolingCommandProbeCacheStatsForTests,
+  __readToolingCommandProbeEvidenceForTests,
   __resetToolingCommandProbeCacheForTests,
   resolveToolingCommandProfile
 } from '../../../src/index/tooling/command-resolver.js';
@@ -61,6 +62,12 @@ try {
     assert.equal(fs.existsSync(persistentCacheDir), false, 'expected no persistent probe cache directory when tooling cache is disabled');
 
     const stats = __getToolingCommandProbeCacheStatsForTests();
+    const evidence = __readToolingCommandProbeEvidenceForTests();
+    assert.equal(evidence.length, 1);
+    assert.equal(evidence[0].ok, true);
+    assert.equal(evidence[0].attempted[0].exitCode, 0);
+    assert.deepEqual(__getToolingCommandProbeCacheStatsForTests(), stats,
+      'historical diagnostic evidence performs no probe or persistent cache operation');
     assert.equal(stats.persistentWrites, 0, 'expected no persistent cache writes when tooling cache is disabled');
     assert.equal(stats.persistentHits, 0, 'expected no persistent cache hits when tooling cache is disabled');
   });

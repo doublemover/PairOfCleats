@@ -721,6 +721,23 @@ export const __getToolingCommandProbeCacheStatsForTests = () => ({
   ...__getPersistentCommandProbeCacheRuntimeStatsForTests()
 });
 
+/** Historical original outcomes only: no re-probe, cache admission or readiness
+ * claim. Copy bounded status/output fields so diagnostics cannot mutate cache
+ * records or expose the command's environment and private startup arguments. */
+export const __readToolingCommandProbeEvidenceForTests = () => [...COMMAND_PROBE_CACHE.values()].map(entry => ({
+  providerId: entry.providerId,
+  command: redactDiagnosticText(entry.commandKey, 512),
+  ok: entry.ok === true,
+  expiresAt: entry.expiresAt,
+  attempted: entry.attempted.slice(0, 8).map(attempt => ({
+    form: attempt.args.find(arg => PROBE_ALLOWED_LEADING_ARGS.has(String(arg).toLowerCase())) || 'custom',
+    exitCode: attempt.exitCode,
+    errorCode: attempt.errorCode || null,
+    stdout: redactDiagnosticText(attempt.stdout, 400),
+    stderr: redactDiagnosticText(attempt.stderr, 400)
+  }))
+}));
+
 export const __setToolingCommandProbeSuccessTtlMsForTests = (value) => {
   const parsed = Number(value);
   commandProbeSuccessTtlMs = Number.isFinite(parsed)
