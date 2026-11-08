@@ -1,4 +1,4 @@
-// UNVALIDATED implementation regression: archive bytes and child operations are inert.
+// Archive bytes and child operations are inert; actual SDK startup has its CI owner.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { ensureManagedClangd, probeInstalledClangd } from '../../../tools/tooling/install-clangd.js';
 import { CLANGD_ARCHIVE_LIMITS, CLANGD_MAX_DOWNLOAD_BYTES, CLANGD_RELEASE_INDEX_URL,
   CLANGD_STORAGE_ESTIMATE, resolveManagedClangd } from '../../../src/shared/managed-clangd.js';
-import { downloadToBuffer } from '../../../tools/tooling/install-shared.js';
+import { downloadToBuffer, settleInstallDownload } from '../../../tools/tooling/install-shared.js';
 import { getToolingRegistry, selectInstallPlan } from '../../../tools/tooling/utils.js';
 import { createToolInstallPreview } from '../../../tools/tooling/install-preview.js';
 import { resolveDeclaredInstallAdmission } from '../../../tools/tooling/install-allocation-contract.js';
@@ -119,7 +119,16 @@ try {
     recovery = () => (selected === 'download-index' ? pending.installDownloadSession : pending.installArchiveSession).releaseAfterClosure();
     await protectedStorage(true);
     await assert.rejects(recovery()); await protectedStorage(true);
-    ready = true; await recovery(); recovery = null;
+    ready = true;
+    if (selected === 'download-archive') {
+      const receipt = await settleInstallDownload(pending);
+      assert.equal(receipt.resourceId, pending.downloadSession.resourceId);
+      assert.equal(pending.downloadSession.isSettled(), true);
+      assert.equal(pending.cacheOwnershipReleased(), false,
+        'settled response work cannot release the separate archive/storage owners');
+      await protectedStorage(true);
+    }
+    await recovery(); recovery = null;
     await protectedStorage(false); assert.equal(probes, 0);
   } else if (['pending-probe', 'frozen-probe', 'missing-receipt'].includes(selected)) {
     const normal = dependencies.probe;

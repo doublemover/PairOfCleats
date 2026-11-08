@@ -95,10 +95,12 @@ export const settleInstallDownload = async error => {
     throw new Error('Download reconciliation requires its actual response resource owner.');
   }
   const receipt = await session.releaseAfterClosure();
-  let allReleased = false;
-  try { allReleased = error.cacheOwnershipReleased?.() === true; } catch { /* Unknown owner remains retained. */ }
+  // The actual response session retains its original transport/resource
+  // observations. A surrounding error can also own the archive and storage
+  // session, which close only after this inner operation settles. Consulting
+  // that aggregate here creates a circular dependency between those owners.
   if (receipt?.resourceId !== session.resourceId || receipt.settled !== true || receipt.pending !== false
-    || session.isSettled() !== true || !allReleased) {
+    || session.isSettled() !== true) {
     throw Object.assign(new Error('Actual download response/resource settlement remains unconfirmed.'), { cacheOwnershipPending: true });
   }
   return receipt;
@@ -336,7 +338,14 @@ export const downloadToBuffer = async ({
             { value, configurable: true, writable: true, enumerable: !['downloadSession', 'downloadCleanupError'].includes(key) }])));
           return retained(primaryError);
         } catch { /* Preserve immutable or already nested context below. */ }
-        const pending = Object.assign(new Error('Download response/resource settlement remains unconfirmed.', { cause: secondary || primaryError }), {
+        // Classification can itself throw an independently owned failure. Keep
+        // every original inspection on standard error edges as well as the
+        // diagnostic inventory, without reading its message or replacing it.
+        const pendingCause = { cause: secondary || primaryError };
+        const pendingError = inspected.length
+          ? new AggregateError(inspected, 'Download response/resource settlement remains unconfirmed.', pendingCause)
+          : new Error('Download response/resource settlement remains unconfirmed.', pendingCause);
+        const pending = Object.assign(pendingError, {
           cacheOwnershipPending: true, cacheOwnershipReleased: allReleased
         });
         return retained(addStorageFailureContext(primaryError, fields, pending, { nonEnumerable: ['downloadSession', 'downloadCleanupError'],

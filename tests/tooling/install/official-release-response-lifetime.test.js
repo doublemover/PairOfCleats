@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { downloadOfficialGitHubRelease } from '../../../tools/tooling/official-release-download.js';
 import { downloadToBuffer, settleInstallDownload, isInstallDownloadSession } from '../../../tools/tooling/install-shared.js';
 
-// UNVALIDATED: inert response protocols/Node Readables; no network or children.
+// Inert response protocols/Node Readables; no network or children.
 const url = 'https://github.com/clangd/clangd/releases/download/fixture/archive.zip';
 const request = { url, maxBytes: 64, timeoutMs: 1000, settlementTimeoutMs: 5 };
 const contains = (error, expected) => {
