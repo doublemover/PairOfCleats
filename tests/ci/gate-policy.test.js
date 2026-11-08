@@ -9,7 +9,10 @@ const inventory = JSON.parse(match[1]);
 const workflow = filename => parse(fs.readFileSync(`.github/workflows/${filename}`, 'utf8'));
 const gateOrder = fs.readFileSync('tests/gate/gate.order.txt', 'utf8').trim().split(/\r?\n/);
 assert.ok(gateOrder.includes('ci/gate-policy'), 'required-job drift must fail the front gate');
-assert.ok(gateOrder.includes('tooling/ci/run-suite-api-plan'), 'cohort ownership must be checked before platform execution');
+for (const mode of ['ci', 'nightly']) {
+  assert.ok(gateOrder.includes(`tooling/ci/run-suite-api-plan/${mode}`),
+    `${mode} cohort ownership must be checked before platform execution`);
+}
 assert.deepEqual(new Set(inventory.mergeJobs), new Set(Object.keys(workflow(inventory.mergeWorkflow).jobs)));
 assert.deepEqual(new Set(inventory.conditionalMergeJobs), new Set(Object.keys(workflow(inventory.conditionalMergeWorkflow).jobs)));
 const long = workflow('ci-long.yml');

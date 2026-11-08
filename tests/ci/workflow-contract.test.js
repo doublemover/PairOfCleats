@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { normalizeEol } from '../../src/shared/eol.js';
 import { escapeRegex } from '../../src/shared/text/escape-regex.js';
+import { readPlatformWorkflow, platformToolingSteps } from '../helpers/ci-platform-workflow.js';
+import { extraPlatformSteps } from '../../tools/ci/suite-cohorts.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const packagePath = path.join(ROOT, 'package.json');
@@ -136,7 +138,7 @@ const assertWorkflowDispatchPresent = ({ workflowText, label }) => {
 };
 
 const assertReleaseTagTriggerPresent = ({ workflowText, label }) => {
-  if (!/push:\s*\n(?:\s*branches:\s*\[[^\n]+\]\s*\n)?\s*tags:\s*\n\s*-\s*'v\*'/.test(workflowText)) {
+  if (!parse(workflowText).on?.push?.tags?.includes('v*')) {
     console.error(`${label} must auto-trigger on release tags.`);
     process.exit(1);
   }
@@ -473,48 +475,36 @@ assert.ok(nativeSearchUpload && nativeSearchUpload.if === 'always()'
   && nativeSearchUpload.with.path.includes('native-search-*/terminal-receipt.json')
   && nativeSearchUpload.with.path.includes('native-search-*/native-source-identity.json'),
 'successful and failed native search cases retain original binary and terminal evidence');
-const windowsJob = parse(ciWorkflow).jobs.windows;
-const ownershipStepIndex = windowsJob.steps.findIndex(step => step.name === 'Windows subprocess ownership');
-const ownershipCommand = windowsJob.steps[ownershipStepIndex]?.run || '';
-if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(step => step.name === 'CI Suite')
-  || !ownershipCommand.includes('shared\\/kill-tree\\.windows$')
-  || !ownershipCommand.includes('shared\\/kill-tree\\.windows-orphan-descendant-fallback$')
-  || !ownershipCommand.includes('shared\\/kill-tree-windows-snapshot$')
-  || !ownershipCommand.includes('shared\\/subprocess\\/sync-timeout-kills-child-tree$')
-  || !ownershipCommand.includes('shared\\/locks\\/windows-delete-pending$')
-  || !ownershipCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')) {
-  throw new Error('Windows ownership must run its native snapshot, three lifecycle fixtures and native delete-pending control before the broad suite with strict bounds and zero retries.');
-}
+const platformWorkflow = readPlatformWorkflow();
+const windowsOwnership = extraPlatformSteps('win32').find(step => step.cohort === 'windows-ownership');
+for (const id of ['kill-tree\\.windows', 'kill-tree\\.windows-orphan-descendant-fallback', 'kill-tree-windows-snapshot', 'sync-timeout-kills-child-tree', 'windows-delete-pending'])
+  assert.ok(windowsOwnership.args.join(' ').includes(id), 'The exact Windows lifecycle owner retains ' + id);
+assert.equal(extraPlatformSteps('linux').some(step => step.cohort === 'windows-ownership'), false);
+const crashStep = extraPlatformSteps('win32').find(step => step.cohort === 'crash-log');
+const crashCommand = crashStep.args.join(' ');
+for (const flag of ['--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000', '--retries 0', '--native-status-redo=false'])
+  assert.ok(crashCommand.includes(flag), 'independent crash qualification retains ' + flag);
 for (const platform of ['ubuntu', 'windows', 'macos']) {
-  const steps = parse(ciWorkflow).jobs[platform].steps;
+  const steps = platformToolingSteps(platform);
+  const qualityUpload = platformWorkflow.jobs.aggregate.steps.find(step => step.name === 'Upload quality artifacts');
   const jj = steps.findIndex(step => step.name === 'Setup qualified Jujutsu');
-  assert.ok(jj >= 0 && jj < steps.findIndex(step => step.name === 'CI Suite')
+  assert.ok(jj >= 0 && jj < steps.findIndex(step => step.name === 'Run tooling cohort')
     && steps[jj].run === 'node tools/ci/provision-jj.js', `${platform}: provision the actual pinned SCM prerequisite before its native session fixtures`);
-  assert.ok(steps.find(step => step.name === 'Upload quality artifacts').with.path.split(/\r?\n/u)
+  assert.ok(qualityUpload.with.path.split(/\r?\n/u)
     .includes('.diagnostics/jj-provisioning.json'), `${platform}: retain the original Jujutsu executable identity`);
-  const crash = steps.findIndex(step => step.name === 'Serial crash-log ownership and latency qualification');
-  assert.ok(crash >= 0 && crash < steps.findIndex(step => step.name === 'CI Suite'),
-    `${platform}: qualify crash-log ownership and serial latency before the broad suite`);
-  const crashCommand = steps[crash].run;
   assert.ok(crashCommand.includes('terminal-ownership|state-write-contention|independent-sinks|boundary-controls')
-    && crashCommand.includes('perf\\/crash-log-error-latency\\/')
-    && crashCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
-    && crashCommand.includes('--report-file .diagnostics/crash-log-qualification.json'),
-  `${platform}: retain original crash ownership cases, raw latency receipts and strict serial bounds`);
-  const crashUpload = steps.find(step => step.name === 'Upload quality artifacts');
-  assert.ok(crashUpload.with.path.split(/\r?\n/u).includes('.diagnostics/crash-log-qualification.json'),
-    `${platform}: upload the source-bound crash-log report and test logs`);
+    && crashCommand.includes('perf\\/crash-log-error-latency\\/'));
+  assert.ok(qualityUpload.with.path.split(/\r?\n/u).includes('.diagnostics/crash-log-qualification.json'));
   const goSetup = steps.findIndex(step => step.name === 'Setup qualified Go SDK');
   const goVerify = steps.findIndex(step => step.name === 'Verify selected Go SDK');
   const goStartup = steps.findIndex(step => step.name === 'Qualify real Go language server startup');
-  const shutdown = steps.findIndex(step => step.name === 'Serial LSP shutdown ownership qualification');
-  assert.ok(shutdown >= 0 && shutdown < goStartup
-    && steps[shutdown].run.includes('graceful-exit-after-transport-close\\/')
-    && steps[shutdown].run.includes('handshake-admission-and-cancellation')
-    && steps[shutdown].run.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
-    && steps[shutdown].run.includes('--report-file .diagnostics/lsp-shutdown-qualification.json')
-    && crashUpload.with.path.split(/\r?\n/u).includes('.diagnostics/lsp-shutdown-qualification.json'),
-  `${platform}: require serial graceful/forced LSP shutdown and retain exact ownership receipts before real server qualification`);
+  const shutdown = extraPlatformSteps('win32').find(step => step.cohort === 'lsp-shutdown').args.join(' ');
+  assert.ok(shutdown.includes('graceful-exit-after-transport-close\\/')
+    && shutdown.includes('handshake-admission-and-cancellation')
+    && shutdown.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
+    && shutdown.includes('--report-file .diagnostics/lsp-shutdown-qualification.json')
+    && qualityUpload.with.path.split(/\r?\n/u).includes('.diagnostics/lsp-shutdown-qualification.json'),
+  `${platform}: the independent serial shutdown owner and exact receipts remain required alongside actual provider qualification`);
   const goProvision = steps.findIndex(step => step.name === 'Provision pinned Go language server for CI');
   const go = steps[goSetup];
   if (goSetup < 0 || goVerify <= goSetup
@@ -527,7 +517,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || goProvision <= goVerify || goProvision >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
     || steps[goProvision].run !== 'node tools/ci/provision-gopls.js'
     || goStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
-    || goStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || goStartup >= steps.findIndex(step => step.name === 'Run tooling cohort')
     || !steps[goStartup].run.includes('qualifyInstalledLspRuntime')
     || !steps[goStartup].run.includes('providerId: "gopls"')
     || !steps[goStartup].run.includes('dir: provision.toolingRoot')
@@ -545,14 +535,14 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || dotnet.uses !== 'actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68'
     || dotnet.with?.['dotnet-version'] !== '10.0.403'
     || dotnet.env?.DOTNET_INSTALL_DIR !== '${{ runner.temp }}/poc-dotnet-sdk'
-    || parse(ciWorkflow).jobs[platform].env?.DOTNET_GENERATE_ASPNET_CERTIFICATE !== 'false'
-    || parse(ciWorkflow).jobs[platform].env?.DOTNET_CLI_HOME !== '${{ github.workspace }}/.tmp/ci/dotnet-cli-home'
-    || parse(ciWorkflow).jobs[platform].env?.NUGET_PACKAGES !== '${{ github.workspace }}/.tmp/ci/nuget-packages'
+    || platformWorkflow.jobs.tooling.env?.DOTNET_GENERATE_ASPNET_CERTIFICATE !== 'false'
+    || platformWorkflow.jobs.tooling.env?.DOTNET_CLI_HOME !== '${{ github.workspace }}/.tmp/ci/dotnet-cli-home'
+    || platformWorkflow.jobs.tooling.env?.NUGET_PACKAGES !== '${{ github.workspace }}/.tmp/ci/nuget-packages'
     || !steps[dotnetVerify].run.includes('DOTNET_HOST_PATH=')
     || !steps[dotnetVerify].run.includes('DOTNET_ROOT_')
     || !steps[dotnetVerify].run.includes('.diagnostics/dotnet-sdk.json')
     || csharpStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
-    || csharpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || csharpStartup >= steps.findIndex(step => step.name === 'Run tooling cohort')
     || csharpProvision <= dotnetVerify || csharpProvision >= csharpStartup
     || steps[csharpProvision].run !== 'node tools/ci/provision-csharp-ls.js'
     || steps[csharpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}"
@@ -563,7 +553,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || !steps[csharpStartup].run.includes('providerId: "csharp-ls"')) {
     throw new Error(`${platform}: qualify the isolated .NET SDK and real C# runtime, bind host/architecture roots, and prevent unrelated development-certificate generation.`);
   }
-  const upload = steps.find(step => step.name === 'Upload quality artifacts');
+  const upload = qualityUpload;
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
   const optional = steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)');
   assert.ok(!/--tools\s+[^\s]*\bgopls\b/u.test(steps[optional].run), 'CI runtime setup cannot depend on the application\'s unqualified managed gopls build forecast');
@@ -578,7 +568,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     const declaration = steps.findIndex(step => step.name === 'Record PHPactor native platform limitation');
     const selected = /--tools\s+([^\s]+)/.exec(steps[optional].run)?.[1].split(',') || [];
     if (selected.includes('phpactor') || phpSetup !== -1 || phpStartup !== -1 || phpProvision !== -1
-      || declaration <= optional || declaration >= steps.findIndex(step => step.name === 'CI Suite')
+      || declaration <= optional || declaration >= steps.findIndex(step => step.name === 'Run tooling cohort')
       || !steps[declaration].run.includes('"unsupported_platform"')
       || !steps[declaration].run.includes('tooling/install/phpactor-platform-contract')
       || !paths.includes('.diagnostics/phpactor-platform.json')) {
@@ -592,7 +582,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
       || !String(setup.with?.extensions).split(/,\s*/).includes('posix')
       || !steps[phpVerify].run.includes('get_loaded_extensions()')
       || steps[optional].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
-      || phpStartup <= optional || phpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+      || phpStartup <= optional || phpStartup >= steps.findIndex(step => step.name === 'Run tooling cohort')
       || steps[phpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/phpactor', github.workspace))) }}"
       || phpProvision <= phpVerify || phpProvision >= phpStartup
       || steps[phpProvision].run !== 'node tools/ci/provision-phpactor.js'

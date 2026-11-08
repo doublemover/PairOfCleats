@@ -104,7 +104,12 @@ assert.equal(vendorCases.length, 7, 'the added TypeScript7.1 cohort has its own 
 const vendorSet = new Set(vendorCases);
 const selectedVendor = windowsJob.filter(id => vendorSet.has(id));
 assert.deepEqual(selectedVendor.slice().sort(), vendorCases, 'every actual vendor request/disposal case runs exactly once');
-const windowsWorkflows = windowsJob.filter(id => !vendorSet.has(id));
+const searchCases = discovered.filter(test => /^tui\/native-search-conpty\//.test(test.id)).map(test => test.id).sort();
+assert.equal(searchCases.length, 18, 'native search has its own reviewed case inventory and step lifetime');
+const searchSet = new Set(searchCases);
+assert.deepEqual(windowsJob.filter(id => searchSet.has(id)).sort(), searchCases,
+  'all original and narrow-terminal native search cases run exactly once');
+const windowsWorkflows = windowsJob.filter(id => !vendorSet.has(id) && !searchSet.has(id));
 assert.equal(new Set(windowsJob).size, windowsJob.length, 'the independent vendor cohort cannot duplicate native cases');
 assert.equal(windowsInspection.length, 49);
 assert.equal(windowsWorkflows.length, 22);
@@ -112,4 +117,4 @@ const windows = [...windowsInspection, ...windowsWorkflows];
 assert.equal(new Set(windows).size, windows.length);
 assert.deepEqual(windows.sort(), expected);
 for (const os of ['Linux', 'macOS']) assert.deepEqual(selectedBy(inspection, os).sort(), expected);
-console.log('Windows native CI conserves71 original cases across49/22-case jobs plus7 exact vendor cases; job and fixture limits remain20min/30s');
+console.log('Windows native CI conserves71 original cases across49/22-case jobs plus18 search and7 vendor cases; job and fixture limits remain20min/30s');

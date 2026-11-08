@@ -131,6 +131,15 @@ their own boundaries (218 cases total). There is no aggregate
   - Print the resolved test list and exit (no execution). With `--json`, emit structured output.
 - `--list-lanes`
   - Print known lanes and exit. With `--json`, emit structured output.
+
+- `--test-id-file <path>`
+  - Narrows the normal lane/tag/match selection using a bounded JSON document:
+    `{"schemaVersion":1,"ids":["shared/example"]}`. Unknown, duplicate or empty
+    IDs fail; the file cannot expand a lane or bypass exclusions. Original lane
+    order remains. CI uses this selector to avoid Windows command-line limits
+    when assigning hundreds of exact cases. With coverage enabled, the runner
+    also retains a compact `<coverage-output>.ranges.json` sidecar for exact
+    source/range union across shards.
 - `--list-tags`
   - Print known tags and exit. With `--json`, emit structured output.
 - `--config <path>`

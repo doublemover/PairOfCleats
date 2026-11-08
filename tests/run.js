@@ -19,6 +19,7 @@ const {
 const { buildSuiteCategorySummary, inferSuiteCategory } = await import('./runner/suite-taxonomy.js');
 const { loadLaneManifestConfig, loadOrderedLaneManifest } = await import('./runner/lane-manifests.js');
 const { parseArgs } = await import('./runner/run-args.js');
+const { selectTestIds, readTestIdSelection } = await import('./runner/test-id-selection.js');
 const {
   mergeNodeOptions,
   normalizeLaneArgs,
@@ -400,6 +401,8 @@ const main = async () => {
       }
     }));
   }
+
+  if (argv['test-id-file']) selection = selectTestIds(selection, readTestIdSelection(path.resolve(argv['test-id-file'])));
 
   if (!selection.length) {
     console.error('No tests matched the selected filters.');
@@ -805,7 +808,11 @@ const main = async () => {
     }
     const currentEntries = await collectV8CoverageEntries({
       root: ROOT,
-      coverageDir
+      coverageDir,
+      ...(argv['test-id-file'] ? { onRanges: async ranges => {
+        await fsPromises.mkdir(path.dirname(coverageOutputPath), { recursive: true });
+        await fsPromises.writeFile(coverageOutputPath + '.ranges.json', JSON.stringify(ranges));
+      } } : {})
     });
     coverageArtifacts.push(buildCoverageArtifact({ runId, entries: currentEntries }));
     let mergedEntries = mergeCoverageEntries(coverageArtifacts);

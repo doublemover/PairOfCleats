@@ -1090,7 +1090,9 @@ tooling/sublime/api-authentication
 tooling/vscode/external-node-runtime
 retrieval/ann/generation-identity
 retrieval/ann/generation-publication
-retrieval/ann/generation-rebuild-failure
+retrieval/ann/generation-rebuild-failure/memory-fallback
+retrieval/ann/generation-rebuild-failure/sqlite-fallback
+retrieval/ann/generation-rebuild-failure/automatic-admission
 retrieval/ann/generation-lmdb
 tui/cargo-invocation-policy
 retrieval/backend/fts-boolean-universe
@@ -2746,6 +2748,9 @@ tooling/install/bootstrap-verification-generation/journal-frame-integrity
 tooling/install/checkout-stage-journal/prior-readiness-preserved-before-mutation
 tooling/install/checkout-stage-journal/prior-readiness-byte-bound
 tooling/install/checkout-inspection-replacement/receipt
+tooling/ci/cohort-plan-and-acceptance
+tooling/ci/cohort-artifact-aggregation
+runner/exact-id-file
 tooling/install/checkout-inspection-replacement/journal
 tooling/install/checkout-recovery/intact-repeat-and-journal-recovery
 tooling/install/checkout-recovery/installed-unverified-targeted-repair

@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { toPosix } from '../../../src/shared/file-paths.js';
 import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 import { normalizeCoverageSourcePath, assertCoverageSourceIdentity, COVERAGE_SOURCE_IDENTITY_VERSION } from './source-identity.js';
+import { buildCoverageRanges } from './ranges.js';
 
 const toRounded = (value) => {
   const numeric = Number(value);
@@ -53,7 +54,7 @@ const readCoverageJsonSafe = async (filePath) => {
  * @param {{root:string,coverageDir:string|null|undefined}} input
  * @returns {Promise<Array<{path:string,coveredRanges:number,totalRanges:number}>>}
  */
-export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
+export const collectV8CoverageEntries = async ({ root, coverageDir, onRanges = null }) => {
   if (!coverageDir || !fs.existsSync(coverageDir)) return [];
   const files = (await fsPromises.readdir(coverageDir))
     .filter((name) => name.endsWith('.json'))
@@ -77,6 +78,7 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
     }
   }
 
+  if (onRanges) await onRanges(buildCoverageRanges(byPath));
   return Array.from(byPath.entries())
     .map(([entryPath, rangeMap]) => {
       const totalRanges = rangeMap.size;

@@ -1,7 +1,7 @@
 # CI Gate Policy
 
-Status: Active guide v1.5
-Last audited: 2026-11-05 (checked-in workflow inventory; repository protection observation remains dated October 20)
+Status: Active guide v1.6
+Last audited: 2026-11-07 (checked-in workflow inventory; repository protection observation remains dated October 20)
 
 ## Purpose
 
@@ -25,13 +25,13 @@ The machine-readable inventory below is checked against actual workflow jobs:
 
 <!-- required-check-inventory -->
 ```json
-{"mergeWorkflow":"ci.yml","mergeJobs":["gate","ubuntu","windows","macos","rust-tui","native-inspection","native-index-workflows-windows","windows-authority"],"conditionalMergeWorkflow":"adaptive-policy-checks.yml","conditionalMergeJobs":["policy"],"releaseWorkflows":["CI","CI Long"]}
+{"mergeWorkflow":"ci.yml","mergeJobs":["gate","ubuntu-cohorts","windows-cohorts","macos-cohorts","ubuntu","windows","macos","rust-tui","native-inspection","native-index-workflows-windows","windows-authority"],"conditionalMergeWorkflow":"adaptive-policy-checks.yml","conditionalMergeJobs":["policy"],"releaseWorkflows":["CI","CI Long"]}
 ```
 
 Read-only GitHub inspection on October 20 returned `Branch not protected` for
 `main` and an empty repository/parent ruleset list. This guide states review
-requirements; it does not claim GitHub enforces them or that a required-check
-aggregate exists. No repository protection settings are changed by this repair.
+requirements; it does not claim GitHub enforces them. The OS completion jobs
+aggregate their own workflow results. No repository protection settings change.
 
 The merge checks establish:
 
@@ -43,8 +43,14 @@ The merge checks establish:
    broad lane membership.
    The gate lane also checks the complete required-job inventory and actual
    CI/nightly cohort selection before the platform suites start.
-2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.13.0.
-   Before those suites, `node tools/ci/provision-jj.js` admits the official stable
+2. Separate Ubuntu, Windows and macOS cohort workflows use the shared
+   `tools/ci/run-suite.js --mode ci --skip-prechecks` recipes under Node 26.13.0.
+   Each freezes its own exact plan, runs four correctness shards and independent
+   serial and tooling jobs, then validates complete evidence. Stable `ubuntu`,
+   `windows`, and `macos` checks require their entire OS workflow to succeed.
+   SDKs and language servers are installed only in the tooling job. See
+   [cohort scheduling and evidence](../testing/ci-capability-policy.md).
+   In correctness and tooling jobs, `node tools/ci/provision-jj.js` admits the official stable
    Jujutsu0.46.0 archive pinned in `tools/ci/jj-recipe.js`. The shared download and
    extraction owners enforce vendor origins, exact bytes/SHA256 and bounded
    contents. It runs the original executable's version probe, records its binary
@@ -55,16 +61,17 @@ The merge checks establish:
 3. CI TUI job: Rust formatting, check, test, and clippy for the Rust TUI package.
 4. Native inspection matrix: serial real-terminal TUI workflows, PTY disposal,
    parser patch/lifecycle checks and produced index contracts on each supported
-   workflow platform. Windows keeps 49 inspection/PTY/parser/producer cases and
-   21 index workflows in separate required jobs, each with its original
-   20-minute job and 30-second fixture bounds. A configured job is not a passing result.
+   workflow platform. Windows keeps49 inspection/PTY/parser/producer cases in
+   one job;22 index workflows,18 native-search and seven TypeScript vendor cases
+   run in the independent native-workflow job. Both retain20-minute job and
+   30-second fixture bounds. A configured job is not a passing result.
 5. Windows authority job: real symlink-capable authority cohort at the candidate SHA.
 6. Targeted suites for touched areas, using `node tests/run.js --match '<selector>' --lane all --timeout-ms 30000 --retries 0`.
 7. Contract/docs drift and generated-surface freshness within their owning gates.
 
 The platform suite runs all19 JS/TS compiler/API export, warning-cap, parameter
 and qualified-target fixtures in a
-serial correctness cohort before its parallel lane. The complete case has a
+separate serial correctness cohort alongside its parallel shards. The complete case has a
 30-second process limit and the public CLI keeps its five-second limit. The
 retired nested 10-second setup timers did not qualify API latency. Every case retains
 its ordered-lane membership and executes exactly once. Its report is retained

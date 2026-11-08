@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T22:47:43.967Z",
+  "generatedAt": "2026-11-08T00:39:51.592Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4864,6 +4864,7 @@
         "tests/perf/storage/semantic/query-final-encoding-work.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/perf/tooling/bench/sqlite-campaign.test.js",
+        "tests/retrieval/ann/generation-rebuild-failure.test.js",
         "tests/retrieval/ann/lancedb-outcome-consumers.test.js",
         "tests/retrieval/ann/query-vector-admission.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
@@ -4992,6 +4993,7 @@
         "tests/tooling/cache/gc-modern-resource-ownership.test.js",
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
+        "tests/tooling/ci/run-suite-api-plan.test.js",
         "tests/tooling/consumer-proof-index.test.js",
         "tests/tooling/eval/answer-integrity-attacks.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
@@ -5270,6 +5272,7 @@
       "name": "PAIROFCLEATS_TEST_TANTIVY",
       "files": [
         "tests/smoke/tantivy.test.js",
+        "tools/ci/suite-cohorts.js",
         "tools/config/inventory.js"
       ]
     },
@@ -5526,6 +5529,7 @@
         "tests/retrieval/providers/tantivy-reader-lifetime.test.js",
         "tests/retrieval/relation-boost-zero-config.test.js",
         "tests/run.js",
+        "tests/runner/exact-id-file.test.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
         "tests/services/mcp/build-sqlite-core-ownership.test.js",

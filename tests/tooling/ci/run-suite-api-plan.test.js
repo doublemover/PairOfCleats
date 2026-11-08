@@ -5,8 +5,11 @@ import fs from 'node:fs';
 import { parse } from 'yaml';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { readPlatformWorkflow } from '../../helpers/ci-platform-workflow.js';
 
 const root = process.cwd(), env = applyTestEnv({ syncProcess: false, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
+const mode = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
+assert.ok(['ci', 'nightly'].includes(mode), 'select one independently bounded CI or nightly plan case');
 const providerAndParityIds = ['tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report'];
 const publicationIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/native-publication-cleanup/${id}`);
@@ -34,7 +37,8 @@ const sourceAuthorityIds = JSON.parse(fs.readFileSync(path.join(root,
 sourceAuthorityIds.push('storage/semantic/runtime-source-reference-foreign-generation');
 const workflow = parse(fs.readFileSync('.github/workflows/ci.yml', 'utf8'));
 for (const platform of ['ubuntu', 'windows', 'macos']) {
-  const upload = workflow.jobs[platform].steps.find(step => step.uses?.startsWith('actions/upload-artifact@')
+  assert.equal(workflow.jobs[platform + '-cohorts'].with.platform, platform);
+  const upload = readPlatformWorkflow().jobs.aggregate.steps.find(step => step.uses?.startsWith('actions/upload-artifact@')
     && step.with.path?.includes('.diagnostics/serial-runtime-budgets.json'));
   assert.ok(upload?.with.path.includes('.diagnostics/serial-compiler-api-contracts.json'),
     `${platform}: retain the independently scheduled compiler report`);
@@ -44,8 +48,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     `${platform}: retain complete selected-outcome child status, error and output on successful and failed runs`);
 }
 // These list commands are read-only and share one root/environment/source
-// snapshot. Reuse identical CI/nightly cohort recipes; execute each exact argv
-// once, retaining every per-mode assertion and returning a fresh sortable copy.
+// snapshot. Each mode independently executes every distinct original CLI argv
+// and retains all of its exact-selection and ownership assertions.
 const cohortSelections = new Map();
 let cohortChecks = 0;
 const listScheduledCohort = selectors => {
@@ -59,7 +63,7 @@ const listScheduledCohort = selectors => {
   }
   return [...cohortSelections.get(key)];
 };
-for (const mode of ['ci', 'nightly']) {
+{
   const plan = runNode(['tools/ci/run-suite.js', '--mode', mode, '--dry-run', '--skip-prechecks'],
     `${mode} API and serial qualification plan`, root, env, { stdio: 'pipe' });
   const lines = String(plan.stderr).split(/\r?\n/);
@@ -105,7 +109,8 @@ for (const mode of ['ci', 'nightly']) {
       assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds, ...providerAndParityIds, ...sourceAuthorityIds].sort()
         : line === native ? ['storage/sqlite/build/cancellation', ...publicationIds].sort()
           : line === ann ? ['retrieval/ann/generation-lmdb',
-            'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
+            'retrieval/ann/generation-publication', ...['automatic-admission', 'memory-fallback', 'sqlite-fallback']
+              .map(id => `retrieval/ann/generation-rebuild-failure/${id}`)]
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
               ...reuseIds,
               ...riskWitnessWorkIds,
@@ -149,6 +154,6 @@ for (const mode of ['ci', 'nightly']) {
     }
   }
 }
-console.log(JSON.stringify({ measurement: 'ci-plan-discovery-work', cohortChecks, uniqueCliLists: cohortSelections.size,
+console.log(JSON.stringify({ measurement: 'ci-plan-discovery-work', mode, cohortChecks, uniqueCliLists: cohortSelections.size,
   scope: 'one read-only root/environment/source snapshot; every distinct original CLI argv executes' }));
-console.log('CI/nightly API cohorts resolve authorization, search and federation; strict runtime budgets execute serially');
+console.log(`${mode} API cohorts resolve authorization, search and federation; strict runtime budgets execute serially`);

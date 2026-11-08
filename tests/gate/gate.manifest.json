@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 36,
     "matrix": 2,
-    "meta": 6,
+    "meta": 8,
     "soak": 0,
     "heavy-runtime": 0
   },
@@ -263,20 +263,32 @@
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "ci/gate-policy",
+      "id": "ci/platform-cohort-contract",
       "order": 42,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "tooling/ci/run-suite-api-plan",
+      "id": "ci/gate-policy",
       "order": 43,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "tui/operator-command-dispositions",
+      "id": "tooling/ci/run-suite-api-plan/ci",
       "order": 44,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/ci/run-suite-api-plan/nightly",
+      "order": 45,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tui/operator-command-dispositions",
+      "order": 46,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

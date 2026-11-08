@@ -10,7 +10,11 @@ import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const checkout = process.cwd();
+const mode = process.env.PAIROFCLEATS_TEST_ID?.split('retrieval/ann/generation-rebuild-failure/')[1];
+assert.ok(['memory-fallback', 'sqlite-fallback', 'automatic-admission'].includes(mode));
 const { dir: root } = await prepareIsolatedTestCacheDir('ann-generation-rebuild');
+const phaseLogs = path.join(checkout, '.testLogs', `ann-generation-rebuild-${mode}-${process.pid}`);
+await fs.mkdir(phaseLogs, { recursive: true });
 const repo = path.join(root, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'sample.js'), 'export function uniqueGenerationWitness() { return 42; }\n');
@@ -20,16 +24,35 @@ const config = normalize => ({ indexing: { scm: { provider: 'none' },
 tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } });
 const env = normalize => applyTestEnv({ cacheRoot: path.join(root, 'cache'), embeddings: 'stub', testConfig: config(normalize),
   extraEnv: { POC_FIXTURE_ANN_ORIGINAL_RUNNER: process.env.POC_FIXTURE_ANN_ORIGINAL_RUNNER } });
-const invoke = (args, label, childEnv) => runNode(args, label, repo, childEnv,
-  { stdio: 'pipe', timeoutMs: 30000 });
+let phase = 0;
+const invoke = async (args, label, childEnv) => {
+  const started = performance.now();
+  const result = runNode(args, label, repo, childEnv, { stdio: 'pipe', timeoutMs: 30000, allowFailure: true });
+  const durationMs = performance.now() - started;
+  await fs.writeFile(path.join(phaseLogs, `phase-${phase++}.json`), JSON.stringify({ label, command: process.execPath,
+    args, durationMs, status: result.status, signal: result.signal, stdout: result.stdout, stderr: result.stderr }, null, 2));
+  console.log(`${label}: ${durationMs.toFixed(1)}ms`);
+  assert.equal(result.status, 0, `${label}: ${result.stderr}\n${result.stdout}`);
+  return result;
+};
 const hook = pathToFileURL(path.join(checkout, 'tests/helpers/ann-writer-failure-hook.js')).href;
-invoke([path.join(checkout, 'build_index.js'), '--repo', repo, '--mode', 'code', '--stage', 'stage1',
-  '--stub-embeddings'], 'fresh stage1', env(true));
+// Canonical production input preparation; independent selected-outcome CLI
+// contracts retain build_index argument/startup coverage. Include import, work
+// and disposal inside the original30-second whole-case deadline.
+env(true);
+const started = performance.now();
+const { buildIndex } = await import('../../../src/integrations/core/build-index.js');
+const seeded = await buildIndex(repo, { modes: ['code'], stage: 'stage1', stubEmbeddings: true, threads: 1, progress: 'off' });
+assert.equal(seeded.outcome.status, 'index-published');
+assert.deepEqual(seeded.outcome.requestedStages, ['stage1']);
+assert.equal(seeded.outcome.stages[0].validation.issueCount, 0);
+await fs.writeFile(path.join(root, `phase-${phase++}.json`), JSON.stringify({ owner: 'buildIndex',
+  durationMs: performance.now() - started, outcome: seeded.outcome }, null, 2));
 const sqliteBuild = await runSqliteBuild(repo, { mode: 'code', env: env(true), emitOutput: false });
 assert.equal(sqliteBuild.ok, true);
 const build = () => ['--import', hook, path.join(checkout, 'tools/build/embeddings.js'),
   '--repo', repo, '--mode', 'code', '--stub-embeddings'];
-const originalBuild = invoke(build(), 'original native generation', env(true));
+const originalBuild = await invoke(build(), 'original native generation', env(true));
 const indexDir = getIndexDir(repo, 'code', loadUserConfig(repo));
 const state = () => fs.readFile(path.join(indexDir, 'index_state.json'), 'utf8').then(JSON.parse);
 const original = await state();
@@ -40,7 +63,7 @@ for (const name of ['dense_vectors_hnsw', 'dense_vectors_hnsw_meta', 'dense_vect
   const file = embeddingArtifactPath(indexDir, name);
   retained.push({ file, bytes: await fs.readFile(file) });
 }
-const failure = invoke(build(), 'changed normalization with native writer failure',
+const failure = await invoke(build(), 'changed normalization with native writer failure',
   { ...env(false), POC_FIXTURE_ANN_FAIL: '1' });
 assert.match(`${failure.stdout}\n${failure.stderr}`, /fixture: native writer failure/, 'The production wrappers must observe the injected writer failures');
 const failureOutput = `${failure.stdout}\n${failure.stderr}`;
@@ -63,17 +86,19 @@ const manifest = JSON.parse(await fs.readFile(path.join(indexDir, 'pieces/manife
 assert.equal(manifest.pieces.some(piece => /hnsw|lancedb/.test(piece.name)), false);
 for (const entry of retained) assert.deepEqual(await fs.readFile(entry.file), entry.bytes,
   'Prior complete generation retains its original bytes and identity');
-for (const backend of ['memory', 'sqlite']) {
-  const result = invoke([path.join(checkout, 'search.js'), 'uniqueGenerationWitness', '--repo', repo,
+if (mode !== 'automatic-admission') {
+  const backend = mode === 'memory-fallback' ? 'memory' : 'sqlite';
+  const result = await invoke([path.join(checkout, 'search.js'), 'uniqueGenerationWitness', '--repo', repo,
     '--mode', 'code', '--backend', backend, '--no-ann', '--json'], `${backend} lexical fallback`, env(false));
   const payload = JSON.parse(result.stdout);
   assert.ok(JSON.stringify(payload).includes('sample.js'), `${backend}: meaningful lexical result survives failed native writers`);
+} else {
+  const automatic = await invoke([path.join(checkout, 'search.js'), 'uniqueGenerationWitness', '--repo', repo,
+    '--mode', 'code', '--backend', 'memory', '--ann', '--ann-backend', 'auto', '--stats', '--json'],
+  'automatic ANN admission after writer faults', env(false));
+  const automaticPayload = JSON.parse(automatic.stdout);
+  assert.ok(JSON.stringify(automaticPayload).includes('sample.js'));
+  assert.equal(automaticPayload.stats.annHnsw.available.code, false);
+  assert.equal(automaticPayload.stats.annLance.available.code, false);
 }
-const automatic = invoke([path.join(checkout, 'search.js'), 'uniqueGenerationWitness', '--repo', repo,
-  '--mode', 'code', '--backend', 'memory', '--ann', '--ann-backend', 'auto', '--stats', '--json'],
-'automatic ANN admission after writer faults', env(false));
-const automaticPayload = JSON.parse(automatic.stdout);
-assert.ok(JSON.stringify(automaticPayload).includes('sample.js'));
-assert.equal(automaticPayload.stats.annHnsw.available.code, false);
-assert.equal(automaticPayload.stats.annLance.available.code, false);
 console.log('Real rebuild changes normalization at fixed model/dimensions; writer faults cannot relabel the retained native generation and both lexical backends remain usable.');

@@ -10,7 +10,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. 23 verified closures include #131/#1597/#1701/#1682/#1646/#1654/#1657/#1699/#1272. Current reconciliation, 2026-11-07: **344 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
 
-P2/P3: **337 qualified closures**, two editor remainders, one native deferral and six editor exclusions from346 reports. Work continues solo on Windows: implement related repairs, then verify affected controls.
+[CI cohorts](archived/ci-cohort-cutover-2026-11-07.json) keep Ubuntu/Windows/macOS separate, with four correctness shards and independent serial jobs. SDKs stay in tooling; aggregation verifies exact assignments and unions original V8 ranges. Hosted qualification is pending.
 
 [Native parity](archived/windows-onnx-runtime-parity-2026-10-30.md) records CDB attribution and ORT1.30.0. [Models](archived/windows-model-closeout-2026-11-04.md) close #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children and closes #1733.
 
@@ -22,7 +22,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 
 [Windows campaign receipts](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
-retain original failures and source identities. No new full-suite run is scheduled.
+retain original failures and source identities.
 
 [Current checks](archived/windows-issue-validation-2026-11-07.md):2,485 pass,16 fail, one Linux-only exclusion;144 serial cases pass. All18 native-search and157 Rust checks pass. CI2359 at20b92c986 passes44 native Windows cases; four revision and12 native-index local failures remain. Checkout diagnosis qualifies21 fixtures and ten actual runtime/npm controls. Package closures (#1559), consumer adoption (#1330) and full issue acceptance remain. [Semantic encoding](archived/semantic-encoding-closeout-2026-11-05.md) closes #1212 with68 cases/48 samples at5f0e2cca7.
 

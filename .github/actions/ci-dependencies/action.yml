@@ -1,0 +1,48 @@
+name: Prepare checkout dependencies
+description: Restore exact platform inputs and establish current native/patch readiness in this checkout.
+inputs:
+  save-cache:
+    description: Only the OS preparation job publishes dependency inputs.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      id: python-runtime
+      uses: actions/setup-python@v7
+      with:
+        python-version-file: .python-version
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: 26.13.0
+        cache: npm
+    - name: Restore verified dependency inputs
+      id: node-modules-cache
+      uses: actions/cache/restore@v6
+      with:
+        path: |
+          node_modules
+          .cache/native-build/headers
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+    - name: Locked bootstrap or fresh verification
+      shell: pwsh
+      env:
+        NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
+      run: |
+        New-Item -ItemType Directory -Path .diagnostics -Force | Out-Null
+        if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
+          npm run bootstrap:ci 2>&1 | Tee-Object -FilePath .diagnostics/bootstrap.log -Append
+        } else {
+          node tools/setup/rebuild-native.js --verify 2>&1 | Tee-Object -FilePath .diagnostics/native-verify.log
+          if ($LASTEXITCODE -ne 0) { npm run bootstrap:ci 2>&1 | Tee-Object -FilePath .diagnostics/bootstrap.log -Append }
+        }
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - name: Publish prepared dependency inputs
+      if: inputs.save-cache == 'true' && steps.node-modules-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: |
+          node_modules
+          .cache/native-build/headers
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}

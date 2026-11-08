@@ -30,6 +30,7 @@ entries.push('tools/analysis/graph-evidence.js');
 // Every guarded cache-path consumer must reject an incomplete checkout before
 // linking even its lightweight repository helpers.
 entries.push('tools/ci/run-suite.js');
+entries.push('tools/ci/prepare-platform-cohorts.js', 'tools/ci/run-platform-cohort.js', 'tools/ci/aggregate-platform-cohorts.js');
 entries.push('tools/build/embeddings.js');
 entries.push('tools/tui/operator/config-worker.js');
 const coreEntries = [...entries], indexEntries = [], sqliteEntries = [];

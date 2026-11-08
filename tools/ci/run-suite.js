@@ -61,8 +61,10 @@ for (const family of ['prepared-row-work', 'query-final-encoding-work']) {
     path.join(ROOT, `tests/perf/storage/semantic/${family}.test.js.cases.json`), 'utf8'));
   SERIAL_RUNTIME_BUDGET_IDS.push(...cases.map(id => `perf/storage/semantic/${family}/${id}`));
 }
+const rebuildFailureCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/retrieval/ann/generation-rebuild-failure.test.js.cases.json'), 'utf8'));
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
-  'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
+  ...rebuildFailureCases.cases.map(id => `retrieval/ann/generation-rebuild-failure/${id}`), 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(
   path.join(ROOT, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8'));
 const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation',
@@ -185,7 +187,7 @@ const createOutputForwarder = (stream) => (chunk) => {
  * @param {boolean} dryRun
  * @returns {Promise<void>}
  */
-const runStep = async (step, env, dryRun) => {
+export const runSuiteStep = async (step, env, dryRun) => {
   const commandLine = renderCommand(step.command, step.args);
   if (dryRun) {
     console.error(`[dry-run] ${step.label}: ${commandLine}`);
@@ -217,8 +219,7 @@ const ensureDir = async (dir) => {
   await fsPromises.mkdir(dir, { recursive: true });
 };
 
-const main = async () => {
-  const argv = parseArgs();
+export const buildSuitePlan = async (argv) => {
   const mode = argv.mode;
   const baseLane = argv.lane || (mode === 'nightly' ? 'all' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
@@ -389,7 +390,7 @@ const main = async () => {
         ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_CLI_CONTRACT_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         '--timeout-ms',
-        mode === 'nightly' ? '30000' : '600000',
+        '30000',
         '--retries',
         '0',
         '--native-status-redo=false',
@@ -522,13 +523,19 @@ const main = async () => {
       : [])
   ];
 
-  console.error(`Suite mode: ${mode}`);
+  return { steps, env, diagnosticsDir, coveragePath };
+};
+
+const main = async () => {
+  const argv = parseArgs();
+  const { steps, env, diagnosticsDir } = await buildSuitePlan(argv);
+  console.error(`Suite mode: ${argv.mode}`);
   console.error(`Diagnostics: ${diagnosticsDir}`);
-  console.error(`JUnit: ${junitPath}`);
-  console.error(`Logs: ${logDir}`);
+  console.error(`JUnit: ${argv.junit}`);
+  console.error(`Logs: ${argv['log-dir']}`);
 
   for (const step of steps) {
-    await runStep(step, env, argv['dry-run']);
+    await runSuiteStep(step, env, argv['dry-run']);
   }
 };
 
