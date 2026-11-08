@@ -226,12 +226,29 @@ The VFS builder MUST assert:
 
 - `0 <= virtualStart <= virtualEnd <= virtualDoc.text.length`
 
-Guardrails:
-- For segmented chunks, prefer segment-relative mapping (`virtual = container - segmentStart`).
-- If a caller accidentally provides already-relative offsets, consumers MAY accept a direct mapping
-  when it is provably in-range (and SHOULD log that a fallback was used).
-- If neither mapping is valid, this indicates a segmentation/chunk offset bug. Consumers SHOULD
-  surface it explicitly (log/telemetry) and avoid silently dropping work.
+Guardrails (VFS routing producer version 4):
+- Admit safe-integer UTF-16 half-open segment and chunk spans against the original
+  containing source before coalescing, slicing, hashing or manifest production.
+  Bounds are nonnegative and ordered; neither endpoint may divide a surrogate pair.
+  Zero-width spans, including EOF and an empty source, are valid at full boundaries.
+- Untagged production chunks use container coordinates. A legacy in-memory caller
+  supplying relative offsets must declare `chunk.coordinateFrame: 'segment'`.
+  That input is rebased once into the original segment before coalescing. Returned
+  chunk references retain their IDs and describe the admitted container span.
+- Migration: the former untagged numeric-fit fallback is removed. A range can fit
+  two different source occurrences; numeric fit alone does not establish origin.
+  Legacy callers must declare their frame. This is an internal producer input,
+  not a new configuration knob or persisted chunk/artifact field.
+- Strict invalid admission throws `ERR_VFS_SOURCE_SPAN` with reason and source/chunk
+  context. Permissive admission omits the invalid input and returns a bounded
+  `sourceAdmission` receipt (counts, reasons, up to 16 samples, `complete:false`).
+  Tooling preparation retains it and reports degraded warnings even when no
+  provider runs. Manifest arrays expose the same internal non-enumerable receipt;
+  their persisted row format is unchanged. A warning carries the receipt through
+  the existing diagnostic logger.
+- Manifest-only document descriptors may omit both chunk endpoints; they establish
+  a document extent, not a target. If either chunk endpoint is present, both must
+  pass the same occurrence admission as tooling targets.
 
 ---
 

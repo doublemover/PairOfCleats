@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["reader-parity-and-oracle", "correlation-and-scalars", "unknown-and-diagnostics", "cursor-authority", "reader-publication", "retention-and-cancellation", "profile-admission", "transport-parity"]
+}

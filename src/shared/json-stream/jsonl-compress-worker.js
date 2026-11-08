@@ -38,10 +38,10 @@ const handleInit = (msg) => {
   }
 };
 
-const compressPayload = async (payload) => {
+const compressPayload = async (payload, requestLevel = zstdLevel) => {
   const buffer = toBuffer(payload);
   if (compression === 'zstd') {
-    const compressed = await zstd.compress(buffer, zstdLevel);
+    const compressed = await zstd.compress(buffer, requestLevel);
     return compressed;
   }
   if (compression === 'gzip') {
@@ -70,7 +70,7 @@ parentPort.on('message', (msg) => {
     return;
   }
   Promise.resolve()
-    .then(async () => compressPayload(msg.payload))
+    .then(async () => compressPayload(msg.payload, Number.isFinite(msg.zstdLevel) ? msg.zstdLevel : zstdLevel))
     .then((compressed) => {
       if (!compressed) {
         parentPort.postMessage({ id, ok: true, payload: new Uint8Array(0) });

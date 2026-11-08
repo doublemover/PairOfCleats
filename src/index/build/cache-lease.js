@@ -6,16 +6,19 @@ const fail = () => Object.assign(new Error('An active repository cache writer le
 
 /** A borrowed lease never transfers release authority to a nested stage. */
 export const createIndexCacheLease = (lock, repoCacheRoot) => {
+  if (lock?.payload?.resourceSettlementVersion !== 1) throw fail();
   const root = path.resolve(repoCacheRoot);
   let active = true;
   const lease = {
     assertOwned(cacheRoot = root) {
-      if (!active || path.resolve(cacheRoot) !== root
-        || readLockInfoSync(lock.lockPath)?.lockId !== lock.payload?.lockId) throw fail();
+      const current = readLockInfoSync(lock.lockPath);
+      if (!active || path.resolve(cacheRoot) !== root || current?.resourceSettlementVersion !== 1
+        || current.lockId !== lock.payload?.lockId) throw fail();
       return lock;
     },
     invalidate() { active = false; }
   };
+  lease.assertOwned();
   leases.add(lease);
   return lease;
 };

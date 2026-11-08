@@ -31,6 +31,10 @@ CREATE INDEX IF NOT EXISTS semantic_occurrence_expression ON semantic_records(
   partition_id, json_extract(payload,'$.data.expression.partitionId'),
   json_extract(payload,'$.data.expression.localId')
 ) WHERE record_kind='occurrence';
+CREATE INDEX IF NOT EXISTS semantic_occurrence_related ON semantic_records(
+  json_extract(payload,'$.data.expression.partitionId'),
+  json_extract(payload,'$.data.expression.localId'),partition_id
+) WHERE record_kind='occurrence';
 CREATE TABLE IF NOT EXISTS semantic_operands (
   partition_id TEXT NOT NULL, parent_partition TEXT NOT NULL, parent_id INTEGER NOT NULL,
   slot TEXT NOT NULL, ordinal INTEGER NOT NULL, payload TEXT NOT NULL,
@@ -42,16 +46,20 @@ CREATE TABLE IF NOT EXISTS semantic_edges (
   to_partition TEXT NOT NULL, to_id INTEGER NOT NULL, payload TEXT NOT NULL,
   PRIMARY KEY(partition_id, local_id)
 );
+CREATE INDEX IF NOT EXISTS semantic_operands_parent ON semantic_operands(parent_partition,parent_id,partition_id);
 CREATE INDEX IF NOT EXISTS semantic_edges_forward
   ON semantic_edges(from_partition, from_id, edge_kind, to_partition, to_id);
 CREATE INDEX IF NOT EXISTS semantic_edges_reverse
   ON semantic_edges(to_partition, to_id, edge_kind, from_partition, from_id);
+CREATE INDEX IF NOT EXISTS semantic_edges_related_forward ON semantic_edges(from_partition,from_id,partition_id);
+CREATE INDEX IF NOT EXISTS semantic_edges_related_reverse ON semantic_edges(to_partition,to_id,partition_id);
 CREATE TABLE IF NOT EXISTS semantic_ownership (
   partition_id TEXT NOT NULL, record_partition TEXT NOT NULL, local_id INTEGER NOT NULL,
   chunk_uid TEXT NOT NULL, role TEXT NOT NULL, payload TEXT NOT NULL,
   PRIMARY KEY(partition_id, record_partition, local_id, chunk_uid, role)
 );
 CREATE INDEX IF NOT EXISTS semantic_ownership_chunk ON semantic_ownership(chunk_uid);
+CREATE INDEX IF NOT EXISTS semantic_ownership_record ON semantic_ownership(record_partition,local_id,partition_id);
 CREATE INDEX IF NOT EXISTS semantic_operation_ast ON semantic_records(json_extract(payload,'$.data.astKind'),partition_id,local_id) WHERE record_kind='expression';
 CREATE INDEX IF NOT EXISTS semantic_operation_operator ON semantic_records(json_extract(payload,'$.data.operation'),partition_id,local_id) WHERE record_kind='expression';
 CREATE INDEX IF NOT EXISTS semantic_operation_invocation ON semantic_records(json_extract(payload,'$.data.invocationKind'),partition_id,local_id) WHERE record_kind='expression';

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import {
@@ -105,10 +106,41 @@ assert.ok(staleJobs, 'expected stale-jobs section');
 assert.equal(staleJobs.reasonCodes.includes('STALE_JOB_LEASE_EXPIRED'), true, 'expected stale lease reason');
 assert.equal(staleJobs.details?.jobs?.[0]?.rootCauseCode, 'STALE_JOB_LEASE_EXPIRED', 'expected root-cause code');
 assert.equal(Array.isArray(staleJobs.details?.jobs?.[0]?.remediation), true, 'expected remediation commands');
+assert.equal(staleJobs.summary.configPath, path.resolve(configPath));
+assert.equal(staleJobs.summary.queueDir, path.resolve(queueDir));
+const staleJob = staleJobs.details.jobs[0];
+assert.equal(staleJob.remediationAvailable, true);
+for (const action of staleJob.actions) {
+  assert.equal(action.executable, process.execPath);
+  assert.equal(action.cwd, process.cwd(), 'relative service paths keep the inspected working directory');
+  assert.equal(action.args[action.args.indexOf('--config') + 1], path.resolve(configPath));
+  assert.equal(action.args[action.args.indexOf('--queue') + 1], 'index');
+  assert.equal(action.args[action.args.indexOf('--job') + 1], 'job-2');
+  assert.ok(path.isAbsolute(action.args[0]));
+}
+const inspect = staleJob.actions.find(action => action.args[1] === 'inspect');
+assert.ok(inspect);
+const inspected = spawnSync(inspect.executable, inspect.args, {
+  cwd: tempRoot, env: process.env, encoding: 'utf8', windowsHide: true, timeout: 10000
+});
+assert.equal(inspected.error, undefined);
+assert.equal(inspected.status, 0, inspected.stderr);
+assert.equal(JSON.parse(inspected.stdout).job.id, 'job-2', 'the actual command selects this service and queue from another cwd');
+const mismatch = await buildDiagnosticsReport({
+  reportKinds: 'stale-jobs', configPath, queueDir: path.join(tempRoot, 'other-queue'), queueName: 'index'
+});
+assert.equal(mismatch.summary.status, 'warn');
+assert.ok(mismatch.reports[0].reasonCodes.includes('STALE_JOB_RECOVERY_CONFIG_MISMATCH'));
+assert.equal(mismatch.reports[0].summary.remediationAvailable, false);
+const directQueue = await buildDiagnosticsReport({ reportKinds: 'stale-jobs', queueDir, queueName: 'index' });
+assert.equal(directQueue.reports[0].summary.remediationAvailable, false);
+assert.ok(directQueue.reports[0].details.jobs.every(job => job.actions.length === 0));
+assert.ok(directQueue.reports[0].details.jobs[0].remediation[0].includes(queueDir));
 
 const rendered = renderDiagnosticsReportHuman(report);
 assert.equal(rendered.includes('Queue Health [error]') || rendered.includes('Queue Health [warn]'), true, 'expected rendered queue section');
 assert.equal(rendered.includes('Stale Job Causes [error]'), true, 'expected rendered stale-job section');
 assert.equal(rendered.includes('job job-2: stale (STALE_JOB_LEASE_EXPIRED)'), true, 'expected rendered stale job summary');
+for (const remediation of staleJob.remediation) assert.ok(rendered.includes(remediation));
 
 console.log('diagnostics report queue test passed');

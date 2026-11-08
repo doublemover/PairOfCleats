@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "capture-disabled", "capture-unavailable", "capture-platform", "native-failure", "signed-native-failure", "null-exit", "string-exit",
+    "invalid-json", "empty-json", "nonobject-json", "truncated-json", "child-pending", "child-replaced", "child-observer-inspection",
+    "child-revoked-success", "publisher-failure", "publisher-null", "publisher-pending", "warning-failure", "warning-pending", "launch-failure",
+    "testhook-untrusted", "required-forensic-write", "required-forensic-index", "optional-forensic-write", "null-metadata", "non-string-output"
+  ]
+}

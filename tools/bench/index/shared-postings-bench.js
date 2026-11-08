@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -6,7 +7,7 @@ import { normalizePostingsConfig } from '../../../src/shared/postings-config.js'
 export { parseBenchArgs, resolveCompareMode } from '../shared.js';
 
 export const prepareBenchRoot = async (name, cwd = process.cwd()) => {
-  const benchRoot = path.join(cwd, '.benchCache', name);
+  const benchRoot = resolveDevelopmentArtifactPath(cwd, 'bench-cache', name);
   await fs.mkdir(benchRoot, { recursive: true });
   return benchRoot;
 };

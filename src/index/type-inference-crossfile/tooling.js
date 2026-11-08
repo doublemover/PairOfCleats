@@ -1,18 +1,16 @@
+import { applyToolingTypes } from './tooling-types.js';
 import path from 'node:path';
-import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { buildToolingVirtualDocuments } from '../tooling/vfs.js';
 import { runToolingProviders } from '../tooling/orchestrator.js';
 import { selectToolingProviders } from '../tooling/provider-registry.js';
 import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
-import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
-import { addInferredParam, addInferredReturn } from './apply.js';
-import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative, isUncPath } from '../../shared/file-paths.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 import { writeToolingCacheJson } from '../tooling/cache-storage.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
-import { normalizeTypeExpressions, mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
+import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
 import { buildToolingDiagnosticRecord, redactToolingDiagnosticText } from './tooling-diagnostic-record.js';
+import { dispatchToolingProviderResult } from '../tooling/result-dispatch.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   inferredReturns: 0,
   toolingDegradedProviders: 0,
@@ -133,87 +131,6 @@ const createLatestToolingDiagnosticLogger = ({ rootDir, buildRoot, baseLog }) =>
   return logger;
 };
 
-const toProvenanceList = (value) => {
-  if (Array.isArray(value)) return value;
-  if (!value || typeof value !== 'object') return [];
-  return [value];
-};
-
-const mergeToolingSources = (chunk, provenanceList) => {
-  if (!chunk?.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
-  const toolingMeta = chunk.docmeta.tooling && typeof chunk.docmeta.tooling === 'object'
-    ? chunk.docmeta.tooling
-    : {};
-  const existing = Array.isArray(toolingMeta.sources) ? toolingMeta.sources : [];
-  const next = [];
-  const seen = new Set();
-  for (const entry of [...existing, ...toProvenanceList(provenanceList)]) {
-    if (!entry?.provider) continue;
-    if (seen.has(entry.provider)) continue;
-    seen.add(entry.provider);
-    next.push(entry);
-  }
-  toolingMeta.sources = next;
-  chunk.docmeta.tooling = toolingMeta;
-};
-
-const applyToolingTypes = ({ byChunkUid, chunkByUid, entryByUid }) => {
-  let inferredReturns = 0;
-  let enriched = 0;
-  for (const [chunkUid, info] of byChunkUid.entries()) {
-    const chunk = chunkByUid.get(chunkUid);
-    if (!chunk || !info?.payload) continue;
-    if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
-    mergeToolingSources(chunk, info.provenance);
-    const payload = info.payload;
-    let touched = false;
-    if (payload.typeExpressions) {
-      // Display text is presentation only. Never feed it into string-based
-      // inferred-type propagation as if it were the denoted language.
-      chunk.docmeta.typeExpressions = normalizeTypeExpressions(payload.typeExpressions);
-      touched = true;
-    }
-    if (payload.signature && !chunk.docmeta.signature) {
-      chunk.docmeta.signature = payload.signature;
-      touched = true;
-    }
-    if (payload.returnType) {
-      if (!chunk.docmeta.returnType) chunk.docmeta.returnType = payload.returnType;
-      if (addInferredReturn(chunk.docmeta, payload.returnType, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
-        inferredReturns += 1;
-        touched = true;
-      }
-    }
-    if (payload.paramTypes && typeof payload.paramTypes === 'object') {
-      chunk.docmeta.paramTypes = ensureParamTypeMap(chunk.docmeta.paramTypes);
-      for (const [name, entries] of Object.entries(payload.paramTypes)) {
-        if (!name || !Array.isArray(entries)) continue;
-        for (const entry of entries) {
-          const type = entry?.type || null;
-          if (!type) continue;
-          if (!Object.hasOwn(chunk.docmeta.paramTypes, name)) chunk.docmeta.paramTypes[name] = type;
-          addInferredParam(
-            chunk.docmeta,
-            name,
-            type,
-            entry?.source || TOOLING_SOURCE,
-            Number.isFinite(entry?.confidence) ? entry.confidence : TOOLING_CONFIDENCE
-          );
-          const symbolEntry = entryByUid?.get(chunkUid) || null;
-          if (symbolEntry) {
-            symbolEntry.paramTypes = ensureParamTypeMap(symbolEntry.paramTypes);
-            const existing = getParamTypeList(symbolEntry.paramTypes, name);
-            symbolEntry.paramTypes[name] = uniqueTypes([...existing, type]);
-          }
-          touched = true;
-        }
-      }
-    }
-    if (touched) enriched += 1;
-  }
-  return { inferredReturns, enriched };
-};
-
 const applyToolingDiagnostics = ({ diagnosticsByChunkUid, chunkByUid }) => {
   let enriched = 0;
   for (const [chunkUid, diagnostics] of diagnosticsByChunkUid.entries()) {
@@ -274,7 +191,7 @@ export const prepareToolingPassDocuments = async ({ chunks, fileTextByFile, tool
     : null;
   const hashRouting = vfsConfig.hashRouting === true;
   const coalesceSegments = vfsConfig.coalesceSegments === true;
-  let { documents, targets } = await buildToolingVirtualDocuments({
+  let { documents, targets, sourceAdmission } = await buildToolingVirtualDocuments({
     chunks,
     fileTextByPath: fileTextByFile,
     strict: vfsStrict,
@@ -285,12 +202,13 @@ export const prepareToolingPassDocuments = async ({ chunks, fileTextByFile, tool
   });
   if (semanticSession) documents = semanticSession.prepareDocuments(documents);
   if (semanticLspSession) documents = semanticLspSession.prepareDocuments(documents);
-  return { documents, targets };
+  return { documents, targets, sourceAdmission };
 };
 
 export const runToolingPass = async ({
   rootDir,
   buildRoot,
+  storageContext = null,
   chunks,
   entryByUid,
   log,
@@ -303,6 +221,8 @@ export const runToolingPass = async ({
   abortSignal = null,
   semanticSession = null,
   semanticLspSession = null,
+  semanticSink = null,
+  providerProfiles = null,
   toolingDocuments = null,
   applyTypes = true
 }) => {
@@ -317,8 +237,11 @@ export const runToolingPass = async ({
     }
     if (evt?.message) log(evt.message);
   };
-  const { documents, targets } = toolingDocuments || await prepareToolingPassDocuments({ chunks, fileTextByFile, toolingConfig, semanticSession, semanticLspSession, log });
-  if (!documents.length || (!targets.length && !semanticSession && !semanticLspSession)) return { ...EMPTY_TOOLING_PASS_STATS };
+  const { documents, targets, sourceAdmission } = toolingDocuments || await prepareToolingPassDocuments({ chunks, fileTextByFile, toolingConfig, semanticSession, semanticLspSession, log });
+  const sourceWarnings = sourceAdmission?.rejectedChunks || 0;
+  if (!documents.length || (!targets.length && !semanticSession && !semanticLspSession)) return {
+    ...EMPTY_TOOLING_PASS_STATS, toolingDegradedWarnings: sourceWarnings, toolingSourceAdmission: sourceAdmission
+  };
 
   const chunkByUid = new Map();
   for (const chunk of chunks) {
@@ -333,6 +256,7 @@ export const runToolingPass = async ({
 
   const ctx = {
     repoRoot: rootDir,
+    storageContext,
     buildRoot: buildRoot || rootDir,
     mode: 'code',
     strict,
@@ -351,7 +275,7 @@ export const runToolingPass = async ({
       maxEntries: Number.isFinite(cacheConfig.maxEntries) ? cacheConfig.maxEntries : null
     },
     abortSignal,
-    semanticSession, semanticLspSession
+    semanticSession, semanticLspSession, providerProfiles
   };
   const providerPlans = selectToolingProviders({
     toolingConfig: ctx.toolingConfig,
@@ -367,7 +291,7 @@ export const runToolingPass = async ({
   ));
   if (!providerIds.length) {
     log('[tooling] providers: none selected for current documents/targets; skipping provider runtime.');
-    return { ...EMPTY_TOOLING_PASS_STATS };
+    return { ...EMPTY_TOOLING_PASS_STATS, toolingDegradedWarnings: sourceWarnings, toolingSourceAdmission: sourceAdmission };
   }
   log(`[tooling] providers:selected count=${providerIds.length}.`);
 
@@ -389,6 +313,11 @@ export const runToolingPass = async ({
         const provider = providerPlans.find((plan) => plan.provider?.id === providerId)?.provider;
         const record = buildToolingDiagnosticRecord({ providerId, providerContractVersion: provider?.version, diagnostics: diag });
         if (providerLog.writeDiagnostic) await providerLog.writeDiagnostic(record);
+        if (!['cache', 'cache-suppressed'].includes(record.diagnosticsSource)) {
+          for (const check of record.checks.filter((entry) => ['warn', 'error'].includes(entry.status)).slice(0, 3)) {
+            log(`[tooling] ${record.providerId}: ${check.name}: ${check.message}`);
+          }
+        }
       }
     }
     if (providerLog && Array.isArray(result?.observations)) {
@@ -404,6 +333,10 @@ export const runToolingPass = async ({
   }
   const degradedStats = summarizeDegradedProviderCounts(result?.degradedProviders);
   const runtimeStats = summarizeToolingRuntimeCounts(result?.metrics);
+  const dispatched = await dispatchToolingProviderResult({ result, semanticSink, signal: abortSignal });
+  if (dispatched.receipt.semantic.unused) {
+    log(`[tooling] semantic output unused: ${dispatched.receipt.semantic.reason} (${dispatched.receipt.semantic.unused} partitions).`);
+  }
 
   const applyResult = !applyTypes ? {} : applyToolingTypes({
     byChunkUid: result.byChunkUid,
@@ -430,7 +363,12 @@ export const runToolingPass = async ({
   return {
     inferredReturns: applyResult.inferredReturns || 0,
     symbolicTypeGraphs: mergeSymbolicTypeGraphs([], result.symbolicTypeGraphs || []),
+    semanticFacts: dispatched.semanticFacts,
+    providerConsumption: dispatched.receipt,
+    providerProfiles: result.providerProfiles || {},
     ...degradedStats,
+    toolingDegradedWarnings: degradedStats.toolingDegradedWarnings + sourceWarnings,
+    toolingSourceAdmission: sourceAdmission,
     ...runtimeStats
   };
 };

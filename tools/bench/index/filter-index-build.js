@@ -2,6 +2,7 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
+const { BENCH_TERMINAL_RECEIPT_VERSION } = await import('../runner-contract.js');
 const { buildFilterIndex, releaseFilterIndexMemory } = await import('../../../src/retrieval/filter-index.js');
 const {
   buildBitmapIndex,
@@ -13,6 +14,8 @@ const { parseSimpleBenchArgs } = await import('../shared.js');
 
 if (!isRoaringAvailable()) {
   console.log('[bench] roaring-wasm not available; skipping filter-index build bitmap bench');
+  console.log(JSON.stringify({ schemaVersion: BENCH_TERMINAL_RECEIPT_VERSION, kind: 'bench-terminal',
+    status: 'skipped', benchmark: 'filter-index-build', reason: 'roaring-wasm-unavailable' }));
   process.exit(0);
 }
 

@@ -30,6 +30,8 @@ export const createModeReporter = ({
   root,
   userConfig,
   indexRoot,
+  indexDir = null,
+  stateUpdates = true,
   schemaVersion,
   threadLimits,
   stageCheckpoints,
@@ -41,11 +43,14 @@ export const createModeReporter = ({
     root,
     userConfig,
     indexRoot,
+    indexDir,
     mode,
     path: outputPath,
     schemaVersion,
     threadLimits
   };
+
+  const updateState = (setter, payload) => stateUpdates ? setter(payload) : Promise.resolve(null);
 
   return {
     logBuildStart() {
@@ -55,7 +60,7 @@ export const createModeReporter = ({
       });
     },
     async setRunningState() {
-      await setSqliteModeRunningState(baseStatePayload);
+      await updateState(setSqliteModeRunningState, baseStatePayload);
     },
     recordStartCheckpoint(extra) {
       stageCheckpoints.record({
@@ -76,7 +81,7 @@ export const createModeReporter = ({
           zeroStateManifestPath
         }
       });
-      await setSqliteModeSkippedEmptyState({
+      await updateState(setSqliteModeSkippedEmptyState, {
         ...baseStatePayload,
         zeroStateManifestPath
       });
@@ -102,7 +107,7 @@ export const createModeReporter = ({
           rows: resolveStageRows(counts)
         }
       });
-      await setSqliteModeIncrementalReadyState({
+      await updateState(setSqliteModeIncrementalReadyState, {
         ...baseStatePayload,
         bytes: outputBytes,
         elapsedMs: durationMs,
@@ -135,7 +140,7 @@ export const createModeReporter = ({
           rows: resolveStageRows(counts)
         }
       });
-      await setSqliteModeBuildReadyState({
+      await updateState(setSqliteModeBuildReadyState, {
         ...baseStatePayload,
         bytes: outputBytes,
         inputBytes,
@@ -155,7 +160,7 @@ export const createModeReporter = ({
       });
     },
     async setVectorMissingState() {
-      await setSqliteModeVectorMissingState(baseStatePayload);
+      await updateState(setSqliteModeVectorMissingState, baseStatePayload);
     },
     async reportFailure({ errorMessage, err }) {
       stageCheckpoints.record({
@@ -163,7 +168,7 @@ export const createModeReporter = ({
         step: 'error',
         label: errorMessage
       });
-      await setSqliteModeFailedState({
+      await updateState(setSqliteModeFailedState, {
         ...baseStatePayload,
         error: errorMessage
       });

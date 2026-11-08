@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["canonical-archive-bounds", "explicit-profile-and-source-authority", "verification-and-original-settlement", "managed-publication-and-selection"]
+}

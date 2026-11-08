@@ -9,6 +9,9 @@ import {
   isStableStaleSnapshot,
   readLockInfo,
   readLockSnapshot,
+  readLockRecord,
+  sameFileLockIdentity,
+  requiresLockResourceSettlement,
   resolveLockPid
 } from './file-lock-info.js';
 import {
@@ -17,9 +20,22 @@ import {
 } from './file-lock-owner.js';
 import { incrementStaleRemoveOwnerFailedForceSucceededMetric } from './file-lock-metrics.js';
 import { resolvePositiveStaleMs } from './file-lock-timing.js';
+import { isFileLockPublicationPending } from './file-lock-publication.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
+
+const readFailureCode = error => {
+  const observation = observeStorageResource(error, { phase: 'file-lock-stale-classification' });
+  observation.requireSettled();
+  let code;
+  try { code = observation.primary.code; }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return typeof code === 'string' ? code : '';
+};
 
 export const isBenignStaleRemovalRace = (error) => {
-  const code = String(error?.code || '').toUpperCase();
+  const code = readFailureCode(error).toUpperCase();
   return BENIGN_STALE_REMOVAL_RACE_CODES.has(code);
 };
 
@@ -31,10 +47,17 @@ export const createStaleRemovalFailureError = ({
   cause,
   phase = 'stale_remove'
 }) => {
+  const observation = observeStorageResource(cause, { phase: 'file-lock-stale-removal' });
+  let code = '', name = '', inspection, inspectionPresent = false;
+  try {
+    const originalCode = observation.primary.code;
+    if (typeof originalCode === 'string') code = originalCode;
+    if (!code) { const originalName = observation.primary.name; if (typeof originalName === 'string') name = originalName; }
+  } catch (value) { inspection = value; inspectionPresent = true; }
   const message = [
     `[file-lock] stale lock cleanup failed for "${lockPath}"`,
     `phase=${phase}`,
-    `cause=${String(cause?.code || cause?.name || 'UNKNOWN')}`
+    `cause=${code || name || 'UNKNOWN'}`
   ].join(' ');
   const error = new Error(message, { cause });
   error.code = 'ERR_FILE_LOCK_STALE_REMOVE_FAILED';
@@ -42,13 +65,16 @@ export const createStaleRemovalFailureError = ({
   error.phase = phase;
   error.pid = Number.isFinite(pid) ? pid : null;
   error.stale = Boolean(stale);
-  error.causeCode = String(cause?.code || '');
+  error.causeCode = code;
   error.lockInfo = info && typeof info === 'object' ? info : null;
-  return error;
+  const original = inspectionPresent ? observation.retain(inspection, { inspectionPresent: true }) : observation.retain();
+  const failure = addStorageFailureContext(error, {}, original, { secondaryPresent: true });
+  Object.defineProperty(failure, 'cause', { value: cause, writable: true, configurable: true });
+  return failure;
 };
 
 export const isStructuredStaleRemovalFailureError = (error) => (
-  error?.code === 'ERR_FILE_LOCK_STALE_REMOVE_FAILED'
+  readFailureCode(error) === 'ERR_FILE_LOCK_STALE_REMOVE_FAILED'
 );
 
 export const isLockStale = async (lockPath, staleMs = DEFAULT_FILE_LOCK_STALE_MS) => {
@@ -61,7 +87,8 @@ export const isLockStale = async (lockPath, staleMs = DEFAULT_FILE_LOCK_STALE_MS
     }
     const stat = await fs.stat(lockPath);
     return Date.now() - stat.mtimeMs > maxAge;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'file-lock-stale' }).requireSettled();
     return false;
   }
 };
@@ -69,21 +96,29 @@ export const isLockStale = async (lockPath, staleMs = DEFAULT_FILE_LOCK_STALE_MS
 export const removeStaleLockFile = async ({
   lockPath,
   info,
-  staleMs
+  staleMs,
+  expectedIdentity = null
 }) => {
+  if (isFileLockPublicationPending(lockPath) || requiresLockResourceSettlement(info)) return { removed: false, removalMode: 'owner' };
   const staleOwner = buildOwnerFromLockInfo(info);
+  const baseline = await readLockRecord(lockPath);
+  if (expectedIdentity && !sameFileLockIdentity(baseline.identity, expectedIdentity)) return { removed: false, removalMode: 'owner' };
+  expectedIdentity ||= baseline.identity;
+  if (requiresLockResourceSettlement(baseline.value)
+    || (!staleOwner && !isInvalidLockInfo(baseline.value))) return { removed: false, removalMode: 'owner' };
   if (!staleOwner) {
     return {
       removed: await removeLockFileIfOwned(lockPath, null, {
         force: true,
-        swallowErrors: false
+        swallowErrors: false,
+        expectedIdentity
       }),
       removalMode: 'force'
     };
   }
   const before = await readLockSnapshot(lockPath, staleMs);
   const removedByOwner = await removeLockFileIfOwned(lockPath, staleOwner, {
-    swallowErrors: false
+    swallowErrors: false, expectedIdentity
   });
   if (removedByOwner) {
     return {
@@ -106,7 +141,7 @@ export const removeStaleLockFile = async ({
   }
   const forceRemoved = await removeLockFileIfOwned(lockPath, null, {
     force: true,
-    swallowErrors: false
+    swallowErrors: false, expectedIdentity
   });
   if (forceRemoved) {
     incrementStaleRemoveOwnerFailedForceSucceededMetric();
@@ -124,6 +159,9 @@ export const shouldCleanupStaleLock = async ({
   forceStaleCleanup,
   invalidLockGraceMs
 }) => {
+  if (isFileLockPublicationPending(lockPath) || requiresLockResourceSettlement(info)) return {
+    pid: resolveLockPid(info), alive: null, stale: false, staleCleanup: false, shouldCleanup: false
+  };
   const pid = resolveLockPid(info);
   const alive = pid ? isProcessAlive(pid) : false;
   const invalidLock = isInvalidLockInfo(info);

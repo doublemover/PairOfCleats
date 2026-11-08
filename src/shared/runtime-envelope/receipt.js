@@ -55,6 +55,7 @@ export const projectRuntimeScheduler = (stats) => {
     counters: stats.counters, utilization: stats.utilization,
     queues: Object.fromEntries(queues.slice(0, 16).map(([name, queue]) => [name, select(queue, [
       'surface', 'running', 'pending', 'runnable', 'blocked', 'pendingBytes', 'inFlightBytes',
+      'concurrency', 'configuredConcurrency', 'adapterConcurrency', 'suspendedCpu',
       'maxPending', 'maxPendingBytes', 'maxInFlightBytes', 'completed', 'failed', 'rejected'
     ])])), queuesTruncated: queues.length > 16,
     adaptive: { ...select(stats.adaptive, ['enabled', 'baseline', 'max', 'mode', 'memoryReserveMb', 'memoryPerTokenMb', 'maxInFlightBytes']),

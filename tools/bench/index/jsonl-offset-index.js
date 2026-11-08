@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -21,7 +22,7 @@ const mode = ['baseline', 'current', 'compare', 'validate'].includes(String(args
   ? String(args.mode).toLowerCase()
   : 'compare';
 
-const benchRoot = path.join(process.cwd(), '.benchCache', 'jsonl-offset-index');
+const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'jsonl-offset-index');
 await fs.mkdir(benchRoot, { recursive: true });
 
 let jsonlPath = path.join(benchRoot, 'rows.jsonl');

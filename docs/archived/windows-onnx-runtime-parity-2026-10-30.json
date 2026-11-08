@@ -1,0 +1,1635 @@
+{
+  "schemaVersion": 1,
+  "historicalAuthorWorkspace": true,
+  "state": "repaired-minimized-and-original-public-path-passed",
+  "candidateBefore": "038fea5528898070caff5fdf2f907a255d4ee873",
+  "date": "2026-10-30",
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": 147,
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "cause": {
+    "observed": "HF-first import maps nested ORT1.30.0 DLL;later root1.31.1 addon obtains a null API31 table and faults reading0x18 during session environment creation.",
+    "exception": "0xC0000005",
+    "readAddress": "0x18",
+    "addonRva": "0x1e125",
+    "loadedDllVersion": "1.30.0.909",
+    "limits": "No matching ORT private PDB was packaged;machine-level module/register/disassembly evidence and upstream source explain the call chain,not a symbolized source-line attribution. This new mixed-runtime crash does not establish the cause of every older failure."
+  },
+  "decision": {
+    "userSelected": "Share exact ONNX Runtime1.30.0 with Transformers4.3.2;keep stable HF rather than4.4.0-next.0.",
+    "change": "Exact direct dependency plus global reference override;matching lockfile common1.30.0;remove1.31 install-script permission.",
+    "workarounds": "No import-order forcing,retry,backend disabling,Node change or model change."
+  },
+  "originalPublicFailure": {
+    "schemaVersion": 1,
+    "historicalAuthorWorkspace": true,
+    "state": "failed-capsule;not-resource-settlement-authority",
+    "invocation": {
+      "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import fs from 'node:fs/promises';import path from 'node:path';const order=process.argv[1];const {requireBootstrap}=await import('./src/shared/bootstrap-readiness.js');await requireBootstrap();console.log(JSON.stringify({phase:'ready',order}));if(order==='hf-first'){await import('@huggingface/transformers');await import('onnxruntime-node');}else{await import('onnxruntime-node');await import('@huggingface/transformers');}console.log(JSON.stringify({phase:'both-native-imports-returned',order}));const manifest=JSON.parse(await fs.readFile('.tmp/tasks/dense-real-models-20261030/qualification-manifests/onnx-minilm-q8.json','utf8'));const {captureEmbeddingProviderRuntime}=await import('./tests/embeddings/helpers/provider-runtime-provenance.js');const runtimes=await Promise.all(['xenova','onnx'].map(provider=>captureEmbeddingProviderRuntime({provider})));console.log(JSON.stringify({phase:'provider-runtime-bytes',runtimes}));const {getEmbeddingAdapter,disposeEmbeddingAdapterCaches}=await import('./src/shared/embedding-adapter.js');const {preserveEmbeddingCleanupFailure}=await import('./src/shared/embedding-cache-lifetime.js');let adapter,failed=false,failure;try{adapter=getEmbeddingAdapter({rootDir:process.cwd(),provider:'onnx',useStub:false,modelId:manifest.modelId,dims:384,modelsDir:manifest.modelsDir,onnxConfig:manifest.onnxConfig,normalize:true,retainInCache:false});console.log(JSON.stringify({phase:'adapter-created'}));const vector=await adapter.embedOne('parse JSON configuration');if(vector.length!==384||![...vector].every(Number.isFinite)||Math.abs(Math.hypot(...vector)-1)>1e-5)throw Error('Invalid actual native vector');const execution=adapter.executionInfo();if(execution.provider!=='onnx'||execution.stub)throw Error('Selected direct native provider changed');console.log(JSON.stringify({phase:'original-inference-returned',dimensions:vector.length,norm:Math.hypot(...vector),execution}));}catch(error){failed=true;failure=error;}finally{for(const close of [()=>adapter?.dispose(),()=>disposeEmbeddingAdapterCaches()]){try{await close();}catch(error){failure=failed?preserveEmbeddingCleanupFailure(failure,error):error;failed=true;}}console.log(JSON.stringify({phase:'original-adapter-and-cache-disposal-returned',failed}));}if(failed)throw failure;",
+        "hf-first"
+      ],
+      "timeoutMs": 30000,
+      "maxOutputBytes": 1048576
+    },
+    "failures": [
+      {
+        "name": "SubprocessError",
+        "code": "SUBPROCESS_FAILED",
+        "message": "exited with code 3221225477",
+        "thrownType": "object",
+        "result": {
+          "pid": 17652,
+          "exitCode": 3221225477,
+          "signal": null,
+          "durationMs": 912,
+          "stdout": "{\"phase\":\"ready\",\"order\":\"hf-first\"}\n{\"phase\":\"both-native-imports-returned\",\"order\":\"hf-first\"}\n{\"phase\":\"provider-runtime-bytes\",\"runtimes\":[{\"schemaVersion\":1,\"provider\":\"xenova\",\"name\":\"onnxruntime-node\",\"version\":\"1.30.0\",\"resolutionBase\":\"node_modules/@huggingface/transformers/dist/transformers.node.mjs\",\"entry\":{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/dist/index.js\",\"bytes\":1602,\"sha256\":\"019eb02133b94b1f7fdf2d89eb93b590ce1288d271f7b280647fb3978e6391fa\"},\"package\":{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/package.json\",\"bytes\":1593,\"sha256\":\"0871cd56ac2b9c9dfc834c7eabba819e5d4f966f005388515abb3402b14e0874\"},\"bindingLoader\":{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/dist/binding.js\",\"bytes\":1590,\"sha256\":\"2a85ac5de943c7222aae5ca2897f52d73891f528d4295b701fab077470c668c0\"},\"binding\":{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node\",\"bytes\":298848,\"sha256\":\"ddd428464069b84414d34ec1796c7c2a69c33a976e4b0390692629e394f92fa1\",\"moduleCacheLoaded\":true},\"packagedLibraries\":[{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll\",\"bytes\":18527584,\"sha256\":\"234e8898778cdec88d3cb0539508273494082812c968699f3de665a018971625\"},{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll\",\"bytes\":17986360,\"sha256\":\"593d42df78c7f9cbd97c1374af107cfe20985759f98b77afc1448fe41ee3cc76\"},{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxil.dll\",\"bytes\":1508664,\"sha256\":\"cf9a3981263f8ec30c9905d136eeaf4b4573209c602198671b958ec86905dea8\"},{\"path\":\"node_modules/@huggingface/transformers/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll\",\"bytes\":28754232,\"sha256\":\"508c362f5673483dd3a086379c392795b2e42d10d5e6f3f90ebd7ac21c97af67\"}],\"scope\":\"Provider-resolved package/entry/original addon bytes;module-cache witness records addon loading only. Packaged library hashes do not attest OS DLL mappings, provider selection, kernels or native unload.\"},{\"schemaVersion\":1,\"provider\":\"onnx\",\"name\":\"onnxruntime-node\",\"version\":\"1.31.1\",\"resolutionBase\":\"src/shared/onnx-embeddings.js\",\"entry\":{\"path\":\"node_modules/onnxruntime-node/dist/index.js\",\"bytes\":1602,\"sha256\":\"019eb02133b94b1f7fdf2d89eb93b590ce1288d271f7b280647fb3978e6391fa\"},\"package\":{\"path\":\"node_modules/onnxruntime-node/package.json\",\"bytes\":1593,\"sha256\":\"41aedb3e877786245ab4dc0f533cda63f7d971b5c5fec171eafca9fb9572a8d5\"},\"bindingLoader\":{\"path\":\"node_modules/onnxruntime-node/dist/binding.js\",\"bytes\":1590,\"sha256\":\"2a85ac5de943c7222aae5ca2897f52d73891f528d4295b701fab077470c668c0\"},\"binding\":{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node\",\"bytes\":358200,\"sha256\":\"8d9f996ff7dcc60c4899aa87aa7abe07d806f9c314882f44a001d0fd8a23d16f\",\"moduleCacheLoaded\":true},\"packagedLibraries\":[{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll\",\"bytes\":18527544,\"sha256\":\"d16be72fa002dd610cca93e376f0ef44865dfce43de4b7bf9738af22534f7a9d\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll\",\"bytes\":17986400,\"sha256\":\"430eed027979399769a325b60319aca4e4afa4daebe475d3c763dcf2a0190a72\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll\",\"bytes\":31736672,\"sha256\":\"beb6e1edba0e74c132453fe4df113da2ea2b99ef8ea7dfc25696a872efd11c45\"}],\"scope\":\"Provider-resolved package/entry/original addon bytes;module-cache witness records addon loading only. Packaged library hashes do not attest OS DLL mappings, provider selection, kernels or native unload.\"}]}\n{\"phase\":\"adapter-created\"}\n",
+          "stderr": "The requested API version [31] is not available, only API versions [1, 30] are supported in this build. Current ORT Version is: 1.30.0\r\n",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 3807,
+              "retainedBytes": 3807,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 3807,
+              "outputBytes": 3807,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 136,
+              "retainedBytes": 136,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 136,
+              "outputBytes": 136,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      }
+    ],
+    "failureTraversalTruncated": false
+  },
+  "originalManifest": {
+    "schemaVersion": 1,
+    "provider": "onnx",
+    "modelId": "Xenova/all-MiniLM-L6-v2",
+    "modelsDir": "C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/actual-models",
+    "dimensions": 384,
+    "tolerance": 0.00001,
+    "normalize": true,
+    "texts": [
+      "Close the original file handle.",
+      "export async function readConfig(file) { const bytes = await fs.readFile(file); return JSON.parse(bytes); }",
+      "Find the caller that releases a repository cache lease after all worker shutdown hooks settle.",
+      "A successful producer return does not prove that its original asynchronous cleanup has completed.",
+      "function sum(left, right) { return left + right; }",
+      "const normalizePath = value => value.split('\\\\').join('/');",
+      "SELECT id, file FROM chunks WHERE mode = ? ORDER BY id LIMIT ?;",
+      "Load only the selected immutable model graph and its exact tokenizer closure.",
+      "Where is the attention mask applied before sentence embedding normalization?",
+      "def divide(numerator, denominator):\n    if denominator == 0:\n        raise ValueError('zero denominator')\n    return numerator / denominator",
+      "Keep positive lexical matches ahead of eligible zero-score complement rows.",
+      "Cancel this operation, retain the original reason, and join the accepted work before releasing ownership.",
+      "pub fn square(value: i64) -> i64 { value * value }",
+      "The generation identifier selects one committed artifact set; a nearby directory is not equivalent authority.",
+      "Which parser produces a source range for an exported declaration?",
+      "class BufferOwner { close() { return this.handle.close(); } }",
+      "Café naïve résumé; Ελληνικά; 日本語; 😀; literal replacement character �.",
+      "A Windows path may contain spaces: C:\\work\\small repository\\source.js",
+      "An empty metadata filter is different from a native backend failure.",
+      "Find code that rejects a tensor with more rows than the submitted input batch.",
+      "function unique(values) { return [...new Set(values)]; }",
+      "The tokenizer pads shorter inputs and marks padding with zero attention-mask entries.",
+      "close();",
+      "A query can contain punctuation, parentheses (and commas), quotes \"like this\", or repeated repeated words.",
+      "const sorted = rows.toSorted((left, right) => left.id - right.id);",
+      "Document the distinction between a diagnostic failure after confirmed close and an unresolved resource owner.",
+      "Search for an import-only module whose file node must remain in the exported hierarchy.",
+      "interface Entry { id: string; bytes: number; sha256: string; }",
+      "Open the selected graph, verify complete source identity, process the original byte stream, and preserve cancellation plus close failures independently.",
+      "Close the original file handle.",
+      "Return exactly one embedding for each input item, in input order, including repeated items.",
+      "A bounded resource observation records cold model loading separately from warm repeated batches and does not establish a general throughput improvement."
+    ],
+    "corpusProvenance": "Authored bounded MiniLM provider-admission corpus, 2026-10-30: code, documentation, queries, Unicode, repeated text and varied lengths. No relevance judgments or representative search-quality claim.",
+    "artifacts": [
+      {
+        "path": "tokenizer/config.json",
+        "bytes": 650,
+        "sha256": "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7"
+      },
+      {
+        "path": "weights/model_quantized.onnx",
+        "bytes": 22972370,
+        "sha256": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
+      },
+      {
+        "path": "tokenizer/tokenizer.json",
+        "bytes": 711661,
+        "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
+      },
+      {
+        "path": "tokenizer/tokenizer_config.json",
+        "bytes": 366,
+        "sha256": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3"
+      }
+    ],
+    "runtime": {
+      "transformers": "4.3.2",
+      "onnxruntimeNode": "1.31.1"
+    },
+    "corpusSource": {
+      "path": "tests/fixtures/embeddings/minilm-provider-corpus.json",
+      "sha256": "832d186623e96ac4b303c3866076206265a922cd12261dd40200c575fd7e8a24"
+    },
+    "onnxConfig": {
+      "modelPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\dense-real-models-20261030\\direct-onnx-minilm\\model_quantized.onnx",
+      "tokenizerId": "Xenova/all-MiniLM-L6-v2",
+      "executionProviders": [
+        "cpu"
+      ],
+      "intraOpNumThreads": 1,
+      "interOpNumThreads": 1,
+      "graphOptimizationLevel": "basic",
+      "cpuExecutionProviderTuning": true
+    },
+    "providerRuntime": {
+      "name": "onnxruntime-node",
+      "version": "1.31.1"
+    },
+    "exportRevision": null,
+    "exportProvenance": "Original acquired generic-main MiniLM cache;exact opened-byte hashes are frozen;no immutable author revision was recorded by that acquisition."
+  },
+  "minimizedSource": "import assert from 'node:assert/strict';\nimport fs from 'node:fs/promises';\nconst field=(id,bytes)=>Buffer.concat([Buffer.from([(id<<3)|2,bytes.length]),bytes]);\nconst text=(id,value)=>field(id,Buffer.from(value));\nconst vi=name=>Buffer.concat([text(1,name),field(2,field(1,Buffer.concat([Buffer.from([8,1]),field(2,field(1,Buffer.from([8,2])))])))]);\nconst graph=Buffer.concat([field(1,Buffer.concat([text(1,'x'),text(2,'y'),text(4,'Identity')])),text(2,'native-identity-probe'),field(11,vi('x')),field(12,vi('y'))]);\nconst model=Buffer.concat([Buffer.from([8,8]),field(7,graph),field(8,Buffer.from([16,13]))]);\nconst order=process.argv[2];\nconsole.log(JSON.stringify({phase:'start',order,modelBytes:model.length}));\nif(order==='hf-first')await import('@huggingface/transformers');\nconst ort=await import('onnxruntime-node');\nif(order==='root-first')await import('@huggingface/transformers');\nconsole.log(JSON.stringify({phase:'imports-returned'}));\nlet session,input,output;\ntry {\n  session=await ort.InferenceSession.create(model,{executionProviders:['cpu'],intraOpNumThreads:1,interOpNumThreads:1});\n  console.log(JSON.stringify({phase:'created'}));\n  input=new ort.Tensor('float32',new Float32Array([1.25,-2]),[2]);\n  const result=await session.run({x:input});output=result.y;\n  assert.deepEqual([...output.data],[1.25,-2]);\n  console.log(JSON.stringify({phase:'inferred',values:[...output.data]}));\n} finally {output?.dispose();input?.dispose();await session?.release();console.log(JSON.stringify({phase:'disposed'}));}\r\n",
+  "minimizedFailure": {
+    "status": -1073741819,
+    "utc": "2026-10-30T12:30:24.9244979Z",
+    "sourceSha256": "6BACE0613B84E080DEECD50EE72965602D427EA2672788859912199C608DFB51",
+    "stdout": [
+      "{\"phase\":\"start\",\"order\":\"hf-first\",\"modelBytes\":83}",
+      "{\"phase\":\"imports-returned\"}"
+    ],
+    "stderr": "The requested API version [31] is not available, only API versions [1, 30] are supported in this build. Current ORT Version is: 1.30.0\r\n"
+  },
+  "rootFirstDiagnostic": {
+    "status": 0,
+    "durationMs": 259.227,
+    "diagnosticOnly": true,
+    "sourceSha256": "6BACE0613B84E080DEECD50EE72965602D427EA2672788859912199C608DFB51",
+    "stdout": [
+      "{\"phase\":\"start\",\"order\":\"root-first\",\"modelBytes\":83}",
+      "{\"phase\":\"imports-returned\"}",
+      "{\"phase\":\"created\"}",
+      "{\"phase\":\"inferred\",\"values\":[1.25,-2]}",
+      "{\"phase\":\"disposed\"}"
+    ],
+    "stderr": null
+  },
+  "debugger": {
+    "executable": "C:/Program Files (x86)/Windows Kits/10/Debuggers/x64/cdb.exe",
+    "version": "10.0.28000.2526 AMD64",
+    "childDebugging": true,
+    "registration": false,
+    "rawHistoricalLog": ".tmp/tasks/q-1030/import-order/cdb-minimal-v5.log",
+    "sha256": "0ce56077cea07556cbecfc0d26fa5ded1aee5f0b4e1c974ae13f90dc8369978b",
+    "exceptionAndAllThreadModuleAnalysis": "=== MINIMIZED_UNHANDLED_AV ===\r\nExceptionAddress: 00007fff94e2e125 (onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x000000000001c51d)\r\n   ExceptionCode: c0000005 (Access violation)\r\n  ExceptionFlags: 00000000\r\nNumberParameters: 2\r\n   Parameter[0]: 0000000000000000\r\n   Parameter[1]: 0000000000000018\r\nAttempt to read from address 0000000000000018\r\nUnable to get exception context, HRESULT 0x8000FFFF\r\nrax=0000000000000000 rbx=0000000000000002 rcx=000000000000000e\r\nrdx=0000000000000104 rsi=000001ee7a6280b0 rdi=000001ee7afdf010\r\nrip=00007fff94e2e125 rsp=00000085a31fd770 rbp=00007fff94e5e000\r\n r8=7ffffffffffffffc  r9=000001ee60500070 r10=0000000000000001\r\nr11=0000000000000001 r12=000001ee6212ce80 r13=000001ee620b1080\r\nr14=00000085a31fd910 r15=0000000000000001\r\niopl=0         nv up ei pl nz na pe nc\r\ncs=0033  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00010200\r\nonnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c51d:\r\n00007fff`94e2e125 4c8b4818        mov     r9,qword ptr [rax+18h] ds:00000000`00000018=????????????????\r\nonnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c4df:\r\n00007fff`94e2e0e7 cc              int     3\r\n00007fff`94e2e0e8 cc              int     3\r\n00007fff`94e2e0e9 cc              int     3\r\n00007fff`94e2e0ea cc              int     3\r\n00007fff`94e2e0eb cc              int     3\r\n00007fff`94e2e0ec cc              int     3\r\n00007fff`94e2e0ed cc              int     3\r\n00007fff`94e2e0ee cc              int     3\r\n00007fff`94e2e0ef cc              int     3\r\n00007fff`94e2e0f0 488b01          mov     rax,qword ptr [rcx]\r\n00007fff`94e2e0f3 c3              ret\r\n00007fff`94e2e0f4 cc              int     3\r\n00007fff`94e2e0f5 cc              int     3\r\n00007fff`94e2e0f6 cc              int     3\r\n00007fff`94e2e0f7 cc              int     3\r\n00007fff`94e2e0f8 cc              int     3\r\n00007fff`94e2e0f9 cc              int     3\r\n00007fff`94e2e0fa cc              int     3\r\n00007fff`94e2e0fb cc              int     3\r\n00007fff`94e2e0fc cc              int     3\r\n00007fff`94e2e0fd cc              int     3\r\n00007fff`94e2e0fe cc              int     3\r\n00007fff`94e2e0ff cc              int     3\r\n00007fff`94e2e100 48895c2410      mov     qword ptr [rsp+10h],rbx\r\n00007fff`94e2e105 48894c2408      mov     qword ptr [rsp+8],rcx\r\n00007fff`94e2e10a 57              push    rdi\r\n00007fff`94e2e10b 4883ec20        sub     rsp,20h\r\n00007fff`94e2e10f 8bda            mov     ebx,edx\r\n00007fff`94e2e111 488bf9          mov     rdi,rcx\r\n00007fff`94e2e114 48894c2440      mov     qword ptr [rsp+40h],rcx\r\n00007fff`94e2e119 48c70100000000  mov     qword ptr [rcx],0\r\n00007fff`94e2e120 e82b2ffeff      call    onnxruntime_binding_7fff94e10000+0x1050 (00007fff`94e11050)\r\n\r\n.  0  Id: 68e4.7790 Suspend: 1 Teb: 00000085`a282c000 Unfrozen \"node-MainThread\"\r\nChild-SP          RetAddr               Call Site\r\n00000085`a31fd770 00007fff`94e2e45b     onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c51d\r\n00000085`a31fd7a0 00007fff`94e2df14     onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c853\r\n00000085`a31fd7e0 00007fff`94e27a38     onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c30c\r\n00000085`a31fd8d0 00007fff`94e21f72     onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x15e30\r\n00000085`a31fd9d0 00007fff`94e2c3e8     onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1036a\r\n00000085`a31fda90 00007ff6`8a0e4274     onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1a7e0\r\n00000085`a31fdad0 000001ee`1fdd00e9     node!napi_is_detached_arraybuffer+0x234\r\n00000085`a31fdb40 000001ee`1fdce664     0x000001ee`1fdd00e9\r\n00000085`a31fdb90 000001ee`1fdce664     0x000001ee`1fdce664\r\n00000085`a31fdc40 000001ee`1fe10ffa     0x000001ee`1fdce664\r\n00000085`a31fdcd0 000001ee`1ff03fb5     0x000001ee`1fe10ffa\r\n00000085`a31fdd18 000001ee`1fdfef53     0x000001ee`1ff03fb5\r\n00000085`a31fdd50 000001ee`1fdcb6bb     0x000001ee`1fdfef53\r\n00000085`a31fddb8 00007ff6`896a9b95     0x000001ee`1fdcb6bb\r\n00000085`a31fdee0 00007ff6`897991ce     node!v8::Number::Value+0x6a5\r\n00000085`a31fe050 00007ff6`8979650d     node!v8::Object::SetPrototypeV2+0xc86e\r\n00000085`a31fe200 00007ff6`88ecd8fc     node!v8::Object::SetPrototypeV2+0x9bad\r\n00000085`a31fe580 00007ff6`8997619e     node!v8::Value::Equals+0x55cc\r\n00000085`a31fe650 00007ff6`88f02c74     node!uv_run+0xfbe\r\n00000085`a31ff7b0 00007ff6`891d762d     node!node::CreateEnvironment+0x24d4\r\n00000085`a31ff860 00007ff6`891d45e2     node!uv_thread_join+0xbfd\r\n00000085`a31ff9a0 00007ff6`891d41cb     node!node::Start+0x352\r\n00000085`a31ffb00 00007ff6`89da1d24     node!RSA_meth_new+0x26b\r\n00000085`a31ffcc0 00007fff`bda5dda7     node!v8::base::bits::SignedSaturatedAdd64+0xe7e4\r\n00000085`a31ffd00 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a31ffd30 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   1  Id: 68e4.5660 Suspend: 1 Teb: 00000085`a282e000 Unfrozen\r\nChild-SP          RetAddr               Call Site\r\n00000085`a39ffbd8 00007fff`be964d0e     ntdll!NtWaitForWorkViaWorkerFactory+0x14\r\n00000085`a39ffbe0 00007fff`bda5dda7     ntdll!TppWorkerThread+0x37e\r\n00000085`a39fff40 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a39fff70 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   2  Id: 68e4.699c Suspend: 1 Teb: 00000085`a2830000 Unfrozen\r\nChild-SP          RetAddr               Call Site\r\n00000085`a41ff5f8 00007fff`be964d0e     ntdll!NtWaitForWorkViaWorkerFactory+0x14\r\n00000085`a41ff600 00007fff`bda5dda7     ntdll!TppWorkerThread+0x37e\r\n00000085`a41ff960 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a41ff990 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   3  Id: 68e4.67cc Suspend: 1 Teb: 00000085`a2832000 Unfrozen\r\nChild-SP          RetAddr               Call Site\r\n00000085`a49ff438 00007fff`be964d0e     ntdll!NtWaitForWorkViaWorkerFactory+0x14\r\n00000085`a49ff440 00007fff`bda5dda7     ntdll!TppWorkerThread+0x37e\r\n00000085`a49ff7a0 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a49ff7d0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   4  Id: 68e4.1d24 Suspend: 1 Teb: 00000085`a2834000 Unfrozen\r\nChild-SP          RetAddr               Call Site\r\n00000085`a51ff488 00007fff`be0026d8     win32u!NtUserGetMessage+0x14\r\n00000085`a51ff490 00007ff6`894a8803     USER32!GetMessageA+0x48\r\n00000085`a51ff4f0 00007fff`be9ce15b     node!uv_gettimeofday+0x1c3\r\n00000085`a51ff590 00007fff`be9651b0     ntdll!RtlpTpWorkCallback+0x22b\r\n00000085`a51ff670 00007fff`bda5dda7     ntdll!TppWorkerThread+0x820\r\n00000085`a51ff9d0 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a51ffa00 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   5  Id: 68e4.6904 Suspend: 1 Teb: 00000085`a2836000 Unfrozen\r\nChild-SP          RetAddr               Call Site\r\n00000085`a59ff918 00007fff`bbfebe9f     ntdll!NtWaitForSingleObject+0x14\r\n00000085`a59ff920 00007ff6`89086bae     KERNELBASE!WaitForSingleObjectEx+0xaf\r\n00000085`a59ff9c0 00007fff`be9ce15b     node!v8::platform::tracing::TracingController::RemoveTraceStateObserver+0x2b0e\r\n00000085`a59ffa40 00007fff`be9651b0     ntdll!RtlpTpWorkCallback+0x22b\r\n00000085`a59ffb20 00007fff`bda5dda7     ntdll!TppWorkerThread+0x820\r\n00000085`a59ffe80 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a59ffeb0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   6  Id: 68e4.cc8 Suspend: 1 Teb: 00000085`a2838000 Unfrozen\r\nChild-SP          RetAddr               Call Site\r\n00000085`a61ff7a8 00007fff`be964d0e     ntdll!NtWaitForWorkViaWorkerFactory+0x14\r\n00000085`a61ff7b0 00007fff`bda5dda7     ntdll!TppWorkerThread+0x37e\r\n00000085`a61ffb10 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a61ffb40 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   7  Id: 68e4.4db4 Suspend: 1 Teb: 00000085`a283a000 Unfrozen \"DelayedTaskSchedulerWorker\"\r\nChild-SP          RetAddr               Call Site\r\n00000085`a69fea68 00007fff`bc09133f     ntdll!NtRemoveIoCompletionEx+0x14\r\n00000085`a69fea70 00007ff6`899754c0     KERNELBASE!GetQueuedCompletionStatusEx+0xcf\r\n00000085`a69feb20 00007ff6`892bce89     node!uv_run+0x2e0\r\n00000085`a69ffc80 00007ff6`892df15d     node!v8::Array::Iterate+0x357f9\r\n00000085`a69ffd20 00007ff6`89db3193     node!uv_write2+0x18d\r\n00000085`a69ffd80 00007fff`bda5dda7     node!v8::base::bits::SignedSaturatedAdd64+0x1fc53\r\n00000085`a69ffdb0 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a69ffde0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   8  Id: 68e4.6894 Suspend: 1 Teb: 00000085`a283c000 Unfrozen \"node-V8Worker\"\r\nChild-SP          RetAddr               Call Site\r\n00000085`a71ff5c0 00007ff6`88d9e1ec     node!v8::Object::InternalFieldCount+0x212a\r\n00000085`a71ffb90 00007ff6`88ddafba     node!v8::Promise::Resolver::New+0x402c\r\n00000085`a71ffcd0 00007ff6`892bc639     node!uv_write+0x275a\r\n00000085`a71ffd40 00007ff6`892df15d     node!v8::Array::Iterate+0x34fa9\r\n00000085`a71ffe30 00007ff6`89db3193     node!uv_write2+0x18d\r\n00000085`a71ffe90 00007fff`bda5dda7     node!v8::base::bits::SignedSaturatedAdd64+0x1fc53\r\n00000085`a71ffec0 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a71ffef0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n   9  Id: 68e4.75b4 Suspend: 1 Teb: 00000085`a283e000 Unfrozen \"node-V8Worker\"\r\nChild-SP          RetAddr               Call Site\r\n00000085`a79ff270 00007ff6`88d9e1ec     node!v8::Object::InternalFieldCount+0x1a25\r\n00000085`a79ff840 00007ff6`88ddafba     node!v8::Promise::Resolver::New+0x402c\r\n00000085`a79ff980 00007ff6`892bc639     node!uv_write+0x275a\r\n00000085`a79ff9f0 00007ff6`892df15d     node!v8::Array::Iterate+0x34fa9\r\n00000085`a79ffae0 00007ff6`89db3193     node!uv_write2+0x18d\r\n00000085`a79ffb40 00007fff`bda5dda7     node!v8::base::bits::SignedSaturatedAdd64+0x1fc53\r\n00000085`a79ffb70 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a79ffba0 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n  10  Id: 68e4.2a90 Suspend: 1 Teb: 00000085`a2840000 Unfrozen \"node-V8Worker\"\r\nChild-SP          RetAddr               Call Site\r\n00000085`a81ff5d0 00007ff6`88d9e1ec     node!v8::Object::InternalFieldCount+0x1a25\r\n00000085`a81ffba0 00007ff6`88ddafba     node!v8::Promise::Resolver::New+0x402c\r\n00000085`a81ffce0 00007ff6`892bc639     node!uv_write+0x275a\r\n00000085`a81ffd50 00007ff6`892df15d     node!v8::Array::Iterate+0x34fa9\r\n00000085`a81ffe40 00007ff6`89db3193     node!uv_write2+0x18d\r\n00000085`a81ffea0 00007fff`bda5dda7     node!v8::base::bits::SignedSaturatedAdd64+0x1fc53\r\n00000085`a81ffed0 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a81fff00 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\n\r\n  11  Id: 68e4.2fb4 Suspend: 1 Teb: 00000085`a2842000 Unfrozen \"node-V8Worker\"\r\nChild-SP          RetAddr               Call Site\r\n00000085`a89ff430 00007ff6`88d9e1ec     node!v8::Object::InternalFieldCount+0x2106\r\n00000085`a89ffa00 00007ff6`88ddafba     node!v8::Promise::Resolver::New+0x402c\r\n00000085`a89ffb40 00007ff6`892bc639     node!uv_write+0x275a\r\n00000085`a89ffbb0 00007ff6`892df15d     node!v8::Array::Iterate+0x34fa9\r\n00000085`a89ffca0 00007ff6`89db3193     node!uv_write2+0x18d\r\n00000085`a89ffd00 00007fff`bda5dda7     node!v8::base::bits::SignedSaturatedAdd64+0x1fc53\r\n00000085`a89ffd30 00007fff`be9bee4c     KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a89ffd60 00000000`00000000     ntdll!RtlUserThreadStart+0x2c\r\nstart             end                 module name\r\n00007ff6`88d30000 00007ff6`8ed09000   node       (export symbols)       C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe\r\n    Loaded symbol image file: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe\r\n    Image path: node.exe\r\n    Image name: node.exe\r\n    Timestamp:        Tue Oct 27 23:55:51 2026 (6AE17247)\r\n    CheckSum:         05F82B63\r\n    ImageSize:        05FD9000\r\n    File version:     26.13.0.0\r\n    Product version:  26.13.0.0\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Node.js\r\n        ProductName:      Node.js\r\n        InternalName:     node\r\n        OriginalFilename: node.exe\r\n        ProductVersion:   26.13.0\r\n        FileVersion:      26.13.0\r\n        FileDescription:  Node.js JavaScript Runtime\r\n        LegalCopyright:   Copyright Node.js contributors. MIT license.\r\n00007ffe`d0710000 00007ffe`d2286000   onnxruntime   (deferred)             \r\n    Image path: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\@huggingface\\transformers\\node_modules\\onnxruntime-node\\bin\\napi-v6\\win32\\x64\\onnxruntime.dll\r\n    Image name: onnxruntime.dll\r\n    Timestamp:        Thu Sep 10 02:50:48 2026 (6AA25348)\r\n    CheckSum:         01B6C926\r\n    ImageSize:        01B76000\r\n    File version:     1.30.0.909\r\n    Product version:  1.30.0.909\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          4 Unknown Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04e4\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     ONNX Runtime\r\n        OriginalFilename: onnxruntime.dll\r\n        ProductVersion:   1.30.0.20260909.4.f2c39fe\r\n        FileVersion:      1.30.0.20260909.4.f2c39fe\r\n        FileDescription:  ONNX Runtime\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007ffe`d2290000 00007ffe`d36a6000   libvips_42   (deferred)             \r\n    Image path: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\@img\\sharp-win32-x64\\lib\\libvips-42.dll\r\n    Image name: libvips-42.dll\r\n    Timestamp:        Sat Sep 26 07:34:52 2026 (6AB7ADDC)\r\n    CheckSum:         00000000\r\n    ImageSize:        01416000\r\n    Translations:     0000.04b0 0000.04e4 0409.04b0 0409.04e4\r\n    Information from resource tables:\r\n00007ffe`f1e50000 00007ffe`f1e7c000   VCRUNTIME140   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\VCRUNTIME140.dll\r\n    Image name: VCRUNTIME140.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        C35DDC74 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0003A467\r\n    ImageSize:        0002C000\r\n    File version:     14.51.36247.0\r\n    Product version:  14.51.36247.0\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          4 Unknown Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Visual Studio�\r\n        InternalName:     vcruntime140.dll\r\n        OriginalFilename: vcruntime140.dll\r\n        ProductVersion:   14.51.36247.0\r\n        FileVersion:      14.51.36247.0\r\n        FileDescription:  Microsoft� C Runtime Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`32ca0000 00007fff`32d3d000   MSVCP140   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\MSVCP140.dll\r\n    Image name: MSVCP140.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        38EB906F (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000A2E73\r\n    ImageSize:        0009D000\r\n    File version:     14.51.36247.0\r\n    Product version:  14.51.36247.0\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          4 Unknown Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Visual Studio�\r\n        InternalName:     msvcp140.dll\r\n        OriginalFilename: msvcp140.dll\r\n        ProductVersion:   14.51.36247.0\r\n        FileVersion:      14.51.36247.0\r\n        FileDescription:  Microsoft� C Runtime Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`94e10000 00007fff`94e6c000   onnxruntime_binding_7fff94e10000   (export symbols)       \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\onnxruntime-node\\bin\\napi-v6\\win32\\x64\\onnxruntime_binding.node\r\n    Loaded symbol image file: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\onnxruntime-node\\bin\\napi-v6\\win32\\x64\\onnxruntime_binding.node\r\n    Image path: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\onnxruntime-node\\bin\\napi-v6\\win32\\x64\\onnxruntime_binding.node\r\n    Image name: onnxruntime_binding.node\r\n    Timestamp:        Fri Oct 23 15:58:47 2026 (6ADBBC77)\r\n    CheckSum:         00060CFB\r\n    ImageSize:        0005C000\r\n    Translations:     0000.04b0 0000.04e4 0409.04b0 0409.04e4\r\n    Information from resource tables:\r\n00007fff`95100000 00007fff`95172000   sharp_win32_x64_0_35_5   (deferred)             \r\n    Image path: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\@img\\sharp-win32-x64\\lib\\sharp-win32-x64-0.35.5.node\r\n    Image name: sharp-win32-x64-0.35.5.node\r\n    Timestamp:        Sun Sep 27 09:40:41 2026 (6AB91CD9)\r\n    CheckSum:         00000000\r\n    ImageSize:        00072000\r\n    Translations:     0000.04b0 0000.04e4 0409.04b0 0409.04e4\r\n    Information from resource tables:\r\n00007fff`97770000 00007fff`977bf000   onnxruntime_binding   (deferred)             \r\n    Image path: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\@huggingface\\transformers\\node_modules\\onnxruntime-node\\bin\\napi-v6\\win32\\x64\\onnxruntime_binding.node\r\n    Image name: onnxruntime_binding.node\r\n    Timestamp:        Thu Sep 10 02:51:21 2026 (6AA25369)\r\n    CheckSum:         00051443\r\n    ImageSize:        0004F000\r\n    Translations:     0000.04b0 0000.04e4 0409.04b0 0409.04e4\r\n    Information from resource tables:\r\n00007fff`97820000 00007fff`97829000   MSVCP140_1   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\MSVCP140_1.dll\r\n    Image name: MSVCP140_1.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        60BD66A4 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00014C98\r\n    ImageSize:        00009000\r\n    File version:     14.51.36247.0\r\n    Product version:  14.51.36247.0\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          4 Unknown Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Visual Studio�\r\n        InternalName:     msvcp140_1.dll\r\n        OriginalFilename: msvcp140_1.dll\r\n        ProductVersion:   14.51.36247.0\r\n        FileVersion:      14.51.36247.0\r\n        FileDescription:  Microsoft� C Runtime Library _1\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`97cf0000 00007fff`97d47000   libvips_cpp_8_18_7   (deferred)             \r\n    Image path: \\\\?\\C:\\Users\\sneak\\Development\\PairOfCleats\\node_modules\\@img\\sharp-win32-x64\\lib\\libvips-cpp-8.18.7.dll\r\n    Image name: libvips-cpp-8.18.7.dll\r\n    Timestamp:        Sun Sep 27 09:40:29 2026 (6AB91CCD)\r\n    CheckSum:         00000000\r\n    ImageSize:        00057000\r\n    Translations:     0000.04b0 0000.04e4 0409.04b0 0409.04e4\r\n    Information from resource tables:\r\n00007fff`985e0000 00007fff`985ec000   VCRUNTIME140_1   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\VCRUNTIME140_1.dll\r\n    Image name: VCRUNTIME140_1.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        DC08A728 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0001354B\r\n    ImageSize:        0000C000\r\n    File version:     14.51.36247.0\r\n    Product version:  14.51.36247.0\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          4 Unknown Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Visual Studio�\r\n        InternalName:     vcruntime140_1.dll\r\n        OriginalFilename: vcruntime140_1.dll\r\n        ProductVersion:   14.51.36247.0\r\n        FileVersion:      14.51.36247.0\r\n        FileDescription:  Microsoft� C Runtime Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`9b0a0000 00007fff`9b0db000   dbgcore    (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\dbgcore.DLL\r\n    Image name: dbgcore.DLL\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        BD584206 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0003E082\r\n    ImageSize:        0003B000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     DBGCORE.DLL\r\n        OriginalFilename: DBGCORE.DLL\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Core Debugging Helpers\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`9fb60000 00007fff`9fb76000   MSVCP140_ATOMIC_WAIT   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\MSVCP140_ATOMIC_WAIT.dll\r\n    Image name: MSVCP140_ATOMIC_WAIT.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        DDB4A0E2 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0001A7D9\r\n    ImageSize:        00016000\r\n    File version:     14.51.36247.0\r\n    Product version:  14.51.36247.0\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          4 Unknown Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Visual Studio�\r\n        InternalName:     msvcp140_atomic_wait.dll\r\n        OriginalFilename: msvcp140_atomic_wait.dll\r\n        ProductVersion:   14.51.36247.0\r\n        FileVersion:      14.51.36247.0\r\n        FileDescription:  Microsoft� C Runtime Library _atomic_wait\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`b1bb0000 00007fff`b1be7000   WINMM      (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\WINMM.dll\r\n    Image name: WINMM.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        765E58C4 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0004718D\r\n    ImageSize:        00037000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     winmm.dll\r\n        OriginalFilename: WINMM.DLL\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  MCI API DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`b8570000 00007fff`b87bc000   dbghelp    (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\dbghelp.dll\r\n    Image name: dbghelp.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        631BCF95 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00243BF5\r\n    ImageSize:        0024C000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     DBGHELP.DLL\r\n        OriginalFilename: DBGHELP.DLL\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Image Helper\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`b87d0000 00007fff`b886f000   apphelp    (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\apphelp.dll\r\n    Image name: apphelp.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        AFA92EC1 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000A8F22\r\n    ImageSize:        0009F000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     Apphelp\r\n        OriginalFilename: Apphelp\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Application Compatibility Client Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`b8ac0000 00007fff`b8b67000   uxtheme    (deferred)             \r\n    Image path: C:\\WINDOWS\\system32\\uxtheme.dll\r\n    Image name: uxtheme.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        DB08095C (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000AE603\r\n    ImageSize:        000A7000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     UxTheme.dll\r\n        OriginalFilename: UxTheme.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft UxTheme Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`ba190000 00007fff`ba1c3000   IPHLPAPI   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL\r\n    Image name: IPHLPAPI.DLL\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        8849C2DB (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00041055\r\n    ImageSize:        00033000\r\n    File version:     10.0.26100.9278\r\n    Product version:  10.0.26100.9278\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     iphlpapi.dll\r\n        OriginalFilename: iphlpapi.dll\r\n        ProductVersion:   10.0.26100.9278\r\n        FileVersion:      10.0.26100.9278 (WinBuild.160101.0800)\r\n        FileDescription:  IP Helper API\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`ba230000 00007fff`ba388000   DNSAPI     (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\DNSAPI.dll\r\n    Image name: DNSAPI.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        A6BF2C82 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00170124\r\n    ImageSize:        00158000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     dnsapi\r\n        OriginalFilename: dnsapi\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  DNS Client API DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`ba6f0000 00007fff`ba729000   rsaenh     (deferred)             \r\n    Image path: C:\\WINDOWS\\system32\\rsaenh.dll\r\n    Image name: rsaenh.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        67F6D4E8 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0003CF36\r\n    ImageSize:        00039000\r\n    File version:     10.0.26100.7705\r\n    Product version:  10.0.26100.7705\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     rsaenh.dll\r\n        OriginalFilename: rsaenh.dll\r\n        ProductVersion:   10.0.26100.7705\r\n        FileVersion:      10.0.26100.7705 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft Enhanced Cryptographic Provider\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`ba790000 00007fff`ba7ab000   kernel_appcore   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll\r\n    Image name: kernel.appcore.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        0EB18366 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000228B8\r\n    ImageSize:        0001B000\r\n    File version:     10.0.26100.9278\r\n    Product version:  10.0.26100.9278\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     kernel.appcore.dll\r\n        OriginalFilename: kernel.appcore.dll\r\n        ProductVersion:   10.0.26100.9278\r\n        FileVersion:      10.0.26100.9278 (WinBuild.160101.0800)\r\n        FileDescription:  AppModel API Host\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bab30000 00007fff`bab3d000   DSPARSE    (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\DSPARSE.dll\r\n    Image name: DSPARSE.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        E14AC9FC (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00010762\r\n    ImageSize:        0000D000\r\n    File version:     10.0.26100.1\r\n    Product version:  10.0.26100.1\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     dsparse.dll\r\n        OriginalFilename: dsparse.dll\r\n        ProductVersion:   10.0.26100.1\r\n        FileVersion:      10.0.26100.1 (WinBuild.160101.0800)\r\n        FileDescription:  Active Directory Domain Services API\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bad30000 00007fff`bad9c000   mswsock    (deferred)             \r\n    Image path: C:\\WINDOWS\\system32\\mswsock.dll\r\n    Image name: mswsock.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        1C288E86 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0007FC73\r\n    ImageSize:        0006C000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     mswsock.dll\r\n        OriginalFilename: mswsock.dll\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft Windows Sockets 2.0 Service Provider\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bade0000 00007fff`bae14000   USERENV    (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\USERENV.dll\r\n    Image name: USERENV.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        695101A7 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0003A817\r\n    ImageSize:        00034000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     userenv\r\n        OriginalFilename: userenv.dll\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Userenv\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`baf90000 00007fff`baf9c000   CRYPTBASE   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\CRYPTBASE.DLL\r\n    Image name: CRYPTBASE.DLL\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        95B538FC (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0001E444\r\n    ImageSize:        0000C000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     cryptbase.dll\r\n        OriginalFilename: cryptbase.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Base cryptographic API DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bb170000 00007fff`bb18b000   CRYPTSP    (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\CRYPTSP.dll\r\n    Image name: CRYPTSP.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        E5F12B36 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000259DF\r\n    ImageSize:        0001B000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     cryptsp.dll\r\n        OriginalFilename: cryptsp.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Cryptographic Service Provider API\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bb7a0000 00007fff`bb7b5000   UMPDC      (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\UMPDC.dll\r\n    Image name: UMPDC.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        E557DE88 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00024936\r\n    ImageSize:        00015000\r\n    File version:     10.0.26100.8972\r\n    Product version:  10.0.26100.8972\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0000.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     umpdc.dll\r\n        OriginalFilename: umpdc.dll\r\n        ProductVersion:   10.0.26100.8972\r\n        FileVersion:      10.0.26100.8972 (WinBuild.160101.0800)\r\n        FileDescription:  User Mode Power Dependency Coordinator\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bb7c0000 00007fff`bb81e000   powrprof   (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\powrprof.dll\r\n    Image name: powrprof.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        AA6357B3 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0006FC47\r\n    ImageSize:        0005E000\r\n    File version:     10.0.26100.3912\r\n    Product version:  10.0.26100.3912\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     POWRPROF\r\n        OriginalFilename: POWRPROF.DLL\r\n        ProductVersion:   10.0.26100.3912\r\n        FileVersion:      10.0.26100.3912 (WinBuild.160101.0800)\r\n        FileDescription:  Power Profile Helper DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bba10000 00007fff`bba3a000   bcrypt     (deferred)             \r\n    Image path: C:\\WINDOWS\\SYSTEM32\\bcrypt.dll\r\n    Image name: bcrypt.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        E6AD1671 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00033AA2\r\n    ImageSize:        0002A000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     bcrypt.dll\r\n        OriginalFilename: bcrypt.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Cryptographic Primitives Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bbb30000 00007fff`bbbdc000   bcryptprimitives   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\bcryptprimitives.dll\r\n    Image name: bcryptprimitives.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        AB7AA2F1 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000B612F\r\n    ImageSize:        000AC000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     bcryptprimitives.dll\r\n        OriginalFilename: bcryptprimitives.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Cryptographic Primitives Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bbbf0000 00007fff`bbd3c000   ucrtbase   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\ucrtbase.dll\r\n    Image name: ucrtbase.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        3F426C5B (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00161322\r\n    ImageSize:        0014C000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     ucrtbase.dll\r\n        OriginalFilename: ucrtbase.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft� C Runtime Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bbd50000 00007fff`bbd77000   win32u     (pdb symbols)          C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\symbols\\win32u.pdb\\DC2BE92BCDB1EFC31195235C45385FF11\\win32u.pdb\r\n    Loaded symbol image file: C:\\WINDOWS\\System32\\win32u.dll\r\n    Image path: C:\\WINDOWS\\System32\\win32u.dll\r\n    Image name: win32u.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        47EBF119 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0003AF62\r\n    ImageSize:        00027000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     Win32u\r\n        OriginalFilename: Win32u.DLL\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Win32u\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bbd80000 00007fff`bbeff000   CRYPT32    (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\CRYPT32.dll\r\n    Image name: CRYPT32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        AA5E6D34 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0018A161\r\n    ImageSize:        0017F000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     CRYPT32.DLL\r\n        OriginalFilename: CRYPT32.DLL\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Crypto API32\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bbfd0000 00007fff`bc3d1000   KERNELBASE   (pdb symbols)          C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\symbols\\kernelbase.pdb\\79B505276F140450EB83DF0440BF06C61\\kernelbase.pdb\r\n    Loaded symbol image file: C:\\WINDOWS\\System32\\KERNELBASE.dll\r\n    Image path: C:\\WINDOWS\\System32\\KERNELBASE.dll\r\n    Image name: KERNELBASE.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        FB9071FB (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00411E21\r\n    ImageSize:        00401000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     Kernelbase.dll\r\n        OriginalFilename: Kernelbase.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows NT BASE API Client DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bc3e0000 00007fff`bc50a000   gdi32full   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\gdi32full.dll\r\n    Image name: gdi32full.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        A625C6A4 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0013EA80\r\n    ImageSize:        0012A000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     gdi32\r\n        OriginalFilename: gdi32\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  GDI Client DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bc510000 00007fff`bc5b3000   msvcp_win   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\msvcp_win.dll\r\n    Image name: msvcp_win.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        EC24E540 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000A573A\r\n    ImageSize:        000A3000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     msvcp_win.dll\r\n        OriginalFilename: msvcp_win.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft� C Runtime Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bc860000 00007fff`bc91c000   ADVAPI32   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\ADVAPI32.dll\r\n    Image name: ADVAPI32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        97945F69 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000D0EEF\r\n    ImageSize:        000BC000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     advapi32.dll\r\n        OriginalFilename: advapi32.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Advanced Windows 32 Base API\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bc940000 00007fff`bc9e9000   msvcrt     (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\msvcrt.dll\r\n    Image name: msvcrt.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        715E0874 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000B9478\r\n    ImageSize:        000A9000\r\n    File version:     7.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     msvcrt.dll\r\n        OriginalFilename: msvcrt.dll\r\n        ProductVersion:   7.0.26100.9711\r\n        FileVersion:      7.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows NT CRT DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bcdd0000 00007fff`bd15b000   combase    (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\combase.dll\r\n    Image name: combase.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        15B851A4 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         003A3EFF\r\n    ImageSize:        0038B000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     COMBASE.DLL\r\n        OriginalFilename: COMBASE.DLL\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft COM for Windows\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bd160000 00007fff`bd191000   IMM32      (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\IMM32.DLL\r\n    Image name: IMM32.DLL\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        8DA71BC7 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00034EA6\r\n    ImageSize:        00031000\r\n    File version:     10.0.26100.9278\r\n    Product version:  10.0.26100.9278\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     imm32\r\n        OriginalFilename: imm32\r\n        ProductVersion:   10.0.26100.9278\r\n        FileVersion:      10.0.26100.9278 (WinBuild.160101.0800)\r\n        FileDescription:  Multi-User Windows IMM32 API Client DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bd1a0000 00007fff`bd93c000   SHELL32    (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\SHELL32.dll\r\n    Image name: SHELL32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        1173227C (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         007C7DAA\r\n    ImageSize:        0079C000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     SHELL32\r\n        OriginalFilename: SHELL32.DLL\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Shell Common Dll\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bd950000 00007fff`bda29000   OLEAUT32   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\OLEAUT32.dll\r\n    Image name: OLEAUT32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        EA31AF67 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000E112C\r\n    ImageSize:        000D9000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     OLEAUT32.DLL\r\n        OriginalFilename: OLEAUT32.DLL\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  OLEAUT32.DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bda30000 00007fff`bdafb000   KERNEL32   (pdb symbols)          C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\symbols\\kernel32.pdb\\E8C3A48CAC7EB60D8781D8C10020C44F1\\kernel32.pdb\r\n    Loaded symbol image file: C:\\WINDOWS\\System32\\KERNEL32.DLL\r\n    Image path: C:\\WINDOWS\\System32\\KERNEL32.DLL\r\n    Image name: KERNEL32.DLL\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        06FD28CE (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000D2FB3\r\n    ImageSize:        000CB000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     kernel32\r\n        OriginalFilename: kernel32\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows NT BASE API Client DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bdb00000 00007fff`bdc9a000   ole32      (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\ole32.dll\r\n    Image name: ole32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        CF30EEFC (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         001ACC1C\r\n    ImageSize:        0019A000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     OLE32.DLL\r\n        OriginalFilename: OLE32.DLL\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Microsoft OLE for Windows\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bde10000 00007fff`bdeb8000   sechost    (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\sechost.dll\r\n    Image name: sechost.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        56EA9C0A (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000B24CA\r\n    ImageSize:        000A8000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        1.0 App\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     sechost.dll\r\n        OriginalFilename: sechost.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Host for SCM/SDDL/LSA Lookup APIs\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bdf50000 00007fff`bdfd1000   WS2_32     (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\WS2_32.dll\r\n    Image name: WS2_32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        E43DCE38 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00093FBE\r\n    ImageSize:        00081000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     ws2_32.dll\r\n        OriginalFilename: ws2_32.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Socket 2.0 32-Bit DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bdfe0000 00007fff`bdfea000   NSI        (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\NSI.dll\r\n    Image name: NSI.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        34BDA774 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00010AA7\r\n    ImageSize:        0000A000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        3.6 Driver\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     nsi.dll\r\n        OriginalFilename: nsi.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  NSI User-mode interface DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`bdff0000 00007fff`be1c7000   USER32     (pdb symbols)          C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\symbols\\user32.pdb\\F0BF56EE0A784974D49A58173A7CBC7E1\\user32.pdb\r\n    Loaded symbol image file: C:\\WINDOWS\\System32\\USER32.dll\r\n    Image path: C:\\WINDOWS\\System32\\USER32.dll\r\n    Image name: USER32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        1D1C21A9 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         001E61E2\r\n    ImageSize:        001D7000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     user32\r\n        OriginalFilename: user32\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Multi-User Windows USER API Client DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`be1d0000 00007fff`be657000   SETUPAPI   (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\SETUPAPI.dll\r\n    Image name: SETUPAPI.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        319D0E79 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         004AB13A\r\n    ImageSize:        00487000\r\n    File version:     10.0.26100.9549\r\n    Product version:  10.0.26100.9549\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     SETUPAPI.DLL\r\n        OriginalFilename: SETUPAPI.DLL\r\n        ProductVersion:   10.0.26100.9549\r\n        FileVersion:      10.0.26100.9549 (WinBuild.160101.0800)\r\n        FileDescription:  Windows Setup API\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`be660000 00007fff`be6c6000   SHLWAPI    (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\SHLWAPI.dll\r\n    Image name: SHLWAPI.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        30329807 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         000762CA\r\n    ImageSize:        00066000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     SHLWAPI\r\n        OriginalFilename: SHLWAPI.DLL\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Shell Light-weight Utility Library\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`be6d0000 00007fff`be7e8000   RPCRT4     (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\RPCRT4.dll\r\n    Image name: RPCRT4.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        D22A3515 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         00125FB3\r\n    ImageSize:        00118000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     rpcrt4.dll\r\n        OriginalFilename: rpcrt4.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  Remote Procedure Call Runtime\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`be8d0000 00007fff`be8fb000   GDI32      (deferred)             \r\n    Image path: C:\\WINDOWS\\System32\\GDI32.dll\r\n    Image name: GDI32.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        5CD2417B (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0003CC94\r\n    ImageSize:        0002B000\r\n    File version:     10.0.26100.8328\r\n    Product version:  10.0.26100.8328\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     gdi32\r\n        OriginalFilename: gdi32\r\n        ProductVersion:   10.0.26100.8328\r\n        FileVersion:      10.0.26100.8328 (WinBuild.160101.0800)\r\n        FileDescription:  GDI Client DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\n00007fff`be940000 00007fff`beba8000   ntdll      (pdb symbols)          C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\symbols\\ntdll.pdb\\C031D45B0DA18A6E74D06ED6AB2DD9E11\\ntdll.pdb\r\n    Loaded symbol image file: C:\\WINDOWS\\SYSTEM32\\ntdll.dll\r\n    Image path: ntdll.dll\r\n    Image name: ntdll.dll\r\n    Image was built with /Brepro flag.\r\n    Timestamp:        5FD39A05 (This is a reproducible build file hash, not a timestamp)\r\n    CheckSum:         0027E340\r\n    ImageSize:        00268000\r\n    File version:     10.0.26100.9711\r\n    Product version:  10.0.26100.9711\r\n    File flags:       0 (Mask 3F)\r\n    File OS:          40004 NT Win32\r\n    File type:        2.0 Dll\r\n    File date:        00000000.00000000\r\n    Translations:     0409.04b0\r\n    Information from resource tables:\r\n        CompanyName:      Microsoft Corporation\r\n        ProductName:      Microsoft� Windows� Operating System\r\n        InternalName:     ntdll.dll\r\n        OriginalFilename: ntdll.dll\r\n        ProductVersion:   10.0.26100.9711\r\n        FileVersion:      10.0.26100.9711 (WinBuild.160101.0800)\r\n        FileDescription:  NT Layer DLL\r\n        LegalCopyright:   � Microsoft Corporation. All rights reserved.\r\nCreating C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/q-1030/import-order/minimal-api-mismatch.dmp - mini user dump\r\nDump successfully written\r\nReloading current modules\r\n.....................................................\r\n\r\n************* Symbol Loading Error Summary **************\r\nModule name            Error\r\nonnxruntime_binding    The system cannot find the file specified\r\n\r\nYou can troubleshoot most symbol related issues by turning on symbol loading diagnostics (!sym noisy) and repeating the command that caused symbols to be loaded.\r\nYou should also verify that your symbol search path (.sympath) is correct.\r\n*******************************************************************************\r\n*                                                                             *\r\n*                        Exception Analysis                                   *\r\n*                                                                             *\r\n*******************************************************************************\r\n\r\n\r\nKEY_VALUES_STRING: 1\r\n\r\n    Key  : AV.Type\r\n    Value: Read\r\n\r\n    Key  : Analysis.CPU.mSec\r\n    Value: 1187\r\n\r\n    Key  : Analysis.Elapsed.mSec\r\n    Value: 6960\r\n\r\n    Key  : Analysis.IO.Other.Mb\r\n    Value: 8\r\n\r\n    Key  : Analysis.IO.Read.Mb\r\n    Value: 1\r\n\r\n    Key  : Analysis.IO.Write.Mb\r\n    Value: 37\r\n\r\n    Key  : Analysis.Init.CPU.mSec\r\n    Value: 484\r\n\r\n    Key  : Analysis.Init.Elapsed.mSec\r\n    Value: 5351\r\n\r\n    Key  : Analysis.Memory.CommitPeak.Mb\r\n    Value: 88\r\n\r\n    Key  : Analysis.Version.DbgEng\r\n    Value: 10.0.28000.2526\r\n\r\n    Key  : Analysis.Version.Description\r\n    Value: 10.2506.23.01 amd64fre\r\n\r\n    Key  : Analysis.Version.Ext\r\n    Value: 1.2506.23.1\r\n\r\n    Key  : Failure.Bucket\r\n    Value: INVALID_POINTER_READ_c0000005_onnxruntime_binding.node!Unknown\r\n\r\n    Key  : Failure.Exception.Code\r\n    Value: 0xc0000005\r\n\r\n    Key  : Failure.Exception.IP.Address\r\n    Value: 0x7fff94e2e125\r\n\r\n    Key  : Failure.Exception.IP.Module\r\n    Value: onnxruntime_binding_7fff94e10000\r\n\r\n    Key  : Failure.Exception.IP.Offset\r\n    Value: 0x1e125\r\n\r\n    Key  : Failure.Hash\r\n    Value: {ae0a0726-4c2d-86aa-8343-ba1af533eb4c}\r\n\r\n    Key  : Failure.ProblemClass.Primary\r\n    Value: INVALID_POINTER_READ\r\n\r\n    Key  : Timeline.OS.Boot.DeltaSec\r\n    Value: 238524\r\n\r\n    Key  : Timeline.Process.Start.DeltaSec\r\n    Value: 5\r\n\r\n    Key  : WER.OS.Branch\r\n    Value: ge_release\r\n\r\n    Key  : WER.OS.Version\r\n    Value: 10.0.26100.1\r\n\r\n    Key  : WER.Process.Version\r\n    Value: 26.13.0.0\r\n\r\n\r\nNTGLOBALFLAG:  70\r\n\r\nAPPLICATION_VERIFIER_FLAGS:  0\r\n\r\nEXCEPTION_RECORD:  (.exr -1)\r\n.exr -1\r\nExceptionAddress: 00007fff94e2e125 (onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x000000000001c51d)\r\n   ExceptionCode: c0000005 (Access violation)\r\n  ExceptionFlags: 00000000\r\nNumberParameters: 2\r\n   Parameter[0]: 0000000000000000\r\n   Parameter[1]: 0000000000000018\r\nAttempt to read from address 0000000000000018\r\n\r\nFAULTING_THREAD:  7790\r\n\r\nPROCESS_NAME:  node.exe\r\n\r\nREAD_ADDRESS:  0000000000000018 \r\n\r\nERROR_CODE: (NTSTATUS) 0xc0000005 - The instruction at 0x%p referenced memory at 0x%p. The memory could not be %s.\r\n\r\nEXCEPTION_CODE_STR:  c0000005\r\n\r\nEXCEPTION_PARAMETER1:  0000000000000000\r\n\r\nEXCEPTION_PARAMETER2:  0000000000000018\r\n\r\nSTACK_TEXT:  \r\n00000085`a31fd770 00007fff`94e2e45b     : 000001ee`7afdf010 00000000`00000002 000001ee`7afdf010 000001ee`7afda370 : onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c51d\r\n00000085`a31fd7a0 00007fff`94e2df14     : 000001ee`7afda370 00000000`00000002 000001ee`7afda4d0 00007fff`94e5e000 : onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c853\r\n00000085`a31fd7e0 00007fff`94e27a38     : 000001ee`7a6280b0 00000085`a31fdbc8 00000085`a31fd8f0 000001ee`60500070 : onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1c30c\r\n00000085`a31fd8d0 00007fff`94e21f72     : 00000383`6fc0d001 00007ff6`897bdfb2 00000000`00000000 000001ee`7a6280b0 : onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x15e30\r\n00000085`a31fd9d0 00007fff`94e2c3e8     : 00000383`6fc160b1 00000047`00000000 00000008`b8632ca1 00000000`00000001 : onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1036a\r\n00000085`a31fda90 00007ff6`8a0e4274     : 000001ee`7a6280b0 00000085`a31fdaf0 000002de`11508669 0000038e`2efdc321 : onnxruntime_binding_7fff94e10000!napi_register_module_v1+0x1a7e0\r\n00000085`a31fdad0 000001ee`1fdd00e9     : 000001fd`d9d90d99 0000038e`2efda041 00000000`00000010 00000085`a31fdbc0 : node!napi_is_detached_arraybuffer+0x234\r\n00000085`a31fdb40 000001ee`1fdce664     : 000001ee`620b1000 00000291`de8c0011 0000007c`5e9b9df1 00000383`6fc15429 : 0x000001ee`1fdd00e9\r\n00000085`a31fdb90 000001ee`1fdce664     : 00000291`de8c0011 00000291`de8c0011 00000291`de8c0011 00000291`de8c0011 : 0x000001ee`1fdce664\r\n00000085`a31fdc40 000001ee`1fe10ffa     : 000002d9`ac6926f9 000001a1`cb9c3251 000002d9`ac698a39 00000085`a31fdfb0 : 0x000001ee`1fdce664\r\n00000085`a31fdcd0 000001ee`1ff03fb5     : 0000007c`5e9b9d41 00000291`de8c0011 0000007c`5e9b9df1 00000291`de8c0011 : 0x000001ee`1fe10ffa\r\n00000085`a31fdd18 000001ee`1fdfef53     : 000001ee`6212ce88 00000000`00000000 00007e0f`045f585e 00000291`de8c0011 : 0x000001ee`1ff03fb5\r\n00000085`a31fdd50 000001ee`1fdcb6bb     : 00000000`00000000 00000000`00000000 00000000`00000002 00000000`00000000 : 0x000001ee`1fdfef53\r\n00000085`a31fddb8 00007ff6`896a9b95     : 00000000`00000000 00000085`a31fdfc0 00000085`a31fdfc0 00000085`a31fdfc0 : 0x000001ee`1fdcb6bb\r\n00000085`a31fdee0 00007ff6`897991ce     : 00000000`de8c0000 000002d9`ac698e49 00000291`00000001 00007e0f`045f5a9e : node!v8::Number::Value+0x6a5\r\n00000085`a31fe050 00007ff6`8979650d     : 000001ee`7afdf010 00007fff`be9678b0 000001ee`60500000 000001ee`60500000 : node!v8::Object::SetPrototypeV2+0xc86e\r\n00000085`a31fe200 00007ff6`88ecd8fc     : 00000000`00000010 00000000`00000000 000001ee`7afc4a30 000001ee`620c6af8 : node!v8::Object::SetPrototypeV2+0x9bad\r\n00000085`a31fe580 00007ff6`8997619e     : 000001ee`605fbba0 00000000`00000000 00007ff6`8eba2c30 00000000`00000203 : node!v8::Value::Equals+0x55cc\r\n00000085`a31fe650 00007ff6`88f02c74     : 000001ee`62140460 00000000`00000000 00007ff6`89159100 00000085`a31ff838 : node!uv_run+0xfbe\r\n00000085`a31ff7b0 00007ff6`891d762d     : 000001ee`62083660 00007ff6`8eba2c30 00000000`0000005f 000001ee`62083660 : node!node::CreateEnvironment+0x24d4\r\n00000085`a31ff860 00007ff6`891d45e2     : 00000000`00000000 00000000`00000000 7fffffff`fffffffc 00000085`a282c000 : node!uv_thread_join+0xbfd\r\n00000085`a31ff9a0 00007ff6`891d41cb     : 00000000`00000211 000001ee`605e0000 00000000`00000000 00000000`00000000 : node!node::Start+0x352\r\n00000085`a31ffb00 00007ff6`89da1d24     : 00007ff6`8b3c6e18 00007ff6`89da1d9d 00000000`00000000 00000000`00000000 : node!RSA_meth_new+0x26b\r\n00000085`a31ffcc0 00007fff`bda5dda7     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : node!v8::base::bits::SignedSaturatedAdd64+0xe7e4\r\n00000085`a31ffd00 00007fff`be9bee4c     : 00000000`00000000 00000000`00000000 000004f0`fffffb30 000004d0`fffffb30 : KERNEL32!BaseThreadInitThunk+0x17\r\n00000085`a31ffd30 00000000`00000000     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : ntdll!RtlUserThreadStart+0x2c\r\n\r\n\r\nSYMBOL_NAME:  onnxruntime_binding_7fff94e10000+1e125\r\n\r\nMODULE_NAME: onnxruntime_binding_7fff94e10000\r\n\r\nIMAGE_NAME:  onnxruntime_binding.node\r\n\r\nSTACK_COMMAND: dt ntdll!LdrpLastDllInitializer BaseDllName ; dt ntdll!LdrpFailureData ; ~0s; .ecxr ; kb\r\n\r\nFAILURE_BUCKET_ID:  INVALID_POINTER_READ_c0000005_onnxruntime_binding.node!Unknown\r\n\r\nOS_VERSION:  10.0.26100.1\r\n\r\nBUILDLAB_STR:  ge_release\r\n\r\nOSPLATFORM_TYPE:  x64\r\n\r\nOSNAME:  Windows 10\r\n\r\nFAILURE_ID_HASH:  {ae0a0726-4c2d-86aa-8343-ba1af533eb4c}\r\n\r\nFollowup:     MachineOwner\r\n---------\r\n\r\n",
+    "dumps": [
+      {
+        "historicalPath": ".tmp/tasks/q-1030/import-order/ort-api-mismatch.dmp",
+        "bytes": 104280,
+        "sha256": "90975fcd56ba73ef0416d0f77396b9af9ca857fb82cb4fafbf6ac4ed0411ea0f",
+        "kind": "small /m user dump; registers,threads,stacks,module inventory"
+      },
+      {
+        "historicalPath": ".tmp/tasks/q-1030/import-order/minimal-api-mismatch.dmp",
+        "bytes": 92673,
+        "sha256": "d3fa756551d21f7dde815d98fd5c9c91aa3b0c7458aeba3a2a9d5f78e403d678",
+        "kind": "small /m user dump; registers,threads,stacks,module inventory"
+      }
+    ]
+  },
+  "after": {
+    "status": "passed",
+    "cases": [
+      {
+        "id": 1,
+        "order": "hf-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-1-hf-first.json",
+        "result": {
+          "pid": 16448,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 239,
+          "stdout": "{\"phase\":\"start\",\"order\":\"hf-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 163,
+              "retainedBytes": 163,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 163,
+              "outputBytes": 163,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "order": "root-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-2-root-first.json",
+        "result": {
+          "pid": 13436,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 234,
+          "stdout": "{\"phase\":\"start\",\"order\":\"root-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 165,
+              "retainedBytes": 165,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 165,
+              "outputBytes": 165,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "order": "hf-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-3-hf-first.json",
+        "result": {
+          "pid": 27824,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 227,
+          "stdout": "{\"phase\":\"start\",\"order\":\"hf-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 163,
+              "retainedBytes": 163,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 163,
+              "outputBytes": 163,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "order": "root-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-4-root-first.json",
+        "result": {
+          "pid": 18788,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 225,
+          "stdout": "{\"phase\":\"start\",\"order\":\"root-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 165,
+              "retainedBytes": 165,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 165,
+              "outputBytes": 165,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "order": "hf-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-5-hf-first.json",
+        "result": {
+          "pid": 10792,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 238,
+          "stdout": "{\"phase\":\"start\",\"order\":\"hf-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 163,
+              "retainedBytes": 163,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 163,
+              "outputBytes": 163,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "order": "root-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-6-root-first.json",
+        "result": {
+          "pid": 27544,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 233,
+          "stdout": "{\"phase\":\"start\",\"order\":\"root-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 165,
+              "retainedBytes": 165,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 165,
+              "outputBytes": 165,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "order": "hf-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-7-hf-first.json",
+        "result": {
+          "pid": 29264,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 245,
+          "stdout": "{\"phase\":\"start\",\"order\":\"hf-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 163,
+              "retainedBytes": 163,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 163,
+              "outputBytes": 163,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "order": "root-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-8-root-first.json",
+        "result": {
+          "pid": 21340,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 244,
+          "stdout": "{\"phase\":\"start\",\"order\":\"root-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 165,
+              "retainedBytes": 165,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 165,
+              "outputBytes": 165,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "order": "hf-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-9-hf-first.json",
+        "result": {
+          "pid": 30160,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 225,
+          "stdout": "{\"phase\":\"start\",\"order\":\"hf-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 163,
+              "retainedBytes": 163,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 163,
+              "outputBytes": 163,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "order": "root-first",
+        "kind": "unchanged83byte-minimized-reproducer",
+        "sourceSha256": "6bace0613b84e080deecd50ee72965602d427ea2672788859912199c608dfb51",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\minimal-10-root-first.json",
+        "result": {
+          "pid": 19400,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 231,
+          "stdout": "{\"phase\":\"start\",\"order\":\"root-first\",\"modelBytes\":83}\n{\"phase\":\"imports-returned\"}\n{\"phase\":\"created\"}\n{\"phase\":\"inferred\",\"values\":[1.25,-2]}\n{\"phase\":\"disposed\"}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 165,
+              "retainedBytes": 165,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 165,
+              "outputBytes": 165,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "order": "hf-first",
+        "kind": "unchanged-public-MiniLM-create-infer-dispose",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\public-hf-first.json",
+        "result": {
+          "pid": 14256,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 1049,
+          "stdout": "{\"phase\":\"ready\",\"order\":\"hf-first\"}\n{\"phase\":\"both-native-imports-returned\",\"order\":\"hf-first\"}\n{\"phase\":\"provider-runtime-bytes\",\"runtimes\":[{\"schemaVersion\":1,\"provider\":\"xenova\",\"name\":\"onnxruntime-node\",\"version\":\"1.30.0\",\"resolutionBase\":\"node_modules/@huggingface/transformers/dist/transformers.node.mjs\",\"entry\":{\"path\":\"node_modules/onnxruntime-node/dist/index.js\",\"bytes\":1602,\"sha256\":\"019eb02133b94b1f7fdf2d89eb93b590ce1288d271f7b280647fb3978e6391fa\"},\"package\":{\"path\":\"node_modules/onnxruntime-node/package.json\",\"bytes\":1593,\"sha256\":\"0871cd56ac2b9c9dfc834c7eabba819e5d4f966f005388515abb3402b14e0874\"},\"bindingLoader\":{\"path\":\"node_modules/onnxruntime-node/dist/binding.js\",\"bytes\":1590,\"sha256\":\"2a85ac5de943c7222aae5ca2897f52d73891f528d4295b701fab077470c668c0\"},\"binding\":{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node\",\"bytes\":298848,\"sha256\":\"ddd428464069b84414d34ec1796c7c2a69c33a976e4b0390692629e394f92fa1\",\"moduleCacheLoaded\":true},\"packagedLibraries\":[{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll\",\"bytes\":18527584,\"sha256\":\"234e8898778cdec88d3cb0539508273494082812c968699f3de665a018971625\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll\",\"bytes\":17986360,\"sha256\":\"593d42df78c7f9cbd97c1374af107cfe20985759f98b77afc1448fe41ee3cc76\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxil.dll\",\"bytes\":1508664,\"sha256\":\"cf9a3981263f8ec30c9905d136eeaf4b4573209c602198671b958ec86905dea8\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll\",\"bytes\":28754232,\"sha256\":\"508c362f5673483dd3a086379c392795b2e42d10d5e6f3f90ebd7ac21c97af67\"}],\"scope\":\"Provider-resolved package/entry/original addon bytes;module-cache witness records addon loading only. Packaged library hashes do not attest OS DLL mappings, provider selection, kernels or native unload.\"},{\"schemaVersion\":1,\"provider\":\"onnx\",\"name\":\"onnxruntime-node\",\"version\":\"1.30.0\",\"resolutionBase\":\"src/shared/onnx-embeddings.js\",\"entry\":{\"path\":\"node_modules/onnxruntime-node/dist/index.js\",\"bytes\":1602,\"sha256\":\"019eb02133b94b1f7fdf2d89eb93b590ce1288d271f7b280647fb3978e6391fa\"},\"package\":{\"path\":\"node_modules/onnxruntime-node/package.json\",\"bytes\":1593,\"sha256\":\"0871cd56ac2b9c9dfc834c7eabba819e5d4f966f005388515abb3402b14e0874\"},\"bindingLoader\":{\"path\":\"node_modules/onnxruntime-node/dist/binding.js\",\"bytes\":1590,\"sha256\":\"2a85ac5de943c7222aae5ca2897f52d73891f528d4295b701fab077470c668c0\"},\"binding\":{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node\",\"bytes\":298848,\"sha256\":\"ddd428464069b84414d34ec1796c7c2a69c33a976e4b0390692629e394f92fa1\",\"moduleCacheLoaded\":true},\"packagedLibraries\":[{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll\",\"bytes\":18527584,\"sha256\":\"234e8898778cdec88d3cb0539508273494082812c968699f3de665a018971625\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll\",\"bytes\":17986360,\"sha256\":\"593d42df78c7f9cbd97c1374af107cfe20985759f98b77afc1448fe41ee3cc76\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxil.dll\",\"bytes\":1508664,\"sha256\":\"cf9a3981263f8ec30c9905d136eeaf4b4573209c602198671b958ec86905dea8\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll\",\"bytes\":28754232,\"sha256\":\"508c362f5673483dd3a086379c392795b2e42d10d5e6f3f90ebd7ac21c97af67\"}],\"scope\":\"Provider-resolved package/entry/original addon bytes;module-cache witness records addon loading only. Packaged library hashes do not attest OS DLL mappings, provider selection, kernels or native unload.\"}]}\n{\"phase\":\"adapter-created\"}\n{\"phase\":\"original-inference-returned\",\"dimensions\":384,\"norm\":0.9999999973477648,\"execution\":{\"provider\":\"onnx\",\"stub\":false,\"loaded\":true,\"loading\":false,\"device\":null,\"executionProviders\":null,\"effectiveNativeThreads\":null,\"effectiveGraphExecutionMode\":null,\"denseEncoding\":null,\"measurements\":{\"scope\":\"shared-session-lifetime\",\"runs\":1,\"failures\":0,\"active\":0,\"peakActive\":1,\"providerBusyMs\":2.460700000000088,\"queueWaitMs\":0.0805000000000291,\"initializationMs\":225.80780000000004,\"tokenizerMs\":2.1158000000000357,\"tokenizerCalls\":1,\"tokenizerInputTexts\":1,\"preparedTokenRows\":1,\"preparedUsefulTokens\":7,\"paddedTokenCells\":7,\"paddedFieldCells\":21,\"peakRetainedTensorScopes\":1,\"outputsFetched\":1,\"outputTensorBytes\":10752,\"selectiveOutputRuns\":1,\"genericOutputRuns\":0,\"outputSelection\":{\"name\":\"last_hidden_state\",\"type\":\"float32\",\"rank\":3,\"shape\":[\"batch_size\",\"sequence_length\",384],\"method\":\"loaded-session-output-metadata\"},\"outputConversionWallMs\":0.338100000000054,\"outputConversionProcessCpuMicros\":0,\"outputValuesRead\":2688,\"hostPooledRows\":1,\"sentenceOutputRows\":0,\"tensorCleanupWallMs\":0.20150000000001,\"tensorResourcesObserved\":4,\"tensorResourcesSettled\":4,\"tensorCleanupFailures\":0,\"retainedTensorScopes\":0,\"preparedRowStore\":{\"entries\":0,\"bytes\":0,\"maxEntries\":4096,\"maxBytes\":16777216},\"tokenCacheEntries\":1,\"tensorCleanupEvidence\":\"captured-disposal-settlement; native-memory-freeing-unobserved\"},\"modelArtifact\":{\"status\":\"verified\",\"reuse\":\"allow\",\"revision\":null,\"method\":\"opened-local-artifacts-sha256\",\"digest\":\"72458daf5fd447efa0f513f59ccdb36619638e79a837f6466dd7aa569532452e\",\"inventory\":[{\"path\":\"tokenizer/config.json\",\"bytes\":650,\"sha256\":\"7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7\"},{\"path\":\"tokenizer/tokenizer.json\",\"bytes\":711661,\"sha256\":\"da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0\"},{\"path\":\"tokenizer/tokenizer_config.json\",\"bytes\":366,\"sha256\":\"9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3\"},{\"path\":\"weights/model_quantized.onnx\",\"bytes\":22972370,\"sha256\":\"afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1\"}]},\"modelRevision\":null,\"effectiveSessionOptions\":{\"executionProviders\":[{\"name\":\"cpu\",\"useArena\":false}],\"intraOpNumThreads\":1,\"interOpNumThreads\":1,\"graphOptimizationLevel\":\"basic\",\"enableCpuMemArena\":false,\"enableMemPattern\":false,\"executionMode\":\"sequential\"},\"requestedSessionOptions\":{\"executionProviders\":[\"cpu\"],\"intraOpNumThreads\":1,\"interOpNumThreads\":1,\"graphOptimizationLevel\":\"basic\"},\"qualification\":null,\"sessionOptionEvidence\":\"accepted-construction-arguments; runtime-internal-effects-unobserved\",\"maxConcurrentInference\":1,\"requestedProvider\":\"onnx\",\"requestedOnnxConfig\":{\"modelPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\dense-real-models-20261030\\\\direct-onnx-minilm\\\\model_quantized.onnx.assets\\\\44dbb352470441da84350784d9f98b3e\\\\model_quantized.onnx\",\"tokenizerId\":\"Xenova/all-MiniLM-L6-v2\",\"executionProviders\":[\"cpu\"],\"intraOpNumThreads\":1,\"interOpNumThreads\":1,\"graphOptimizationLevel\":\"basic\",\"cpuExecutionProviderTuning\":true,\"tokenizationCacheEnabled\":true,\"tokenizationCacheMaxEntries\":256,\"prewarmTokenizer\":false,\"prewarmModel\":false,\"prewarmTexts\":null},\"fallback\":null}}\n{\"phase\":\"original-adapter-and-cache-disposal-returned\",\"failed\":false}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 6983,
+              "retainedBytes": 6983,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 6983,
+              "outputBytes": 6983,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "order": "root-first",
+        "kind": "unchanged-public-MiniLM-create-infer-dispose",
+        "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1030\\import-order\\repaired-cases\\public-root-first.json",
+        "result": {
+          "pid": 24704,
+          "exitCode": 0,
+          "signal": null,
+          "durationMs": 1038,
+          "stdout": "{\"phase\":\"ready\",\"order\":\"root-first\"}\n{\"phase\":\"both-native-imports-returned\",\"order\":\"root-first\"}\n{\"phase\":\"provider-runtime-bytes\",\"runtimes\":[{\"schemaVersion\":1,\"provider\":\"xenova\",\"name\":\"onnxruntime-node\",\"version\":\"1.30.0\",\"resolutionBase\":\"node_modules/@huggingface/transformers/dist/transformers.node.mjs\",\"entry\":{\"path\":\"node_modules/onnxruntime-node/dist/index.js\",\"bytes\":1602,\"sha256\":\"019eb02133b94b1f7fdf2d89eb93b590ce1288d271f7b280647fb3978e6391fa\"},\"package\":{\"path\":\"node_modules/onnxruntime-node/package.json\",\"bytes\":1593,\"sha256\":\"0871cd56ac2b9c9dfc834c7eabba819e5d4f966f005388515abb3402b14e0874\"},\"bindingLoader\":{\"path\":\"node_modules/onnxruntime-node/dist/binding.js\",\"bytes\":1590,\"sha256\":\"2a85ac5de943c7222aae5ca2897f52d73891f528d4295b701fab077470c668c0\"},\"binding\":{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node\",\"bytes\":298848,\"sha256\":\"ddd428464069b84414d34ec1796c7c2a69c33a976e4b0390692629e394f92fa1\",\"moduleCacheLoaded\":true},\"packagedLibraries\":[{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll\",\"bytes\":18527584,\"sha256\":\"234e8898778cdec88d3cb0539508273494082812c968699f3de665a018971625\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll\",\"bytes\":17986360,\"sha256\":\"593d42df78c7f9cbd97c1374af107cfe20985759f98b77afc1448fe41ee3cc76\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxil.dll\",\"bytes\":1508664,\"sha256\":\"cf9a3981263f8ec30c9905d136eeaf4b4573209c602198671b958ec86905dea8\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll\",\"bytes\":28754232,\"sha256\":\"508c362f5673483dd3a086379c392795b2e42d10d5e6f3f90ebd7ac21c97af67\"}],\"scope\":\"Provider-resolved package/entry/original addon bytes;module-cache witness records addon loading only. Packaged library hashes do not attest OS DLL mappings, provider selection, kernels or native unload.\"},{\"schemaVersion\":1,\"provider\":\"onnx\",\"name\":\"onnxruntime-node\",\"version\":\"1.30.0\",\"resolutionBase\":\"src/shared/onnx-embeddings.js\",\"entry\":{\"path\":\"node_modules/onnxruntime-node/dist/index.js\",\"bytes\":1602,\"sha256\":\"019eb02133b94b1f7fdf2d89eb93b590ce1288d271f7b280647fb3978e6391fa\"},\"package\":{\"path\":\"node_modules/onnxruntime-node/package.json\",\"bytes\":1593,\"sha256\":\"0871cd56ac2b9c9dfc834c7eabba819e5d4f966f005388515abb3402b14e0874\"},\"bindingLoader\":{\"path\":\"node_modules/onnxruntime-node/dist/binding.js\",\"bytes\":1590,\"sha256\":\"2a85ac5de943c7222aae5ca2897f52d73891f528d4295b701fab077470c668c0\"},\"binding\":{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node\",\"bytes\":298848,\"sha256\":\"ddd428464069b84414d34ec1796c7c2a69c33a976e4b0390692629e394f92fa1\",\"moduleCacheLoaded\":true},\"packagedLibraries\":[{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll\",\"bytes\":18527584,\"sha256\":\"234e8898778cdec88d3cb0539508273494082812c968699f3de665a018971625\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll\",\"bytes\":17986360,\"sha256\":\"593d42df78c7f9cbd97c1374af107cfe20985759f98b77afc1448fe41ee3cc76\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxil.dll\",\"bytes\":1508664,\"sha256\":\"cf9a3981263f8ec30c9905d136eeaf4b4573209c602198671b958ec86905dea8\"},{\"path\":\"node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll\",\"bytes\":28754232,\"sha256\":\"508c362f5673483dd3a086379c392795b2e42d10d5e6f3f90ebd7ac21c97af67\"}],\"scope\":\"Provider-resolved package/entry/original addon bytes;module-cache witness records addon loading only. Packaged library hashes do not attest OS DLL mappings, provider selection, kernels or native unload.\"}]}\n{\"phase\":\"adapter-created\"}\n{\"phase\":\"original-inference-returned\",\"dimensions\":384,\"norm\":0.9999999973477648,\"execution\":{\"provider\":\"onnx\",\"stub\":false,\"loaded\":true,\"loading\":false,\"device\":null,\"executionProviders\":null,\"effectiveNativeThreads\":null,\"effectiveGraphExecutionMode\":null,\"denseEncoding\":null,\"measurements\":{\"scope\":\"shared-session-lifetime\",\"runs\":1,\"failures\":0,\"active\":0,\"peakActive\":1,\"providerBusyMs\":2.4210999999999103,\"queueWaitMs\":0.08159999999998035,\"initializationMs\":221.0457,\"tokenizerMs\":1.717300000000023,\"tokenizerCalls\":1,\"tokenizerInputTexts\":1,\"preparedTokenRows\":1,\"preparedUsefulTokens\":7,\"paddedTokenCells\":7,\"paddedFieldCells\":21,\"peakRetainedTensorScopes\":1,\"outputsFetched\":1,\"outputTensorBytes\":10752,\"selectiveOutputRuns\":1,\"genericOutputRuns\":0,\"outputSelection\":{\"name\":\"last_hidden_state\",\"type\":\"float32\",\"rank\":3,\"shape\":[\"batch_size\",\"sequence_length\",384],\"method\":\"loaded-session-output-metadata\"},\"outputConversionWallMs\":0.3634999999999309,\"outputConversionProcessCpuMicros\":0,\"outputValuesRead\":2688,\"hostPooledRows\":1,\"sentenceOutputRows\":0,\"tensorCleanupWallMs\":0.211400000000026,\"tensorResourcesObserved\":4,\"tensorResourcesSettled\":4,\"tensorCleanupFailures\":0,\"retainedTensorScopes\":0,\"preparedRowStore\":{\"entries\":0,\"bytes\":0,\"maxEntries\":4096,\"maxBytes\":16777216},\"tokenCacheEntries\":1,\"tensorCleanupEvidence\":\"captured-disposal-settlement; native-memory-freeing-unobserved\"},\"modelArtifact\":{\"status\":\"verified\",\"reuse\":\"allow\",\"revision\":null,\"method\":\"opened-local-artifacts-sha256\",\"digest\":\"72458daf5fd447efa0f513f59ccdb36619638e79a837f6466dd7aa569532452e\",\"inventory\":[{\"path\":\"tokenizer/config.json\",\"bytes\":650,\"sha256\":\"7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7\"},{\"path\":\"tokenizer/tokenizer.json\",\"bytes\":711661,\"sha256\":\"da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0\"},{\"path\":\"tokenizer/tokenizer_config.json\",\"bytes\":366,\"sha256\":\"9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3\"},{\"path\":\"weights/model_quantized.onnx\",\"bytes\":22972370,\"sha256\":\"afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1\"}]},\"modelRevision\":null,\"effectiveSessionOptions\":{\"executionProviders\":[{\"name\":\"cpu\",\"useArena\":false}],\"intraOpNumThreads\":1,\"interOpNumThreads\":1,\"graphOptimizationLevel\":\"basic\",\"enableCpuMemArena\":false,\"enableMemPattern\":false,\"executionMode\":\"sequential\"},\"requestedSessionOptions\":{\"executionProviders\":[\"cpu\"],\"intraOpNumThreads\":1,\"interOpNumThreads\":1,\"graphOptimizationLevel\":\"basic\"},\"qualification\":null,\"sessionOptionEvidence\":\"accepted-construction-arguments; runtime-internal-effects-unobserved\",\"maxConcurrentInference\":1,\"requestedProvider\":\"onnx\",\"requestedOnnxConfig\":{\"modelPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\dense-real-models-20261030\\\\direct-onnx-minilm\\\\model_quantized.onnx.assets\\\\44dbb352470441da84350784d9f98b3e\\\\model_quantized.onnx\",\"tokenizerId\":\"Xenova/all-MiniLM-L6-v2\",\"executionProviders\":[\"cpu\"],\"intraOpNumThreads\":1,\"interOpNumThreads\":1,\"graphOptimizationLevel\":\"basic\",\"cpuExecutionProviderTuning\":true,\"tokenizationCacheEnabled\":true,\"tokenizationCacheMaxEntries\":256,\"prewarmTokenizer\":false,\"prewarmModel\":false,\"prewarmTexts\":null},\"fallback\":null}}\n{\"phase\":\"original-adapter-and-cache-disposal-returned\",\"failed\":false}\n",
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 6980,
+              "retainedBytes": 6980,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 6980,
+              "outputBytes": 6980,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      }
+    ],
+    "bootstrap": {
+      "status": 0,
+      "durationMs": 296480.8495,
+      "utc": "2026-10-30T12:39:19.6875977Z",
+      "packageSha256": "D6270AE62816E4E70356A826B5A79A8FA00D0F3F5EB2C3279C6889AE207C08B9",
+      "lockSha256": "7EFD24735433FF81E33854BD5E37F1E6AA5B8C6BDA3485643712AB7CB8F6E1FC"
+    },
+    "bootstrapWarnings": [
+      "npm prebuild-install@7.1.3 deprecation (transitive build helper);no errors"
+    ],
+    "verification": {
+      "status": 0,
+      "stdout": "[patches] @ganezdragon+tree-sitter-perl+1.1.1.patch: verified; 0 applied files, 1 already-applied files, 21 hunks\n[patches] @huggingface+transformers+4.3.2.patch: verified; 0 applied files, 5 already-applied files, 8 hunks\n[patches] mammoth+1.13.0.patch: verified; 0 applied files, 1 already-applied files, 1 hunks\n[patches] node-gyp+13.1.0.patch: verified; 0 applied files, 2 already-applied files, 3 hunks\n[patches] node-pty+1.1.0.patch: verified; 0 applied files, 5 already-applied files, 11 hunks\n[patches] tree-sitter+0.25.1.patch: verified; 0 applied files, 9 already-applied files, 11 hunks\n[patches] tree-sitter-swift+0.7.1.patch: verified; 0 applied files, 2 already-applied files, 4 hunks\n[patches] verify-only: 7 packages, 25 target files, 59 hunks; 0 files changed; 1063ms\n",
+      "stderr": "[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.\r\n[bootstrap] Verified readiness receipt saved.\r\n",
+      "receipt": {
+        "schemaVersion": 1,
+        "root": "C:\\Users\\sneak\\Development\\PairOfCleats",
+        "runtime": {
+          "node": "v26.13.0",
+          "abi": "147",
+          "platform": "win32",
+          "arch": "x64"
+        },
+        "inputs": [
+          [
+            "package.json",
+            "d6270ae62816e4e70356a826b5a79a8fa00d0f3f5eb2c3279c6889ae207c08b9"
+          ],
+          [
+            "package-lock.json",
+            "7efd24735433ff81e33854bd5e37f1e6aa5b8c6bda3485643712ab7cb8f6e1fc"
+          ],
+          [
+            ".nvmrc",
+            "6e775beae185bb3f5837d2f6d3fbe910e6f60e18fa507e661e312e84d707a92f"
+          ],
+          [
+            "tools/setup/preflight.js",
+            "2cba7dea051deec66d66555f801966e07d829491ab79162c07b7403b30cf47e4"
+          ],
+          [
+            "src/shared/direct-execution.js",
+            "a381b150bb5be959ace0a73f92df9be0844bba75b4668879c345586d42f6d9bc"
+          ],
+          [
+            "tools/setup/apply-patches.js",
+            "1dfae7ad76e056e649133691fbb89de7984b2bc12ed46f85f37a91838f15534d"
+          ],
+          [
+            "tools/setup/rebuild-native.js",
+            "47fd5fe24537541327baf27f40489ebabe94b87a09667a9f23cfaf34f88e6e05"
+          ],
+          [
+            "tools/setup/rebuild-native-sqlite.js",
+            "acd04c95a2223286ce57d07c1d09faf9fe2ed5484f484720353d022f394c8f38"
+          ],
+          [
+            "tools/setup/readiness.js",
+            "f7a9d07adb9babac66692ddb198676647ad33ceae85e4299880a9edbfe59f11a"
+          ],
+          [
+            "src/shared/native-package-probe.js",
+            "50dabee604f564fbeb05db10b1408f68bf6ddaa1954d605eace13d3f4d1348da"
+          ],
+          [
+            "src/shared/native-onnx-probe.js",
+            "7de3e8c66d8557106b4236d6e5c14aec5e6576711bb14a06aa80027d18e54591"
+          ],
+          [
+            "tools/setup/bootstrap-tasks.js",
+            "3f22aceb7c66fca475272fbd3f6fd3845744bff028fb890d5a3c4281b2db008c"
+          ],
+          [
+            "tools/setup/native-build-plan.js",
+            "fc38b748dec1a64b445457215ae2b7d74edb014c627e70cf37093ff7fae62289"
+          ],
+          [
+            "tools/setup/windows-capability.js",
+            "f3ad5f180637c9952b7cd63c26fd1d10e02625be1e53989a77c7b7e3e6f95dad"
+          ],
+          [
+            "src/shared/bootstrap-readiness.js",
+            "f97883e965f07003133c5004c4e5c25ff12e8eba15bdb3821dcd4eced7b7a741"
+          ],
+          [
+            "src/lang/tree-sitter/native-runtime.js",
+            "0ab451ab92508d466f8056ce9f754642e3069b34c88ad4679ee0f684c0ce61c6"
+          ],
+          [
+            "src/lang/tree-sitter/native-grammar-binding.js",
+            "e31feeb939ec15e138c28b43e782ae5a6ff69c5a252c77a47cdbb0f9e22e5a83"
+          ],
+          [
+            "patches/@ganezdragon+tree-sitter-perl+1.1.1.patch",
+            "bd5bac574e3ba1c0d078f7acc438a7d0014f15afbbbc9f02dc31e0da00e9bc4c"
+          ],
+          [
+            "patches/@huggingface+transformers+4.3.2.patch",
+            "d13f4e4221ea46f4c630f447188393700e65f819fbc53fd20be8d98521cac029"
+          ],
+          [
+            "patches/mammoth+1.13.0.patch",
+            "c2543c84102c98e2c73b455ce5c56f647efd81208861c15938dd35d00d4a14c7"
+          ],
+          [
+            "patches/node-gyp+13.1.0.patch",
+            "d62f32c89d855efb71db413b5019bd90ed1655bc518ede72fb87e42822c05b6f"
+          ],
+          [
+            "patches/node-pty+1.1.0.patch",
+            "b2fac006f02a52d5d344d1b630b3de67995d19333bff982403416dce92d9ac82"
+          ],
+          [
+            "patches/tree-sitter+0.25.1.patch",
+            "2aa2a89e624d24a1e20f2f3fae5a3e56a8d3c61499928921aad29e4476bd1ffd"
+          ],
+          [
+            "patches/tree-sitter-swift+0.7.1.patch",
+            "37f65fb353aa4327188309f99f395d28ba9a0cf01d01d91f0c3d8ee810121cf3"
+          ]
+        ],
+        "verifiedPackages": [
+          "@derekstride/tree-sitter-sql",
+          "@eagleoutice/tree-sitter-r",
+          "@ganezdragon/tree-sitter-perl",
+          "@lancedb/lancedb",
+          "@sengac/tree-sitter-dart",
+          "@tree-sitter-grammars/tree-sitter-lua",
+          "@tree-sitter-grammars/tree-sitter-markdown",
+          "@tree-sitter-grammars/tree-sitter-toml",
+          "@tree-sitter-grammars/tree-sitter-xml",
+          "@tree-sitter-grammars/tree-sitter-yaml",
+          "better-sqlite3",
+          "hnswlib-node",
+          "lmdb",
+          "node-pty",
+          "onnxruntime-node",
+          "tree-sitter",
+          "tree-sitter-bash",
+          "tree-sitter-c",
+          "tree-sitter-c-sharp",
+          "tree-sitter-cpp",
+          "tree-sitter-css",
+          "tree-sitter-go",
+          "tree-sitter-groovy",
+          "tree-sitter-html",
+          "tree-sitter-java",
+          "tree-sitter-javascript",
+          "tree-sitter-json",
+          "tree-sitter-julia",
+          "tree-sitter-kotlin",
+          "tree-sitter-objc",
+          "tree-sitter-php",
+          "tree-sitter-python",
+          "tree-sitter-ruby",
+          "tree-sitter-rust",
+          "tree-sitter-scala",
+          "tree-sitter-swift",
+          "tree-sitter-typescript"
+        ],
+        "nativeCapabilities": [
+          {
+            "languageId": "c",
+            "moduleName": "tree-sitter-c",
+            "packageVersion": "0.24.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "clike",
+            "moduleName": "tree-sitter-c",
+            "packageVersion": "0.24.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "cpp",
+            "moduleName": "tree-sitter-cpp",
+            "packageVersion": "0.23.4",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "csharp",
+            "moduleName": "tree-sitter-c-sharp",
+            "packageVersion": "0.23.5",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "css",
+            "moduleName": "tree-sitter-css",
+            "packageVersion": "0.25.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "dart",
+            "moduleName": "@sengac/tree-sitter-dart",
+            "packageVersion": "1.1.6",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "go",
+            "moduleName": "tree-sitter-go",
+            "packageVersion": "0.25.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "groovy",
+            "moduleName": "tree-sitter-groovy",
+            "packageVersion": "0.1.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "html",
+            "moduleName": "tree-sitter-html",
+            "packageVersion": "0.23.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "java",
+            "moduleName": "tree-sitter-java",
+            "packageVersion": "0.23.5",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "javascript",
+            "moduleName": "tree-sitter-javascript",
+            "packageVersion": "0.25.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "json",
+            "moduleName": "tree-sitter-json",
+            "packageVersion": "0.24.8",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "jsx",
+            "moduleName": "tree-sitter-javascript",
+            "packageVersion": "0.25.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "julia",
+            "moduleName": "tree-sitter-julia",
+            "packageVersion": "0.23.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "kotlin",
+            "moduleName": "tree-sitter-kotlin",
+            "packageVersion": "0.3.8",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "lua",
+            "moduleName": "@tree-sitter-grammars/tree-sitter-lua",
+            "packageVersion": "0.4.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "markdown",
+            "moduleName": "@tree-sitter-grammars/tree-sitter-markdown",
+            "packageVersion": "0.3.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "objc",
+            "moduleName": "tree-sitter-objc",
+            "packageVersion": "3.0.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "id": "onnxruntime-node:lifecycle",
+            "package": "onnxruntime-node",
+            "kind": "native-runtime-lifecycle",
+            "version": "1.30.0",
+            "verified": true,
+            "modelBytes": 83,
+            "consumersPerOrder": 2,
+            "orders": [
+              {
+                "order": "hf-first",
+                "status": "passed",
+                "durationMs": 320,
+                "naturalExit": true
+              },
+              {
+                "order": "root-first",
+                "status": "passed",
+                "durationMs": 300,
+                "naturalExit": true
+              }
+            ],
+            "scope": "Original child close after create/infer/owned disposal;no forced successful exit or native-unload claim."
+          },
+          {
+            "id": "onnxruntime-node:loadability",
+            "package": "onnxruntime-node",
+            "kind": "native-runtime-loadability",
+            "version": "1.30.0",
+            "verified": true,
+            "orders": [
+              {
+                "order": "hf-first",
+                "status": "passed"
+              },
+              {
+                "order": "root-first",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "languageId": "perl",
+            "moduleName": "@ganezdragon/tree-sitter-perl",
+            "packageVersion": "1.1.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "php",
+            "moduleName": "tree-sitter-php",
+            "packageVersion": "0.24.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "python",
+            "moduleName": "tree-sitter-python",
+            "packageVersion": "0.25.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "r",
+            "moduleName": "@eagleoutice/tree-sitter-r",
+            "packageVersion": "1.1.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "ruby",
+            "moduleName": "tree-sitter-ruby",
+            "packageVersion": "0.23.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "rust",
+            "moduleName": "tree-sitter-rust",
+            "packageVersion": "0.24.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "scala",
+            "moduleName": "tree-sitter-scala",
+            "packageVersion": "0.24.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "shell",
+            "moduleName": "tree-sitter-bash",
+            "packageVersion": "0.25.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "sql",
+            "moduleName": "@derekstride/tree-sitter-sql",
+            "packageVersion": "0.3.11",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "swift",
+            "moduleName": "tree-sitter-swift",
+            "packageVersion": "0.7.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "toml",
+            "moduleName": "@tree-sitter-grammars/tree-sitter-toml",
+            "packageVersion": "0.7.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "tsx",
+            "moduleName": "tree-sitter-typescript",
+            "packageVersion": "0.23.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "typescript",
+            "moduleName": "tree-sitter-typescript",
+            "packageVersion": "0.23.2",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "xml",
+            "moduleName": "@tree-sitter-grammars/tree-sitter-xml",
+            "packageVersion": "0.7.0",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          },
+          {
+            "languageId": "yaml",
+            "moduleName": "@tree-sitter-grammars/tree-sitter-yaml",
+            "packageVersion": "0.7.1",
+            "nodeVersion": "v26.13.0",
+            "abi": "147",
+            "state": "parser-activated"
+          }
+        ],
+        "declared": [
+          "@astrojs/compiler",
+          "@babel/parser",
+          "@babel/traverse",
+          "@babel/types",
+          "@derekstride/tree-sitter-sql",
+          "@eagleoutice/tree-sitter-r",
+          "@es-joy/jsdoccomment",
+          "@ganezdragon/tree-sitter-perl",
+          "@handlebars/parser",
+          "@huggingface/tokenizers",
+          "@huggingface/transformers",
+          "@lancedb/lancedb",
+          "@prometheus-io/client",
+          "@sengac/tree-sitter-dart",
+          "@tree-sitter-grammars/tree-sitter-lua",
+          "@tree-sitter-grammars/tree-sitter-markdown",
+          "@tree-sitter-grammars/tree-sitter-toml",
+          "@tree-sitter-grammars/tree-sitter-xml",
+          "@tree-sitter-grammars/tree-sitter-yaml",
+          "@vscode/vsce",
+          "@vue/compiler-sfc",
+          "acorn",
+          "adm-zip",
+          "aho-corasick",
+          "ajv",
+          "ajv-formats",
+          "apache-arrow",
+          "better-sqlite3",
+          "c8",
+          "chardet",
+          "chokidar",
+          "cjs-module-lexer",
+          "dockerfile-ast",
+          "docx",
+          "es-module-lexer",
+          "escomplex",
+          "eslint",
+          "esprima",
+          "esquery",
+          "execa",
+          "fdir",
+          "fflate",
+          "file-type",
+          "graphology",
+          "graphology-types",
+          "graphql",
+          "greedy-number-partitioning",
+          "happy-dom",
+          "hdr-histogram-js",
+          "hnswlib-node",
+          "iconv-lite",
+          "ignore",
+          "istextorbinary",
+          "jscpd",
+          "jsdoc-type-pratt-parser",
+          "jsonc-parser",
+          "linguist-languages",
+          "lmdb",
+          "lru-cache",
+          "mammoth",
+          "micromark",
+          "msgpackr",
+          "mustache",
+          "node-pty",
+          "node-sql-parser",
+          "onnxruntime-node",
+          "p-queue",
+          "parse5",
+          "pdfjs-dist",
+          "picomatch",
+          "pino",
+          "pino-pretty",
+          "piscina",
+          "protobufjs",
+          "pyright",
+          "re2js",
+          "reladraw",
+          "roaring-wasm",
+          "sax",
+          "seedrandom",
+          "selfsigned",
+          "semver",
+          "simple-git",
+          "smol-toml",
+          "snowball-stemmers",
+          "svelte",
+          "tar-stream",
+          "terminal-kit",
+          "three",
+          "tinybench",
+          "tree-sitter",
+          "tree-sitter-bash",
+          "tree-sitter-c",
+          "tree-sitter-c-sharp",
+          "tree-sitter-cpp",
+          "tree-sitter-css",
+          "tree-sitter-go",
+          "tree-sitter-groovy",
+          "tree-sitter-html",
+          "tree-sitter-java",
+          "tree-sitter-javascript",
+          "tree-sitter-json",
+          "tree-sitter-julia",
+          "tree-sitter-kotlin",
+          "tree-sitter-objc",
+          "tree-sitter-php",
+          "tree-sitter-python",
+          "tree-sitter-ruby",
+          "tree-sitter-rust",
+          "tree-sitter-scala",
+          "tree-sitter-swift",
+          "tree-sitter-typescript",
+          "typescript",
+          "vscode-jsonrpc",
+          "vscode-languageserver-protocol",
+          "xml2js",
+          "xxhash-wasm",
+          "yaml",
+          "yargs",
+          "yauzl"
+        ],
+        "artifacts": {
+          "count": 1165,
+          "scope": "Complete original inventory retained in author-workspace node_modules/.pairofcleats-bootstrap.json;not bundled as clean-checkout evidence."
+        }
+      }
+    },
+    "focused": {
+      "original": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1",
+        "summary": {
+          "durationMs": 4032,
+          "failed": 1,
+          "passed": 8,
+          "skipped": 0,
+          "total": 9
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 134,
+            "exitCode": 0,
+            "id": "embeddings/dense-upstream-reference-controls",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\embeddings_dense-upstream-reference-controls.attempt-1.log"
+            ],
+            "path": "embeddings/dense-upstream-reference-controls.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "embeddings",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 98,
+            "exitCode": 0,
+            "id": "embeddings/direct-minilm-reference-controls",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\embeddings_direct-minilm-reference-controls.attempt-1.log"
+            ],
+            "path": "embeddings/direct-minilm-reference-controls.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "embeddings",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 302,
+            "exitCode": 0,
+            "id": "embeddings/provider-runtime-provenance",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\embeddings_provider-runtime-provenance.attempt-1.log"
+            ],
+            "path": "embeddings/provider-runtime-provenance.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "embeddings",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 733,
+            "exitCode": 1,
+            "id": "tooling/install/bootstrap-readiness",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_bootstrap-readiness.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_bootstrap-readiness.attempt-1.failure.json"
+            ],
+            "path": "tooling/install/bootstrap-readiness.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 994,
+            "exitCode": 0,
+            "id": "tooling/install/native-onnx-lifecycle",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_native-onnx-lifecycle.attempt-1.log"
+            ],
+            "path": "tooling/install/native-onnx-lifecycle.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 402,
+            "exitCode": 0,
+            "id": "tooling/install/native-onnx-parity",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_native-onnx-parity.attempt-1.log"
+            ],
+            "path": "tooling/install/native-onnx-parity.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1136,
+            "exitCode": 0,
+            "id": "tooling/install/native-parser-error-contract",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_native-parser-error-contract.attempt-1.log"
+            ],
+            "path": "tooling/install/native-parser-error-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 151,
+            "exitCode": 0,
+            "id": "tooling/install/node-realm-lifecycle",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_node-realm-lifecycle.attempt-1.log"
+            ],
+            "path": "tooling/install/node-realm-lifecycle.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 71,
+            "exitCode": 0,
+            "id": "tooling/install/rebuild-native-required-contract",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364204030-wdcwn1\\tooling_install_rebuild-native-required-contract.attempt-1.log"
+            ],
+            "path": "tooling/install/rebuild-native-required-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "repairedAndBench": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364289848-4b2ww1",
+        "summary": {
+          "durationMs": 22393,
+          "failed": 0,
+          "passed": 5,
+          "skipped": 0,
+          "total": 5
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 6043,
+            "exitCode": 0,
+            "id": "perf/tooling/bench/runner-contract",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364289848-4b2ww1\\perf_tooling_bench_runner-contract.attempt-1.log"
+            ],
+            "path": "perf/tooling/bench/runner-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "perf",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 712,
+            "exitCode": 0,
+            "id": "perf/tooling/bench/runner-terminal-outcomes",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364289848-4b2ww1\\perf_tooling_bench_runner-terminal-outcomes.attempt-1.log"
+            ],
+            "path": "perf/tooling/bench/runner-terminal-outcomes.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "perf",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 615,
+            "exitCode": 0,
+            "id": "perf/tooling/bench/runner-utilization-cap",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364289848-4b2ww1\\perf_tooling_bench_runner-utilization-cap.attempt-1.log"
+            ],
+            "path": "perf/tooling/bench/runner-utilization-cap.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "perf",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1701,
+            "exitCode": 0,
+            "id": "perf/tooling/bench/runner-utilization-units",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364289848-4b2ww1\\perf_tooling_bench_runner-utilization-units.attempt-1.log"
+            ],
+            "path": "perf/tooling/bench/runner-utilization-units.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "perf",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 13314,
+            "exitCode": 0,
+            "id": "tooling/install/bootstrap-readiness",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793364289848-4b2ww1\\tooling_install_bootstrap-readiness.attempt-1.log"
+            ],
+            "path": "tooling/install/bootstrap-readiness.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "distinctPassed": [
+        "embeddings/dense-upstream-reference-controls",
+        "embeddings/direct-minilm-reference-controls",
+        "embeddings/provider-runtime-provenance",
+        "tooling/install/native-onnx-lifecycle",
+        "tooling/install/native-onnx-parity",
+        "tooling/install/native-parser-error-contract",
+        "tooling/install/node-realm-lifecycle",
+        "tooling/install/rebuild-native-required-contract",
+        "perf/tooling/bench/runner-contract",
+        "perf/tooling/bench/runner-terminal-outcomes",
+        "perf/tooling/bench/runner-utilization-cap",
+        "perf/tooling/bench/runner-utilization-units",
+        "tooling/install/bootstrap-readiness"
+      ],
+      "failedBeforeRepair": [
+        {
+          "historicalLog": ".testLogs/run-1793364204030-wdcwn1/tooling_install_bootstrap-readiness.attempt-1.log",
+          "cause": "Bench runner statically linked workload imports before its readiness gate."
+        },
+        {
+          "historicalLog": ".testLogs/run-1793364252877-gyvd05/tooling_install_bootstrap-readiness.attempt-1.log",
+          "cause": "Filter-index benchmark statically linked runner contract before its readiness gate."
+        }
+      ],
+      "repair": "Preserved original incomplete-checkout assertion;deferred workload imports behind the original guard in both actual benchmark entry points."
+    }
+  }
+}

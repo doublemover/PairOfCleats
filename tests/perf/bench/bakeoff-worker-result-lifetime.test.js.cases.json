@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pending", "unmarked", "settled", "replacement", "after-write", "secondary-write", "falsey", "independent-observer"]
+}

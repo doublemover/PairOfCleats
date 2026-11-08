@@ -1,3 +1,4 @@
+import { retainCachePathAccess } from '../shared/cache/repo-access.js';
 import { assertSqliteIndexFormat } from '../storage/sqlite/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -9,10 +10,17 @@ import {
 } from '../../tools/sqlite/vector-extension.js';
 
 import { applyReadPragmas } from '../storage/sqlite/build/pragmas.js';
-import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
+import { createSqliteCacheCloseOwner, getSqliteNativeSettlement, addSqliteStorageSettlementHook } from './sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage, findNativeReaderStorage, registerNativeReaderStorage } from '../shared/storage/native-reader.js';
 
-const sqliteChunkCountCache = new Map();
+const backendCleanupFailure = (errors, message) => {
+  let failure = new AggregateError(errors, message, { cause: errors[0] });
+  for (const error of errors) failure = addStorageFailureContext(failure, {}, error,
+    { secondaryPresent: true, forceAggregate: true });
+  return failure;
+};
 
 const buildSqliteGenerationTag = (mode, state = null, generationContext = null) => {
   if (!state || typeof state !== 'object') return null;
@@ -61,9 +69,9 @@ export async function createSqliteBackend(options) {
   const openedByPath = new Map();
   const usesCacheLeases = typeof dbCache?.acquire === 'function'
     && typeof dbCache?.setAndAcquire === 'function';
-  let disposed = false;
+  let disposed = false, disposalFailure = null;
   const dispose = () => {
-    if (disposed) return;
+    if (disposed) { if (disposalFailure) throw disposalFailure; return; }
     disposed = true;
     const errors = [];
     for (const record of openedByPath.values()) {
@@ -73,7 +81,10 @@ export async function createSqliteBackend(options) {
         errors.push(error);
       }
     }
-    if (errors.length) throw new AggregateError(errors, 'Failed to release SQLite backend handles.');
+    if (errors.length) {
+      disposalFailure = backendCleanupFailure(errors, 'Failed to release SQLite backend handles.');
+      throw disposalFailure;
+    }
   };
   const vectorAnnState = {
     code: { available: false },
@@ -151,9 +162,9 @@ export async function createSqliteBackend(options) {
   try {
     ({ default: Database } = await import('better-sqlite3'));
   } catch (err) {
-    const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
+    const message = 'better-sqlite3 is required for the SQLite backend. Run npm run bootstrap:ci first.';
     if (backendForcedSqlite) {
-      throw new Error(message);
+      throw Object.assign(new Error(message, { cause: err }), { code: err?.code || 'ERR_SQLITE_DEPENDENCY' });
     }
     console.warn(message);
     useSqlite = false;
@@ -241,17 +252,32 @@ export async function createSqliteBackend(options) {
   }
   const openSqlite = (mode) => {
     const dbPath = sqlitePathByMode[mode];
+    retainCachePathAccess(dbPath);
     const label = mode;
     if (openedByPath.has(dbPath)) {
       const record = openedByPath.get(dbPath);
       return record.validated ? record.db : null;
     }
     const generationTag = generationTagByPath.get(dbPath) || null;
+    const storageContext = options.storageContext ? { ...options.storageContext, nativeBackend: 'sqlite', nativeMode: mode,
+      nativePublicationIdentity: generationTag } : null;
     const lease = usesCacheLeases ? dbCache.acquire(dbPath, { generationTag }) : null;
     const cached = usesCacheLeases ? lease?.db : dbCache?.get?.(dbPath, { generationTag });
     if (cached) {
-      try { assertSqliteIndexFormat({ db: cached, operation: 'search',
-        repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
+      let storage = null;
+      try {
+        const nativeSettled = getSqliteNativeSettlement(cached);
+        const existing = findNativeReaderStorage(cached, dbPath, storageContext);
+        if (nativeSettled && !existing) {
+          storage = acquireNativeReaderStorage(dbPath, storageContext, nativeSettled);
+          if (storage) {
+            addSqliteStorageSettlementHook(cached, () => storage.releaseAfterClosure());
+            storage.start();
+            registerNativeReaderStorage(cached, storage);
+          }
+        }
+        assertSqliteIndexFormat({ db: cached, operation: 'search',
+          repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
       } catch (error) { lease?.release(); throw error; }
       openedByPath.set(dbPath, {
         db: cached,
@@ -262,26 +288,47 @@ export async function createSqliteBackend(options) {
       });
       return cached;
     }
-    let db;
+    let db, nativeClosed = false;
+    const storage = acquireNativeReaderStorage(dbPath, storageContext, () => nativeClosed);
     let dbStat = null;
     try {
+      storage?.start();
       dbStat = fsSync.statSync(dbPath);
       db = new Database(dbPath, { readonly: true });
       // Own the handle before any operation that can fail, including schema
       // probes and pragmas. Publish only after all modes and ANN are ready.
-      openedByPath.set(dbPath, {
+      const record = {
         db,
         generationTag,
         cached: false,
         validated: false,
-        cleanup: () => db.close()
-      });
-    } catch (err) {
-      const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
-      if (backendForcedSqlite) {
-        throw new Error(message);
+        cleanup: null,
+        closeNative: null
+      };
+      openedByPath.set(dbPath, record);
+      try {
+        const owner = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {},
+          allowCacheHandoff: usesCacheLeases,
+          onNativeClosed: () => { nativeClosed = true; }, onStorageClosed: () => storage?.releaseAfterClosure() });
+        record.cleanup = () => owner.retire();
+        record.closeNative = record.cleanup;
+        if (storage) registerNativeReaderStorage(db, storage);
+      } catch (error) {
+        // Cached and uncached handles capture the same physical owner before
+        // schema/ANN initialization. Failed capture cannot adopt a later method.
+        const failure = storage ? storage.retainFailure(error) : error;
+        record.cleanup = () => { throw failure; };
+        throw failure;
       }
-      console.warn(message);
+    } catch (err) {
+      if (!db) storage?.failedOpen(err);
+      const message = err?.code === 'ENOENT'
+        ? `SQLite ${label} database is missing (${dbPath}); the mode may be empty or not built. Build stage4 for this mode if SQLite is required.`
+        : `SQLite ${label} database could not be opened (${dbPath}): ${err?.code || err?.message || 'unknown error'}.`;
+      if (backendForcedSqlite) {
+        throw Object.assign(new Error(message, { cause: err }), { code: err?.code || 'ERR_SQLITE_OPEN' });
+      }
+      console.warn(`${message} Falling back to file-backed indexes.`);
       return null;
     }
     assertSqliteIndexFormat({ db, operation: 'search',
@@ -370,7 +417,7 @@ export async function createSqliteBackend(options) {
               dbCache.close(dbPath, { generationTag: record.generationTag, expectedDb: record.db });
             }
           } else if (!usesCacheLeases) {
-            record.cleanup = () => record.db.close();
+            record.cleanup = record.closeNative || (() => record.db.close());
             if (dbCache?.get?.(dbPath) === record.db) dbCache.delete?.(dbPath);
           }
         } catch (error) {
@@ -382,7 +429,7 @@ export async function createSqliteBackend(options) {
       } catch (error) {
         errors.push(error);
       }
-      if (errors.length) throw new AggregateError(errors, 'Failed to clean up SQLite fallback handles.');
+      if (errors.length) throw backendCleanupFailure(errors, 'Failed to clean up SQLite fallback handles.');
       dbCode = null;
       dbProse = null;
       dbExtractedProse = null;
@@ -408,62 +455,11 @@ export async function createSqliteBackend(options) {
     try {
       dispose();
     } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], error.message, { cause: error });
+      if (cleanupError === error) throw error;
+      throw addStorageFailureContext(error, {}, cleanupError, { secondaryPresent: true, forceAggregate: true });
     }
     throw error;
   }
 
   return result();
-}
-
-/**
- * Probe SQLite chunk counts for auto-backend selection.
- * @param {string} dbPath
- * @param {'code'|'prose'} mode
- * @returns {Promise<number|null>}
- */
-export async function getSqliteChunkCount(dbPath, mode) {
-  let Database;
-  try {
-    ({ default: Database } = await import('better-sqlite3'));
-  } catch {
-    return null;
-  }
-  let db;
-  let cacheKey = '';
-  try {
-    const stat = fsSync.statSync(dbPath);
-    cacheKey = buildLocalCacheKey({
-      namespace: 'sqlite-chunk-count',
-      payload: {
-        dbPath,
-        mode: mode || null
-      }
-    }).key;
-    const cached = sqliteChunkCountCache.get(cacheKey);
-
-
-    db = new Database(dbPath, { readonly: true });
-    assertSqliteIndexFormat({ db, operation: 'probe', repoRoot: process.cwd(), indexPath: dbPath });
-    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
-    const manifestRow = db.prepare('SELECT SUM(chunk_count) as count FROM file_manifest WHERE mode = ?')
-      .get(mode);
-    if (Number.isFinite(manifestRow?.count)) {
-      sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count: manifestRow.count });
-      return manifestRow.count;
-    }
-    const row = db.prepare('SELECT COUNT(*) as count FROM chunks WHERE mode = ?').get(mode);
-    const count = typeof row?.count === 'number' ? row.count : null;
-    sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count });
-    return count;
-  } catch (error) {
-    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
-    return null;
-  } finally {
-    if (db) {
-      try {
-        db.close();
-      } catch {}
-    }
-  }
 }

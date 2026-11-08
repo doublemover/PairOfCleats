@@ -14,7 +14,7 @@ import { collectLspTypes } from '../../src/integrations/tooling/providers/lsp.js
 import { buildTreeSitterChunks } from '../../src/lang/tree-sitter/chunking.js';
 import { getToolingRegistry } from '../../tools/tooling/utils.js';
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-rust-authority-'));
+const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'poc-rust-authority-')));
 const repo = path.join(root, 'repo');
 const outside = path.join(root, 'outside');
 fs.mkdirSync(repo);

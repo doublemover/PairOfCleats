@@ -1,0 +1,2481 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-29",
+  "kind": "windows-lsp-exit-and-native-ci-repair",
+  "sourceParent": "2d96cf18e7bb17e72d50e083290c14bffddc21f0",
+  "implementationHead": "1e4684a1ad5eec49c344ed5c160760bc67805cb4",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 57417,
+      "sha256": "25cef7d1ad0c0b4f29063b509189aa3882707597feeff380af49c5eb84e22bce"
+    },
+    {
+      "path": "docs/archived/windows-lsp-exit-repair-2026-10-29.md",
+      "bytes": 5963,
+      "sha256": "6e93c7c2a7e766c43082f1d93328a80cdacaab12da206a6ef5eb380239458069"
+    },
+    {
+      "path": "docs/config/inventory.json",
+      "bytes": 302427,
+      "sha256": "713cbe435562b55c2e7e0ff590f87c79ee3b07270fccb4449f3adeae98518ded"
+    },
+    {
+      "path": "docs/config/inventory.md",
+      "bytes": 69087,
+      "sha256": "968af6a5944d26126854aa1e8530e56f79864e3abebddcddd3b36631e7d74c70"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "bytes": 19589,
+      "sha256": "97b2b324f6501ae3f9dcabc8cb24d73bddd7b6ea37a5657652e658c8b54a90b0"
+    },
+    {
+      "path": "docs/testing/qualification-matrix.md",
+      "bytes": 91615,
+      "sha256": "4b20d2285de8a2b36528f154c521b717a9bb4c0b79a04ef3cdd770890a3ca5ea"
+    },
+    {
+      "path": "patches/tree-sitter+0.25.1.patch",
+      "bytes": 4994,
+      "sha256": "2aa2a89e624d24a1e20f2f3fae5a3e56a8d3c61499928921aad29e4476bd1ffd"
+    },
+    {
+      "path": "src/integrations/tooling/lsp/client.js",
+      "bytes": 40852,
+      "sha256": "d664e354a79b743ff51f2910379b304115bdfa60f0973fb881d103552ed22f64"
+    },
+    {
+      "path": "tests/ci/workflow-contract.test.js",
+      "bytes": 35099,
+      "sha256": "c9b642b657ae847a1e1eff78b2f511c5243f7e3a4cba6bdc099ef3c310097685"
+    },
+    {
+      "path": "tests/security/nested-repository-command-authority.test.js",
+      "bytes": 4192,
+      "sha256": "8611f1f1c7308bb24931ae646f60d8975b9ba7d0ffdfbf42b809345f0d4504fd"
+    },
+    {
+      "path": "tests/tooling/lsp/graceful-exit-after-transport-close.test.js",
+      "bytes": 4651,
+      "sha256": "9bfbaf57d9089c576e8413d66ce7545ccb6eca70995060bb1e17185542fbebf2"
+    },
+    {
+      "path": "tests/tooling/lsp/graceful-exit-after-transport-close.test.js.cases.json",
+      "bytes": 106,
+      "sha256": "52bf11682af3bf07c5d092ffb110478743bfb299ac1db98d5c47dad3ddde6bf7"
+    },
+    {
+      "path": "tests/tui/native-artifact-actions.test.js",
+      "bytes": 11844,
+      "sha256": "6fbb1d7576017a09e953e4aaaf9f847f8677a344e61918e70aeb8573be9b5423"
+    },
+    {
+      "path": "tests/tui/native-artifact-actions.test.js.cases.json",
+      "bytes": 110,
+      "sha256": "067533d593e07042dfd7e04177be7b8a195a4685ec664b233e2075a7c89d851e"
+    },
+    {
+      "path": "tools/ci/qualify-lsp-runtime.js",
+      "bytes": 13464,
+      "sha256": "e8e18a541384a1aca2e627fea05ee9f9d3d1af894cc1253fdd892f252dbe6b63"
+    },
+    {
+      "path": "tools/setup/native-build-plan.js",
+      "bytes": 5520,
+      "sha256": "fc38b748dec1a64b445457215ae2b7d74edb014c627e70cf37093ff7fae62289"
+    }
+  ],
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "before": [
+    {
+      "name": "lsp-natural-exit-before",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-natural-exit-before-logs\\run-1793257677257-tjpcra",
+      "summary": {
+        "durationMs": 914,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 908,
+          "exitCode": 1,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/natural-exit",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-natural-exit-before-logs\\run-1793257677257-tjpcra\\tooling_lsp_graceful-exit-after-transport-close_natural-exit.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-natural-exit-before-logs\\run-1793257677257-tjpcra\\tooling_lsp_graceful-exit-after-transport-close_natural-exit.attempt-1.failure.json"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "name": "nested-command-before",
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\nested-command-before-logs\\run-1793257925201-1xi7ii",
+      "summary": {
+        "durationMs": 352,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 345,
+          "exitCode": 1,
+          "id": "security/nested-repository-command-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\nested-command-before-logs\\run-1793257925201-1xi7ii\\security_nested-repository-command-authority.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\nested-command-before-logs\\run-1793257925201-1xi7ii\\security_nested-repository-command-authority.attempt-1.failure.json"
+          ],
+          "path": "security/nested-repository-command-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "name": "lsp-graceful-exit-controls",
+      "receipt": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/lsp-graceful-exit-controls.json",
+        "bytes": 13985,
+        "sha256": "068fa89162b696b3db00d2fb0febff93583efa09b1eb47cc5b161cb65a333d5f"
+      },
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq",
+      "summary": {
+        "durationMs": 55190,
+        "failed": 0,
+        "passed": 26,
+        "skipped": 0,
+        "total": 26
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1675,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/csharp-double-digit-hour",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_csharp-double-digit-hour.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1696,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/csharp-invalid-time",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_csharp-invalid-time.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1667,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/csharp-single-digit-hour",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_csharp-single-digit-hour.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1695,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/csharp-warning",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_csharp-warning.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1719,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/diagnostics-truncated",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_diagnostics-truncated.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1362,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/fixture-without-testing",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_fixture-without-testing.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 571,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/observer-throw",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_observer-throw.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1717,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/phpactor-duplicate-info",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_phpactor-duplicate-info.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1730,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/phpactor-info",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_phpactor-info.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1712,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/phpactor-unexpected-stderr",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_phpactor-unexpected-stderr.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1708,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/success",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_success.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1767,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/unexpected-stderr",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_unexpected-stderr.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5813,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/unresponsive-initialize",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_unresponsive-initialize.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 6698,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/unresponsive-shutdown",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_unresponsive-shutdown.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1328,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/untrusted-command",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_untrusted-command.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5919,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/version-timeout",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_version-timeout.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1546,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/workspace-not-trusted",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_ci_lsp-runtime-qualification_workspace-not-trusted.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1046,
+          "exitCode": 0,
+          "id": "tooling/doctor/handshake-admission-and-cancellation",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_doctor_handshake-admission-and-cancellation.attempt-1.log"
+          ],
+          "path": "tooling/doctor/handshake-admission-and-cancellation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2580,
+          "exitCode": 0,
+          "id": "tooling/lsp/collect-shutdown-race-clean",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_collect-shutdown-race-clean.attempt-1.log"
+          ],
+          "path": "tooling/lsp/collect-shutdown-race-clean.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 424,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/explicit-kill",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_graceful-exit-after-transport-close_explicit-kill.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 448,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/natural-exit",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_graceful-exit-after-transport-close_natural-exit.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2963,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/stalled-exit",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_graceful-exit-after-transport-close_stalled-exit.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 828,
+          "exitCode": 0,
+          "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_reader-closed-restart-reaps-stale-process.attempt-1.log"
+          ],
+          "path": "tooling/lsp/reader-closed-restart-reaps-stale-process.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 453,
+          "exitCode": 0,
+          "id": "tooling/lsp/shutdown",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_shutdown.attempt-1.log"
+          ],
+          "path": "tooling/lsp/shutdown.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5277,
+          "exitCode": 0,
+          "id": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_shutdown-does-not-respawn-on-closed-transport.attempt-1.log"
+          ],
+          "path": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 822,
+          "exitCode": 0,
+          "id": "tooling/lsp/writer-closed-restart-reaps-stale-process",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-controls-logs\\run-1793257779656-s07vsq\\tooling_lsp_writer-closed-restart-reaps-stale-process.attempt-1.log"
+          ],
+          "path": "tooling/lsp/writer-closed-restart-reaps-stale-process.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "name": "lsp-graceful-exit-final",
+      "receipt": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/lsp-graceful-exit-final.json",
+        "bytes": 2942,
+        "sha256": "90205a4cac7ec3ea937f72b4f29cb3c8a3358b1de6a0c1be174c84a32fec7f2b"
+      },
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-final-logs\\run-1793258049180-eyd3e1",
+      "summary": {
+        "durationMs": 6066,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1749,
+          "exitCode": 0,
+          "id": "tooling/ci/lsp-runtime-qualification/phpactor-info",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-final-logs\\run-1793258049180-eyd3e1\\tooling_ci_lsp-runtime-qualification_phpactor-info.attempt-1.log"
+          ],
+          "path": "tooling/ci/lsp-runtime-qualification.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 463,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/explicit-kill",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-final-logs\\run-1793258049180-eyd3e1\\tooling_lsp_graceful-exit-after-transport-close_explicit-kill.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 445,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/natural-exit",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-final-logs\\run-1793258049180-eyd3e1\\tooling_lsp_graceful-exit-after-transport-close_natural-exit.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2950,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/stalled-exit",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-final-logs\\run-1793258049180-eyd3e1\\tooling_lsp_graceful-exit-after-transport-close_stalled-exit.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 453,
+          "exitCode": 0,
+          "id": "tooling/lsp/graceful-exit-after-transport-close/transport-error",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\lsp-graceful-exit-final-logs\\run-1793258049180-eyd3e1\\tooling_lsp_graceful-exit-after-transport-close_transport-error.attempt-1.log"
+          ],
+          "path": "tooling/lsp/graceful-exit-after-transport-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "name": "nested-command-after",
+      "receipt": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/nested-command-after.json",
+        "bytes": 751,
+        "sha256": "137502e74f973b3948a710f0310f22da7f2a663bc214fed428b7d73e41d1f580"
+      },
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\nested-command-after-logs\\run-1793257926642-hpgdnc",
+      "summary": {
+        "durationMs": 6078,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 6074,
+          "exitCode": 0,
+          "id": "security/nested-repository-command-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\nested-command-after-logs\\run-1793257926642-hpgdnc\\security_nested-repository-command-authority.attempt-1.log"
+          ],
+          "path": "security/nested-repository-command-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "name": "native-artifact-split",
+      "receipt": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/native-artifact-split.json",
+        "bytes": 4076,
+        "sha256": "39479bc70653b6e2bec03c6b67558201bc401a08a192b828cbbe1d69f1cc1eba"
+      },
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg",
+      "summary": {
+        "durationMs": 42047,
+        "failed": 0,
+        "passed": 8,
+        "skipped": 0,
+        "total": 8
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 2125,
+          "exitCode": 0,
+          "id": "tooling/install/tree-sitter-patch-roundtrip",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tooling_install_tree-sitter-patch-roundtrip.attempt-1.log"
+          ],
+          "path": "tooling/install/tree-sitter-patch-roundtrip.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5740,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/actions",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_actions.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5770,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_cancel.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5360,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/copy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_copy.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 6883,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/export",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_export.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5373,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/missing",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_missing.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5388,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/stale",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_stale.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5397,
+          "exitCode": 0,
+          "id": "tui/native-artifact-actions/untrusted",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-split-logs\\run-1793258931435-c5ivbg\\tui_native-artifact-actions_untrusted.attempt-1.log"
+          ],
+          "path": "tui/native-artifact-actions.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  ],
+  "qualifiedCases": [
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/csharp-double-digit-hour",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1675,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/csharp-invalid-time",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1696,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/csharp-single-digit-hour",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1667,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/csharp-warning",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1695,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/diagnostics-truncated",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1719,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/fixture-without-testing",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1362,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/observer-throw",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 571,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/phpactor-duplicate-info",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1717,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/phpactor-info",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1749,
+      "report": "lsp-graceful-exit-final"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/phpactor-unexpected-stderr",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1712,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/success",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1708,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/unexpected-stderr",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1767,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/unresponsive-initialize",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5813,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/unresponsive-shutdown",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 6698,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/untrusted-command",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1328,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/version-timeout",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5919,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/ci/lsp-runtime-qualification/workspace-not-trusted",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1546,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/doctor/handshake-admission-and-cancellation",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1046,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/lsp/collect-shutdown-race-clean",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 2580,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/lsp/graceful-exit-after-transport-close/explicit-kill",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 463,
+      "report": "lsp-graceful-exit-final"
+    },
+    {
+      "id": "tooling/lsp/graceful-exit-after-transport-close/natural-exit",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 445,
+      "report": "lsp-graceful-exit-final"
+    },
+    {
+      "id": "tooling/lsp/graceful-exit-after-transport-close/stalled-exit",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 2950,
+      "report": "lsp-graceful-exit-final"
+    },
+    {
+      "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 828,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/lsp/shutdown",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 453,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5277,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/lsp/writer-closed-restart-reaps-stale-process",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 822,
+      "report": "lsp-graceful-exit-controls"
+    },
+    {
+      "id": "tooling/lsp/graceful-exit-after-transport-close/transport-error",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 453,
+      "report": "lsp-graceful-exit-final"
+    },
+    {
+      "id": "security/nested-repository-command-authority",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 6074,
+      "report": "nested-command-after"
+    },
+    {
+      "id": "tooling/install/tree-sitter-patch-roundtrip",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 2125,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/actions",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5740,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/cancel",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5770,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/copy",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5360,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/export",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 6883,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/missing",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5373,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/stale",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5388,
+      "report": "native-artifact-split"
+    },
+    {
+      "id": "tui/native-artifact-actions/untrusted",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 5397,
+      "report": "native-artifact-split"
+    }
+  ],
+  "actualGypEvaluation": {
+    "kind": "actual-gyp-merged-macos-target-control",
+    "executionPlatform": "win32",
+    "targetPlatform": "mac",
+    "targetArch": "arm64",
+    "compilerOrMacOSExecution": false,
+    "before": [
+      {
+        "target": "tree_sitter_runtime_binding",
+        "configuration": "Debug",
+        "deploymentTarget": "10.7"
+      },
+      {
+        "target": "tree_sitter_runtime_binding",
+        "configuration": "Release",
+        "deploymentTarget": "10.7"
+      },
+      {
+        "target": "tree_sitter",
+        "configuration": "Debug",
+        "deploymentTarget": "13.5"
+      },
+      {
+        "target": "tree_sitter",
+        "configuration": "Release",
+        "deploymentTarget": "13.5"
+      }
+    ],
+    "after": [
+      {
+        "target": "tree_sitter_runtime_binding",
+        "configuration": "Debug",
+        "deploymentTarget": "13.5"
+      },
+      {
+        "target": "tree_sitter_runtime_binding",
+        "configuration": "Release",
+        "deploymentTarget": "13.5"
+      },
+      {
+        "target": "tree_sitter",
+        "configuration": "Debug",
+        "deploymentTarget": "13.5"
+      },
+      {
+        "target": "tree_sitter",
+        "configuration": "Release",
+        "deploymentTarget": "13.5"
+      }
+    ],
+    "files": [
+      {
+        "path": ".tmp\\tasks\\ci-and-p1-20261028\\mac-gyp-control\\before.gypd",
+        "bytes": 98061,
+        "sha256": "b52428622b736e827bc8875ea3cbcc64ffc73dd0010db69eef4169d0c2411ae5"
+      },
+      {
+        "path": ".tmp\\tasks\\ci-and-p1-20261028\\mac-gyp-control\\after.gypd",
+        "bytes": 98061,
+        "sha256": "f117b27294fd29699458f4598e891a51bdfdb2e0f5a6f74e568c066d6b1c39ec"
+      },
+      {
+        "path": ".tmp\\tasks\\ci-and-p1-20261028\\mac-gyp-control\\runtime\\binding.gyp",
+        "bytes": 2475,
+        "sha256": "8bf6fa4714a888c9a82a568cb7dd5d07af3b16a025fe99e35e17555302864f22"
+      },
+      {
+        "path": ".tmp\\tasks\\ci-and-p1-20261028\\mac-gyp-control\\node_modules\\node-addon-api\\except.gypi",
+        "bytes": 560,
+        "sha256": "ddbc09f5b66fe24dd898fbe659085a6ff72e9575025004fc3762271dba781e8b"
+      },
+      {
+        "path": ".tmp\\tasks\\ci-and-p1-20261028\\mac-gyp-control\\node_modules\\node-addon-api\\node_addon_api.gyp",
+        "bytes": 793,
+        "sha256": "a1f080ca22f191902d118bc2a169984a9e761af091ca6d0ea456197bf7b6543c"
+      }
+    ]
+  },
+  "setup": {
+    "bootstrap": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/lsp-gyp-bootstrap.log",
+      "bytes": 21620,
+      "sha256": "4694a84735ceac1c8dc25dcae391f06307a9715f777988a7c742f74a0ab320fc"
+    },
+    "exitCode": 0,
+    "packages": 37,
+    "languageRoutes": 33,
+    "patches": 7,
+    "targetFiles": 25,
+    "hunks": 59,
+    "upstreamNpmDeprecationRemains": "prebuild-install@7.1.3"
+  },
+  "hosted": {
+    "head": "5366b344d8c4a06a847ebbcf604c07ba93afae6e",
+    "phpactor": {
+      "source": "7ce8567ebe3c5532529c45c7c9209b604178fa73",
+      "platform": "linux",
+      "version": {
+        "ok": true,
+        "outcome": "ok",
+        "status": 0,
+        "signal": null,
+        "errorCode": null,
+        "stdout": "Phpactor 2026.10.07.0\n",
+        "stderr": ""
+      },
+      "server": {
+        "name": "phpactor/phpactor",
+        "version": "2026.10.07.0"
+      },
+      "protocolOk": true,
+      "metrics": {
+        "requests": 2,
+        "succeeded": 2,
+        "failed": 0,
+        "timedOut": 0,
+        "protocolFailed": 0,
+        "localWriteFailed": 0,
+        "latencyMs": {
+          "count": 2,
+          "avg": 223.5,
+          "max": 239,
+          "p50": 208,
+          "p95": 239
+        },
+        "byMethod": {
+          "initialize": {
+            "requests": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "timedOut": 0,
+            "protocolFailed": 0,
+            "localWriteFailed": 0,
+            "latencyMs": {
+              "count": 1,
+              "avg": 208,
+              "max": 208,
+              "p50": 208,
+              "p95": 208
+            }
+          },
+          "shutdown": {
+            "requests": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "timedOut": 0,
+            "protocolFailed": 0,
+            "localWriteFailed": 0,
+            "latencyMs": {
+              "count": 1,
+              "avg": 239,
+              "max": 239,
+              "p50": 239,
+              "p95": 239
+            }
+          }
+        },
+        "termination": {
+          "exitObserved": true,
+          "closeObserved": true,
+          "settled": true,
+          "pending": 0,
+          "pendingChildren": 0,
+          "treeCleanupFailed": false,
+          "unknownSpawnResource": false,
+          "pid": null
+        }
+      },
+      "events": [
+        {
+          "at": 1793257380881,
+          "kind": "start",
+          "pid": 9214,
+          "code": null,
+          "signal": null
+        },
+        {
+          "at": 1793257381374,
+          "kind": "reap",
+          "pid": 9214,
+          "code": null,
+          "signal": null
+        },
+        {
+          "at": 1793257381375,
+          "kind": "kill_diagnostics",
+          "pid": 9214,
+          "code": null,
+          "signal": null
+        },
+        {
+          "at": 1793257381378,
+          "kind": "exit",
+          "pid": 9214,
+          "code": null,
+          "signal": "SIGTERM"
+        }
+      ],
+      "stderr": [
+        "Starting language server, use -vvv for verbose output"
+      ],
+      "reaped": [
+        {
+          "pid": 9214,
+          "alive": false
+        }
+      ],
+      "reasons": [
+        "no_clean_server_exit"
+      ]
+    },
+    "macos": {
+      "job": 123310458358,
+      "passed": 1311,
+      "failed": 49,
+      "excluded": 1
+    },
+    "windowsAuthority": {
+      "job": 123310458398,
+      "passed": 17,
+      "failed": 1,
+      "skippedAfterFailure": 25,
+      "failure": "security/nested-repository-command-authority"
+    },
+    "nativeWindows": {
+      "job": 123310458320,
+      "passed": 31,
+      "failed": 1,
+      "artifact": 12880346123,
+      "failure": "tui/native-artifact-actions/actions",
+      "label": "Artifact export failed: ERR_UNSAFE_FILE_PATH",
+      "requestCount": 4,
+      "finalPrompt": "blank export destination; traversal request not observed",
+      "zipSha256": "d647c27008a3c019af0661744b52051db74c1b16ad6bb7167035228b6fa221cd"
+    },
+    "macosNative": {
+      "job": 123310458327,
+      "passed": [
+        32,
+        12,
+        19,
+        4
+      ],
+      "linkerWarningPersisted": true
+    }
+  },
+  "nextFailureBatch": {
+    "head": "5366b344d8c4a06a847ebbcf604c07ba93afae6e",
+    "job": 123310458358,
+    "failures": [
+      {
+        "id": "indexing/scm/jj-changed-files-normalization",
+        "context": [
+          "FAIL [ 118ms] indexing/scm/jj-changed-files-normalization exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_scm_jj-changed-files-normalization.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "false !== true",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/scm/jj-changed-files-normalization.test.js:21:8",
+          "at ModuleJob.run (node:internal/modules/esm/module_job:569:25)",
+          "... trimmed 9 lines",
+          ""
+        ]
+      },
+      {
+        "id": "retrieval/ranking/dense-ranking-contract-matrix",
+        "context": [
+          "FAIL [ 119ms] retrieval/ranking/dense-ranking-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/retrieval_ranking_dense-ranking-contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "0 !== 1",
+          "at Object.run (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/retrieval/ranking/dense-ranking-contract-matrix.test.js:51:16)",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/retrieval/ranking/dense-ranking-contract-matrix.test.js:63:12",
+          "... trimmed 10 lines",
+          ""
+        ]
+      },
+      {
+        "id": "retrieval/context-expansion/context-expansion-contract-matrix",
+        "context": [
+          "FAIL [  91ms] retrieval/context-expansion/context-expansion-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/retrieval_context-expansion_context-expansion-contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "+ actual - expected",
+          "+ '{\"contextHits\":[{\"id\":1,\"chunkUid\":\"target\",\"file\":\"src/b.js\",\"name\":\"beta\",\"score\":0,\"scoreType\":\"context\",\"context\":{\"sourceId\":0,\"reason\":\"call:target\"}}],\"stats\":{\"added\":1,\"edgeVisits\":1,\"candidateAttempts\":1,\"candidateVisits\":1,\"nameBucketVisits\":0,\"preparation\":{\"contextIndex\":\"built-or-completed\",\"availableChunkRows\":2,\"scannedChunkRows\":2,\"elapsedMs\":0.011791999999999803},\"workUnitsUsed\":2,\"truncation\":null}}'",
+          "- '{\"contextHits\":[{\"id\":1,\"chunkUid\":\"target\",\"file\":\"src/b.js\",\"name\":\"beta\",\"score\":0,\"scoreType\":\"context\",\"context\":{\"sourceId\":0,\"reason\":\"call:target\"}}],\"stats\":{\"added\":1,\"edgeVisits\":1,\"candidateAttempts\":1,\"candidateVisits\":1,\"nameBucketVisits\":0,\"preparation\":{\"contextIndex\":\"built-or-completed\",\"availableChunkRows\":2,\"scannedChunkRows\":2,\"elapsedMs\":0.006709000000000742},\"workUnitsUsed\":2,\"truncation\":null}}'",
+          "... trimmed 12 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/state/patch-queue-contract-matrix",
+        "context": [
+          "FAIL [ 144ms] indexing/state/patch-queue-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_state_patch-queue-contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
+          "+ actual - expected",
+          "+ [",
+          "+   'ERR_BUILD_STATE_LOCK_UNAVAILABLE'",
+          "... trimmed 12 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/scm/git-provider-parse",
+        "context": [
+          "FAIL [ 222ms] indexing/scm/git-provider-parse exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_scm_git-provider-parse.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
+          "+ actual - expected",
+          "[",
+          "-   'src/a.js',",
+          "... trimmed 11 lines",
+          ""
+        ]
+      },
+      {
+        "id": "storage/vector-extension/contract-matrix",
+        "context": [
+          "FAIL [ 637ms] storage/vector-extension/contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/storage_vector-extension_contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "0 !== 2",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/storage/vector-extension/contract-matrix.test.js:64:10 {",
+          "generatedMessage: true,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+        "context": [
+          "FAIL [ 363ms] indexing/type-inference/providers/type-inference-clangd-provider-no-clangd exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_type-inference_providers_type-inference-clangd-provider-no-clangd.attempt-1.failure.json",
+          "clangd provider missing expected compile_commands log message.",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/lsp/dart-provider-process-reuse",
+        "context": [
+          "FAIL [ 2.17s] tooling/lsp/dart-provider-process-reuse exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_lsp_dart-provider-process-reuse.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: expected one dart language-server process spawn across reused provider runs",
+          "2 !== 1",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/lsp/dart-provider-process-reuse.test.js:125:12",
+          "at async withTemporaryEnv (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/helpers/test-env.js:92:12)",
+          "... trimmed 8 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/cache/gc-contract-matrix",
+        "context": [
+          "FAIL [ 1.74s] tooling/cache/gc-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_cache_gc-contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
+          "assert.ok(legacyPayload.plannedBytes > 0)",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/cache/gc-contract-matrix.test.js:136:10 {",
+          "generatedMessage: true,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "services/snapshot-core-contract-matrix",
+        "context": [
+          "FAIL [ 509ms] services/snapshot-core-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/services_snapshot-core-contract-matrix.attempt-1.failure.json",
+          "Error: Snapshot code state does not match its selected artifacts.",
+          "at createError (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/error-codes.js:118:15)",
+          "at invalidRequest (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/snapshots/freeze.js:43:53)",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/snapshots/freeze.js:301:17",
+          "at async withRegistryLock (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/registry-support.js:146:12)",
+          "at async runSnapshotFreezeCase (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/services/snapshot-core-contract-matrix.test.js:491:30)",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/services/snapshot-core-contract-matrix.test.js:978:1 {",
+          "... trimmed 2 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/doctor/command-profile-contract-matrix",
+        "context": [
+          "FAIL [ 1.65s] tooling/doctor/command-profile-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_doctor_command-profile-contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: expected erl probe to prefer `erl -version`",
+          "+ actual - expected",
+          "+ undefined",
+          "- '-version'",
+          "... trimmed 11 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/tree-sitter/scheduler-native-smoke",
+        "context": [
+          "FAIL [ 5.60s] indexing/tree-sitter/scheduler-native-smoke exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_tree-sitter_scheduler-native-smoke.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: missing scheduler row for typescript (sample.tsx)",
+          "at runNativeLanguageContractSuite (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/tree-sitter/native-language-contract-suite.js:351:14)",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/tree-sitter/scheduler-native-smoke.test.js:9:16 {",
+          "generatedMessage: false,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/tree-sitter/scheduler-native-language-contract",
+        "context": [
+          "FAIL [ 6.83s] indexing/tree-sitter/scheduler-native-language-contract exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_tree-sitter_scheduler-native-language-contract.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: missing scheduler row for typescript (sample.tsx)",
+          "at runNativeLanguageContractSuite (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/tree-sitter/native-language-contract-suite.js:351:14)",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/tree-sitter/scheduler-native-language-contract.test.js:7:16 {",
+          "generatedMessage: false,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/sublime/behavior-contract-matrix",
+        "context": [
+          "FAIL [ 4.30s] tooling/sublime/behavior-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_sublime_behavior-contract-matrix.attempt-1.failure.json",
+          "AssertionError: '/Users/runner/work/PairOfCleats/PairOfCleats/C:/repo/src/app.js:7' != 'C:/repo/src/app.js:7'",
+          "- /Users/runner/work/PairOfCleats/PairOfCleats/C:/repo/src/app.js:7",
+          "+ C:/repo/src/app.js:7",
+          "======================================================================",
+          "FAIL: test_result_actions_copy_path_open_group_and_rerun (__main__.ResultsBehaviorTests.test_result_actions_copy_path_open_group_and_rerun)",
+          "----------------------------------------------------------------------",
+          "Traceback (most recent call last):",
+          "... trimmed 83 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/lsp/metrics-contract-matrix",
+        "context": [
+          "FAIL [ 3.46s] tooling/lsp/metrics-contract-matrix exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_lsp_metrics-contract-matrix.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "2 !== 1",
+          "at runMetricsAggregateCases (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/lsp/metrics-contract-matrix.test.js:109:10)",
+          "at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+          "... trimmed 8 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/reports/parity-matrix-execution",
+        "context": [
+          "FAIL [ 7.96s] tooling/reports/parity-matrix-execution exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_reports_parity-matrix-execution.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]:",
+          "[parity-matrix] sqlite/off",
+          "node /Users/runner/work/PairOfCleats/PairOfCleats/tests/retrieval/parity/equivalence.test.js --repo /Users/runner/work/_temp/poc-ci-csharp-SXhpqw/tmp/poc-parity-matrix-execution-nND9jw/repo --sqlite-backend sqlite --queries /Users/runner/work/_temp/poc-ci-csharp-SXhpqw/tmp/poc-parity-matrix-execution-nND9jw/matrix/queries-N9i9de/queries.json --top 10 --limit 0 --write-report --out /Users/runner/work/_temp/poc-ci-csharp-SXhpqw/tmp/poc-parity-matrix-execution-nND9jw/matrix/runs/sqlite-off.json --no-ann",
+          "[parity] 1/1 (100%) query=\"refreshCache\" last=3.2s mem=1.5s sqlite=1.6s elapsed=3.2s eta=0ms",
+          "... trimmed 23 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/reports/map-cache-isolation",
+        "context": [
+          "FAIL [ 19.1s] tooling/reports/map-cache-isolation exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_reports_map-cache-isolation.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: build-map-rebuild must not ingest current, renamed or legacy map cache data",
+          "16 !== 1",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/reports/map-cache-isolation.test.js:65:10 {",
+          "generatedMessage: false,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "security/tooling-cache-storage",
+        "context": [
+          "FAIL [ 811ms] security/tooling-cache-storage exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/security_tooling-cache-storage.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "false !== true",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/security/tooling-cache-storage.test.js:98:10 {",
+          "generatedMessage: true,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/shared-module-performance",
+        "context": [
+          "FAIL [ 3.66s] tooling/shared-module-performance exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_shared-module-performance.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: {",
+          "\"schemaVersion\": \"1.0.0\",",
+          "\"generatedAt\": \"2026-10-29T07:16:25.098Z\",",
+          "\"baselinePath\": \"docs/tooling/shared-module-performance-baselines.json\",",
+          "... trimmed 107 lines",
+          ""
+        ]
+      },
+      {
+        "id": "map/workspace/projection",
+        "context": [
+          "FAIL [ 1.19s] map/workspace/projection exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/map_workspace_projection.attempt-1.failure.json",
+          "SourceError: \"n0\" has 14 children that say nothing about where they go (\"n0.n1\", \"n0.n2\", \"n0.n3\", \"n0.n38\", \"n0.n39\", \"n0.n40\", \"n0.n41\", \"n0.n42\", \"n0.n43\", \"n0.n44\", \"n0.n45\", \"n0.n46\", \"n0.n47\", \"n0.n48\"). One is the anchor and the rest are placed against it — or give the container a layout: such as layout: column to place them in order",
+          "at Placer.checkAnchors (file:///Users/runner/work/PairOfCleats/PairOfCleats/node_modules/reladraw/dist/place.js:2245:23)",
+          "at Placer.checkAnchors (file:///Users/runner/work/PairOfCleats/PairOfCleats/node_modules/reladraw/dist/place.js:2257:18)",
+          "at Placer.run (file:///Users/runner/work/PairOfCleats/PairOfCleats/node_modules/reladraw/dist/place.js:181:14)",
+          "at resolve (file:///Users/runner/work/PairOfCleats/PairOfCleats/node_modules/reladraw/dist/resolve.js:317:12)",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/map/workspace/projection.test.js:14:60",
+          "at ModuleJob.run (node:internal/modules/esm/module_job:569:25)",
+          "... trimmed 4 lines",
+          ""
+        ]
+      },
+      {
+        "id": "map/workspace/dom-interaction",
+        "context": [
+          "FAIL [ 1.83s] map/workspace/dom-interaction exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/map_workspace_dom-interaction.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "0 !== 4",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/map/workspace/dom-interaction.test.js:25:52 {",
+          "generatedMessage: true,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/triage/ingest-fallback-identity",
+        "context": [
+          "FAIL [ 3.81s] tooling/triage/ingest-fallback-identity exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_triage_ingest-fallback-identity.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /derived.*identity.*conflict/i. Input:",
+          "'Invalid triage publication identity.'",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/triage/ingest-fallback-identity.test.js:63:8 {",
+          "generatedMessage: true,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "context-pack/risk-truncation-contract/partial-count",
+        "context": [
+          "FAIL [ 21.1s] context-pack/risk-truncation-contract/partial-count exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/context-pack_risk-truncation-contract_partial-count.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "[TypeError: fetch failed] {",
+          "[cause]: Error: read ECONNRESET",
+          "at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {",
+          "errno: -54,",
+          "... trimmed 4 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/install/bootstrap-preflight",
+        "context": [
+          "FAIL [ 106ms] tooling/install/bootstrap-preflight exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_install_bootstrap-preflight.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "+ actual - expected",
+          "+ '26.13.0'",
+          "- '26.12.1'",
+          "... trimmed 9 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/reports/map-selected-index-identity",
+        "context": [
+          "FAIL [ 14.1s] tooling/reports/map-selected-index-identity exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_reports_map-selected-index-identity.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: same selected generation has a real warm-cache hit",
+          "+ actual - expected",
+          "... Skipped lines",
+          "{",
+          "... trimmed 583 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tui/operator-search-file-authority",
+        "context": [
+          "FAIL [ 3.26s] tui/operator-search-file-authority exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tui_operator-search-file-authority.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: {\"proto\":\"poc.progress@2\",\"event\":\"job:end\",\"ts\":\"2026-10-29T07:19:26.367Z\",\"runId\":\"run-mvt7q90p-qrgjtn\",\"jobId\":\"search-1\",\"seq\":3,\"internal\":true,\"durationMs\":2662,\"signal\":null,\"status\":\"failed\",\"exitCode\":null,\"result\":null,\"error\":{\"code\":\"NO_INDEX\",\"failure\":{\"version\":1,\"reason\":\"missing-index\",\"outcome\":\"query-failed\",\"field\":null,\"diagnosticId\":\"tui-47509d41-3b56-46d3-b5b6-a386227347a3\",\"actions\":[\"inspect-index\",\"edit-repository\",\"retry\"]}}}",
+          "'failed' !== 'done'",
+          "at success (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tui/operator-search-file-authority.test.js:41:46)",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tui/operator-search-file-authority.test.js:46:16 {",
+          "... trimmed 7 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
+        "context": [
+          "FAIL [ 10.7s] tooling/reports/compare-models-partial-ranks/opposite-orders exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_reports_compare-models-partial-ranks_opposite-orders.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: only defined common-order correlations contribute to the real report average",
+          "null !== 0",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/reports/compare-models-partial-ranks.test.js:72:8 {",
+          "generatedMessage: false,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/zero-warning-cap-cli/violation",
+        "context": [
+          "FAIL [ 15.3s] tooling/api-contracts/zero-warning-cap-cli/violation exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_zero-warning-cap-cli_violation.attempt-1.failure.json",
+          "at new DOMException (node:internal/per_context/domexception:79:18)",
+          "at Timeout._onTimeout (node:internal/abort_controller:212:9)",
+          "at listOnTimeout (node:internal/timers:685:17)",
+          "at process.processTimers (node:internal/timers:618:7)",
+          "},",
+          "[errors]: [",
+          "Error [AbortError]: Operation aborted",
+          "... trimmed 110 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/zero-warning-cap-cli/clean",
+        "context": [
+          "FAIL [ 14.9s] tooling/api-contracts/zero-warning-cap-cli/clean exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_zero-warning-cap-cli_clean.attempt-1.failure.json",
+          "SubprocessAbortError: Operation aborted",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:339:43",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:110:17 {",
+          "code: 'ABORT_ERR',",
+          "result: {",
+          "pid: 66068,",
+          "exitCode: null,",
+          "... trimmed 51 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
+        "context": [
+          "FAIL [ 15.5s] tooling/api-contracts/zero-warning-cap-cli/markdown exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_zero-warning-cap-cli_markdown.attempt-1.failure.json",
+          "SubprocessAbortError: Operation aborted",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:339:43",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:110:17 {",
+          "code: 'ABORT_ERR',",
+          "result: {",
+          "pid: 66124,",
+          "exitCode: null,",
+          "... trimmed 51 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/export-identity-cli/js-report",
+        "context": [
+          "FAIL [ 15.3s] tooling/api-contracts/export-identity-cli/js-report exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_export-identity-cli_js-report.attempt-1.failure.json",
+          "at new DOMException (node:internal/per_context/domexception:79:18)",
+          "at Timeout._onTimeout (node:internal/abort_controller:212:9)",
+          "at listOnTimeout (node:internal/timers:685:17)",
+          "at process.processTimers (node:internal/timers:618:7)",
+          "},",
+          "[errors]: [",
+          "Error [AbortError]: Operation aborted",
+          "... trimmed 220 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/export-identity-cli/ts-report",
+        "context": [
+          "FAIL [ 15.4s] tooling/api-contracts/export-identity-cli/ts-report exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.failure.json",
+          "at new DOMException (node:internal/per_context/domexception:79:18)",
+          "at Timeout._onTimeout (node:internal/abort_controller:212:9)",
+          "at listOnTimeout (node:internal/timers:685:17)",
+          "at process.processTimers (node:internal/timers:618:7)",
+          "}",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/export-identity-cli/js-fail",
+        "context": [
+          "FAIL [ 15.2s] tooling/api-contracts/export-identity-cli/js-fail exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.failure.json",
+          "at new DOMException (node:internal/per_context/domexception:79:18)",
+          "at Timeout._onTimeout (node:internal/abort_controller:212:9)",
+          "at listOnTimeout (node:internal/timers:685:17)",
+          "at process.processTimers (node:internal/timers:618:7)",
+          "},",
+          "[errors]: [",
+          "Error [AbortError]: Operation aborted",
+          "... trimmed 220 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+        "context": [
+          "FAIL [ 16.1s] tooling/api-contracts/export-identity-cli/ts-fail exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.failure.json",
+          "at new DOMException (node:internal/per_context/domexception:79:18)",
+          "at Timeout._onTimeout (node:internal/abort_controller:212:9)",
+          "at listOnTimeout (node:internal/timers:685:17)",
+          "at process.processTimers (node:internal/timers:618:7)",
+          "}",
+          ""
+        ]
+      },
+      {
+        "id": "tui/operator-artifacts",
+        "context": [
+          "FAIL [ 1.07s] tui/operator-artifacts exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tui_operator-artifacts.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Missing expected rejection: failed verification removes only its owned new file",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tui/operator-artifacts.test.js:76:3 {",
+          "generatedMessage: false,",
+          "code: 'ERR_ASSERTION',",
+          "... trimmed 5 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tui/supervisor-artifact-generation-cleanup",
+        "context": [
+          "FAIL [ 1.04s] tui/supervisor-artifact-generation-cleanup exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tui_supervisor-artifact-generation-cleanup.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+          "1 !== 0",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tui/supervisor-artifact-generation-cleanup.test.js:22:42 {",
+          "generatedMessage: true,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "perf/bench/embedding-bakeoff-phase-lifecycle",
+        "context": [
+          "FAIL [ 1.48s] perf/bench/embedding-bakeoff-phase-lifecycle exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/perf_bench_embedding-bakeoff-phase-lifecycle.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: quiet/non-TTY display suppresses progress output through the existing owner",
+          "49 !== 0",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/perf/bench/embedding-bakeoff-phase-lifecycle.test.js:109:8 {",
+          "generatedMessage: false,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "perf/tooling/bench/ab-sweep-artifact-owner",
+        "context": [
+          "FAIL [ 2.56s] perf/tooling/bench/ab-sweep-artifact-owner exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/perf_tooling_bench_ab-sweep-artifact-owner.attempt-1.failure.json",
+          "AggregateError: Storage write admission deferred: admission-owner-busy-during-settlement",
+          "at addStorageFailureContext (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/storage/operation-error.js:129:21)",
+          "at runAbSweep (file:///Users/runner/work/PairOfCleats/PairOfCleats/tools/bench/ab-sweep.js:271:38)",
+          "at async Promise.all (index 0)",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/perf/tooling/bench/ab-sweep-artifact-owner.test.js:26:12 {",
+          "code: 'ERR_STORAGE_ADMISSION',",
+          "admission: 'defer-or-deny-before-write',",
+          "... trimmed 279 lines",
+          ""
+        ]
+      },
+      {
+        "id": "perf/tooling/bench/search-micro-runner",
+        "context": [
+          "FAIL [ 13.2s] perf/tooling/bench/search-micro-runner exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/perf_tooling_bench_search-micro-runner.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: balanced repeated queries demonstrate the original cache-hit path",
+          "false !== true",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/perf/tooling/bench/search-micro-runner.test.js:29:10",
+          "at async withMicrobenchCacheOwner (file:///Users/runner/work/PairOfCleats/PairOfCleats/tools/bench/micro/cache-owner.js:7:16)",
+          "... trimmed 8 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/registry-borrowed-lock-capability",
+        "context": [
+          "FAIL [ 406ms] indexing/registry-borrowed-lock-capability exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_registry-borrowed-lock-capability.attempt-1.failure.json",
+          "AggregateError: [file-lock] lock release failed for \"/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tests/cache/registry-capability-70774-1793258501433-jsctsn/locks/snapshots.lock\" cause=Error",
+          "at addStorageFailureContext (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/storage/operation-error.js:129:21)",
+          "at createLockReleaseFailureError (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/locks/file-lock-release.js:68:15)",
+          "at releaseFileLockOrThrow (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/locks/file-lock-release.js:143:11) {",
+          "code: 'ERR_FILE_LOCK_RELEASE_FAILED',",
+          "causeCode: 'Error',",
+          "releaseResult: null,",
+          "... trimmed 48 lines",
+          ""
+        ]
+      },
+      {
+        "id": "shared/artifact-io/jsonl-shard-failure-drain",
+        "context": [
+          "FAIL [ 734ms] shared/artifact-io/jsonl-shard-failure-drain exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/shared_artifact-io_jsonl-shard-failure-drain.attempt-1.failure.json",
+          "Error: materialization rejected before its active reader close drained",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/shared/artifact-io/jsonl-shard-failure-drain.test.js:63:74",
+          "at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+          "at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/shared/artifact-io/jsonl-shard-failure-drain.test.js:63:7",
+          ""
+        ]
+      },
+      {
+        "id": "retrieval/graph/context-pack-streaming-artifact-failures",
+        "context": [
+          "FAIL [ 1.67s] retrieval/graph/context-pack-streaming-artifact-failures exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/retrieval_graph_context-pack-streaming-artifact-failures.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
+          "+ actual - expected",
+          "Comparison {",
+          "+   code: 'ERR_MANIFEST_INVALID'",
+          "... trimmed 19 lines",
+          ""
+        ]
+      },
+      {
+        "id": "perf/bench/sampled-operation-accounting",
+        "context": [
+          "FAIL [ 580ms] perf/bench/sampled-operation-accounting exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/perf_bench_sampled-operation-accounting.attempt-1.failure.json",
+          "Error: highestTrackableValue must be >= 2 * lowestDiscernibleValue ( 2 * 1 )",
+          "at new JsHistogram (/Users/runner/work/PairOfCleats/PairOfCleats/node_modules/hdr-histogram-js/dist/JsHistogram.js:66:19)",
+          "at new TypedArrayHistogram (/Users/runner/work/PairOfCleats/PairOfCleats/node_modules/hdr-histogram-js/dist/TypedArrayHistogram.js:13:9)",
+          "at new Int32Histogram (/Users/runner/work/PairOfCleats/PairOfCleats/node_modules/hdr-histogram-js/dist/Int32Histogram.js:13:9)",
+          "at build (/Users/runner/work/PairOfCleats/PairOfCleats/node_modules/hdr-histogram-js/dist/HistogramBuilder.js:20:23)",
+          "at buildLatencyHistogram (file:///Users/runner/work/PairOfCleats/PairOfCleats/tools/bench/micro/utils.js:8:21)",
+          "at summarizeDurations (file:///Users/runner/work/PairOfCleats/PairOfCleats/tools/bench/micro/utils.js:24:21)",
+          "... trimmed 2 lines",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/vfs/materialization-content-and-root",
+        "context": [
+          "FAIL [ 1.18s] tooling/vfs/materialization-content-and-root exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_vfs_materialization-content-and-root.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
+          "assert.ok(retainedSession)",
+          "at Object.<anonymous> (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/tooling/vfs/materialization-content-and-root.test.js:102:92)",
+          "at expectedException (node:assert:547:17)",
+          "... trimmed 10 lines",
+          ""
+        ]
+      },
+      {
+        "id": "perf/bench/vfs-cold-start-process-phases",
+        "context": [
+          "FAIL [ 7.21s] perf/bench/vfs-cold-start-process-phases exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/perf_bench_vfs-cold-start-process-phases.attempt-1.failure.json",
+          "SubprocessError: exited with code 1",
+          "at finalize (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:266:14)",
+          "at ChildProcess.<anonymous> (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:356:7)",
+          "at ChildProcess.emit (node:events:526:24)",
+          "at maybeClose (node:internal/child_process:1156:16)",
+          "at ChildProcess._handle.onexit (node:internal/child_process:334:5) {",
+          "code: 'SUBPROCESS_FAILED',",
+          "... trimmed 43 lines",
+          ""
+        ]
+      },
+      {
+        "id": "services/mcp/sdk-diagnostic-lane",
+        "context": [
+          "FAIL [ 8.26s] services/mcp/sdk-diagnostic-lane exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/services_mcp_sdk-diagnostic-lane.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: PQueue still owns the aborted admission until its turn; do not fabricate early release",
+          "0 !== 1",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/services/mcp/sdk-diagnostic-lane.test.js:86:12 {",
+          "generatedMessage: false,",
+          "... trimmed 6 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/semantic/native-flow-pull-writer",
+        "context": [
+          "FAIL [ 1.06s] indexing/semantic/native-flow-pull-writer exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_semantic_native-flow-pull-writer.attempt-1.failure.json",
+          "TypeError: Cannot read properties of undefined (reading 'analysis')",
+          "at collectNativeControlFlow (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/semantic/native-control-flow.js?pull-test:26:138)",
+          "at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/semantic/native-flow-pull-writer.test.js:61:19",
+          ""
+        ]
+      },
+      {
+        "id": "tooling/providers/provider-catalog-execution",
+        "context": [
+          "FAIL [ 1.03s] tooling/providers/provider-catalog-execution exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/tooling_providers_provider-catalog-execution.attempt-1.failure.json",
+          "node:internal/modules/run_main:111",
+          "triggerUncaughtException(",
+          "^",
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
+          "+ actual - expected",
+          "+ []",
+          "- [",
+          "... trimmed 11 lines",
+          ""
+        ]
+      },
+      {
+        "id": "indexing/workers/process-pool-lifecycle",
+        "context": [
+          "FAIL [ 1.49s] indexing/workers/process-pool-lifecycle exit 1",
+          "LOG:          ./.testLogs/run-1793257759837-o1m9c3/indexing_workers_process-pool-lifecycle.attempt-1.failure.json",
+          "at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {",
+          "code: 'ABORT_ERR'",
+          "}",
+          ""
+        ]
+      }
+    ]
+  },
+  "frontGate": {
+    "status": "passed",
+    "checks": [
+      {
+        "exitCode": 0,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-format.log",
+        "name": "format",
+        "durationMs": 33707.4479,
+        "command": "npm.cmd run format"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-config-budget.log",
+        "name": "config-budget",
+        "durationMs": 1844.2119,
+        "command": "npm.cmd run config:budget"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-env-check.log",
+        "name": "env-check",
+        "durationMs": 1177.2053,
+        "command": "npm.cmd run env:check"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-generated-freshness.log",
+        "name": "generated-freshness",
+        "durationMs": 10642.5331,
+        "command": "node tools/docs/generated-surfaces.js --check-freshness"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-command-surface.log",
+        "name": "command-surface",
+        "durationMs": 2468.2797,
+        "command": "node tools/ci/check-command-surface.js"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-workflow-contract.log",
+        "name": "workflow-contract",
+        "durationMs": 212.0529,
+        "command": "node tests/ci/workflow-contract.test.js"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "3e759fba76cf86b92f113e2ae9ffc63335beb398272d3c827b37bcf73439db24",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-gate.log",
+        "name": "gate",
+        "durationMs": 6173.9774,
+        "command": "node tests/run.js --lane gate --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .tmp/tasks/ci-and-p1-20261028/lsp-exit-gate.json --log-dir .tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-logs"
+      },
+      {
+        "exitCode": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "log": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-gate-diff-check.log",
+        "name": "diff-check",
+        "durationMs": 86.7612,
+        "command": "git diff --check"
+      }
+    ]
+  },
+  "finalAffectedChecks": [
+    {
+      "name": "format",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-final-format.log",
+        "bytes": 51,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+      }
+    },
+    {
+      "name": "freshness",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-final-freshness.log",
+        "bytes": 43,
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6"
+      }
+    },
+    {
+      "name": "workflow",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-final-workflow.log",
+        "bytes": 63,
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f"
+      }
+    },
+    {
+      "name": "gate",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/lsp-exit-final-gate.log",
+        "bytes": 3401,
+        "sha256": "29fd99d1f001f7ee9b610795aae67bb7f991874b28e1d795e3f8a6d34120fe3a"
+      }
+    }
+  ],
+  "coverageMapping": {
+    "originalArtifactActions": {
+      "actions": "original confirmation cancellation and actual editor invocation",
+      "copy": "original actual clipboard path assertion, now its sole native operation",
+      "export": "original export bytes, overwrite refusal/unchanged bytes and traversal/missing escaped file",
+      "negatives": [
+        "stale",
+        "missing",
+        "untrusted",
+        "cancel"
+      ],
+      "common": "all seven retain inventory/source-job/artifact identity, native exit, descendant reaping, terminal restoration and final job/warning checks"
+    },
+    "witnessDeadlineMs": 14000,
+    "captureDeadlineMs": 22000,
+    "fixtureDeadlineMs": 30000,
+    "jobs": 1,
+    "threads": 1,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "publicSurfaceChanged": false,
+    "wholeSuitePassed": false,
+    "finalHostedPass": false,
+    "newLocalSymlinks": false,
+    "localLinuxOrMacExecution": false
+  },
+  "remaining": [
+    "Final hosted real-server startup, complete Windows authority, macOS linking and partitioned native artifact execution",
+    "49 observed macOS integration failures; Windows integration still running at the recorded checkpoint",
+    "P1 1288/1315/1574 and 25 historical failure owners remain distinct"
+  ],
+  "provenance": "Parent plus exact source hashes; .tmp/.testLogs receipts are historical author-workspace observations, not clean-checkout prerequisites."
+}

@@ -53,3 +53,71 @@ Focused acceptance is deferred until the root validation phase:
 These are small fixtures, not full-index throughput evidence. Windows lifecycle
 qualification, supported optional backend parity and representative large-build
 RSS/disk/throughput measurements remain external acceptance boundaries.
+
+## Prepared semantic rows and sealed receipts
+
+The partition sink canonicalizes each untrusted envelope once while privately
+capturing that same traversal's payload bytes. It checks envelope byte accounting,
+row/schema limits, IDs and references before admission or writes. Prepared bytes
+are bounded by the existing batch allowance and do not alias producer objects.
+Member writes, offsets and hashes consume those exact bytes; a producer mutation
+after an IO await cannot rewrite an admitted row. Completion still requires data
+and offset fsync, directory durability and offset validation.
+
+Registration carries SHA-256 receipts for verified immutable semantic parts,
+offsets, evidence and frontier targets at their exact finalized paths. Generated
+JSON without a writer receipt still follows ordinary manifest hashing. Manifest
+construction refuses a sealed size differing from the current physical size;
+independent publication integrity validation remains mandatory.
+
+Compiler sessions build source, canonical-container and composite segment indexes
+once per session. Indexed candidates still require exact retained text, range,
+parent-source and mapping authority. Colliding source or canonical path identities
+fail closed; they do not select the first descriptor in an inventory scan.
+
+Shared syntax, analysis and ownership producers mint private prepared-entry
+receipts from canonical traversal. They retain immutable canonical row strings and
+a deeply frozen snapshot, use exact envelope byte accounting for batch formation,
+and let the sink validate schema/sequence/references without serializing the row
+again. Lookalike objects and arbitrary encoded JSON cannot forge a receipt. Mutable
+input callers continue through the checked sink path. Prepared objects are weakly
+owned and released with their bounded producer batch.
+
+## Build-owned source retention receipts
+
+UTF-8 source snapshots mint an opaque capability over immutable decoded text and
+its exact original-byte identity. Valid UTF-8 roundtrip equality is checked while
+snapshotting. Syntax and ownership partitions can retain that capability without
+rehashing or copying a borrowed mutable source buffer for every partition. Raw
+byte callers remain copied and SHA-256 validated on each request.
+Their private byte snapshot is captured before waiting for a serialized writer;
+the snapshot exposes identity metadata and never lends its mutable buffer.
+
+Retention is serialized by the existing per-account disk writer. At most 256
+receipt entries retain finalized path, source digest/length and verified physical
+authority; they retain no source buffers and do not cross disk accounts. A complete
+opened-file verification uses the shared contained descriptor owner and compares
+at most 64 KiB per read to the captured bytes, with stable identity/timestamps before
+and after the read and checks that the pathname still names that object. Reuse
+requires a regular
+file with meaningful device/inode and nanosecond change identity. Unsupported
+identity information, replacement or mutation returns to full verification.
+The receipt also pins the storage root's device/inode; a replaced root requires
+full verification even if a retained source file survives a directory move.
+Cancellation is checked after the asynchronous receipt probes. Internal work
+counters distinguish captured raw bytes, physical comparison bytes, completed
+verifications and successful receipt hits; they are not runtime qualification.
+Cancellation, conflicting contents, EEXIST winner checks, disk credits and fsync
+boundaries remain authoritative; publication validation independently checks final
+artifacts. External same-size/mtime mutations must invalidate the receipt through
+the physical change identity. Runtime and storage-platform qualification remains
+deferred for this implementation.
+
+Original read, write, sync and close failures stay with the shared descriptor
+owner. An unsettled failure cannot be classified as a missing file, publish a new
+name, delete a temporary or release its disk credit. Explicit close recovery
+closes only the original handle and never replays the read/write, installs a
+receipt or resumes publication. The serialized writer retains an unsettled
+failure as the next writer's prerequisite instead of starting new IO on that path.
+Uncertain temporary credits remain retained;
+reopening independently accounts the actual physical inventory.

@@ -1,6 +1,3 @@
-import { tri } from '../../../shared/tokenize.js';
-import { extractRegexLiteral } from './candidates.js';
-
 export const collectFilePrefilterMatches = ({
   fileMatchers,
   fileChargramN,
@@ -17,20 +14,21 @@ export const collectFilePrefilterMatches = ({
     let needle = null;
     if (matcher.type === 'substring') {
       needle = normalizeFilePrefilter(matcher.value);
-    } else if (matcher.type === 'regex') {
-      const literal = extractRegexLiteral(matcher.value.source || '');
-      needle = literal ? normalizeFilePrefilter(literal) : null;
+    } else {
+      // File matchers are OR-ed. An unprovable regex branch requires the full
+      // candidate superset, even when another branch has usable grams.
+      return null;
     }
-    if (!needle || needle.length < fileChargramN) continue;
-    const grams = tri(needle, fileChargramN);
-    if (!grams.length) continue;
+    if (!needle || !Number.isSafeInteger(fileChargramN) || needle.length < fileChargramN) return null;
+    const grams = [];
+    for (let offset = 0; offset <= needle.length - fileChargramN; offset++) {
+      grams.push(needle.slice(offset, offset + fileChargramN));
+    }
+    const buckets = [...new Set(grams)].map(gram => filterIndex.fileChargrams.get(gram));
+    if (buckets.some(bucket => !bucket || !bucket.size)) continue;
+    buckets.sort((a, b) => a.size - b.size);
     let candidateFiles = null;
-    for (const gram of grams) {
-      const bucket = filterIndex.fileChargrams.get(gram);
-      if (!bucket) {
-        candidateFiles = new Set();
-        break;
-      }
+    for (const bucket of buckets) {
       candidateFiles = candidateFiles ? intersectTwoSets(candidateFiles, bucket) : new Set(bucket);
       if (!candidateFiles.size) break;
     }

@@ -1,5 +1,8 @@
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
+import { createEmbeddingTokenEstimator } from '../../../src/shared/embedding-token-estimation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { embeddingPreparationWindows, runAdmittedEmbeddingPreparation } from './preparation-window.js';
 
 /**
  * Create per-file embeddings processor for code/doc payloads.
@@ -241,44 +244,32 @@ export const createFileEmbeddingsProcessor = ({
     return globalFlushInFlight;
   };
 
-  const enqueueGlobalBatchRequest = async ({ texts, label, tokenEstimates, groups }) => {
-    const bytes = Array.isArray(texts) ? texts.reduce((total, text) => total + String(text).length * 2 + 16, 0) : 0;
-    let complete, fail;
-    const result = new Promise((resolve, reject) => { complete = resolve; fail = reject; });
-    await requestAdmission.enqueue(() => {
-      const resolve = complete, reject = fail;
-      if (!globalBatchingEnabled) {
-        resolve([]);
-        return;
-      }
-      const normalizedTexts = Array.isArray(texts) ? texts : [];
-      const normalizedTokenEstimates = Array.isArray(tokenEstimates) && tokenEstimates.length === normalizedTexts.length
-        ? tokenEstimates
-        : null;
-      let requestTokens = 0;
-      for (let i = 0; i < normalizedTexts.length; i += 1) {
-        requestTokens += resolveTokenEstimate(normalizedTexts[i], normalizedTokenEstimates?.[i]);
-      }
-      globalPendingRequests.push({
-        texts: normalizedTexts,
-        tokenEstimates: normalizedTokenEstimates,
-        groups,
-        label,
-        resolve,
-        reject,
-        enqueuedAt: Date.now()
-      });
-      globalPendingTextCount += normalizedTexts.length;
-      globalPendingTokenCount += requestTokens;
-      if (hasGlobalCapacityPressure() || hasGlobalFillTarget()) {
-        void flushGlobalRequests();
-      } else {
-        scheduleGlobalFlushTimer();
-      }
-      return result;
-    }, { bytes });
-    return result;
-  };
+  const enqueueGlobalBatchRequest = ({ texts, label, tokenEstimates, groups }) => new Promise((resolve, reject) => {
+    const normalizedTexts = Array.isArray(texts) ? texts : [];
+    const normalizedTokenEstimates = Array.isArray(tokenEstimates) && tokenEstimates.length === normalizedTexts.length
+      ? tokenEstimates
+      : null;
+    let requestTokens = 0;
+    for (let i = 0; i < normalizedTexts.length; i += 1) {
+      requestTokens += resolveTokenEstimate(normalizedTexts[i], normalizedTokenEstimates?.[i]);
+    }
+    globalPendingRequests.push({
+      texts: normalizedTexts,
+      tokenEstimates: normalizedTokenEstimates,
+      groups,
+      label,
+      resolve,
+      reject,
+      enqueuedAt: Date.now()
+    });
+    globalPendingTextCount += normalizedTexts.length;
+    globalPendingTokenCount += requestTokens;
+    if (hasGlobalCapacityPressure() || hasGlobalFillTarget()) {
+      void flushGlobalRequests();
+    } else {
+      scheduleGlobalFlushTimer();
+    }
+  });
 
   const drainGlobalBatching = async () => {
     if (!globalBatchingEnabled) return;
@@ -316,10 +307,18 @@ export const createFileEmbeddingsProcessor = ({
     for (let i = 0; i < texts.length; i += 1) {
       const text = texts[i];
       const cacheable = canUseTextCache && canCacheText(text);
+      if (typeof text === 'string' && uniqueByText.has(text)) {
+        const slot = uniqueByText.get(text);
+        if (slot.cached) vectors[i] = slot.cached;
+        else uniqueIndices[slot.index].push(i);
+        batchDedupHits += 1;
+        continue;
+      }
       if (cacheable) {
         const cached = embeddingTextCache.get(text);
         if (isVectorLike(cached) && cached.length > 0) {
           vectors[i] = cached;
+          uniqueByText.set(text, { cached });
           cacheHits += 1;
           continue;
         }
@@ -327,13 +326,7 @@ export const createFileEmbeddingsProcessor = ({
       }
 
       if (typeof text === 'string') {
-        const priorSlot = uniqueByText.get(text);
-        if (priorSlot != null) {
-          uniqueIndices[priorSlot].push(i);
-          batchDedupHits += 1;
-          continue;
-        }
-        uniqueByText.set(text, uniqueTexts.length);
+        uniqueByText.set(text, { index: uniqueTexts.length });
       }
       uniqueTexts.push(text);
       uniqueIndices.push([i]);
@@ -344,103 +337,106 @@ export const createFileEmbeddingsProcessor = ({
       const computeTexts = [];
       const computeSlots = [];
       const computeGroups = [];
-      for (let i = 0; i < uniqueTexts.length; i += 1) {
-        const text = uniqueTexts[i];
-        const indices = uniqueIndices[i] || [];
-        const slot = { text, indices, claim: null };
-        const canJoin = canCoalesceInFlight && canUseTextCache && canCacheText(text) && typeof text === 'string';
-        if (canJoin) {
-          const claim = embeddingInFlightCoalescer.claim(text);
-          if (claim && claim.owner === false && claim.promise) {
-            pendingClaims.push({ indices, text, promise: claim.promise });
-            inFlightJoined += indices.length;
-            continue;
-          }
-          if (claim && claim.owner === true) {
-            slot.claim = claim;
-            inFlightOwned += indices.length;
-          }
-        }
-        computeTexts.push(text);
-        computeGroups.push(groups[indices[0]]);
-        computeSlots.push(slot);
-      }
-
-      let tokenEstimates = null;
-      if (estimateTokensBatch && computeTexts.length > 0) {
-        try {
-          const estimated = await estimateTokensBatch(computeTexts, label);
-          if (Array.isArray(estimated) && estimated.length === computeTexts.length) {
-            tokenEstimates = estimated.map((value) => Math.max(1, Math.floor(Number(value) || 1)));
-          }
-        } catch {
-          tokenEstimates = null;
-        }
-      }
-
-      onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
-        tokens: computeTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]), 0)
-          - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
-      let computed = [];
       try {
-        if (computeTexts.length > 0) {
-          if (globalBatchingEnabled) {
-            computed = await enqueueGlobalBatchRequest({
-              texts: computeTexts,
-              label,
-              tokenEstimates,
-              groups: computeGroups
-            });
-          } else {
-            computed = await runBatched({
-              texts: computeTexts,
-              batchSize: embeddingBatchSize,
-              maxBatchTokens: embeddingBatchTokenBudget,
-              estimateTokens: estimateEmbeddingTokens,
-              tokenEstimates,
-              groups: computeGroups,
-              embed: dispatch,
-              onBatch: batchObserver
-                ? (batchInfo) => {
-                  batchObserver({
-                    ...batchInfo,
-                    label
-                  });
-                }
-                : null
-            });
+        for (let i = 0; i < uniqueTexts.length; i += 1) {
+          const text = uniqueTexts[i];
+          const indices = uniqueIndices[i] || [];
+          const slot = { text, indices, claim: null };
+          const canJoin = canCoalesceInFlight && canUseTextCache && canCacheText(text) && typeof text === 'string';
+          if (canJoin) {
+            const claim = embeddingInFlightCoalescer.claim(text);
+            if (claim && claim.owner === false && claim.promise) {
+              pendingClaims.push({ indices, text, promise: claim.promise });
+              inFlightJoined += indices.length;
+              continue;
+            }
+            if (claim && claim.owner === true && claim.promise) {
+              slot.claim = claim;
+              slot.claimPending = true;
+              inFlightOwned += indices.length;
+            }
           }
-          assertVectorArrays(computed, computeTexts.length, label);
+          computeSlots.push(slot);
+          computeTexts.push(text);
+          computeGroups.push(groups[indices[0]]);
         }
-      } catch (err) {
-        for (const slot of computeSlots) {
-          slot.claim?.reject?.(err);
-        }
-        throw err;
-      }
 
-      for (let i = 0; i < computeSlots.length; i += 1) {
-        const slot = computeSlots[i];
-        const vector = computed[i] || null;
-        for (const targetIndex of slot.indices) {
-          vectors[targetIndex] = vector;
+        const computed = new Array(computeTexts.length);
+        onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
+          tokens: computeTexts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0)
+            - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
+        for (const window of embeddingPreparationWindows(computeTexts, requestAdmission.stats().maxPendingBytes)) {
+          const windowTexts = computeTexts.slice(window.start, window.end), windowGroups = computeGroups.slice(window.start, window.end);
+          const windowVectors = await runAdmittedEmbeddingPreparation(requestAdmission, window.bytes, async () => {
+            const estimate = createEmbeddingTokenEstimator({ estimate: estimateTokensBatch ? texts => estimateTokensBatch(texts, label) : null,
+              fallback: resolveTokenEstimate });
+            let tokenEstimates = null, failed = false, failure;
+            try {
+              tokenEstimates = await estimate?.(windowTexts);
+              onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
+                tokens: windowTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]) - resolveTokenEstimate(text), 0) });
+              let result;
+              if (globalBatchingEnabled) {
+                result = await enqueueGlobalBatchRequest({ texts: windowTexts, label, tokenEstimates, groups: windowGroups });
+              } else {
+                result = await runBatched({
+                  texts: windowTexts,
+                  batchSize: embeddingBatchSize,
+                  maxBatchTokens: embeddingBatchTokenBudget,
+                  estimateTokens: estimateEmbeddingTokens,
+                  tokenEstimates,
+                  groups: windowGroups,
+                  embed: dispatch,
+                  onBatch: batchObserver ? batchInfo => batchObserver({ ...batchInfo, label }) : null
+                });
+              }
+              assertVectorArrays(result, windowTexts.length, label);
+              return result;
+            } catch (error) { failed = true; failure = error; throw error; }
+            finally {
+              try { await tokenEstimates?.release?.(); }
+              catch (cleanup) { throw failed ? addStorageFailureContext(failure, {}, cleanup, { secondaryPresent: true }) : cleanup; }
+            }
+          });
+          for (let index = 0; index < windowVectors.length; index++) computed[window.start + index] = windowVectors[index];
         }
-        if (canUseTextCache && canCacheText(slot.text) && isVectorLike(vector) && vector.length > 0) {
-          embeddingTextCache.set(slot.text, vector);
-        }
-        slot.claim?.resolve?.(vector);
-      }
 
-      if (pendingClaims.length > 0) {
-        await Promise.all(pendingClaims.map(async (claim) => {
-          const vector = await claim.promise;
-          for (const targetIndex of claim.indices) {
+        for (let i = 0; i < computeSlots.length; i += 1) {
+          const slot = computeSlots[i];
+          const vector = computed[i] || null;
+          for (const targetIndex of slot.indices) {
             vectors[targetIndex] = vector;
           }
-          if (canUseTextCache && canCacheText(claim.text) && isVectorLike(vector) && vector.length > 0) {
-            embeddingTextCache.set(claim.text, vector);
+          if (canUseTextCache && canCacheText(slot.text) && isVectorLike(vector) && vector.length > 0) {
+            embeddingTextCache.set(slot.text, vector);
           }
-        }));
+          if (slot.claimPending) {
+            slot.claimPending = false;
+            slot.claim.resolve(vector);
+          }
+        }
+
+        if (pendingClaims.length > 0) {
+          await Promise.all(pendingClaims.map(async (claim) => {
+            const vector = await claim.promise;
+            for (const targetIndex of claim.indices) {
+              vectors[targetIndex] = vector;
+            }
+            if (canUseTextCache && canCacheText(claim.text) && isVectorLike(vector) && vector.length > 0) {
+              (embeddingTextCache.promote || embeddingTextCache.set).call(embeddingTextCache, claim.text, vector);
+            }
+          }));
+        }
+
+      } catch (error) {
+        let failure = error;
+        for (const slot of computeSlots) {
+          if (!slot.claimPending) continue;
+          slot.claimPending = false;
+          try { slot.claim.reject(failure); }
+          catch (claimError) { failure = addStorageFailureContext(failure, {}, claimError, { secondaryPresent: true }); }
+        }
+        throw failure;
       }
 
       usageObserver?.({

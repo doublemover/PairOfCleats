@@ -30,6 +30,7 @@ export const createBuildCheckpointTracker = ({
   let lastFlushedProcessed = null;
   let flushInFlight = null;
   let flushQueued = false;
+  let forceQueued = false;
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
 
   /**
@@ -43,6 +44,7 @@ export const createBuildCheckpointTracker = ({
    */
   const flush = ({ force = false } = {}) => {
     if (!force && lastFlushedProcessed === processed) return Promise.resolve();
+    forceQueued ||= force;
     if (flushInFlight) {
       flushQueued = true;
       return flushInFlight;
@@ -50,6 +52,8 @@ export const createBuildCheckpointTracker = ({
     flushInFlight = (async () => {
       do {
         flushQueued = false;
+        const forceThisFlush = forceQueued;
+        forceQueued = false;
         const nowIso = new Date().toISOString();
         const snapshotProcessed = processed;
         const snapshotTotal = Number.isFinite(totalFiles) ? totalFiles : null;
@@ -64,7 +68,7 @@ export const createBuildCheckpointTracker = ({
             }
           }, {
             durabilityClass: resolvedDurabilityClass,
-            waitForFlush: force || isRequiredBuildStateDurability(resolvedDurabilityClass)
+            waitForFlush: forceThisFlush || isRequiredBuildStateDurability(resolvedDurabilityClass)
           });
           if (outcome?.status === 'timed_out') {
             logLine(

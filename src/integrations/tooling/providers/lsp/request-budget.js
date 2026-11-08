@@ -3,6 +3,7 @@ import {
   toFiniteInt
 } from './hover-types.js';
 import { getLspProviderDelta, listLspProviderDeltas } from '../../../../index/tooling/lsp-provider-deltas.js';
+import { LSP_STRUCTURED_METHODS, LSP_HIERARCHY_REQUEST_CLASSES } from './observation-methods.js';
 
 const REQUEST_BUDGET_METHODS = Object.freeze({
   documentSymbol: 'textDocument/documentSymbol',
@@ -12,7 +13,8 @@ const REQUEST_BUDGET_METHODS = Object.freeze({
   inlayHints: 'textDocument/inlayHint',
   definition: 'textDocument/definition',
   typeDefinition: 'textDocument/typeDefinition',
-  references: 'textDocument/references'
+  references: 'textDocument/references',
+  ...Object.fromEntries(LSP_HIERARCHY_REQUEST_CLASSES.map(key => [key, LSP_STRUCTURED_METHODS[key]]))
 });
 
 const REQUEST_BUDGET_WEIGHTS = Object.freeze({
@@ -23,7 +25,8 @@ const REQUEST_BUDGET_WEIGHTS = Object.freeze({
   inlayHints: 0.9,
   definition: 1.4,
   typeDefinition: 1.5,
-  references: 1.8
+  references: 1.8,
+  ...Object.fromEntries(LSP_HIERARCHY_REQUEST_CLASSES.map(key => [key, 1.8]))
 });
 
 const REQUEST_BUDGET_P95_THRESHOLDS = Object.freeze({
@@ -34,7 +37,8 @@ const REQUEST_BUDGET_P95_THRESHOLDS = Object.freeze({
   inlayHints: 1800,
   definition: 2200,
   typeDefinition: 2200,
-  references: 2500
+  references: 2500,
+  ...Object.fromEntries(LSP_HIERARCHY_REQUEST_CLASSES.map(key => [key, 2500]))
 });
 
 const REQUEST_BUDGET_PROVIDER_WEIGHTS = Object.freeze(
@@ -158,7 +162,9 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
     inlayHints: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
     definition: Math.max(semanticDefinitionTargets, Math.ceil(selectedDocs * hoverMaxPerFile * 0.5)),
     typeDefinition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.35),
-    references: Math.ceil(selectedDocs * hoverMaxPerFile * 0.25)
+    references: Math.ceil(selectedDocs * hoverMaxPerFile * 0.25),
+    ...Object.fromEntries(LSP_HIERARCHY_REQUEST_CLASSES.filter(key => selection?.structuredRequestClasses?.includes(key))
+      .map(key => [key, Math.min(selectedTargets, toNonNegativeInt(selection?.structuredMaxRequests || 0))]))
   };
   const weightedCost = Object.entries(baseByKind).reduce(
     (sum, [kind, value]) => sum + (Number(value || 0) * Number(REQUEST_BUDGET_WEIGHTS[kind] || 1)),

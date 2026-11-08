@@ -37,10 +37,10 @@ export const createRepoResolver = ({ defaultRepo, allowedRepoRoots = [] }) => {
       candidateStat = null;
     }
     if (!candidateStat) {
-      throw new Error(`Repo path not found: ${candidate}`);
+      throw new Error('Configured repository was not found.');
     }
     if (!candidateStat.isDirectory()) {
-      throw new Error(`Repo path is not a directory: ${candidate}`);
+      throw new Error('Configured repository is not a directory.');
     }
     const resolvedRoot = value ? resolveRepoRoot(candidateCanonical) : candidateCanonical;
     const resolvedCanonical = await toRealPath(resolvedRoot);

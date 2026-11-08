@@ -2,56 +2,121 @@
   {
     "query": "greet",
     "mode": "code",
-    "expect": [{ "file": "src/index.js", "name": "greet" }]
+    "expect": [
+      {
+        "file": "src/index.js",
+        "name": "greet",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "sum",
     "mode": "code",
-    "expect": [{ "file": "src/index.js", "name": "sum" }]
+    "expect": [
+      {
+        "file": "src/index.js",
+        "name": "sum",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "clamp",
     "mode": "code",
-    "expect": [{ "file": "src/util.js", "name": "clamp" }]
+    "expect": [
+      {
+        "file": "src/util.js",
+        "name": "clamp",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "Greeter",
     "mode": "code",
-    "expect": [{ "file": "src/sample.py", "name": "Greeter" }]
+    "expect": [
+      {
+        "file": "src/sample.py",
+        "name": "Greeter",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "docstring",
     "mode": "code",
-    "expect": [{ "file": "src/sample.py" }]
+    "expect": [
+      {
+        "file": "src/sample.py",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "sayHello",
     "mode": "code",
-    "expect": [{ "file": "src/sample.swift", "name": "Greeter.sayHello" }]
+    "expect": [
+      {
+        "file": "src/sample.swift",
+        "name": "Greeter.sayHello",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "objcGreet",
     "mode": "code",
-    "expect": [{ "file": "src/sample.m", "name": "OCGreeterImpl.objcGreet:" }]
+    "expect": [
+      {
+        "file": "src/sample.m",
+        "name": "OCGreeterImpl.objcGreet:",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "add_numbers",
     "mode": "code",
-    "expect": [{ "file": "src/sample.c", "name": "add_numbers" }]
+    "expect": [
+      {
+        "file": "src/sample.c",
+        "name": "add_numbers",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "cppMultiply",
     "mode": "code",
-    "expect": [{ "file": "src/sample.cpp", "name": "cppMultiply" }]
+    "expect": [
+      {
+        "file": "src/sample.cpp",
+        "name": "cppMultiply",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "rust_greet",
     "mode": "code",
-    "expect": [{ "file": "src/sample.rs", "name": "rust_greet" }]
+    "expect": [
+      {
+        "file": "src/sample.rs",
+        "name": "rust_greet",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "guide",
     "mode": "prose",
-    "expect": [{ "file": "docs/guide.md", "name": "Guide" }]
+    "expect": [
+      {
+        "file": "docs/guide.md",
+        "name": "Guide",
+        "mode": "prose"
+      }
+    ]
   }
 ]

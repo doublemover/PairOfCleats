@@ -5,7 +5,7 @@ await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
 const { createCli } = await import('../../../src/shared/cli.js');
 const { checksumString } = await import('../../../src/shared/hash.js');
-const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
+const { formatStats, runSampledBench, writeJsonWithDir } = await import('../micro/utils.js');
 const { clampInt, createRng, randomAlphaText } = await import('./shared.js');
 
 const rawArgs = process.argv.slice(2);
@@ -101,40 +101,26 @@ function buildSegmentSequence({ segmentsCount, segmentPool, seed }) {
 async function runHashBench({ segments, samples, useCache }) {
   const cache = new Map();
   let cacheHits = 0;
-  const timings = [];
-  const totalIterations = segments.length;
-  const perSample = Math.max(1, Math.floor(totalIterations / samples));
-  const remainder = totalIterations - perSample * samples;
-  let totalMs = 0;
   let index = 0;
-  for (let i = 0; i < samples; i += 1) {
-    const loops = perSample + (i < remainder ? 1 : 0);
-    const start = process.hrtime.bigint();
-    for (let j = 0; j < loops; j += 1) {
-      const segment = segments[index];
-      index += 1;
-      if (useCache) {
-        const cached = cache.get(segment.key);
-        if (cached) {
-          cacheHits += 1;
-          continue;
-        }
-      }
-      const digest = await checksumString(segment.text);
-      if (useCache) {
-        cache.set(segment.key, digest.value);
+  const measured = await runSampledBench(async () => {
+    const segment = segments[index];
+    index += 1;
+    if (useCache) {
+      const cached = cache.get(segment.key);
+      if (cached) {
+        cacheHits += 1;
+        return;
       }
     }
-    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-    timings.push(elapsed);
-    totalMs += elapsed;
-  }
-  const stats = summarizeDurations(timings);
-  const opsPerSec = totalMs > 0 ? totalIterations / (totalMs / 1000) : 0;
+    const digest = await checksumString(segment.text);
+    if (useCache) {
+      cache.set(segment.key, digest.value);
+    }
+  }, { iterations: segments.length, samples, warmup: 0 });
+  const opsPerSec = measured.totalMs > 0 ? measured.completedOperations / (measured.totalMs / 1000) : 0;
   return {
-    totalMs,
+    ...measured,
     opsPerSec,
-    stats,
     cacheHits,
     cacheSize: cache.size
   };

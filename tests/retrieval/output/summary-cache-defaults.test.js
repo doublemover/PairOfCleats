@@ -12,20 +12,29 @@ import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-summary-cache-'));
 const root = path.join(tempRoot, 'repo');
-const aliasRoot = path.join(tempRoot, 'alias');
 await fs.mkdir(root);
-await fs.symlink(root, aliasRoot, process.platform === 'win32' ? 'junction' : 'dir');
+// Portable canonical spelling; physical reparse equivalence has a separate owner.
+const aliasRoot = root + path.sep + '.';
 const file = path.join(root, 'sample.txt');
 await fs.writeFile(file, 'alpha beta gamma delta');
 // Summary reads use canonical paths, including macOS's /var -> /private/var.
 const canonicalFile = toRealPathSync(file);
 const first = { file: 'sample.txt', start: 0, end: 10 };
 const second = { file: 'sample.txt', start: 11, end: 22 };
-const originalRead = fsSync.readFileSync;
+const originalOpen = fsSync.openSync, originalRead = fsSync.readSync, originalClose = fsSync.closeSync;
+const sourceDescriptors = new Set();
 let reads = 0;
-fsSync.readFileSync = function (input, ...args) {
-  if (input === canonicalFile) reads += 1;
-  return originalRead.call(this, input, ...args);
+fsSync.openSync = function (input, ...args) {
+  const fd = originalOpen.call(this, input, ...args);
+  if (typeof input === 'string' && path.resolve(input) === canonicalFile) sourceDescriptors.add(fd);
+  return fd;
+};
+fsSync.readSync = function (fd, ...args) {
+  if (sourceDescriptors.has(fd)) reads++;
+  return originalRead.call(this, fd, ...args);
+};
+fsSync.closeSync = function (fd) {
+  const value = originalClose.call(this, fd); sourceDescriptors.delete(fd); return value;
 };
 try {
   await withTemporaryEnv({ PAIROFCLEATS_FILE_CACHE_MAX: undefined, PAIROFCLEATS_SUMMARY_CACHE_MAX: undefined }, () => {
@@ -35,7 +44,7 @@ try {
     assert.equal(getBodySummary(root, second), 'gamma delta');
     assert.equal(reads, 1, 'repeated and distinct chunks should reuse the admitted file text');
     assert.equal(getSummaryCache().stats.hits, 1);
-    assert.equal(getFileTextCache().stats.hits, 1);
+    assert.equal(getFileTextCache().stats.hits, 2, 'even a summary hit first obtains render-owned source admission');
     assert.equal(getFileTextCache().stats.maxSizeBytes, DEFAULT_CACHE_MB.fileText * BYTES_PER_MB);
     assert.equal(getSummaryCache().stats.maxSizeBytes, DEFAULT_CACHE_MB.summary * BYTES_PER_MB);
 
@@ -44,9 +53,9 @@ try {
     assert.equal(getBodySummary(aliasRoot, first), 'alpha beta');
     assert.equal(getBodySummary(root, first), 'alpha beta');
     assert.equal(getBodySummary(root, second), 'gamma delta');
-    assert.equal(reads, 1, 'symlinked and real roots should share one admitted file read');
+    assert.equal(reads, 1, 'canonical root spellings should share one admitted file read');
     assert.equal(getSummaryCache().stats.hits, 1);
-    assert.equal(getFileTextCache().stats.hits, 1);
+    assert.equal(getFileTextCache().stats.hits, 2);
 
     configureOutputCaches({ cacheConfig: { fileText: { maxMb: 0.0001 }, summary: { maxMb: 0.0001 } } });
     for (const cache of [getFileTextCache(), getSummaryCache()]) {
@@ -78,7 +87,7 @@ try {
   });
   console.log('summary cache defaults passed: actual one-read reuse, byte caps, explicit zero/entry controls');
 } finally {
-  fsSync.readFileSync = originalRead;
+  fsSync.openSync = originalOpen; fsSync.readSync = originalRead; fsSync.closeSync = originalClose;
   configureOutputCaches();
   await fs.rm(tempRoot, { recursive: true, force: true });
 }

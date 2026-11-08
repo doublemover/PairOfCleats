@@ -5,13 +5,17 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { LANGUAGE_REGISTRY } from '../../../src/index/language-registry/registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from '../../../src/index/language-registry/descriptors.js';
 import { getLanguageForFile } from '../../../src/index/language-registry/registry.js';
+import { getLanguageRouteForFile } from '../../../src/index/language-registry/routing.js';
 
 applyTestEnv();
 
 const languageIds = new Set(LANGUAGE_REGISTRY.map((entry) => entry.id));
+const descriptorIds = new Set(LANGUAGE_ROUTE_DESCRIPTORS.map(entry => entry.id));
+for (const id of languageIds) assert.ok(descriptorIds.has(id), `adapter has no canonical routing metadata: ${id}`);
 for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
   assert.ok(languageIds.has(descriptor.id), `descriptor id has no adapter: ${descriptor.id}`);
   for (const ext of descriptor.extensions || []) {
+    assert.equal(getLanguageRouteForFile(ext, `fixture${ext}`)?.id, getLanguageForFile(ext, `fixture${ext}`)?.id);
     const resolved = getLanguageForFile(ext, `src/example${ext}`);
     assert.equal(
       resolved?.id,
@@ -20,6 +24,7 @@ for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
     );
   }
   for (const filename of descriptor.specialFilenames || []) {
+    assert.equal(getLanguageRouteForFile(path.extname(filename), filename)?.id, descriptor.id);
     const resolved = getLanguageForFile(path.extname(filename), filename);
     assert.equal(
       resolved?.id,
@@ -29,6 +34,7 @@ for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
   }
   for (const prefix of descriptor.specialPrefixes || []) {
     const fileName = `${prefix}.local`;
+    assert.equal(getLanguageRouteForFile(path.extname(fileName), fileName)?.id, descriptor.id);
     const resolved = getLanguageForFile(path.extname(fileName), fileName);
     assert.equal(
       resolved?.id,

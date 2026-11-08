@@ -42,7 +42,7 @@ try {
   assert.equal(phase.preparedRepos.get(plans[2].repoPath).prerequisite, null, 'a top-level failure cannot be measured as ready');
   assert.equal(isPreparedBenchmarkRootCurrent(good, phase.preparedRepos.get(good)), true);
   fs.renameSync(good, `${good}-old`);
-  fs.symlinkSync(`${good}-old`, good, 'dir');
+  fs.symlinkSync(`${good}-old`, good, process.platform === 'win32' ? 'junction' : 'dir');
   assert.equal(isPreparedBenchmarkRootCurrent(good, phase.preparedRepos.get(good)), false, 'replacement path fails admission');
   const doctor = { providers: [{ id: 'lsp-rust-analyzer', enabled: true, available: false, status: 'warn',
     checks: [{ name: 'rust_workspace_trust_required', status: 'warn', message: 'exact grant required' }] }] };

@@ -1,0 +1,1 @@
+{"schemaVersion":1,"cases":["data-false","data-throw","data-swap","offset-false","offset-throw","offset-swap","pending-write","pending-release","pending-cleanup","pending-release-after-error","null-cleanup","undefined-cleanup","false-cleanup","frozen-cleanup","null-release","false-release"]}

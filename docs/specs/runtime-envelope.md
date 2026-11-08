@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-This document describes the RuntimeEnvelope surface produced by `src/shared/runtime-envelope.js`.
+This document describes the RuntimeEnvelope surface produced by `src/shared/runtime-envelope/`.
 It reflects current behavior in code and tests.
 
 ## 1) Goals
@@ -272,7 +272,7 @@ Thresholds are centralized in `src/shared/ops-resource-visibility.js` as
 
 ## 7) Implementation references
 
-- Runtime envelope: `src/shared/runtime-envelope.js`
+- Runtime envelope: `src/shared/runtime-envelope/`
 - Runtime construction: `src/index/build/runtime/runtime.js`
 - Thread limits: `src/shared/threads.js`
 

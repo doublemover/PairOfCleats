@@ -10,6 +10,7 @@ import { repoRoot } from '../../helpers/root.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
+import { admitCompilationDatabase } from '../../../src/index/tooling/compile-commands.js';
 
 const rootEnv = applyTestEnv({ syncProcess: false });
 
@@ -75,6 +76,14 @@ const rootEnv = applyTestEnv({ syncProcess: false });
 {
   const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tooling-config-load-'));
   try {
+    const defaultClangd = getToolingConfig(tempRoot, {}).clangd;
+    assert.equal(Object.hasOwn(defaultClangd, 'compileCommandsDir'), false,
+      'normalization cannot turn an absent database selection into an explicitly empty path');
+    assert.equal((await admitCompilationDatabase({ rootDir: tempRoot, config: defaultClangd })).status, 'missing');
+    const emptyClangd = getToolingConfig(tempRoot, { tooling: { clangd: { compileCommandsDir: '' } } }).clangd;
+    assert.equal(emptyClangd.compileCommandsDir, '');
+    assert.equal((await admitCompilationDatabase({ rootDir: tempRoot, config: emptyClangd })).status, 'invalid-selection',
+      'an explicitly empty selection remains invalid after normalization');
     await fsPromises.writeFile(
       path.join(tempRoot, '.pairofcleats.json'),
       JSON.stringify({

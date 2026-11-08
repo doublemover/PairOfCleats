@@ -29,12 +29,9 @@ const { fixtureRoot, codeDir, env } = await ensureFixtureIndex({
   requiredModes: ['code']
 });
 
-const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false }).catch(() => []);
-const partialFlows = await loadJsonArrayArtifact(codeDir, 'risk_partial_flows', { strict: false }).catch(() => []);
-if ((!Array.isArray(flows) || flows.length === 0) && (!Array.isArray(partialFlows) || partialFlows.length === 0)) {
-  console.log('risk flows unavailable; skipping risk explain parity test.');
-  process.exit(0);
-}
+const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false });
+const partialFlows = await loadJsonArrayArtifact(codeDir, 'risk_partial_flows', { strict: false });
+assert.ok(Array.isArray(flows) && flows.length, 'fixture must publish a positive flow for risk explain parity');
 
 const flow = Array.isArray(flows) && flows.length ? flows[0] : null;
 const partialFlow = Array.isArray(partialFlows) && partialFlows.length ? partialFlows[0] : null;

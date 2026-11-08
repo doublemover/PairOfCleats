@@ -1,10 +1,12 @@
+import { lookupMemberIdentity } from '../data/member-identity.js';
 export const createEdgeResolvers = ({
   fileByMember,
   memberColorById,
   fileColorByPath,
   memberAnchors,
   fileAnchors,
-  useMemberAnchors
+  useMemberAnchors,
+  sourceIndex=null
 }) => {
   const normalizeMemberId = (value) => {
     if (value === null || value === undefined || value === '') return null;
@@ -16,19 +18,14 @@ export const createEdgeResolvers = ({
     if (!endpoint) return null;
     if (endpoint.file) return endpoint.file;
     const memberKey = normalizeMemberId(endpoint.member);
-    if (memberKey) return fileByMember.get(memberKey) || fileByMember.get(endpoint.member) || null;
+    if (memberKey) return fileByMember.get(endpoint.member) || fileByMember.get(memberKey) || null;
     return null;
   };
 
   const resolveEdgeColor = (endpoint) => {
     if (!endpoint) return null;
-    const memberKey = normalizeMemberId(endpoint.member);
-    if (memberKey && memberColorById.has(memberKey)) {
-      return memberColorById.get(memberKey);
-    }
-    if (endpoint.member !== undefined && endpoint.member !== null && memberColorById.has(endpoint.member)) {
-      return memberColorById.get(endpoint.member);
-    }
+    const memberColor=lookupMemberIdentity(memberColorById,endpoint.member,sourceIndex);
+    if(memberColor)return memberColor;
     if (endpoint.file && fileColorByPath.has(endpoint.file)) {
       return fileColorByPath.get(endpoint.file);
     }
@@ -42,11 +39,8 @@ export const createEdgeResolvers = ({
   const resolveAnchor = (endpoint, fileOverride) => {
     if (!endpoint) return null;
     if (useMemberAnchors) {
-      const memberKey = normalizeMemberId(endpoint.member);
-      if (memberKey && memberAnchors.has(memberKey)) return memberAnchors.get(memberKey);
-      if (endpoint.member !== undefined && endpoint.member !== null && memberAnchors.has(endpoint.member)) {
-        return memberAnchors.get(endpoint.member);
-      }
+      const memberAnchor=lookupMemberIdentity(memberAnchors,endpoint.member,sourceIndex);
+      if(memberAnchor)return memberAnchor;
     }
     if (endpoint.file && fileAnchors.has(endpoint.file)) return fileAnchors.get(endpoint.file);
     const fileKey = fileOverride || resolveEdgeFile(endpoint);

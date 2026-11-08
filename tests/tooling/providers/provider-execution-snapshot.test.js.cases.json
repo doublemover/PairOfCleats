@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["environment", "cwd", "command", "arguments", "configured", "module", "module-mismatch", "missing-environment", "immutable", "coalesced", "resource-receiver", "late-pending", "post-check-failure"]
+}

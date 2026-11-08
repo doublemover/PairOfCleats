@@ -11,7 +11,7 @@ import { collectConfiguredOutput } from '../../src/index/tooling/lsp-provider/ru
 import { collectLspTypes } from '../../src/integrations/tooling/providers/lsp.js';
 import { getToolingRegistry } from '../../tools/tooling/utils.js';
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-zig-authority-'));
+const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'poc-zig-authority-')));
 const repo = path.join(root, 'repo');
 const outside = path.join(root, 'outside');
 fs.mkdirSync(repo);

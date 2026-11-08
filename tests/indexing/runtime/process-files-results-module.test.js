@@ -12,7 +12,7 @@ const checkpoint = {
   }
 };
 
-const result = await finalizeStage1ProcessingResult({
+const input = {
   mode: 'code',
   log() {},
   logLine() {},
@@ -83,7 +83,8 @@ const result = await finalizeStage1ProcessingResult({
     }
   },
   tokenizationStats: { tokens: 12 }
-});
+};
+const result = await finalizeStage1ProcessingResult(input);
 
 assert.equal(checkpointFinished, 1, 'expected finalize helper to await checkpoint completion');
 assert.equal(result.tokenizationStats.tokens, 12);
@@ -93,5 +94,20 @@ assert.deepEqual(state.postingsQueueStats, { pendingCount: 0, pendingBytes: 0 })
 assert.equal(timing.shards.enabled, true);
 assert.equal(timing.watchdog.stallRecovery.softKickAttempts, 1);
 assert.equal(Array.isArray(state.stage1Windows.windows), true);
+
+for (const indices of [[0, 2], [7, 11, 20], []]) {
+  const start = indices[0] || 0;
+  const successor = indices.length ? indices[indices.length - 1] + 1 : start;
+  const sparse = { ...input, expectedOrderIndices: indices, startOrderIndex: start,
+    getStage1ProgressSnapshot: () => ({ count: indices.length, total: indices.length, completedOrderIndices: indices }),
+    orderedAppender: { snapshot: () => ({ terminalCount: indices.length, committedCount: indices.length,
+      totalSeqCount: indices.length, nextCommitSeq: successor }) } };
+  await finalizeStage1ProcessingResult(sparse);
+  for (const invalid of [successor + 1, -1, NaN, 0.5]) {
+    await assert.rejects(finalizeStage1ProcessingResult({ ...sparse,
+      orderedAppender: { snapshot: () => ({ ...sparse.orderedAppender.snapshot(), nextCommitSeq: invalid }) } }),
+    { code: 'STAGE1_COMMIT_CURSOR_INVARIANT' });
+  }
+}
 
 console.log('process-files results module test passed');

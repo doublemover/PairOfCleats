@@ -201,3 +201,27 @@ Non-goals (v1):
 - global centrality algorithms
 - graph ML models
 - cross-repo ranking signals (belongs in federation phase)
+
+## Generation preparation and measured work
+
+Lookup indexes and demanded sorted call/usage neighbors share the admitted graph
+object's weak lifetime. Admitted graphs are immutable; replacing a generation
+uses a new graph object. Query width/filters never mutate shared adjacency.
+Degree-only ranking performs no proximity preparation or traversal.
+
+Rank-stage metrics, including explain=false, retain node-index slots visited,
+adjacency inputs/lists built, cache hits and preparation elapsed time separately
+from traversal edge work. Zero traversal work does not imply zero setup cost.
+Preparation measurements describe this rank execution; cached result payloads
+retain their original producer observations. Cooperative traversal limits do not
+claim that first-use index construction or a single sorting operation is preemptible.
+
+The explicit internal command
+`node tests/retrieval/ranking/qualification-graph-ranking-cost.js`
+records six independent generation trials with 65,536 neighbors and five warm
+repetitions per trial, separately for degree-only and bounded proximity. It checks
+identical scored results and warm preparation counts before recording raw timings.
+Module import/process startup is excluded; memory fields are before/after
+observations rather than transient peaks. Ordinary CI owns the deterministic
+operation-count regression; these serial measurements support only their recorded
+source/workload and do not establish an application latency improvement.

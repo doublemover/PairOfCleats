@@ -1,3 +1,5 @@
+import { RETRIEVAL_EXECUTION_MODES, isRetrievalExecution } from '../../contracts/retrieval-execution.js';
+
 const RETRIEVAL_MODES = ['code', 'prose', 'extractedProse', 'records'];
 
 const normalizeRequestedBackend = (backendPolicyInfo = null) => {
@@ -53,6 +55,10 @@ export function buildRetrievalMetadata({
   backendLabel,
   backendPolicyInfo = null,
   cacheInfo = null,
+  executionOutcomes = null,
+  effectivePlanIdentity = null,
+  scorePolicyIdentity = null,
+  effectiveSystemIdentity = null,
   idxCode = null,
   idxProse = null,
   idxExtractedProse = null,
@@ -64,7 +70,10 @@ export function buildRetrievalMetadata({
   const requested = normalizeRequestedBackend(backendPolicyInfo);
   const forced = isForcedBackendSelection(backendPolicyInfo);
   const availabilityDriven = hasAvailabilityFallback(backendPolicyInfo) || backendPolicyInfo?.backendDisabled === true;
-  const fallbackDerived = availabilityDriven || backendPolicyInfo?.backendDisabled === true;
+  const executionByMode = Object.fromEntries(RETRIEVAL_EXECUTION_MODES
+    .filter(mode => isRetrievalExecution(executionOutcomes?.[mode], mode)).map(mode => [mode, executionOutcomes[mode]]));
+  const fallbackDerived = availabilityDriven || backendPolicyInfo?.backendDisabled === true
+    || Object.values(executionByMode).some(outcome => outcome.status === 'partial');
   const selectionKind = forced || (requested && requested !== 'auto') ? 'requested' : 'policy';
   const byMode = {
     code: normalizeModeFreshness('code', idxCode, indexSignaturePayload),
@@ -77,6 +86,12 @@ export function buildRetrievalMetadata({
   );
 
   return {
+    effectiveSystemIdentity: typeof effectiveSystemIdentity === 'string' && /^esp1-[a-f0-9]{64}$/.test(effectiveSystemIdentity)
+      ? effectiveSystemIdentity : null,
+    scorePolicyIdentity: typeof scorePolicyIdentity === 'string' && /^sqp1-[a-f0-9]{64}$/.test(scorePolicyIdentity)
+      ? scorePolicyIdentity : null,
+    effectivePlanIdentity: typeof effectivePlanIdentity === 'string' && /^eqp1-[a-f0-9]{64}$/.test(effectivePlanIdentity)
+      ? effectivePlanIdentity : null,
     backend: {
       selected: typeof backendLabel === 'string' && backendLabel.trim() ? backendLabel : null,
       requested,
@@ -88,7 +103,8 @@ export function buildRetrievalMetadata({
     },
     fidelity: {
       status: fallbackDerived ? 'fallback-derived' : 'complete',
-      fallbackDerived
+      fallbackDerived,
+      ...(Object.keys(executionByMode).length ? { byMode: executionByMode } : {})
     },
     freshness: {
       activeGeneration: generationContext

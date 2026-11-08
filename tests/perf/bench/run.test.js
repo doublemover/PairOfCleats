@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,10 +9,9 @@ import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-option
 import { createDisplay } from '../../../src/shared/cli/display.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js';
-import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
+import { readQueryInputPlan, resolveTopNAndLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
@@ -23,7 +23,14 @@ import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-b
 import { resolveBenchSqliteModeStatus } from '../../../tools/bench/language/sqlite-mode-status.js';
 import { createBenchQueryCapabilityCollector, formatBenchQueryCapabilityLines } from '../../../tools/bench/language/query-capabilities.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
-import { createSearchWorkerPool, resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
+import { resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
+import { executeBenchQueryPlan } from './query-execution.js';
+import { createBenchProcessTreeSampler } from '../../../tools/bench/language/process-tree-memory.js';
+import { createBenchQueryOutcomeCollector } from '../../../tools/bench/language/query-outcomes.js';
+import { collectBenchmarkArtifactReport, qualifyBenchmarkArtifactGeneration, benchmarkArtifactFailureReceipt } from '../../../tools/bench/language/artifact-report.js';
+import { createRetrievalEvidenceRegistry } from '../../../tools/shared/retrieval-execution-evidence.js';
+import { captureBenchmarkQueryResults } from '../../../tools/bench/language/query-results.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const root = process.cwd();
 const originalRawArgs = process.argv.slice(2);
@@ -57,7 +64,7 @@ if (testingDefaultsEnabled) {
 }
 if (testingDefaultsEnabled) {
   applyTestEnv({
-    cacheRoot: path.join(root, '.testCache', 'bench-run'),
+    cacheRoot: (await prepareIsolatedTestCacheDir('bench-run')).dir,
     embeddings: 'stub',
     testConfig: createFastIndexingTestConfig()
   });
@@ -110,26 +117,18 @@ if (safeRegex.test('a'.repeat(100))) {
 }
 
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
-const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
 const queryWorkerPath = path.join(root, 'tests', 'perf', 'bench', 'query-worker.js');
 
 const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
-const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
+const queriesPath = argv.queries != null ? path.resolve(argv.queries) : defaultQueriesPath;
 
-const queries = await readQueryFileSafe(queriesPath, { allowJson: false });
-if (!queries.length) {
-  fatalExit(`No queries found at ${queriesPath}`);
-}
-
-const { topN, limit } = resolveTopNAndLimit({
-  top: argv.top,
-  limit: argv.limit,
-  defaultTop: 5,
-  defaultLimit: 0
-});
-const selectedQueries = selectQueriesByLimit(queries, limit);
+const { topN, limit } = resolveTopNAndLimit({ top: argv.top, limit: argv.limit, defaultTop: 5, defaultLimit: 0 });
+let queryPlan;
+try { queryPlan = await readQueryInputPlan(queriesPath, { limit, explicit: argv.queries != null }); }
+catch (error) { fatalExit(`[${error.code || 'ERR_QUERY_INPUT'}] ${error.message}`); }
+const selectedQueries = queryPlan.cases.map(entry => entry.query);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
 const annEnabled = annFlagPresent ? argv.ann === true : true;
 const annArg = annEnabled ? '--ann' : '--no-ann';
@@ -185,10 +184,8 @@ if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
   logBench('[bench] Missing index artifacts; enabling --build-index.');
 }
-if (needsSqlite && !buildSqlite && ['code', 'prose'].some((mode) => {
-  const status = resolveSqliteModeStatus(mode);
-  return !status.dbExists && !status.zeroState;
-})) {
+if (needsSqlite && !buildSqlite && (await Promise.all(['code', 'prose'].map(resolveSqliteModeStatus)))
+  .some(status => !status.dbExists && !status.zeroState)) {
   buildSqlite = true;
   logBench('[bench] Missing sqlite artifacts; enabling --build-sqlite.');
 }
@@ -277,24 +274,6 @@ function runSearch(pool, query, backend) {
   return pool.run(args, { query, backend });
 }
 
-function applyBackendWorkerPlan(plan, backend) {
-  const normalizedBackend = String(backend || '').trim().toLowerCase();
-  const baseEffective = Math.max(1, Math.floor(Number(plan?.effectiveConcurrency) || 1));
-  if (normalizedBackend === 'sqlite') {
-    return {
-      ...plan,
-      effectiveConcurrency: 1,
-      reason: baseEffective === 1
-        ? (plan?.reason || 'sqlite_backend_serialized')
-        : 'sqlite_backend_serialized'
-    };
-  }
-  return {
-    ...plan,
-    effectiveConcurrency: baseEffective
-  };
-}
-
 function buildQueryWorkerEnv() {
   const env = { ...benchEnv };
   if (stubEmbeddings) {
@@ -361,6 +340,7 @@ function runBenchChildProcess(args, env, failureLabel) {
   const start = Date.now();
   const result = spawnSync(process.execPath, args, {
     env,
+    windowsHide: true,
     encoding: 'utf8',
     stdio: jsonOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
@@ -451,8 +431,8 @@ const queryBackendDecision = resolveBenchQueryBackends({
   requestedBackends,
   requestedModes: testHarnessSearchMode ? [testHarnessSearchMode] : ['code', 'prose'],
   sqliteModes: {
-    code: resolveSqliteModeStatus('code'),
-    prose: resolveSqliteModeStatus('prose')
+    code: await resolveSqliteModeStatus('code'),
+    prose: await resolveSqliteModeStatus('prose')
   },
   sqlitePaths: (() => {
     const paths = resolveSqlitePaths(runtimeRoot, userConfig);
@@ -491,6 +471,7 @@ const runQueries = async (requestedConcurrency) => {
   const memoryRss = {};
   const hitCounts = {};
   const resultCounts = {};
+  const resultCountsByMode = {};
   const missTaxonomyByBackend = {};
   const missTaxonomyLowHitByBackend = {};
   const tallyMissTaxonomy = (target, labels = []) => {
@@ -510,6 +491,7 @@ const runQueries = async (requestedConcurrency) => {
     memoryRss[backend] = [];
     hitCounts[backend] = 0;
     resultCounts[backend] = [];
+    resultCountsByMode[backend] = {};
     missTaxonomyByBackend[backend] = new Map();
     missTaxonomyLowHitByBackend[backend] = new Map();
   }
@@ -557,74 +539,47 @@ const runQueries = async (requestedConcurrency) => {
   );
   logQueryProgress(true);
   const queryWorkerEnv = buildQueryWorkerEnv();
-  const workerPlans = Object.fromEntries(await Promise.all(backends.map(async (backend) => {
-    const basePlan = await resolveAdaptiveQueryWorkerCount({
-      requestedConcurrency,
-      backends: [backend],
-      runtimeRoot,
-      userConfig
-    });
-    return [backend, applyBackendWorkerPlan(basePlan, backend)];
-  })));
-  const requestedWorkerCount = Math.max(1, Math.min(requestedConcurrency, queryTasks.length || 1));
-  for (const backend of backends) {
-    const plan = workerPlans[backend];
-    const backendQueryCount = queryTasks.filter((task) => task.backend === backend).length;
-    const effectiveConcurrency = Math.max(
-      1,
-      Math.min(Number(plan?.effectiveConcurrency) || 1, backendQueryCount || 1)
-    );
-    plan.effectiveConcurrency = effectiveConcurrency;
-    logBench(
-      `[bench] Query worker pool backend=${backend} requested=${requestedWorkerCount} effective=${effectiveConcurrency} ` +
-      `reason=${plan.reason} artifacts=${formatGb(plan.totalArtifactBytes / (1024 * 1024))} ` +
-      `sqlite=${formatGb(plan.totalSqliteBytes / (1024 * 1024))} ` +
-      `budget=${formatGb(plan.budgetBytes / (1024 * 1024))} ` +
-      `per-worker=${formatGb(plan.estimatedPerWorkerBytes / (1024 * 1024))}`
-    );
-  }
-  const workerPools = new Map(backends.map((backend) => [
-    backend,
-    createSearchWorkerPool({
-      size: workerPlans[backend].effectiveConcurrency,
-      env: queryWorkerEnv,
-      workerScriptPath: queryWorkerPath,
-      maxRunsPerProcess: backend === 'sqlite' ? 1 : 0,
-      onEvent: (event) => {
-        if (event?.type === 'stall-warning') {
-          const queryPreview = typeof event?.meta?.query === 'string'
-            ? formatQueryPreview(event.meta.query)
-            : 'unknown query';
-          const rssText = Number.isFinite(Number(event?.rssBytes))
-            ? `${(Number(event.rssBytes) / (1024 * 1024)).toFixed(1)} MB`
-            : 'n/a';
-          logBench(
-            `[bench] query worker stall warning ${event.workerLabel} backend=${event?.meta?.backend || backend || 'unknown'} ` +
+  const executionPlan = await resolveAdaptiveQueryWorkerCount({ requestedConcurrency, backends, runtimeRoot, userConfig });
+  const queryOutcomes = createBenchQueryOutcomeCollector({ workloadKey: queryPlan.key, concurrency: executionPlan.effectiveConcurrency });
+  const queryGenerations = Object.fromEntries(backends.map(backend => [backend, createRetrievalEvidenceRegistry()]));
+  logBench(`[bench] Global query plan requested=${requestedConcurrency} planned=${executionPlan.effectiveConcurrency} ` +
+    `stages=${executionPlan.stages.length} reason=${executionPlan.reason} ` +
+    `estimatedPeak=${formatGb(executionPlan.estimatedPeakConcurrentBytes / (1024 * 1024))} ` +
+    `sharedBudget=${formatGb(executionPlan.budgetBytes / (1024 * 1024))}`);
+  for (const stage of executionPlan.stages) logBench(`[bench] Query stage ${stage.id}: ` +
+    `${JSON.stringify(stage.sizeByBackend)} for ${stage.backends.join(', ')}`);
+  const workerOptions = {
+    env: queryWorkerEnv, workerScriptPath: queryWorkerPath,
+    onEvent: (event) => {
+      if (event?.type === 'stall-warning') {
+        const queryPreview = typeof event?.meta?.query === 'string'
+          ? formatQueryPreview(event.meta.query)
+          : 'unknown query';
+        const rssText = Number.isFinite(Number(event?.rssBytes))
+          ? `${(Number(event.rssBytes) / (1024 * 1024)).toFixed(1)} MB`
+          : 'n/a';
+        logBench(
+          `[bench] query worker stall warning ${event.workerLabel} backend=${event?.meta?.backend || 'unknown'} ` +
             `elapsed=${formatDurationMs(Number(event?.elapsedMs) || 0)} ` +
             `sinceHeartbeat=${formatDurationMs(Number(event?.sinceHeartbeatMs) || 0)} ` +
             `rss=${rssText} | ${queryPreview}`
-          );
-          return;
-        }
-        if (event?.type === 'stalled') {
-          const queryPreview = typeof event?.meta?.query === 'string'
-            ? formatQueryPreview(event.meta.query)
-            : 'unknown query';
-          logBench(
-            `[bench] query worker stalled ${event.workerLabel} backend=${event?.meta?.backend || backend || 'unknown'} ` +
-            `elapsed=${formatDurationMs(Number(event?.elapsedMs) || 0)} | ${queryPreview}`
-          );
-        }
+        );
+        return;
       }
-    })
-  ]));
+      if (event?.type === 'stalled') {
+        const queryPreview = typeof event?.meta?.query === 'string'
+          ? formatQueryPreview(event.meta.query)
+          : 'unknown query';
+        logBench(
+          `[bench] query worker stalled ${event.workerLabel} backend=${event?.meta?.backend || 'unknown'} ` +
+            `elapsed=${formatDurationMs(Number(event?.elapsedMs) || 0)} | ${queryPreview}`
+        );
+      }
+    }
+  };
 
   const loggedQueries = new Set();
-  const runQueryTask = async (task) => {
-    const workerPool = workerPools.get(task.backend);
-    if (!workerPool) {
-      fatalExit(`[bench] Missing query worker pool for backend=${task.backend}`);
-    }
+  const runQueryTask = async (task, workerPool) => {
     if (!loggedQueries.has(task.queryIndex)) {
       loggedQueries.add(task.queryIndex);
       logBench(
@@ -633,17 +588,24 @@ const runQueries = async (requestedConcurrency) => {
       );
     }
     const payload = await runSearch(workerPool, task.query, task.backend);
+    const observedResults = captureBenchmarkQueryResults(payload,
+      queryBackendDecision.coverage.selectedSearchModeByBackend[task.backend]);
+    queryGenerations[task.backend].observe(payload, observedResults.modes);
     queryCapabilities.observe(task.backend, payload);
+    for (const mode of observedResults.modes) {
+      queryOutcomes.observe({ backend: task.backend, mode, payload });
+      const row = resultCountsByMode[task.backend][mode] ||= { searches: 0, hits: 0, nonempty: 0 };
+      row.searches++; row.hits += observedResults.countsByMode[mode];
+      if (observedResults.countsByMode[mode] > 0) row.nonempty++;
+    }
     queryProgress.count += 1;
     logQueryProgress();
-    const elapsedMs = Number(payload.stats?.elapsedMs);
-    if (!Number.isFinite(elapsedMs)) {
+    const elapsedMs = payload.stats?.elapsedMs;
+    if (typeof elapsedMs !== 'number' || !Number.isFinite(elapsedMs) || elapsedMs < 0) {
       fatalExit(`[bench] Missing timing stats for backend=${task.backend} query="${task.query}"`);
     }
     latency[task.backend].push(elapsedMs);
-    const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
-    const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
-    const totalHits = codeHits + proseHits;
+    const totalHits = observedResults.totalHits;
     const taxonomyLabels = Array.isArray(payload?.stats?.intent?.missTaxonomy?.labels)
       ? payload.stats.intent.missTaxonomy.labels
       : [];
@@ -656,21 +618,8 @@ const runQueries = async (requestedConcurrency) => {
     const rss = payload.stats?.memory?.rss;
     if (Number.isFinite(rss)) memoryRss[task.backend].push(rss);
   };
-  try {
-    if (queryTasks.length) {
-      await Promise.all(backends.map(async (backend) => {
-        const backendTasks = queryTasks.filter((task) => task.backend === backend);
-        if (!backendTasks.length) return;
-        await runWithConcurrency(
-          backendTasks,
-          Math.max(1, Number(workerPlans[backend]?.effectiveConcurrency) || 1),
-          runQueryTask
-        );
-      }));
-    }
-  } finally {
-    await Promise.all(Array.from(workerPools.values()).map((workerPool) => workerPool.close()));
-  }
+  const workerObservation = await executeBenchQueryPlan({ plan: executionPlan, tasks: queryTasks,
+    workerOptions, runTask: runQueryTask, processTreeSampler: createBenchProcessTreeSampler() });
   logQueryProgress(true);
   const queryWallMs = Date.now() - queryProgress.startMs;
   const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : null;
@@ -693,18 +642,14 @@ const runQueries = async (requestedConcurrency) => {
     queryCoverage: { ...queryBackendDecision.coverage,
       executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
     queryCapabilities: queryCapabilities.snapshot(),
-    queryConcurrency: backends.length ? Object.values(workerPlans).reduce(
-      (max, plan) => Math.max(max, Math.max(1, Number(plan?.effectiveConcurrency) || 1)),
-      1
-    ) : 0,
+    queryOutcomeEvidence: queryOutcomes.snapshot(),
+    queryExecutionEvidence: Object.fromEntries(backends.map(backend => [backend, queryGenerations[backend].snapshot()])),
+    queryConcurrency: executionPlan.effectiveConcurrency,
     queryConcurrencyRequested: requestedConcurrency,
-    queryConcurrencyAutoReason: backends.length === 1
-      ? (workerPlans[backends[0]]?.reason || null)
-      : 'backend_specific',
-    queryConcurrencyAutoReasonByBackend: Object.fromEntries(backends.map((backend) => [
-      backend,
-      workerPlans[backend]?.reason || null
-    ])),
+    queryConcurrencyAutoReason: executionPlan.reason,
+    queryConcurrencyAutoReasonByBackend: Object.fromEntries(backends.map(backend => [backend, executionPlan.reason])),
+    queryWorkerPlan: executionPlan,
+    queryWorkerObservation: workerObservation,
     queryWallMs,
     queryWallMsPerSearch,
     queryWallMsPerQuery,
@@ -712,6 +657,7 @@ const runQueries = async (requestedConcurrency) => {
     latencyMs: latencyStats,
     hitRate,
     resultCountAvg,
+    resultCountsByMode,
     missTaxonomy: {
       byBackend: Object.fromEntries(backends.map((backend) => [
         backend,
@@ -734,17 +680,31 @@ for (const concurrency of queryConcurrencyList) {
   runs.push(await runQueries(concurrency));
 }
 
-const reportArgs = [reportPath, '--json'];
-if (repoArg) reportArgs.push('--repo', repoArg);
-const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8' });
-const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
+let artifactReport, artifactReportAdmission, artifactCollectionError = null, currentAfterRun = null;
+try {
+  ({ report: artifactReport, receipt: artifactReportAdmission } = collectBenchmarkArtifactReport({ repoRoot: runtimeRoot, env: baseEnv }));
+  const generationJoin = qualifyBenchmarkArtifactGeneration(artifactReport,
+    runs.flatMap(run => Object.values(run.summary?.queryExecutionEvidence || {})));
+  artifactReportAdmission = { ...artifactReportAdmission, generationJoin };
+  if (generationJoin.state !== 'qualified') {
+    currentAfterRun = { scope: 'current-after-run-only;not-measured-attempt-authority', artifacts: artifactReport };
+    artifactReport = null;
+    artifactCollectionError = Object.assign(new Error(`Benchmark artifacts cannot join measured generation: ${generationJoin.reason}`), { code: 'ERR_BENCH_ARTIFACT_GENERATION' });
+  }
+} catch (error) {
+  artifactReportAdmission = benchmarkArtifactFailureReceipt(error);
+  artifactCollectionError = error;
+}
 const corruption = artifactReport?.corruption || null;
 const shouldCheckArtifactCorruption = !testingDefaultsEnabled || needsSqlite;
 if (shouldCheckArtifactCorruption && corruption && corruption.ok === false) {
   const issues = Array.isArray(corruption.issues) && corruption.issues.length
     ? corruption.issues.join('; ')
     : 'unknown issues';
-  fatalExit(`[bench] Artifact corruption check failed: ${issues}`);
+  artifactCollectionError = Object.assign(new Error(`[bench] Artifact corruption check failed: ${issues}`), { code: 'ERR_BENCH_ARTIFACT_CORRUPTION' });
+  currentAfterRun = { scope: 'unqualified-current-after-run;not-measured-attempt-authority', artifacts: artifactReport };
+  artifactReportAdmission = { ...artifactReportAdmission, state: 'failed-required-phase', reason: 'artifact-corruption' };
+  artifactReport = null;
 }
 
 const summaries = runs.map((run) => run.summary).filter(Boolean);
@@ -769,15 +729,18 @@ const summary = summaries[0]
   : null;
 
 const output = {
+  status: artifactCollectionError ? 'failed-required-artifact-phase' : 'completed',
+  queryPlan,
   generatedAt: new Date().toISOString(),
   repo: { root: repoArg || root },
   summary,
   runs: summaries,
+  artifactReportAdmission,
+  currentAfterRun,
   artifacts: artifactReport
 };
 
 if (argv.json) {
-  closeDisplay();
   console.log(JSON.stringify(output, null, 2));
 } else {
   for (const runSummary of summaries) {
@@ -863,4 +826,9 @@ if (argv['write-report']) {
   await fs.writeFile(outPath, JSON.stringify(output, null, 2));
   if (!argv.json) logBench(`[bench] Report written (${path.basename(outPath)}).`);
 }
-closeDisplay();
+try { closeDisplay(); }
+catch (cleanup) {
+  if (artifactCollectionError) throw addStorageFailureContext(artifactCollectionError, {}, cleanup, { secondaryPresent: true });
+  throw cleanup;
+}
+if (artifactCollectionError) throw artifactCollectionError;

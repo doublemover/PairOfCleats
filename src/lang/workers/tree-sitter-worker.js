@@ -25,7 +25,12 @@ export async function parseTreeSitter(payload = {}) {
       text,
       languageId,
       ext,
-      options: { treeSitter }
+      options: { treeSitter },
+      // Optional identity reads can retain an exact descriptor session on close
+      // failure. Piscina error serialization cannot transport that authority;
+      // keep this route on ordinary syntax until a worker resource owner exists.
+      // This is fixed at the entrypoint, never taken from the caller's payload.
+      captureNativeClassificationLeaves: false
     });
     if (strict && (!Array.isArray(result) || result.length === 0)) {
       throw new Error(`Tree-sitter worker returned no chunks for ${resolvedId || languageId || 'unknown'}.`);

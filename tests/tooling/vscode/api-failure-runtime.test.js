@@ -8,13 +8,7 @@ const { requestApiJson } = require('../../../extensions/vscode/runtime.js');
 const originalFetch = globalThis.fetch;
 
 try {
-  globalThis.fetch = async () => ({
-    ok: false,
-    status: 401,
-    async text() {
-      return JSON.stringify({ message: 'token expired' });
-    }
-  });
+  globalThis.fetch = async () => new Response(JSON.stringify({ message: 'token expired' }), { status: 401 });
   const unauthorized = await requestApiJson('http://127.0.0.1:4311', '/search', {
     method: 'POST',
     payload: { query: 'AuthToken' },
@@ -25,13 +19,7 @@ try {
   assert.match(unauthorized.message, /unauthorized/i);
   assert.match(unauthorized.detail || '', /token expired/i);
 
-  globalThis.fetch = async () => ({
-    ok: false,
-    status: 403,
-    async text() {
-      return JSON.stringify({ message: 'workspace denied' });
-    }
-  });
+  globalThis.fetch = async () => new Response(JSON.stringify({ message: 'workspace denied' }), { status: 403 });
   const forbidden = await requestApiJson('http://127.0.0.1:4311', '/search', {
     method: 'POST',
     payload: { query: 'AuthToken' },
@@ -42,13 +30,7 @@ try {
   assert.match(forbidden.message, /forbidden/i);
   assert.match(forbidden.detail || '', /workspace denied/i);
 
-  globalThis.fetch = async () => ({
-    ok: false,
-    status: 500,
-    async text() {
-      return 'upstream blew up';
-    }
-  });
+  globalThis.fetch = async () => new Response('upstream blew up', { status: 500 });
   const httpError = await requestApiJson('http://127.0.0.1:4311', '/search', {
     method: 'POST',
     payload: { query: 'AuthToken' },
@@ -59,13 +41,7 @@ try {
   assert.match(httpError.message, /HTTP 500/i);
   assert.match(httpError.detail || '', /upstream blew up/i);
 
-  globalThis.fetch = async () => ({
-    ok: true,
-    status: 200,
-    async text() {
-      return '{"broken"';
-    }
-  });
+  globalThis.fetch = async () => new Response('{"broken"', { status: 200 });
   const invalidJson = await requestApiJson('http://127.0.0.1:4311', '/search', {
     method: 'POST',
     payload: { query: 'AuthToken' },

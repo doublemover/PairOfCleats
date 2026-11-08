@@ -14,6 +14,7 @@ if PACKAGE_ROOT not in sys.path:
 def isolated_temp_directory():
     """Keep repository discovery fixtures independent of host ancestor markers."""
     with tempfile.TemporaryDirectory() as root:
+        root = os.path.realpath(root)
         original_isdir = os.path.isdir
         original_isfile = os.path.isfile
 
@@ -42,6 +43,9 @@ class FakeSettings:
     def set(self, key, value):
         self._data[key] = value
 
+    def erase(self, key):
+        self._data.pop(key, None)
+
     def update(self, values):
         for key, value in (values or {}).items():
             self._data[key] = value
@@ -58,13 +62,29 @@ class FakeRegion:
     def empty(self):
         return self.a == self.b
 
+    def begin(self):
+        return min(self.a, self.b)
+
+    def end(self):
+        return max(self.a, self.b)
+
 
 class FakeSelection(list):
-    pass
+    def add(self, region):
+        self.append(region)
 
 
 class FakeView:
+    _next_id = 1
+
     def __init__(self, file_name=None, text=''):
+        self._id = FakeView._next_id
+        FakeView._next_id += 1
+        self._change_count = 0
+        self._valid = True
+        self._dirty = False
+        self._loading = False
+        self.shown = []
         self._file_name = file_name
         self._settings = FakeSettings()
         self.appended = ''
@@ -79,6 +99,34 @@ class FakeView:
 
     def file_name(self):
         return self._file_name
+
+    def is_dirty(self):
+        return self._dirty
+
+    def is_loading(self):
+        return self._loading
+
+    def show(self, region):
+        self.shown.append(region)
+
+    def id(self):
+        return self._id
+
+    def buffer_id(self):
+        return self._id
+
+    def change_count(self):
+        return self._change_count
+
+    def is_valid(self):
+        return self._valid
+
+    def size(self):
+        return len(self.text)
+
+    def replace(self, edit, region, text):
+        self.text = self.text[:region.begin()] + text + self.text[region.end():]
+        self._change_count += 1
 
     def window(self):
         return self._window
@@ -106,7 +154,8 @@ class FakeView:
         elif name == 'right_delete':
             self.appended = ''
         elif name == 'pair_of_cleats_apply_completion':
-            self.text = args.get('text', '')
+            from PairOfCleats.commands.search import PairOfCleatsApplyCompletionCommand
+            PairOfCleatsApplyCompletionCommand(self).run(None, **args)
 
     def erase_regions(self, key):
         self.regions.pop(key, None)
@@ -193,7 +242,22 @@ class FakeWindow:
         return view
 
     def open_file(self, encoded_path, flags=0):
-        view = FakeView(encoded_path.split(':', 1)[0])
+        filename = encoded_path
+        # Encoded positions follow the path; a Windows drive colon is not a
+        # position delimiter. Preserve the actual source loaded by the host.
+        for _ in range(2):
+            head, separator, tail = filename.rpartition(':')
+            if separator and tail.isdigit():
+                filename = head
+            else:
+                break
+        text = ''
+        try:
+            with open(filename, encoding='utf-8') as handle:
+                text = handle.read()
+        except (OSError, UnicodeError):
+            pass
+        view = FakeView(filename, text)
         view.set_window(self)
         self.opened_files.append({'path': encoded_path, 'flags': flags, 'view': view})
         self._active_view = view
@@ -225,6 +289,10 @@ class FakeWindow:
             view.set_window(self)
 
 
+class FakeApplicationCommand:
+    pass
+
+
 class FakeWindowCommand:
     def __init__(self, window=None):
         self.window = window
@@ -253,6 +321,10 @@ def install_fake_modules():
         @staticmethod
         def set_timeout(callback, delay=0):
             callback()
+
+        @staticmethod
+        def cache_path():
+            raise AssertionError('A fixture using editor storage must select its own disposable cache path.')
 
         @staticmethod
         def load_settings(name):
@@ -293,6 +365,7 @@ def install_fake_modules():
             FakeSublimeModule._active_window = None
 
     class FakeSublimePluginModule:
+        ApplicationCommand = FakeApplicationCommand
         WindowCommand = FakeWindowCommand
         TextCommand = FakeTextCommand
         EventListener = FakeEventListener

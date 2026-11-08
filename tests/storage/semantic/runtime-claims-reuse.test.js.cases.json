@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["repeat", "fresh-process", "pointer-missing", "pointer-older", "interrupted", "corrupt-manifest",
+    "corrupt-evidence", "corrupt-offsets", "corrupt-support", "new-content"]
+}

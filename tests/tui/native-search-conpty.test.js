@@ -1,0 +1,470 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capture.js';
+import { createTerminalScreen } from '../../tools/testing/terminal-screen.js';
+import { makeTempDir, rmDirRecursive } from '../helpers/temp.js';
+import { applyTestEnv } from '../helpers/test-env.js';
+import { initGitRepo } from '../helpers/git-fixture.js';
+import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
+import { killProcessTree } from '../../src/shared/kill-tree.js';
+import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture.js';
+
+assert.equal(process.platform, 'win32', 'This owner requires actual Windows ConPTY; POSIX needs its own PTY owner');
+const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-search-conpty/')[1];
+const admissionFailure = ['missing-index', 'missing-capability', 'unsupported-format'].includes(mode);
+assert.ok(admissionFailure || ['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt', 'handshake', 'failed-first', 'failed-first-narrow'].includes(mode));
+const firstFailure = ['failed-first', 'failed-first-narrow'].includes(mode);
+const columns = mode === 'failed-first-narrow' ? 32 : firstFailure || admissionFailure ? 80 : mode === 'narrow' ? 60 : 170;
+const terminalRows = firstFailure || admissionFailure ? 24 : mode === 'narrow' ? 18 : 46;
+const root = process.cwd(), dir = await makeTempDir('pns-');
+const retained = path.resolve(process.env.PAIROFCLEATS_TEST_LOG_DIR || '.testLogs', `native-search-${mode}-${process.pid}`);
+let completed = false;
+try {
+  const repo = path.join(dir, 'selected repository');
+  const alternate = path.join(dir, 'alternate repository');
+  await fs.mkdir(path.join(repo, 'src'), { recursive: true }); initGitRepo(repo);
+  const query = 'alphaNativeAnswer';
+  await fs.writeFile(path.join(repo, 'src/answer.js'), `export function ${query}() {\n  return 42;\n}\n`);
+  if (mode === 'pagination') {
+    await fs.writeFile(path.join(repo, 'src/extra.js'), 'export function betaNativeAnswer() {\n  return 43;\n}\n');
+  }
+  if (mode === 'scope') {
+    await fs.mkdir(path.join(alternate, 'src'), { recursive: true }); initGitRepo(alternate);
+    await fs.writeFile(path.join(alternate, 'src/different.js'), 'export function zzzdifferentzzz() {\n  return 84;\n}\n');
+  }
+  const binary = path.join(root, 'crates/pairofcleats-tui/target/debug/pairofcleats-tui.exe');
+  const binarySha256 = createHash('sha256').update(await fs.readFile(binary)).digest('hex');
+  await fs.writeFile(path.join(dir, 'native-source-identity.json'), JSON.stringify({ binary, binarySha256,
+    node: process.version, abi: process.versions.modules, platform: process.platform,
+    sources: Object.fromEntries(await Promise.all(['crates/pairofcleats-tui/src/main.rs',
+      'crates/pairofcleats-tui/src/search.rs', 'crates/pairofcleats-tui/src/search_failure.rs',
+      'crates/pairofcleats-tui/src/search_failure_catalog.rs', 'crates/pairofcleats-tui/src/interaction.rs',
+      'tests/tui/native-search-conpty.test.js', 'src/integrations/core/build-index/index.js', 'src/contracts/tui-operation-failures.json',
+      'tools/tui/operator/search.js', 'tools/tui/operator/operation-failure.js', 'tools/tui/supervisor/jobs.js', 'tools/tui/supervisor.js']
+      .map(async file => [file, createHash('sha256').update(await fs.readFile(path.join(root, file))).digest('hex')])) ) }, null, 2));
+  const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
+    testConfig: { threads: 1, indexing: { scm: { provider: 'none' }, typeInference: false,
+      typeInferenceCrossFile: false, riskAnalysis: false }, tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
+    extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null, PAIROFCLEATS_TUI_NODE: process.execPath,
+      PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(mode === 'navigation' ? [repo] : []),
+      PAIROFCLEATS_TUI_SUPERVISOR: path.join(root, mode === 'handshake'
+        ? 'tests/fixtures/tui/native-delayed-hello.js' : 'tools/tui/supervisor.js'),
+      PAIROFCLEATS_TUI_RUN_ID: 'search-native', PAIROFCLEATS_TUI_SNAPSHOT_PATH: path.join(dir, 'state.json'),
+      PAIROFCLEATS_TUI_EVENT_LOG_DIR: dir } });
+  const buildAt = async (target, name) => {
+    // This is input preparation, not a build-CLI assertion. Keep the actual
+    // canonical Stage1 build and its original deadline, including import and
+    // teardown. The operations below still use the real native client,
+    // supervisor and search CLI; dedicated CLI owners cover build startup.
+    const started = performance.now(), controller = new AbortController();
+    const phases = []; let phaseBytes = 0;
+    const options = { modes: ['code'], stage: 'stage1', stubEmbeddings: true, threads: 1, progress: 'off',
+      log: value => {
+        const message = String(value).slice(0, 2048), bytes = Buffer.byteLength(message);
+        if (phases.length < 256 && phaseBytes + bytes <= 64 * 1024) {
+          phases.push({ elapsedMs: performance.now() - started, message }); phaseBytes += bytes;
+        }
+      } };
+    const timer = setTimeout(() => controller.abort(new Error('Native search seed exceeded its 10000ms deadline')), 10000);
+    let outcome, failure;
+    try {
+      const { buildIndex } = await import('../../src/integrations/core/build-index.js');
+      const result = await buildIndex(target, { ...options, abortSignal: controller.signal });
+      outcome = result.outcome;
+      assert.equal(controller.signal.aborted, false, 'The original seed deadline must cover completed teardown');
+      assert.ok(performance.now() - started < 10000, 'The complete actual seed must finish within its original deadline');
+      assert.equal(outcome.status, 'index-published', JSON.stringify(outcome));
+      assert.deepEqual(outcome.requestedStages, ['stage1']);
+      assert.equal(outcome.stages.length, 1);
+      assert.equal(outcome.stages[0].validation.ok, true);
+      assert.equal(outcome.stages[0].validation.issueCount, 0);
+      assert.equal(outcome.stages[0].publication.status, 'published');
+      assert.deepEqual(outcome.capabilities.map(({ capability, status }) => ({ capability, status })),
+        [{ capability: 'sparse-retrieval', status: 'completed' }]);
+    } catch (error) {
+      failure = error; throw error;
+    } finally {
+      clearTimeout(timer);
+      await fs.writeFile(path.join(dir, name), JSON.stringify({ owner: 'buildIndex', options,
+        durationMs: performance.now() - started, outcome, phases,
+        error: failure ? { message: failure.message, code: failure.code } : null }, null, 2));
+    }
+  };
+  if (admissionFailure) {
+    // Deliberately damaged/unqualified published inputs. These cases qualify the
+    // actual CLI admission and native recovery UI; production is covered by the
+    // independently bounded canonical build cases, not this artifact fixture.
+    const index = await createCompatibilityIndex(repo, { published: true,
+      userConfig: { cache: { root: path.join(dir, 'cache') } },
+      compatibilityKey: 'native-search-admission', profileId: 'default', fileName: 'src/answer.js' });
+    if (mode === 'missing-index') await fs.unlink(path.join(index, 'chunk_meta.json'));
+    if (mode === 'unsupported-format') {
+      const file = path.join(index, 'index_state.json');
+      const state = JSON.parse(await fs.readFile(file, 'utf8'));
+      await fs.writeFile(file, JSON.stringify({ ...state, artifactSurfaceVersion: 'obsolete-fixture-format' }));
+    }
+  } else if (['modes', 'incompatible'].includes(mode)) {
+    const inputs = [['code', 'src/answer.js', 'FunctionDeclaration'], ['prose', 'README.md', 'paragraph'],
+      ['extracted-prose', 'src/answer.js', 'comment'], ['records', 'records.json', 'record']];
+    await fs.writeFile(path.join(repo, 'README.md'), 'Native prose source\n');
+    await fs.writeFile(path.join(repo, 'records.json'), '{"answer":42}\n');
+    for (const [kind, file, chunkKind] of inputs) {
+      const index = await createCompatibilityIndex(repo, { mode: kind, published: true,
+        userConfig: { cache: { root: path.join(dir, 'cache') } },
+        compatibilityKey: mode === 'incompatible' ? `native-mode-${kind}` : 'native-modes-compatible', profileId: 'default', fileName: file });
+      const body = await fs.readFile(path.join(repo, file));
+      await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify([{ id: 0, file, kind: chunkKind,
+        name: `${kind} result`, chunkUid: `mode:${kind}`, start: 0, end: body.length, startLine: 1, endLine: 1,
+        sourceHash: createHash('sha1').update(body).digest('hex') }]));
+    }
+  } else if (mode === 'truncated') {
+    // Explicit large artifact input exercises the real CLI/capture boundary;
+    // the other cases independently qualify actual native index production.
+    const index = await createCompatibilityIndex(repo, { published: true,
+      userConfig: { cache: { root: path.join(dir, 'cache') } }, compatibilityKey: 'native-capture-bound', profileId: 'default' });
+    const rows = Array.from({ length: 100 }, (_, id) => ({ id, file: 'src/answer.js', kind: 'FunctionDeclaration',
+      name: 'x'.repeat(10000) + id, chunkUid: `capture:${id}`, start: 0, end: 1 }));
+    await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify(rows));
+    await fs.writeFile(path.join(index, 'token_postings.json'), JSON.stringify({ vocab: ['alpha'],
+      postings: [rows.map(row => [row.id, 1])], docLengths: rows.map(() => 1), avgDocLen: 1, totalDocs: rows.length }));
+  } else await buildAt(repo, 'index-build.json');
+  if (mode === 'scope') await buildAt(alternate, 'index-build-alternate.json');
+  const editorMarker = path.join(dir, 'editor-invoked.json');
+  if (mode === 'navigation') {
+    const bin = path.join(repo, 'explicit-editor'); await fs.mkdir(bin);
+    const fixture = path.join(bin, 'record-editor.mjs');
+    await fs.writeFile(fixture, `import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(editorMarker)},
+      JSON.stringify({args:process.argv.slice(2),pid:process.pid}));\n`);
+    const quote = value => `"${value.replace(/%/g, '%%')}"`;
+    await fs.writeFile(path.join(bin, 'code.cmd'), `@echo off\r\nsetlocal DisableDelayedExpansion\r\n${quote(process.execPath)} ${quote(fixture)} %*\r\n`);
+    env.PATH = `${bin}${path.delimiter}${env.PATH || process.env.PATH || ''}`;
+  }
+  const readEvents = async () => {
+    let text;
+    try { text = await fs.readFile(path.join(dir, 'search-native.jsonl'), 'utf8'); }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+    const rows = text.slice(0, text.lastIndexOf('\n')).split('\n').filter(Boolean).map(line => JSON.parse(line));
+    const chunks = new Map();
+    for (const row of [...rows]) {
+      if (row.event !== 'event:chunk') continue;
+      const parts = chunks.get(row.chunkId) || new Map();
+      parts.set(row.chunkIndex, row.chunk); chunks.set(row.chunkId, parts);
+      if (parts.size === row.chunkCount) rows.push(JSON.parse(Array.from({ length: row.chunkCount }, (_, i) => parts.get(i)).join('')));
+    }
+    return rows;
+  };
+    // The real native/supervisor cwd is repo. Retain each exact filesystem target
+    // without replaying the author's long checkout prefix through paced keyboard
+    // ingress. Realpath assertions below independently prove the selected scope.
+  const scopeInput = target => {
+    const relative = path.relative(repo, target) || '.';
+    assert.equal(path.resolve(repo, relative), path.resolve(target));
+    return relative;
+  };
+  try {
+    const capture = await captureCommandTerminalRun({ command: 'pwsh.exe', args: ['-NoLogo', '-NoProfile',
+      '-NonInteractive', '-File', path.join(root, 'tests/fixtures/tui/native-lifetime-conpty.ps1'), binary, dir, 'search'],
+    rootDir: root, cwd: repo, cols: columns, rows: terminalRows, label: `native-search-${mode}`,
+    logsRoot: path.join(dir, 'capture'), timeoutMs: 19000, env,
+    onSpawn: async terminal => {
+      let output = '', screens = 0, revision = 0;
+      const terminalScreen = createTerminalScreen({ columns, rows: terminalRows });
+      const subscription = terminal.onData(data => {
+        output = (output + data).slice(-1024 * 1024);
+        terminalScreen.write(data); revision++;
+      });
+      const deadline = Date.now() + 16000;
+      const wait = async (predicate, witness) => {
+        while (!await predicate()) {
+          assert.ok(Date.now() < deadline, `Native search witness timed out: ${witness}`);
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+      };
+      let paintedRevision = -1, paintedScreen = '';
+      const screen = () => {
+        if (paintedRevision !== revision) {
+          paintedRevision = revision; paintedScreen = terminalScreen.snapshot().text;
+        }
+        return paintedScreen;
+      };
+      const connectionRendered = () => /\bconn\s+(?:connected|streaming)\b|\bsupervised\s*\|\s*(?:connected|streaming)\b/.test(screen());
+      const rendered = async witness => {
+        await wait(() => screen().includes(witness), witness);
+        await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
+      };
+      const lastJob = async () => Math.max(0, ...(await readEvents()).filter(row => row.jobId?.startsWith('native-search-'))
+        .map(row => Number(row.jobId.split('-').at(-1))));
+      const settled = async (method, after = 0) => {
+        let end;
+        await wait(async () => {
+          end = (await readEvents()).find(row => row.event === 'job:end'
+            && (row.result?.method === method || row.status === 'failed' || row.status === 'cancelled')
+            && Number(row.jobId.split('-').at(-1)) > after);
+          return end;
+        }, `${method} result`);
+        assert.equal(end.status, 'done', JSON.stringify(end));
+        return end.result.data;
+      };
+      const nativeInputReady = async () => {
+        await wait(async () => {
+          let text;
+          try { text = await fs.readFile(path.join(dir, 'search-native.runtime.jsonl'), 'utf8'); }
+          catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+          // Native metrics are emitted on later event-loop turns. A completed
+          // rendered frame proves the actual input loop has started, even when
+          // handshake delivery is held or the connection label is clipped.
+          return text.slice(0, text.lastIndexOf('\n') + 1).split('\n').filter(Boolean)
+            .map(JSON.parse).some(row => row.runId === 'search-native' && row.renderMsEwma > 0);
+        }, 'native input loop after its first frame');
+      };
+      let recoveryFormClosed = false;
+      try {
+        await wait(async () => (await readEvents()).some(row => row.event === 'hello'), 'actual supervisor hello');
+        if (mode === 'handshake') {
+          await rendered('Tab pane'); await nativeInputReady(); terminal.write('R');
+          // Global direct dispatch shares the palette's live-control denial.
+          // The passive SearchUi fallback is separately covered by Rust tests.
+          await rendered('requires live owned control');
+          assert.equal((await readEvents()).some(row => row.internal && row.event === 'job:start'), false);
+          await fs.writeFile(path.join(dir, 'release-hello'), 'explicit fixture handshake release\n');
+          await wait(connectionRendered, 'released handshake rendered');
+          terminal.write('R');
+        } else {
+          // The supervisor records hello before the native client receives it.
+          // Wait for the actual connected frame before sending a search key;
+          // otherwise the first cold case can lose its input during startup.
+          await wait(connectionRendered, 'native supervisor connection rendered');
+          terminal.write('R');
+        }
+        await rendered(columns < 40 ? 'Ready; Enter runs' : 'Ready; Enter runs a canonical search');
+        const requestedQuery = ['pagination', 'truncated', 'modes', 'incompatible'].includes(mode) ? '' : mode === 'empty-error' ? 'unfindableNativeTerm' : query;
+        const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
+          : mode === 'truncated' ? { ann: false, type: 'FunctionDeclaration' }
+            : ['modes', 'incompatible'].includes(mode) ? { ann: false, file: ['src/answer.js', 'README.md', 'records.json'] }
+              : mode === 'missing-capability' ? { ann: false, branch: 'unavailable' } : { ann: false };
+        if (firstFailure) terminal.write(`\x1b[Z\x15${scopeInput(path.join(repo, 'src/answer.js'))}\t`);
+        terminal.write(`${requestedQuery}\t\x15${['modes', 'incompatible'].includes(mode) ? 'all' : 'code'}\t\x15memory\t\x15${mode === 'pagination' ? 1 : mode === 'truncated' ? 100 : 5}\t\t\t\x15${JSON.stringify(filters)}\r`);
+        if (admissionFailure) {
+          let failed;
+          await wait(async () => {
+            failed = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2');
+            return failed;
+          }, 'actual requested admission failure');
+          assert.equal(failed.status, 'failed', JSON.stringify(failed));
+          assert.equal(failed.result, null);
+          assert.equal(failed.error.failure.reason, mode);
+          await rendered(`query-failed: ${mode}`);
+          assert.equal(screen().includes('contains no hits'), false);
+          if (mode === 'missing-capability') {
+            const after = await lastJob(); terminal.write('s');
+            const readiness = await settled('readiness', after);
+            assert.deepEqual(readiness, { prepared: true, qualification: 'activation-metadata-only', nativeProbesRun: false });
+            await rendered('Setup metadata inspected');
+            await rendered('missing-capability');
+          }
+          const before = await readEvents();
+          terminal.write(mode === 'missing-capability' ? 'p' : 'i');
+          const command = mode === 'missing-capability' ? 'tooling.doctor' : 'index.validate';
+          await rendered(`Typed form: ${command}`);
+          const events = await readEvents();
+          const selected = events.find(row => row.event === 'job:end' && row.result?.method === 'select'
+            && row.jobId?.startsWith('native-workflow-'));
+          assert.equal(selected.status, 'done');
+          assert.equal(selected.result.data.kind, 'repo');
+          assert.equal(selected.result.data.target, await fs.realpath(repo));
+          assert.equal(selected.result.data.configRoot, await fs.realpath(repo));
+          assert.equal(events.filter(row => row.event === 'job:spawn').length,
+            before.filter(row => row.event === 'job:spawn').length, 'opening recovery cannot execute a command');
+          assert.equal(events.some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
+          terminal.write('\x1b');
+          await wait(() => !screen().includes('Typed form:'), 'recovery form returned to catalog');
+          terminal.write('\x1b'); await rendered('Tab pane'); recoveryFormClosed = true;
+        } else if (firstFailure) {
+          let failed;
+          await wait(async () => { failed = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2'); return failed; }, 'failed first query');
+          assert.equal(failed.status, 'failed'); assert.equal(failed.result, null);
+          assert.equal(failed.error.failure.reason, 'invalid-repository');
+          await rendered('query-failed'); await rendered('invalid-repository');
+          assert.equal(screen().includes('contains no hits'), false);
+          assert.equal((await readEvents()).some(row => row.event === 'job:spawn'), false);
+          const after = await lastJob();
+          terminal.write(`e\t\x15${scopeInput(repo)}\t\x15${query}\r`);
+          const recovered = await settled('query', after);
+          assert.equal(recovered.repoPath, await fs.realpath(repo));
+          assert.ok(recovered.hits.some(hit => hit.file === 'src/answer.js'));
+          await rendered('indexed hits');
+        } else if (mode === 'incompatible') {
+          let end;
+          await wait(async () => {
+            end = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2');
+            return end;
+          }, 'incompatible index admission failure');
+          assert.equal(end.status, 'failed'); assert.equal(end.error.code, 'INTERNAL');
+          assert.equal(end.error.failure.reason, 'unknown');
+          assert.equal(end.result, null); await rendered('query-failed: unknown');
+          assert.equal(screen().includes('contains no hits'), false);
+        } else if (mode === 'modes') {
+          const result = await settled('query');
+          assert.deepEqual(result.hits.map(hit => hit.mode), ['code', 'prose', 'extracted-prose', 'records']);
+          for (const kind of ['code', 'prose', 'extracted-prose', 'records']) await rendered(`${kind} #1`);
+          terminal.write('\x1b[B\x1b[B\x1b[B\r');
+          const source = await settled('source');
+          assert.equal(source.file, 'records.json'); assert.match(source.excerpt, /"answer":42/);
+          await rendered('"answer":42'); terminal.write('\x1b'); await rendered('indexed hits');
+        } else if (mode === 'truncated') {
+          let end;
+          await wait(async () => {
+            end = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2');
+            return end;
+          }, 'actual CLI capture bound');
+          assert.equal(end.status, 'failed', JSON.stringify(end));
+          assert.equal(end.error.code, 'ERR_TUI_SEARCH_OUTPUT'); assert.equal(end.result, null);
+          assert.equal(end.error.failure.reason, 'incomplete-response');
+          await rendered('incomplete-response');
+        } else if (['cancel', 'replace', 'scope', 'interrupt'].includes(mode)) {
+          let spawn;
+          await wait(async () => {
+            spawn = (await readEvents()).find(row => row.event === 'job:spawn');
+            return spawn;
+          }, 'actual query child startup');
+          assert.equal(isProcessAlive(spawn.pid), true, 'cancel must follow actual child startup');
+          if (mode === 'cancel') terminal.write('\x1b');
+          else if (mode === 'interrupt') terminal.write('\x03');
+          else if (mode === 'replace') terminal.write('e\t\t\x15zzznevermatchzzz\r');
+          else terminal.write(`e\t\x15${scopeInput(alternate)}\t\x15zzzdifferentzzz\r`);
+          let end;
+          await wait(async () => {
+            end = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === spawn.jobId);
+            return end;
+          }, 'actual cancelled query outcome');
+          assert.equal(end.status, 'cancelled', JSON.stringify(end));
+          assert.equal(isProcessAlive(spawn.pid), false);
+          if (mode === 'cancel') {
+            assert.equal(end.error.failure.outcome, 'cancelled');
+            await rendered('cancelled'); terminal.write('\x1b');
+          }
+          if (!['cancel', 'interrupt'].includes(mode)) {
+            const replacement = await settled('query', Number(spawn.jobId.split('-').at(-1)));
+            assert.equal(replacement.queryGeneration, 2);
+            if (mode === 'replace') {
+              assert.equal(replacement.hits.length, 0);
+              assert.ok(replacement.searchDiagnostics.reasons[0].message);
+              await rendered(replacement.searchDiagnostics.reasons[0].message.slice(0, 30));
+            } else {
+              assert.equal(replacement.repoPath, await fs.realpath(alternate));
+              assert.ok(replacement.hits.some(hit => hit.file === 'src/different.js'));
+              await rendered('src/different.js');
+            }
+          }
+        } else if (mode === 'empty-error') {
+          // The canonical identifier analyzer expands both names through
+          // "native"; retain this original query as a positive lexical witness.
+          const expanded = await settled('query');
+          assert.ok(expanded.hits.some(hit => hit.file === 'src/answer.js'));
+          const expandedAfter = await lastJob();
+          terminal.write('e\t\t\x15zzznevermatchzzz\r');
+          const empty = await settled('query', expandedAfter); assert.equal(empty.hits.length, 0);
+          assert.ok(empty.searchDiagnostics.reasons[0].message);
+          await rendered(empty.searchDiagnostics.reasons[0].message.slice(0, 30));
+          const after = await lastJob();
+          terminal.write('e\t\t\x15invented\r');
+          let rejected;
+          await wait(async () => {
+            rejected = (await readEvents()).find(row => row.event === 'job:end'
+              && Number(row.jobId.split('-').at(-1)) > after);
+            return rejected;
+          }, 'canonical invalid backend rejection');
+          assert.equal(rejected.status, 'failed'); assert.equal(rejected.error.code, 'ERR_TUI_SEARCH_REQUEST');
+          assert.equal(rejected.error.failure.reason, 'invalid-request');
+          await rendered('invalid-request');
+          const failedAfter = await lastJob();
+          terminal.write(`e\x15memory\t\t\t\t\t\t\x15${query}\r`);
+          const recovered = await settled('query', failedAfter);
+          assert.ok(recovered.hits.some(hit => hit.file === 'src/answer.js'));
+          await rendered('indexed hits');
+        } else {
+          const result = await settled('query');
+          assert.equal(result.repoPath, await fs.realpath(repo));
+          assert.ok(result.hits.some(hit => hit.file === 'src/answer.js'), JSON.stringify(result));
+          await rendered('indexed hits'); await rendered('src/answer.js');
+          if (mode === 'pagination') {
+            assert.equal(result.hits.length, 1); assert.ok(result.pagination.nextCursor);
+            const after = await lastJob(); terminal.write('n');
+            const next = await settled('continue', after);
+            assert.equal(next.resultId, result.resultId);
+            assert.equal(next.hits[0].rank, 2); assert.notEqual(next.hits[0].hitId, result.hits[0].hitId);
+            await rendered('2 indexed hits'); await rendered('src/extra.js');
+          } else {
+            terminal.write('\r'); const source = await settled('source');
+            assert.equal(source.available, true);
+            assert.match(source.excerpt, /return 42/);
+            assert.equal(source.hitId, result.hits[0].hitId);
+            await rendered('Working-tree source preview'); await rendered('return 42');
+            if (mode === 'navigation') {
+              terminal.write('o'); await rendered('Open current source in VS Code?');
+              await assert.rejects(fs.access(editorMarker), { code: 'ENOENT' }, 'opening the confirmation cannot execute a launcher');
+              terminal.write('\x1b'); await rendered('Editor launch cancelled');
+              await assert.rejects(fs.access(editorMarker), { code: 'ENOENT' });
+              const after = await lastJob(); terminal.write('o\r');
+              const opened = await settled('open', after); assert.equal(opened.opened, true);
+              await rendered('Opened the selected source in VS Code');
+              const editor = JSON.parse(await fs.readFile(editorMarker, 'utf8'));
+              assert.deepEqual(editor.args, ['--reuse-window', '--goto', `${path.join(repo, 'src/answer.js')}:1:1`]);
+              assert.equal(isProcessAlive(editor.pid), false);
+            }
+            terminal.write('\x1b'); await rendered('indexed hits');
+          }
+        }
+        if (mode !== 'interrupt') {
+          if (mode !== 'cancel' && !recoveryFormClosed) terminal.write('\x1b');
+          if (columns < 40) {
+            await wait(() => !screen().includes('Repository search'), 'search overlay closed at narrow width');
+            await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
+          } else await rendered('Tab pane');
+          terminal.write('q');
+        }
+      } finally {
+        subscription.dispose();
+        await fs.writeFile(path.join(dir, 'terminal-output.ansi.log'), output);
+      }
+    } });
+    assert.equal(capture.timedOut, false, capture.outputDir); assert.equal(capture.exitCode, 0, capture.outputDir);
+    const receipt = JSON.parse(await fs.readFile(path.join(dir, 'terminal-receipt.json'), 'utf8'));
+    assert.equal(receipt.exitCode, 0, receipt.stderr); assert.equal(receipt.stderr, '');
+    assert.equal(receipt.terminalRestored, true);
+    const events = await readEvents(), spawns = events.filter(row => row.event === 'job:spawn');
+    assert.ok(spawns.length >= 1, 'the actual query child must have a recorded startup');
+    for (const row of spawns) assert.equal(isProcessAlive(row.pid), false, `Query child ${row.pid} survived`);
+    const meta = JSON.parse(await fs.readFile(path.join(dir, 'search-native.meta.json'), 'utf8'));
+    assert.ok(meta.endedAt); assert.equal(isProcessAlive(meta.pid), false);
+    const snapshotText = await fs.readFile(path.join(dir, 'state.json'), 'utf8');
+    assert.equal(snapshotText.includes(query), false, 'query/source drafts stay out of layout persistence');
+    assert.deepEqual(JSON.parse(snapshotText).final_job_statuses, {});
+    console.log(JSON.stringify({ mode, binary, binarySha256, receipt, supervisorReaped: true,
+      queryChildren: spawns.map(row => row.pid), actualIndexBuild: !admissionFailure && !['truncated', 'modes', 'incompatible'].includes(mode), capture: capture.outputDir,
+      evidence: retained }));
+  } finally {
+    try {
+      const meta = JSON.parse(await fs.readFile(path.join(dir, 'search-native.meta.json'), 'utf8'));
+      if (isProcessAlive(meta.pid)) await killProcessTree(meta.pid);
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  completed = true;
+} finally {
+  // Retain the same original operation/PID/terminal witnesses even when seed
+  // preparation fails before native startup. Never copy repository or cache
+  // contents; the runner owns the private temporary root on failure.
+  await fs.mkdir(retained, { recursive: true });
+  await fs.writeFile(path.join(retained, 'fixture-root.json'), JSON.stringify({ root: dir, completed }) + '\n');
+  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+    if (entry.isFile() && /^(?:native-source-identity\.json|terminal-receipt\.json|pids\.jsonl|screen-.*\.txt|index-build.*\.json|search-native.*\.jsonl?|terminal-output\.ansi\.log)$/.test(entry.name)) {
+      await fs.copyFile(path.join(dir, entry.name), path.join(retained, entry.name));
+    }
+  }
+  if (completed) {
+    assert.equal(await fs.realpath(dir), dir);
+    await rmDirRecursive(dir, { retries: 0 });
+  }
+}

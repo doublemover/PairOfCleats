@@ -1,38 +1,19 @@
-import crypto from 'node:crypto';
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
+import { createCanaryAttemptOwner, retainCanaryAttemptOwner, getCanaryAttemptOwner, admitCanaryResult, resolveCanaryAttemptLimits } from './canary-attempt.js';
+import { createCanaryRunnerPlan, createCanaryEnvironmentOwner } from './canary-environment.js';
 import { classifyBenchTask } from './verdict.js';
 import {
-  buildBenchEnvironmentMetadata,
   createBenchDiagnosticClassifier
 } from './logging.js';
 import { sumDiagnosticCounts } from './diagnostics.js';
 
 const DEFAULT_CANARY_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'bench-runtime-canaries');
 const DEFAULT_LIVE_CANARY_TIMEOUT_MS = 5 * 60 * 1000;
-const VERSION_PROBE_TIMEOUT_MS = 1500;
-const BENCH_RUNTIME_ENVIRONMENT_PROBES = Object.freeze([
-  { id: 'node', command: process.execPath, args: ['--version'] },
-  { id: 'git', command: 'git', args: ['--version'] },
-  { id: 'npm', command: 'npm', args: ['--version'] },
-  { id: 'cargo', command: 'cargo', args: ['--version'] },
-  { id: 'rustc', command: 'rustc', args: ['--version'] },
-  { id: 'go', command: 'go', args: ['version'] },
-  { id: 'swift', command: 'swift', args: ['--version'] },
-  { id: 'python', command: 'python', args: ['--version'] },
-  { id: 'gopls', command: 'gopls', args: ['version'] },
-  { id: 'sourcekit-lsp', command: 'sourcekit-lsp', args: ['--version'] },
-  { id: 'rust-analyzer', command: 'rust-analyzer', args: ['--version'] }
-]);
-
-const environmentSnapshotCache = new Map();
-
 export const DEFAULT_BENCH_RUNTIME_CANARY_ROOT = DEFAULT_CANARY_ROOT;
 export const BENCH_RUNTIME_CANARY_MANIFEST_SCHEMA_VERSION = 2;
 export const BENCH_RUNTIME_LIVE_CANARY_RESULT_SCHEMA_VERSION = 1;
@@ -45,7 +26,8 @@ export const BENCH_RUNTIME_LIVE_CANARY_STATUS = Object.freeze({
   TARGET_ACHIEVED: 'target_achieved',
   REGRESSED: 'regressed',
   INCONCLUSIVE: 'inconclusive',
-  RUNNER_FAILED: 'runner_failed'
+  RUNNER_FAILED: 'runner_failed',
+  NOT_RUN: 'not_run'
 });
 
 const DIRECT_METRIC_KEYS = Object.freeze([
@@ -111,118 +93,6 @@ const normalizeTextList = (value) => Array.from(new Set(
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
 )).sort((left, right) => left.localeCompare(right));
-
-const inferExpectedPlatform = (value) => {
-  const text = String(value || '').trim().toLowerCase();
-  if (!text || text.includes('cross-platform')) return null;
-  if (text.includes('windows')) return 'win32';
-  if (text.includes('macos') || text.includes('darwin')) return 'darwin';
-  if (text.includes('linux')) return 'linux';
-  return null;
-};
-
-const collectExpectedProbeIds = (entry) => {
-  const corpus = [
-    entry?.environment?.toolchain,
-    entry?.environment?.providerAvailability,
-    entry?.repo,
-    entry?.profile
-  ].map((value) => String(value || '').toLowerCase()).join(' ');
-  const ids = new Set(['node', 'git', 'npm']);
-  if (corpus.includes('rust')) {
-    ids.add('cargo');
-    ids.add('rustc');
-    ids.add('rust-analyzer');
-  }
-  if (corpus.includes('go') || corpus.includes('gopls')) {
-    ids.add('go');
-    ids.add('gopls');
-  }
-  if (corpus.includes('swift') || corpus.includes('sourcekit')) {
-    ids.add('swift');
-    ids.add('sourcekit-lsp');
-  }
-  if (corpus.includes('python')) ids.add('python');
-  return Array.from(ids).sort((left, right) => left.localeCompare(right));
-};
-
-const runVersionProbe = ({ command, args }) => {
-  try {
-    const invocation = process.platform === 'win32'
-      ? resolveWindowsCmdInvocation(command, args, process.env)
-      : { command, args };
-    const result = spawnSync(invocation.command, invocation.args, {
-      windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
-      cwd: process.cwd(),
-      env: process.env,
-      encoding: 'utf8',
-      timeout: VERSION_PROBE_TIMEOUT_MS
-    });
-    const stdout = String(result.stdout || '').trim();
-    const stderr = String(result.stderr || '').trim();
-    const version = stdout || stderr || null;
-    return {
-      available: result.status === 0,
-      version,
-      exitCode: Number.isFinite(Number(result.status)) ? Number(result.status) : null
-    };
-  } catch (error) {
-    return {
-      available: false,
-      version: null,
-      exitCode: null,
-      error: error?.message || String(error)
-    };
-  }
-};
-
-const buildBenchRuntimeEnvironmentSnapshot = (entry) => {
-  const probeIds = collectExpectedProbeIds(entry);
-  const probes = Object.fromEntries(
-    BENCH_RUNTIME_ENVIRONMENT_PROBES
-      .filter((probe) => probeIds.includes(probe.id))
-      .map((probe) => [probe.id, runVersionProbe(probe)])
-  );
-  const metadata = buildBenchEnvironmentMetadata(process.env);
-  const mismatches = [];
-  const expectedPlatform = inferExpectedPlatform(entry?.environment?.os);
-  if (expectedPlatform && metadata.platform !== expectedPlatform) {
-    mismatches.push(`expected platform ${expectedPlatform}, got ${metadata.platform}`);
-  }
-  for (const probeId of probeIds) {
-    const probe = probes[probeId];
-    if (!probe) continue;
-    if (!probe.available && probeId !== 'git' && probeId !== 'npm') {
-      mismatches.push(`expected tool/provider ${probeId} to be available`);
-    }
-  }
-  const fingerprint = crypto
-    .createHash('sha1')
-    .update(JSON.stringify({
-      metadata,
-      probes
-    }))
-    .digest('hex');
-  return {
-    declaredContract: entry?.environment || null,
-    actual: metadata,
-    probes,
-    expectedProbeIds: probeIds,
-    mismatches,
-    fingerprint: `sha1:${fingerprint}`
-  };
-};
-
-const getBenchRuntimeEnvironmentSnapshot = (entry) => {
-  const cacheKey = JSON.stringify({
-    environment: entry?.environment || null,
-    probeIds: collectExpectedProbeIds(entry)
-  });
-  if (!environmentSnapshotCache.has(cacheKey)) {
-    environmentSnapshotCache.set(cacheKey, buildBenchRuntimeEnvironmentSnapshot(entry));
-  }
-  return environmentSnapshotCache.get(cacheKey);
-};
 
 const toNonEmptyLines = (content) => String(content || '')
   .split(/\r?\n/u)
@@ -571,115 +441,124 @@ const resolveRunnerConfig = (entry, root, workDir, outJsonPath) => {
       .map(([key, value]) => [key, substituteRunnerToken(value, tokens)])
   );
   if (runner.type === 'bench-language') {
-    return {
+    return createCanaryRunnerPlan({
       cmd: process.execPath,
       args: [path.resolve(root, 'tools', 'bench', 'language-repos.js'), ...args],
       cwd,
-      env
-    };
+      overrides: env, workDir, outJsonPath
+    });
   }
-  return {
+  return createCanaryRunnerPlan({
     cmd: process.execPath,
     args: [path.resolve(root, substituteRunnerToken(runner.script || '', tokens)), ...args],
-    cwd,
-    env
-  };
+    cwd, overrides: env, workDir, outJsonPath
+  });
 };
 
-export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => {
-  const environment = getBenchRuntimeEnvironmentSnapshot(entry);
-  const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-bench-canary-'));
-  const outJsonPath = path.join(tempDir, `${String(entry?.id || 'canary').replace(/[^a-z0-9_-]/gi, '_')}.json`);
-  const { cmd, args, cwd, env } = resolveRunnerConfig(entry, root, tempDir, outJsonPath);
+const canaryIdentity = entry => ({
+  schemaVersion: BENCH_RUNTIME_LIVE_CANARY_RESULT_SCHEMA_VERSION,
+  id: String(entry?.id || '').trim() || null,
+  issue: Number.isSafeInteger(entry?.issue) && entry.issue > 0 ? entry.issue : null,
+  repo: String(entry?.repo || '').trim() || null,
+  profile: String(entry?.profile || '').trim() || null,
+  canaryKind: String(entry?.canaryKind || '').trim() || null,
+  benchmarkConfirmationLane: String(entry?.benchmarkConfirmationLane || '').trim() || null,
+  proofOfSimilarity: entry?.proofOfSimilarity || null
+});
+const errorField = (error, key) => {
+  try { return Object.getOwnPropertyDescriptor(error, key)?.value; } catch { return undefined; }
+};
+const failedCanary = (entry, error, phase, fields = {}) => ({ ...canaryIdentity(entry),
+  status: BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED, ok: false, closureReady: false,
+  error: typeof errorField(error, 'message') === 'string' ? errorField(error, 'message').slice(0, 2048) : 'Canary attempt failed.',
+  errorCode: typeof errorField(error, 'code') === 'string' ? errorField(error, 'code').slice(0, 128) : 'ERR_CANARY_ATTEMPT',
+  errorPhase: phase, ...fields });
+
+export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd(), {
+  probeRunner, subprocessRunner = spawnSubprocess, limits, signal
+} = {}) => {
+  let tempDir = null, owner = null, plan = null, environment = null, result = null;
+  let row, originalFailure, failed = false, phase = 'prepare';
   const timeoutMs = Number.isFinite(Number(entry?.runner?.timeoutMs))
-    ? Math.max(1, Math.floor(Number(entry.runner.timeoutMs)))
-    : DEFAULT_LIVE_CANARY_TIMEOUT_MS;
-  const stdoutChunks = [];
-  const stderrChunks = [];
-
-  let result;
+    ? Math.max(1, Math.floor(Number(entry.runner.timeoutMs))) : DEFAULT_LIVE_CANARY_TIMEOUT_MS;
   try {
-    result = await spawnSubprocess(cmd, args, {
-      cwd,
-      env: {
-        ...process.env,
-        ...env
-      },
-      timeoutMs,
-      onStdout: (chunk) => stdoutChunks.push(String(chunk || '')),
-      onStderr: (chunk) => stderrChunks.push(String(chunk || ''))
-    });
+    throwIfAborted(signal);
+    const bounds = resolveCanaryAttemptLimits(limits);
+    tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-bench-canary-'));
+    owner = await createCanaryAttemptOwner(tempDir);
+    const outJsonPath = path.join(tempDir, `${String(entry?.id || 'canary').replace(/[^a-z0-9_-]/gi, '_')}.json`);
+    plan = resolveRunnerConfig(entry, root, tempDir, outJsonPath);
+    phase = 'environment';
+    environment = createCanaryEnvironmentOwner({ entry, plan, probeRunner })();
+    throwIfAborted(signal);
+    phase = 'execute';
+    result = await subprocessRunner(plan.cmd, plan.args, { cwd: plan.cwd, env: plan.env, signal,
+      timeoutMs, maxOutputBytes: bounds.captureBytes, captureStdout: true, captureStderr: true, outputMode: 'string' });
+    // The shared runner rejects nonzero/signal/timeout by default. Retain that
+    // contract even when a controlled internal adapter supplies an outcome.
+    if (result?.exitCode !== 0 || result?.signal) throw Object.assign(new Error('Canary child did not exit successfully.'),
+      { code: 'SUBPROCESS_FAILED', result });
+    phase = 'result-admission';
+    const admitted = await admitCanaryResult({ workDir: tempDir, outJsonPath, result, maxBytes: bounds.resultBytes, signal });
+    phase = 'contract';
+    const metrics = extractBenchRuntimeCanaryMetrics(admitted.payload);
+    const current = evaluateBenchRuntimeCanaryContract(entry?.currentContract || {}, metrics);
+    const target = evaluateBenchRuntimeCanaryContract(entry?.targetContract || {}, metrics);
+    const regressionFailures = evaluateBenchRuntimeCanaryForbiddenRegressions(entry?.forbiddenRegressions || [], metrics);
+    const status = regressionFailures.length ? BENCH_RUNTIME_LIVE_CANARY_STATUS.REGRESSED
+      : target.ok ? BENCH_RUNTIME_LIVE_CANARY_STATUS.TARGET_ACHIEVED
+        : current.ok ? BENCH_RUNTIME_LIVE_CANARY_STATUS.BASELINE_CONFIRMED : BENCH_RUNTIME_LIVE_CANARY_STATUS.INCONCLUSIVE;
+    row = { ...canaryIdentity(entry), status, ok: current.ok && regressionFailures.length === 0,
+      closureReady: target.ok && regressionFailures.length === 0 && environment.comparison.state === 'qualified'
+        && subprocessRunner === spawnSubprocess,
+      resultAdmission: admitted.receipt, metrics, current, target, regressionFailures };
   } catch (error) {
-    const stderr = stderrChunks.join('');
-    const stdout = stdoutChunks.join('');
-    await fsPromises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    return {
-      id: String(entry?.id || '').trim() || null,
-      issue: Number.isFinite(Number(entry?.issue)) ? Number(entry.issue) : null,
-      status: BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED,
-      ok: false,
-      closureReady: false,
-      runner: { cmd, args, cwd, timeoutMs },
-      environment,
-      stdout,
-      stderr,
-      error: error?.message || String(error)
-    };
+    failed = true; originalFailure = error;
+    owner?.remember(error);
+    result ||= errorField(error, 'result') || null;
+    row = failedCanary(entry, error, phase, {
+      interrupted: signal?.aborted === true || errorField(error, 'code') === 'ABORT_ERR',
+      resultAdmission: { state: 'unavailable', phase }
+    });
   }
+  row.environment = environment;
+  row.runner = plan ? { cmd: plan.cmd, args: plan.args, cwd: plan.cwd, timeoutMs,
+    environmentScope: environment?.evidenceScope || null, overrideKeys: plan.overrideKeys,
+    operationalPaths: plan.operationalPaths, exitCode: Number.isInteger(result?.exitCode) ? result.exitCode : null,
+    signal: result?.signal || null, evidenceScope: subprocessRunner === spawnSubprocess ? 'shared-subprocess' : 'injected-subprocess-contract' } : null;
+  row.stdout = typeof result?.stdout === 'string' ? result.stdout : '';
+  row.stderr = typeof result?.stderr === 'string' ? result.stderr : '';
+  row.outputCapture = result?.outputCapture || null;
+  row.termination = result?.termination || null;
+  row.attempt = owner ? await owner.finalize() : { state: tempDir ? 'retained' : 'not-created',
+    workDir: tempDir, ownershipPending: Boolean(tempDir) };
+  if (row.attempt.ownershipPending) {
+    row.ok = false; row.closureReady = false;
+    row.status = BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED;
+    if (!failed) Object.assign(row, { error: 'Canary attempt cleanup did not confirm release.',
+      errorCode: 'ERR_CANARY_CLEANUP_PENDING', errorPhase: 'cleanup' });
+  }
+  return retainCanaryAttemptOwner(row, owner, failed ? originalFailure : undefined);
+};
 
-  const stdout = stdoutChunks.join('');
-  const stderr = stderrChunks.join('');
-  let payload = null;
-  if (fs.existsSync(outJsonPath)) {
-    payload = JSON.parse(await fsPromises.readFile(outJsonPath, 'utf8'));
-  } else {
-    const trimmed = stdout.trim();
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      payload = JSON.parse(trimmed);
+/** Malformed individual results continue; cancellation or unresolved resource
+ * ownership stops admission. Every selected entry still gets a terminal row. */
+export const runBenchRuntimeCanaryLane = async (entries, root = process.cwd(), options = {}) => {
+  const results = [];
+  let stopReason = null;
+  for (const entry of entries) {
+    if (options.signal?.aborted) stopReason ||= 'cancelled';
+    if (stopReason) {
+      results.push({ ...canaryIdentity(entry), status: BENCH_RUNTIME_LIVE_CANARY_STATUS.NOT_RUN,
+        ok: false, closureReady: false, notRunReason: stopReason });
+      continue;
     }
+    const result = await runBenchRuntimeLiveCanary(entry, root, options);
+    results.push(result);
+    if (result.interrupted) stopReason = 'cancelled';
+    else if (result.attempt?.ownershipPending) stopReason = 'prior-attempt-ownership-pending';
   }
-  const metrics = extractBenchRuntimeCanaryMetrics(payload || {});
-  const current = evaluateBenchRuntimeCanaryContract(entry?.currentContract || {}, metrics);
-  const target = evaluateBenchRuntimeCanaryContract(entry?.targetContract || {}, metrics);
-  const regressionFailures = evaluateBenchRuntimeCanaryForbiddenRegressions(entry?.forbiddenRegressions || [], metrics);
-  let status = BENCH_RUNTIME_LIVE_CANARY_STATUS.INCONCLUSIVE;
-  if (regressionFailures.length) {
-    status = BENCH_RUNTIME_LIVE_CANARY_STATUS.REGRESSED;
-  } else if (target.ok) {
-    status = BENCH_RUNTIME_LIVE_CANARY_STATUS.TARGET_ACHIEVED;
-  } else if (current.ok) {
-    status = BENCH_RUNTIME_LIVE_CANARY_STATUS.BASELINE_CONFIRMED;
-  }
-
-  await fsPromises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-  return {
-    schemaVersion: BENCH_RUNTIME_LIVE_CANARY_RESULT_SCHEMA_VERSION,
-    id: String(entry?.id || '').trim() || null,
-    issue: Number.isFinite(Number(entry?.issue)) ? Number(entry.issue) : null,
-    repo: String(entry?.repo || '').trim() || null,
-    profile: String(entry?.profile || '').trim() || null,
-    canaryKind: String(entry?.canaryKind || '').trim() || null,
-    benchmarkConfirmationLane: String(entry?.benchmarkConfirmationLane || '').trim() || null,
-    proofOfSimilarity: entry?.proofOfSimilarity || null,
-    environment,
-    runner: {
-      cmd,
-      args,
-      cwd,
-      timeoutMs,
-      exitCode: Number(result?.exitCode),
-      signal: result?.signal || null
-    },
-    status,
-    ok: status !== BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED && current.ok,
-    closureReady: target.ok && regressionFailures.length === 0,
-    metrics,
-    current,
-    target,
-    regressionFailures,
-    stdout,
-    stderr
-  };
+  return buildBenchRuntimeLiveCanarySummary(results, { requireTarget: options.requireTarget === true });
 };
 
 export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = false } = {}) => {
@@ -692,9 +571,10 @@ export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = fa
     rows
       .filter((entry) => (requireTarget ? !entry?.closureReady : !entry?.ok))
       .map((entry) => Number(entry?.issue))
-      .filter(Number.isFinite)
+      .filter(value => Number.isSafeInteger(value) && value > 0)
   )).sort((left, right) => left - right);
-  const ok = rows.length > 0 && blockedIssues.length === 0;
+  const failedRows = rows.filter(entry => requireTarget ? !entry?.closureReady : !entry?.ok);
+  const ok = rows.length > 0 && failedRows.length === 0;
   const environmentFingerprints = Array.from(new Set(
     rows
       .map((entry) => String(entry?.environment?.fingerprint || '').trim())
@@ -706,23 +586,40 @@ export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = fa
     requireTarget,
     ok,
     countsByStatus,
+    coverage: { selected: rows.length,
+      attempted: rows.filter(entry => entry?.status !== BENCH_RUNTIME_LIVE_CANARY_STATUS.NOT_RUN).length,
+      notRun: rows.filter(entry => entry?.status === BENCH_RUNTIME_LIVE_CANARY_STATUS.NOT_RUN).length,
+      interrupted: rows.filter(entry => entry?.interrupted === true).length,
+      failed: failedRows.length,
+      ownershipPending: rows.filter(entry => entry?.attempt?.ownershipPending === true).length,
+      complete: rows.every(entry => entry?.status !== BENCH_RUNTIME_LIVE_CANARY_STATUS.NOT_RUN
+        && entry?.interrupted !== true && entry?.attempt?.ownershipPending !== true) },
     blockedIssues,
     environmentFingerprints,
-    canaries: rows.map((entry) => ({
+    canaries: rows.map((entry) => retainCanaryAttemptOwner({
       id: entry?.id || null,
       issue: entry?.issue || null,
       repo: entry?.repo || null,
       profile: entry?.profile || null,
       status: entry?.status || null,
+      ok: entry?.ok === true,
       closureReady: entry?.closureReady === true,
       benchmarkConfirmationLane: entry?.benchmarkConfirmationLane || null,
       proofOfSimilarity: entry?.proofOfSimilarity || null,
       environment: entry?.environment || null,
       metrics: entry?.metrics || null,
+      runner: entry?.runner || null,
+      attempt: entry?.attempt || null,
+      outputCapture: entry?.outputCapture || null,
+      resultAdmission: entry?.resultAdmission || null,
+      termination: entry?.termination || null,
+      error: entry?.error || null, errorCode: entry?.errorCode || null, errorPhase: entry?.errorPhase || null,
+      interrupted: entry?.interrupted === true, notRunReason: entry?.notRunReason || null,
+      stdout: entry?.stdout || '', stderr: entry?.stderr || '',
       currentFailures: entry?.current?.failures || [],
       targetFailures: entry?.target?.failures || [],
       regressionFailures: Array.isArray(entry?.regressionFailures) ? entry.regressionFailures : []
-    }))
+    }, getCanaryAttemptOwner(entry)))
   };
 };
 
@@ -849,6 +746,8 @@ export const formatBenchRuntimeLiveCanarySummaryMarkdown = (summary) => {
     `- generated: ${String(summary?.generatedAt || '').trim() || 'unknown'}`,
     `- require target: ${summary?.requireTarget === true ? 'yes' : 'no'}`,
     `- ok: ${summary?.ok === true ? 'yes' : 'no'}`,
+    `- selected/attempted/not run: ${summary?.coverage?.selected ?? 'unknown'}/${summary?.coverage?.attempted ?? 'unknown'}/${summary?.coverage?.notRun ?? 'unknown'}`,
+    `- coverage complete: ${summary?.coverage?.complete === true ? 'yes' : 'no'}`,
     `- blocked issues: ${Array.isArray(summary?.blockedIssues) && summary.blockedIssues.length ? summary.blockedIssues.join(', ') : 'none'}`,
     `- environment fingerprints: ${Array.isArray(summary?.environmentFingerprints) && summary.environmentFingerprints.length ? summary.environmentFingerprints.join(', ') : 'none'}`,
     '',
@@ -861,6 +760,9 @@ export const formatBenchRuntimeLiveCanarySummaryMarkdown = (summary) => {
   lines.push('', '## Canaries', '');
   for (const entry of Array.isArray(summary?.canaries) ? summary.canaries : []) {
     lines.push(`- ${entry.id}: ${entry.status} (issue #${entry.issue}, lane ${entry.benchmarkConfirmationLane || 'unknown'})`);
+    if (entry.errorCode) lines.push(`  failure: ${entry.errorCode} (${entry.errorPhase || 'unknown'})`);
+    if (entry.notRunReason) lines.push(`  not run: ${entry.notRunReason}`);
+    if (entry.attempt?.ownershipPending) lines.push(`  retained work directory: ${entry.attempt.workDir}`);
     if (entry?.environment?.mismatches?.length) {
       lines.push(`  environment mismatches: ${entry.environment.mismatches.join('; ')}`);
     }

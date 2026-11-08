@@ -13,6 +13,7 @@ import { collectCompilerFlow } from '../../../src/index/semantic/compiler-flow.j
 import { createTypeScriptNodeIndex } from '../../../src/index/tooling/typescript/node-index.js';
 import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 import { createArtifactSemanticStore } from '../../../src/semantic/artifact-store.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 const text = [
   'function choose(flag: boolean) { let x = 0; if (flag) x = 1; else x = 2; return x; }',
   'function loop(n: number) { let x = 0; while (x < n) { x += 1; } return x; }',
@@ -51,7 +52,7 @@ try {
   const argumentsFor = { ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor, declarationFor, source, bytes,
     bindingPartition: partition, context: { contextKey: 'c'.repeat(64) }, root, policy, diskAccount };
   const flow = await collectCompilerFlow(argumentsFor);
-  const store = createArtifactSemanticStore({ root, repoRoot: 'cfg-fixture', artifactSurfaceVersion: '0.1.0',
+  const store = createArtifactSemanticStore({ root, repoRoot: 'cfg-fixture', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     generation: { baseBuildId: 'fixture', semanticRevision: 0 }, partitions: [partition, flow.partition] });
   const values = new Map(), edges = [];
   for await (const row of store.iterateRows(flow.partition.partitionId, 'semantic_records')) values.set(row.id, row);

@@ -28,6 +28,8 @@ const runValidation = async ({ repoRoot, indexRoot, strict = true }) => validate
 
 const assertValidationIssue = (report, expectedText, message) => {
   assert.equal(report.ok, false, message || `expected validation failure containing ${expectedText}`);
+  assert.equal(report.modes.code.ok, false, 'mode verdict must agree with its owned semantic/manifest failure');
+  assert.ok(report.findings.some(row => row.mode === 'code' && row.severity === 'error'));
   assert.ok(
     report.issues.some((issue) => issue.includes(expectedText)),
     `expected validation issue containing ${expectedText}; got: ${report.issues.join('; ')}`
@@ -95,7 +97,8 @@ const cases = [
               assert.deepEqual(report.issues, [], `${target}/${label}`);
               assert.deepEqual(manifestCounts.map(([name, value]) => [name, value]), [[`${target}_meta`, count], [target, count]]);
             }
-            assert.ok(reads.every((name) => name.endsWith('_meta')), 'count validation must not read/materialize dense vector payloads');
+            assert.ok(reads.every((name) => name === 'index_state' || name.endsWith('_meta')),
+              'identity/count validation reads state and metadata without materializing dense vector payloads');
           }
         }
       } finally {
@@ -409,7 +412,7 @@ const cases = [
     async run() {
       const tempRoot = await createTempRoot('index-validate-contract-checksum-mismatch');
       const manifestPieces = createManifestPieces({
-        chunk_meta: { checksum: 'sha1:deadbeef' }
+        chunk_meta: { checksum: 'sha1:' + '0'.repeat(40) }
       });
       const { repoRoot, indexRoot } = await createBaseIndex({ rootDir: tempRoot, manifestPieces });
 

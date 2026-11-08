@@ -3,15 +3,6 @@ import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-const { isAbsolutePathNative } = await import('../src/shared/file-paths.js');
-const { stableStringify } = await import('../src/shared/stable-json.js');
-const { normalizePathForRepo } = await import('../src/shared/path-normalize.js');
-const {
-  validateTestCoverageArtifact,
-  validateTestTimingsArtifact,
-  validateTestProfileArtifact,
-  validateTestStabilityArtifact
-} = await import('../src/contracts/validators/test-artifacts.js');
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const { loadRunConfig, loadRunRules } = await import('./runner/run-config.js');
 const {
@@ -28,47 +19,15 @@ const {
 const { buildSuiteCategorySummary, inferSuiteCategory } = await import('./runner/suite-taxonomy.js');
 const { loadLaneManifestConfig, loadOrderedLaneManifest } = await import('./runner/lane-manifests.js');
 const { parseArgs } = await import('./runner/run-args.js');
+const { selectTestIds, readTestIdSelection } = await import('./runner/test-id-selection.js');
 const {
   mergeNodeOptions,
   normalizeLaneArgs,
   resolveLogDir,
-  resolvePhysicalCores,
+  resolveTestJobs,
   resolveRetries,
   resolveTimeout
 } = await import('./runner/run-helpers.js');
-const { ensureTestingEnv } = await import('./helpers/test-env.js');
-const { applyToolchainDaemonPolicyEnv } = await import('../src/shared/toolchain-env.js');
-const { runTests } = await import('./runner/run-execution.js');
-const { summarizeResults, resolveAcceptanceExitCode } = await import('./runner/run-results.js');
-const {
-  buildJsonReport,
-  buildTimingsPayload,
-  createInitReporter,
-  createOrderedReporter,
-  renderHeader,
-  renderSummary,
-  reportTestResult,
-  writeJUnit,
-  writeLatestLogPointer,
-  writeTestRunTimes,
-  writeTimings
-} = await import('./runner/run-reporting.js');
-const {
-  buildStabilityArtifact,
-  loadStabilityHistory,
-  writeStabilityArtifact
-} = await import('./runner/run-stability.js');
-const { loadDiagnosticsGovernance } = await import('./runner/diagnostics-governance.js');
-const {
-  buildCoverageArtifact,
-  collectV8CoverageEntries,
-  filterCoverageEntriesToChanged,
-  loadCoverageArtifactsFromPath,
-  mergeCoverageEntries,
-  writeCoverageArtifact
-} = await import('../tools/testing/coverage/index.js');
-
-const { resolveTestCachePath } = await import('./helpers/test-cache.js');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
@@ -443,6 +402,8 @@ const main = async () => {
     }));
   }
 
+  if (argv['test-id-file']) selection = selectTestIds(selection, readTestIdSelection(path.resolve(argv['test-id-file'])));
+
   if (!selection.length) {
     console.error('No tests matched the selected filters.');
     process.exit(2);
@@ -482,6 +443,25 @@ const main = async () => {
     }
     return;
   }
+
+  // Discovery has returned above. Execution/reporting owners have no work in a
+  // list request; actual runs retain the original modules and strict validators.
+  const [
+    { resolveDevelopmentArtifactPath }, { isAbsolutePathNative }, { stableStringify }, { normalizePathForRepo },
+    { validateTestCoverageArtifact, validateTestTimingsArtifact, validateTestProfileArtifact, validateTestStabilityArtifact },
+    { ensureTestingEnv }, { applyToolchainDaemonPolicyEnv }, { runTests }, { summarizeResults, resolveAcceptanceExitCode },
+    { buildJsonReport, buildTimingsPayload, createInitReporter, createOrderedReporter, renderHeader, renderSummary,
+      reportTestResult, writeJUnit, writeLatestLogPointer, writeTestRunTimes, writeTimings },
+    { buildStabilityArtifact, loadStabilityHistory, writeStabilityArtifact }, { loadDiagnosticsGovernance },
+    { buildCoverageArtifact, collectV8CoverageEntries, filterCoverageEntriesToChanged, loadCoverageArtifactsFromPath,
+      mergeCoverageEntries, writeCoverageArtifact }, { resolveTestCachePath }
+  ] = await Promise.all([
+    import('../tools/shared/dev-artifacts.js'), import('../src/shared/file-paths.js'), import('../src/shared/stable-json.js'),
+    import('../src/shared/path-normalize.js'), import('../src/contracts/validators/test-artifacts.js'),
+    import('./helpers/test-env.js'), import('../src/shared/toolchain-env.js'), import('./runner/run-execution.js'),
+    import('./runner/run-results.js'), import('./runner/run-reporting.js'), import('./runner/run-stability.js'),
+    import('./runner/diagnostics-governance.js'), import('../tools/testing/coverage/index.js'), import('./helpers/test-cache.js')
+  ]);
 
   const envRetries = Number.parseInt(
     process.env.PAIROFCLEATS_TEST_RETRIES ?? process.env.npm_config_test_retries ?? '',
@@ -550,11 +530,11 @@ const main = async () => {
     || Boolean(argv['coverage-merge'])
     || Boolean(argv['coverage-changed'])
   );
-  const coverageDir = path.join(ROOT, '.c8', `run-${runId}`);
+  const coverageDir = resolveDevelopmentArtifactPath(ROOT, 'test-coverage', `run-${runId}`);
   const coverageOutputPath = (() => {
     const raw = typeof argv.coverage === 'string' ? argv.coverage.trim() : '';
     if (raw) return isAbsolutePathNative(raw) ? raw : path.resolve(ROOT, raw);
-    return path.join(ROOT, '.c8', `coverage-${runId}.json`);
+    return resolveDevelopmentArtifactPath(ROOT, 'test-coverage', `coverage-${runId}.json`);
   })();
   const coverageMergePath = typeof argv['coverage-merge'] === 'string' && argv['coverage-merge'].trim()
     ? path.resolve(ROOT, argv['coverage-merge'].trim())
@@ -569,10 +549,7 @@ const main = async () => {
   const watchdogMs = Number.isFinite(argv['watchdog-ms'])
     ? Math.max(0, Math.floor(argv['watchdog-ms']))
     : (Number.isFinite(envWatchdog) ? Math.max(0, Math.floor(envWatchdog)) : 0);
-  const defaultJobs = Math.max(1, resolvePhysicalCores());
-  const jobs = Number.isFinite(argv.jobs)
-    ? Math.max(1, Math.floor(argv.jobs))
-    : defaultJobs;
+  const jobs = resolveTestJobs(argv.jobs);
   const passThrough = Array.isArray(argv['--']) ? argv['--'].map(String) : [];
 
   if (runLogDir) {
@@ -831,7 +808,11 @@ const main = async () => {
     }
     const currentEntries = await collectV8CoverageEntries({
       root: ROOT,
-      coverageDir
+      coverageDir,
+      ...(argv['test-id-file'] ? { onRanges: async ranges => {
+        await fsPromises.mkdir(path.dirname(coverageOutputPath), { recursive: true });
+        await fsPromises.writeFile(coverageOutputPath + '.ranges.json', JSON.stringify(ranges));
+      } } : {})
     });
     coverageArtifacts.push(buildCoverageArtifact({ runId, entries: currentEntries }));
     let mergedEntries = mergeCoverageEntries(coverageArtifacts);
@@ -892,7 +873,7 @@ const main = async () => {
     }
   }
 
-  process.exit(resolveAcceptanceExitCode(finalResults, { perfBudgetViolations }));
+  process.exit(resolveAcceptanceExitCode(finalResults, { perfBudgetViolations, watchdogState: context.watchdogState }));
 };
 
 main().catch((error) => {

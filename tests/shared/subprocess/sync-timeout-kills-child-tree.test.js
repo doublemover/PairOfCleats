@@ -115,8 +115,10 @@ try {
   assert.equal(isPidAlive(helperResult.pid), false, 'the timed-out direct parent has exited');
   spawnedChildPid = Number.parseInt(String(await waitForFile(childPidFile)).trim(), 10);
   assert.ok(Number.isFinite(spawnedChildPid) && spawnedChildPid > 0);
+  console.log(JSON.stringify({ measurement: 'sync-timeout-tree-cleanup',
+    parentPid: helperResult.pid, descendantPid: spawnedChildPid, cleanup: helperResult.timeoutCleanup }));
   assert.equal(await waitForPidExit(spawnedChildPid, 2500), true,
-    'expected timed-out runNode helper to reap its owned descendant');
+    'expected timed-out runNode helper to reap its owned descendant: ' + JSON.stringify(helperResult.timeoutCleanup));
 
   const delayedOutput = ['-e', 'setTimeout(() => console.log("completed"), 50)'];
   for (const timeout of [0, null, undefined, 2000]) {

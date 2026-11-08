@@ -6,6 +6,8 @@ import {
   validateLengths
 } from './helpers.js';
 import { materializeDenseVectorRows } from '../../../shared/dense-vector-artifacts.js';
+import { assertMinhashHashIdentity, normalizeMinhashSampling } from '../../minhash.js';
+import { mergePieceRiskStats } from './risk-stats.js';
 
 const CHUNK_UID_ORDINAL_SUFFIX_RE = /:ord[1-9][0-9]*$/;
 
@@ -206,6 +208,19 @@ const remapCallSite = (site, chunkUidRemap) => {
 };
 
 export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
+  const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
+  const sourceChunkUids = new Set();
+  for (const chunk of chunks) {
+    const originalChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
+    if (chunk.chunkUid && chunk.metaV2?.chunkUid && chunk.chunkUid !== chunk.metaV2.chunkUid) {
+      throw new Error(`Conflicting chunk UID identities in input ${dir}: ${chunk.chunkUid}`);
+    }
+    if (typeof originalChunkUid !== 'string' || !originalChunkUid) continue;
+    if (sourceChunkUids.has(originalChunkUid)) {
+      throw new Error(`Ambiguous duplicate chunk UID in input ${dir}: ${originalChunkUid}`);
+    }
+    sourceChunkUids.add(originalChunkUid);
+  }
   if (Array.isArray(input.fileList) && input.fileList.length) {
     const fileSet = new Set(Array.isArray(state.discoveredFiles) ? state.discoveredFiles : []);
     for (const file of input.fileList) {
@@ -214,7 +229,6 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
     state.discoveredFiles = Array.from(fileSet).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
   }
 
-  const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
   const docLengths = Array.isArray(input.tokenPostings?.docLengths)
     ? input.tokenPostings.docLengths
     : [];
@@ -222,15 +236,16 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
   const docOffset = state.chunks.length;
   const usedChunkUids = mergeState.usedChunkUids || (mergeState.usedChunkUids = new Set());
   const chunkUidRemap = new Map();
+  // Resolve every source identity before touching any forward/backward link.
+  for (const chunkUid of sourceChunkUids) {
+    chunkUidRemap.set(chunkUid, allocateMergedChunkUid(chunkUid, usedChunkUids));
+  }
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = { ...chunks[i] };
     chunk.id = docOffset + i;
     const originalChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
     if (originalChunkUid) {
-      const nextChunkUid = allocateMergedChunkUid(originalChunkUid, usedChunkUids);
-      if (nextChunkUid !== originalChunkUid) {
-        chunkUidRemap.set(originalChunkUid, nextChunkUid);
-      }
+      const nextChunkUid = chunkUidRemap.get(originalChunkUid) || originalChunkUid;
       chunk.chunkUid = nextChunkUid;
       if (chunk.metaV2 && typeof chunk.metaV2 === 'object') {
         chunk.metaV2 = {
@@ -263,13 +278,7 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
     if (!Array.isArray(state.riskPartialFlows)) state.riskPartialFlows = [];
     state.riskPartialFlows.push(...input.riskPartialFlows.map((flow) => remapRiskFlow(flow, chunkUidRemap, { partial: true })));
   }
-  if (
-    input.riskInterproceduralStats
-    && typeof input.riskInterproceduralStats === 'object'
-    && !state.riskInterproceduralStats
-  ) {
-    state.riskInterproceduralStats = { ...input.riskInterproceduralStats };
-  }
+  mergePieceRiskStats({ input, dir, state, mergeState });
 
   const vocab = Array.isArray(input.tokenPostings?.vocab) ? input.tokenPostings.vocab : [];
   const postings = Array.isArray(input.tokenPostings?.postings) ? input.tokenPostings.postings : [];
@@ -315,8 +324,28 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
 
   const minhash = readArray(input.minhash, 'signatures');
   if (input.minhash) {
+    assertMinhashHashIdentity(input.minhash.hashIdentity);
+    const sampling = input.minhash.sampling == null ? null : normalizeMinhashSampling(input.minhash.sampling);
+    if (input.minhash.sampling != null && !sampling) throw new Error('Invalid minhash coordinate metadata; rebuild the index.');
+    const coordinateKey = sampling
+      ? `${sampling.signatureLength}:${sampling.sampledSignatureLength}:${sampling.hashStride}`
+      : 'full';
+    if (mergeState.minhashCoordinateKey != null && mergeState.minhashCoordinateKey !== coordinateKey) {
+      throw new Error('Cannot assemble different minhash coordinate plans; rebuild the index.');
+    }
+    mergeState.minhashCoordinateKey = coordinateKey;
+    mergeState.minhashHashIdentity = input.minhash.hashIdentity;
+    mergeState.minhashSampling = sampling;
     validateLengths('minhash', minhash, chunks.length, dir, { allowMissing: false });
-    if (minhash.length) mergeState.mergedMinhash.push(...minhash);
+    for (const signature of minhash) {
+      if (signature?.length) {
+        const width = sampling?.sampledSignatureLength ?? mergeState.minhashWidth ?? signature.length;
+        if (signature.length !== width) throw new Error('Cannot assemble different minhash signature widths; rebuild the index.');
+        mergeState.minhashWidth = width;
+      }
+      // Packed input owns typed views; JSON output must preserve their numeric rows.
+      mergeState.mergedMinhash.push(ArrayBuffer.isView(signature) ? Array.from(signature) : signature);
+    }
   }
 
   const phraseVocab = readArray(input.phraseNgrams, 'vocab');

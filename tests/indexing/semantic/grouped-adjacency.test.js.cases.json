@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["weighted-counts-and-provenance", "retract-extrema-and-last-support", "partial-domain-observations", "atomic-replay-and-original-handles", "bounded-and-cancelled-transitions", "independent-expanded-bag"]
+}

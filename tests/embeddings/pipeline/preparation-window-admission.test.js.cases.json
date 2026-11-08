@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["before-estimation-and-through-release", "ordered-windows-beyond-token-lru", "oversized-text-before-provider-work", "single-global-reservation"]
+}

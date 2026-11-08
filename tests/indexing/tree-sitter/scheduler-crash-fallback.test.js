@@ -41,8 +41,8 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
+let scheduler = null;
 try {
-  let scheduler = null;
   let schedulerError = null;
   let skippedForMissingGrammar = false;
   await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
@@ -87,10 +87,15 @@ try {
       'expected degraded virtual paths to be tracked'
     );
     assert.ok(
-      typeof scheduler?.isDegradedVirtualPath === 'function',
+      typeof scheduler?.queryDegradation === 'function',
       'expected degraded virtual path checker'
     );
     const crashSummary = scheduler.getCrashSummary();
+    assert.equal(crashSummary.persistence.pending, false, 'the returned scheduler must have joined evidence persistence');
+    assert.equal(crashSummary.persistence.ok, true, 'successful fixture sinks remain an independent positive control');
+    assert.deepEqual(crashSummary.persistence.failures, []);
+    crashSummary.persistence.failures.push({ sink: 'caller-mutation' });
+    assert.deepEqual(scheduler.getCrashSummary().persistence.failures, [], 'the live diagnostic receipt is defensively copied');
     assert.equal(
       crashSummary.failureClasses?.parser_crash,
       1,
@@ -113,7 +118,7 @@ try {
     );
     await fs.access(scheduler.crashForensicsBundlePath);
     await fs.access(scheduler.plannerFailureSnapshotPath);
-    await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
+    await fs.access(path.join(crashLogger.paths.directory, 'index-crash-forensics-index.json'));
     const plannerSnapshot = JSON.parse(await fs.readFile(scheduler.plannerFailureSnapshotPath, 'utf8'));
     assert.ok(
       Array.isArray(plannerSnapshot?.scheduledJobs) && plannerSnapshot.scheduledJobs.length > 0,
@@ -159,7 +164,11 @@ try {
     assert.equal(cpuResult?.skip, null, 'expected no skip despite injected parser crash');
   }
 } finally {
-  await crashLogger.close?.();
+  try {
+    await scheduler?.close();
+  } finally {
+    await crashLogger.close?.();
+  }
 }
 
 console.log('tree-sitter scheduler crash fallback ok');

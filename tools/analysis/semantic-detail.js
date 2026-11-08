@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SEMANTIC_DETAIL_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { once } from 'node:events';
@@ -10,10 +11,7 @@ import { assertSemanticQuery } from '../../src/contracts/validators/semantic-que
 /** Stream bounded JSONL pages within one process; opaque cursors expire with the process. */
 export const runSemanticDetailCli = async (argv = process.argv, { output = process.stdout } = {}) => {
   const args = createCli({ argv, scriptName: 'pairofcleats semantic detail',
-    usage: '$0 --request request.json [--all]', options: {
-      request: { type: 'string', demandOption: true, description: 'Semantic detail request JSON file (at most 1 MiB).' },
-      all: { type: 'boolean', default: false, description: 'Stream every bounded page as JSONL in this process.' }
-    } }).strictOptions().parse();
+    usage: '$0 --request request.json [--all]', options: SEMANTIC_DETAIL_OPTIONS }).strictOptions().parse();
   if ((await fs.stat(args.request)).size > 1048576) throw new Error('Semantic request file exceeds allowance.');
   const request = assertSemanticQuery('detailRequest', JSON.parse(await fs.readFile(args.request, 'utf8')));
   let cursor = request.cursor || null;

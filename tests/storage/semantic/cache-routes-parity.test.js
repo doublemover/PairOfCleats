@@ -5,17 +5,19 @@ import path from 'node:path';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 import { incrementalUpdateDatabase } from '../../../src/storage/sqlite/build/incremental-update.js';
 import { CREATE_SEMANTIC_TABLES_SQL } from '../../../src/storage/sqlite/semantic/schema.js';
-import { ingestSemanticPartition } from '../../../src/storage/sqlite/semantic/ingest.js';
+import { ingestSemanticPartition, SEMANTIC_PARTITION_TABLES } from '../../../src/storage/sqlite/semantic/ingest.js';
 import { createArtifactSemanticStore } from '../../../src/semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { createSemanticCacheFixture } from '../../helpers/semantic-cache-fixture.js';
 import { createSemanticTaskId } from '../../../src/index/semantic/identity.js';
+import { createSqliteSemanticStore } from '../../../src/semantic/sqlite-store.js';
+import { literalValueKey } from '../../../src/semantic/discovery-facts.js';
 
 const fixture = await createSemanticCacheFixture();
 const outPath = path.join(fixture.root, 'bundle.sqlite');
 const options = { Database, outPath, mode: 'code', incrementalData: { manifest: fixture.manifest, bundleDir: fixture.bundleDir },
   vectorConfig: { enabled: false }, modelConfig: { id: null }, emitOutput: false, validateMode: 'off', optimize: false };
-const tables = ['semantic_sources', 'semantic_records', 'semantic_operands', 'semantic_edges', 'semantic_ownership',
+const tables = ['semantic_sources', 'semantic_records', 'semantic_discovery', 'semantic_operands', 'semantic_edges', 'semantic_ownership',
   'semantic_coverage', 'semantic_lookup', 'semantic_frontier'];
 const read = (db) => ({ ...Object.fromEntries(tables.map(table => [table, db.prepare('SELECT * FROM ' + table + ' ORDER BY rowid').all()])),
   semantic_analysis: db.prepare('SELECT partition_id,source_id,canonical_hash FROM semantic_analysis ORDER BY partition_id').all() });
@@ -25,6 +27,10 @@ try {
   const files = [];
   for (const file of ['input.js', 'stable-a.js', 'stable-b.js', 'empty.js']) {
     files.push(await fixture.createFile({ file, zeroChunks: file === 'empty.js', nodeCount: file === 'empty.js' ? 0 : 1,
+      ...(file === 'input.js' ? { analysisReason: 'old-analysis-policy', analysisRows: [
+        { family: 'node', row: { id: 0, kind: 'literal', span: [2, 3], scope: null,
+          data: { literalKind: 'number', textRef: { span: [2, 3] }, scalar: { type: 'number', representation: '1' } } } }
+      ] } : {}),
       extraRows: file === 'stable-a.js' ? (source) => {
         task = { schemaVersion: 1, taskId: createSemanticTaskId({ kind: 'bind', inputHashes, policyHash, targetSetHash }),
           kind: 'bind', baseBuildId: fixture.generation.baseBuildId, sourceUnits: [source.sourceUnitId], inputHashes, policyHash,
@@ -38,6 +44,9 @@ try {
   const golden = new Database(':memory:');
   golden.exec(CREATE_SEMANTIC_TABLES_SQL);
   try {
+    const partitionTables = golden.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'semantic_%'")
+      .all().map(row => row.name).filter(table => golden.prepare(`PRAGMA table_info(${table})`).all().some(column => column.name === 'partition_id'));
+    assert.deepEqual([...SEMANTIC_PARTITION_TABLES].sort(), partitionTables.sort(), 'every partition-keyed table shares the removal owner');
     golden.exec('BEGIN');
     for (const file of files) {
       const store = createArtifactSemanticStore({ root: path.join(fixture.buildRoot, fixture.storage.relativePath),
@@ -52,13 +61,23 @@ try {
       assert.deepEqual(JSON.parse(bundled.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get().value), fixture.generation);
       assert.equal(bundled.prepare("SELECT chunk_count FROM file_manifest WHERE file='empty.js'").get().chunk_count, 0);
       assert.deepEqual(JSON.parse(bundled.prepare('SELECT payload FROM semantic_frontier').get().payload), task);
+      const discoveryStore = createSqliteSemanticStore({ db: bundled, repoRoot: fixture.repoRoot, indexPath: outPath,
+        artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: fixture.generation });
+      const initial = await discoveryStore.findOperations({ field: 'literalValue', value: literalValueKey({ type: 'number', representation: '1' }) });
+      assert.equal(initial.refs.length, 1, 'the old analysis partition contributes a real derived literal lookup');
+      assert.equal((await discoveryStore.getRecords(initial.refs))[0].kind, 'literal');
     } finally { bundled.close(); }
   } finally { golden.close(); }
 
-  const before = new Database(outPath, { readonly: true });
+  const before = new Database(outPath);
   let chunks;
-  try { chunks = before.prepare('SELECT * FROM chunks ORDER BY id').all(); } finally { before.close(); }
-  const changed = await fixture.createFile({ file: 'input.js', analysisReason: 'new-analysis-policy' });
+  try {
+    chunks = before.prepare('SELECT * FROM chunks ORDER BY id').all();
+    before.prepare('INSERT INTO semantic_discovery VALUES (?, ?, ?, ?)').run('legacy-orphan', 0, 'literalValue', 'old-key');
+  } finally { before.close(); }
+  const changed = await fixture.createFile({ file: 'input.js', analysisReason: 'new-analysis-policy', reuseSource: true });
+  assert.deepEqual(changed.entry.bundleInventory, files[0].entry.bundleInventory,
+    'semantic-only input preserves the exact ordinary bundle bytes, including source mtime');
   fixture.manifest.semanticGeneration = { baseBuildId: 'semantic-only', semanticRevision: 0 };
   const updated = await incrementalUpdateDatabase(options);
   assert.equal(updated.used, true);
@@ -67,6 +86,12 @@ try {
   const semanticOnly = new Database(outPath, { readonly: true });
   try {
     assert.deepEqual(semanticOnly.prepare('SELECT * FROM chunks ORDER BY id').all(), chunks);
+    assert.equal(semanticOnly.prepare('SELECT COUNT(*) AS n FROM semantic_discovery d LEFT JOIN semantic_analysis a USING(partition_id) WHERE a.partition_id IS NULL').get().n,
+      0, 'removing an analysis partition cannot retain orphan discovery references');
+    const store = createSqliteSemanticStore({ db: semanticOnly, repoRoot: fixture.repoRoot, indexPath: outPath,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: fixture.manifest.semanticGeneration });
+    const discovery = await store.findOperations({ field: 'literalValue', value: literalValueKey({ type: 'number', representation: '1' }) });
+    assert.deepEqual(discovery.refs, [], 'removed analysis literals no longer hydrate or appear in exact-value discovery');
     assert.equal(semanticOnly.prepare('SELECT COUNT(*) AS n FROM semantic_analysis WHERE source_id=?').get(changed.source.sourceUnitId).n, 2);
     assert.deepEqual(JSON.parse(semanticOnly.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get().value), fixture.manifest.semanticGeneration);
     assert.deepEqual(JSON.parse(semanticOnly.prepare('SELECT payload FROM semantic_frontier').get().payload), task,

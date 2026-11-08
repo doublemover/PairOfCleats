@@ -7,10 +7,11 @@ import {
   BENCH_PROGRESS_CONFIDENCE_THRESHOLDS,
   classifyBenchProgressConfidence,
   computeBenchProgressConfidence,
-  formatBenchProgressConfidence
+  formatBenchProgressConfidence,
+  qualifyBenchProgressObservation
 } from '../../../tools/bench/language/logging.js';
 
-assert.equal(BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION, 1, 'expected confidence schema version');
+assert.equal(BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION, 2, 'expected observed-confidence schema version');
 assert.deepEqual(
   BENCH_PROGRESS_CONFIDENCE_THRESHOLDS,
   { high: 0.75, medium: 0.5 },
@@ -93,5 +94,30 @@ const empty = computeBenchProgressConfidence({});
 assert.equal(empty.score, null, 'expected empty confidence payload to report null score');
 assert.equal(empty.bucket, 'unknown', 'expected empty confidence payload to classify as unknown');
 assert.equal(empty.text, 'unknown', 'expected empty confidence payload to format as unknown');
+
+for (const value of [false, true, '0.8', '', null, undefined, NaN, Infinity]) {
+  assert.equal(classifyBenchProgressConfidence(value), 'unknown');
+  assert.equal(formatBenchProgressConfidence(value), 'unknown');
+}
+const noEvidence = computeBenchProgressConfidence({ stallEventsScore: 1, stallSamples: 0 });
+assert.equal(noEvidence.score, null, 'a no-stall default without an interval is not evidence');
+assert.equal(noEvidence.components.stallEvents.eligible, false);
+assert.equal(computeBenchProgressConfidence({ queueAgeScore: 1, queueSamples: 1 }).score, null);
+assert.equal(computeBenchProgressConfidence({ inFlightSpreadScore: 1, inFlightSamples: 1 }).score, null);
+assert.equal(computeBenchProgressConfidence({ queueAgeScore: true, queueSamples: 2 }).score, null);
+assert.equal(computeBenchProgressConfidence({ queueAgeScore: 1, queueSamples: '2' }).score, null);
+const evidence = { firstObservedAtMs: 0, lastObservedAtMs: 500, phase: 'parse', taskId: 'worker', staleAfterMs: 1000 };
+const observed = qualifyBenchProgressObservation(high, { ...evidence, nowMs: 1000 });
+assert.equal(observed.score, high.score); assert.equal(observed.observation.state, 'observed');
+assert.equal(observed.observation.ageMs, 500);
+const stale = qualifyBenchProgressObservation(high, { ...evidence, nowMs: 1500 });
+assert.equal(stale.score, null); assert.equal(stale.bucket, 'unknown');
+assert.equal(stale.sampleScore, high.score); assert.equal(stale.observation.state, 'stale');
+assert.equal(stale.observation.ageMs, 1000);
+const recovered = qualifyBenchProgressObservation(high, { ...evidence, nowMs: 1601, lastObservedAtMs: 1600 });
+assert.equal(recovered.score, high.score); assert.equal(recovered.observation.state, 'observed');
+assert.deepEqual(recovered.observation.lastContext, { phase: 'parse', taskId: 'worker' });
+assert.equal(qualifyBenchProgressObservation(high, { ...evidence, nowMs: 499 }).score, null, 'clock reversal is unknown');
+assert.equal(observed.calibratedProbability, false);
 
 console.log('bench language progress confidence test passed');

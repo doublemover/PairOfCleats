@@ -1,5 +1,5 @@
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
-import { redactAbsolutePaths } from './redact.js';
+import { redactPublicDiagnostic } from './redact.js';
 import { buildErrorPayload, ERROR_CODES } from '../../src/shared/error-codes.js';
 
 const VALIDATION_POINTER_RE = /^#?(\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*)$/;
@@ -22,7 +22,10 @@ const preserveValidationFieldPath = (original, redacted) => {
     const trimmed = original.trim();
     const pointerToken = trimmed.split(/\s+/, 1)[0] || '';
     if (VALIDATION_POINTER_RE.test(pointerToken) && VALIDATION_MESSAGE_RE.test(trimmed)) {
-      return original;
+      // Only the leading field pointer is validation identity. Redact the
+      // remaining diagnostic independently so restoring it cannot disclose
+      // an embedded server path from a nested failure.
+      return pointerToken + redactPublicDiagnostic(trimmed.slice(pointerToken.length));
     }
     return redacted;
   }
@@ -36,6 +39,9 @@ const preserveValidationFieldPath = (original, redacted) => {
   if (typeof pathValue === 'string' && VALIDATION_POINTER_RE.test(pathValue)) {
     result.path = pathValue;
   }
+  if (typeof original.message === 'string') {
+    result.message = preserveValidationFieldPath(original.message, result.message);
+  }
   return result;
 };
 
@@ -47,6 +53,7 @@ const preserveValidationFieldPath = (original, redacted) => {
  * @param {object} [headers]
  */
 export const sendJson = (res, statusCode, payload, headers = {}) => {
+  if (res.destroyed || res.writableEnded) return false;
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -72,7 +79,7 @@ export const sendError = (res, statusCode, code, message, details = {}, headers 
     message,
     details: rest
   });
-  const redactedPayload = redactAbsolutePaths(rawPayload);
+  const redactedPayload = redactPublicDiagnostic(rawPayload);
   if (Array.isArray(rawPayload.errors) && Array.isArray(redactedPayload?.errors)) {
     redactedPayload.errors = rawPayload.errors.map((entry, index) => (
       preserveValidationFieldPath(entry, redactedPayload.errors[index])

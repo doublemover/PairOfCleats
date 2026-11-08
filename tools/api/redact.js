@@ -24,6 +24,20 @@ export const redactAbsolutePaths = (value) => {
   return output;
 };
 
+const redactDiagnosticString = value => redactString(value)
+  .replace(/\b[A-Za-z]:[\\/][^\r\n'"<>]*/gu, REDACTED_ABSOLUTE_PATH)
+  .replace(/\\\\[^\s\\/]+[\\/][^\r\n'"<>]*/gu, REDACTED_ABSOLUTE_PATH)
+  .replace(/(?<![\w:/])\/(?:[^\s'"<>]+)(?:\/[^\s'"<>]*)?/gu, REDACTED_ABSOLUTE_PATH);
+
+/** Diagnostic fields are projected separately from user queries and source. */
+export const redactPublicDiagnostic = value => {
+  if (typeof value === 'string') return redactDiagnosticString(value);
+  if (Array.isArray(value)) return value.map(redactPublicDiagnostic);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key,
+    ['query', 'source', 'snippet', 'text', 'result'].includes(key) ? entry : redactPublicDiagnostic(entry)]));
+};
+
 /** Remove server paths from diagnostic metadata without changing source content. */
 export const redactSearchResponseMetadata = (result) => ({
   ...result,

@@ -86,6 +86,8 @@ export const runTimedIterations = ({ iterations, run, totalMode = 'sum' }) => {
   return {
     iterations,
     timingMs: summarizeValues(timings),
+    completedOperations: timings.length,
+    rawSampleDurationsMs: timings,
     totalMs,
     throughput
   };

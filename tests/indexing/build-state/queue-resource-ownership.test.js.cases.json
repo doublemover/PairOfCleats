@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["required-no-auto", "pending", "callback-capture", "diagnostic", "detached", "best-effort-retry", "retained-bytes"]
+}

@@ -13,6 +13,7 @@ import { validateBuildState } from '../../../src/contracts/validators/build-stat
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createBoundedWriterQueue } from '../../../tools/build/embeddings/writer-queue.js';
+import { withRuntimeBindingObserver } from '../../../src/shared/runtime-envelope/execution-binding.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('runtime-stage3-receipt');
 const rootsToFlush = new Set();
@@ -60,19 +61,33 @@ const finish = (controller, mode, extras = {}) => controller.ready(mode, {
 
 try {
   const root = await initialize('durable', 'generation-durable');
-  const parent = await createRuntimeAttempt({ buildId: 'generation-durable', stage: 'stage2' });
+  const submittedSelectionDigest = 'a'.repeat(64);
+  const parent = await createRuntimeAttempt({ buildId: 'generation-durable', stage: 'stage2',
+    embeddings: { selection: { planDigest: submittedSelectionDigest } } });
   await persistRuntimeAttempt(root, parent, { lifecycle: 'succeeded' });
   const selectedAt = '2026-10-12T00:00:00.000Z';
   const context = createObservabilityEnvelope({
     surface: 'index', operation: 'stage3', correlation: { correlationId: 'stage3-controller-test' },
-    context: { runtimeAttemptId: parent.attemptId }
+    context: { runtimeAttemptId: parent.attemptId, embeddingSelectionDigest: submittedSelectionDigest }
   });
+  const beforeInvalidSubmission = await fs.readFile(path.join(root, 'build_state.json'), 'utf8');
+  await assert.rejects(create([['code', root]], {
+    rawEnv: applyObservabilityContextEnv(rawEnv, { ...context, context: { ...context.context, embeddingSelectionDigest: 'invalid' } })
+  }), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
+  assert.equal(await fs.readFile(path.join(root, 'build_state.json'), 'utf8'), beforeInvalidSubmission,
+    'invalid selection metadata must not create or overwrite an attempt');
   const logs = [];
-  const controller = await create([['code', root]], {
+  const bindings = [];
+  const controller = await withRuntimeBindingObserver(value => bindings.push(value), () => create([['code', root]], {
     rawEnv: applyObservabilityContextEnv(rawEnv, context),
     executionPlan: { buildId: 'generation-durable', digest: 'selected-plan-digest', selectedAt, resourcePolicy: { threads: 1 } }
-  }, (line) => logs.push(line));
+  }, (line) => logs.push(line)));
   const ref = controller.reference('code');
+  assert.equal(bindings.length, 1);
+  assert.equal(bindings[0].attemptId, ref);
+  assert.equal(bindings[0].buildRoot, root);
+  assert.equal(bindings[0].stage, 'stage3');
+  assert.equal(bindings[0].correlationId, context.correlation.correlationId);
   assert.notEqual(ref, parent.attemptId);
   assert.equal(controller.reference('missing-mode'), null);
   let attempt = await attemptAt(root, ref);
@@ -83,6 +98,7 @@ try {
   assert.equal(attempt.parentAttemptId, parent.attemptId);
   assert.equal(attempt.correlationId, 'stage3-controller-test');
   assert.equal(attempt.inputs.resolvedPlanDigest, 'selected-plan-digest');
+  assert.equal(attempt.inputs.submittedSelectionDigest, parent.embeddings.selection.planDigest);
   assert.equal(attempt.inputs.selectedAt, selectedAt);
   assert.equal(attempt.paths.build.selected, root);
   assert.equal(attempt.embeddings.observation.state, 'not-started');

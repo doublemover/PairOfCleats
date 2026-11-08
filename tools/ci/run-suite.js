@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../shared/dev-artifacts.js');
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,8 +18,85 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
-const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
-const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
+const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
+const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
+const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
+  ...['edit-only', 'delete-file', 'edit-delete-rename', 'restore-file', 'original-world-rechecks', 'pending-reader-retirement']
+    .map(id => `tooling/eval/published-index-revision-oracle/${id}`),
+  'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle',
+  'indexing/semantic/runtime-claim-citation-closure',
+  'map/member-join-work-consumer/measure', 'retrieval/backend/fts-cooperative-timing-consumer',
+  ...['render', 'graph-skewed-first-half', 'graph-skewed-second-half', 'graph-skewed-independent-first-half', 'graph-skewed-independent-second-half', 'map-large', 'memory-transient', 'vfs-ascii',
+    'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
+    'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
+    'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2']
+    .map(id => `perf/bench/representative-workload-consumers/${id}`),
+  ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
+  'smoke/baseline-negative/missing', 'smoke/baseline-negative/corrupt',
+  'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
+SERIAL_RUNTIME_BUDGET_IDS.push(...['shared-1', 'shared-4', 'shared-16', 'distinct-1', 'distinct-4', 'distinct-16']
+  .map(id => `storage/semantic/source-retention-partition-work/${id}`));
+SERIAL_RUNTIME_BUDGET_IDS.push('indexing/artifacts/binary-frame-manifest-integrity',
+  'indexing/semantic/sealed-piece-manifest-work', 'indexing/artifacts/field-postings-adaptive-shards-and-binary',
+  'shared/artifact-io/binary-frame-checksum-receipts/oversized');
+for (const family of ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-control-replacement-accounting']) {
+  const { cases } = JSON.parse(await fsPromises.readFile(path.join(ROOT, `tests/storage/semantic/${family}.test.js.cases.json`), 'utf8'));
+  SERIAL_RUNTIME_BUDGET_IDS.push(...cases.map(id => `storage/semantic/${family}/${id}`));
+}
+const riskWitnessWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/risk/witness-retention-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...riskWitnessWorkCases.cases.map(id => `perf/risk/witness-retention-work/${id}`));
+const artifactLeaseWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/embeddings/artifact-lease-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...artifactLeaseWorkCases.cases.map(id => `perf/embeddings/artifact-lease-work/${id}`),
+  'indexing/embeddings/artifact-installed-closure', 'embeddings/onnx/installation-closure',
+  'embeddings/onnx/downloader-installation-consumer');
+const validationWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/indexing/validate/manifest-fusion-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...validationWorkCases.cases.map(id => `perf/indexing/validate/manifest-fusion-work/${id}`));
+const healthWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/indexing/fixtures/health-snapshot-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...healthWorkCases.cases.map(id => `perf/indexing/fixtures/health-snapshot-work/${id}`));
+for (const family of ['prepared-row-work', 'query-final-encoding-work']) {
+  const { cases } = JSON.parse(await fsPromises.readFile(
+    path.join(ROOT, `tests/perf/storage/semantic/${family}.test.js.cases.json`), 'utf8'));
+  SERIAL_RUNTIME_BUDGET_IDS.push(...cases.map(id => `perf/storage/semantic/${family}/${id}`));
+}
+const rebuildFailureCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/retrieval/ann/generation-rebuild-failure.test.js.cases.json'), 'utf8'));
+const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
+  ...rebuildFailureCases.cases.map(id => `retrieval/ann/generation-rebuild-failure/${id}`), 'retrieval/ann/generation-lmdb'];
+const nativePublicationCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8'));
+const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation',
+  ...nativePublicationCases.cases.map(id => `storage/native-publication-cleanup/${id}`)];
+// These correctness fixtures use whole-case and CLI deadlines.
+// Qualify cold compiler and full build work serially before the parallel correctness lane;
+// they are not latency samples and do not belong to the measured budget report.
+const SERIAL_CLI_CONTRACT_IDS = [
+  ...['code', 'prose'].map(id => `indexing/build/stage4-mixed-mode-generations/${id}`),
+  ...['memory', 'sqlite', 'sqlite-fts'].map(id => `retrieval/backend/boolean-complement-cli/${id}`),
+  'tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report',
+  ...['js-report', 'ts-report', 'js-fail', 'ts-fail',
+    'js-default-anonymous', 'js-default-arrow', 'js-default-class',
+    'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
+    .map(id => `tooling/api-contracts/export-identity-cli/${id}`),
+  ...['violation', 'clean', 'markdown'].map(id => `tooling/api-contracts/zero-warning-cap-cli/${id}`),
+  ...['policy', 'clean'].map(id => `tooling/api-contracts/typescript-parameter-cli/${id}`),
+  ...['js-clean', 'ts-clean', 'js-violation', 'ts-violation']
+    .map(id => `tooling/api-contracts/qualified-target-joins-cli/${id}`),
+  ...['stage1-code', 'stage2-prose', 'stage3-disabled', 'stage4-sqlite']
+    .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`)
+];
+const sourceAuthorityCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8'));
+SERIAL_CLI_CONTRACT_IDS.push(...sourceAuthorityCases.cases.map(id => `storage/semantic/runtime-source-reference-authority/${id}`));
+SERIAL_CLI_CONTRACT_IDS.push('storage/semantic/runtime-source-reference-foreign-generation');
+const API_CONTRACT_IDS = ['services/api/router-contract-matrix',
+  'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
+  'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
+  'services/api/search-stream-outcomes', 'services/api/graph-evidence-pages', 'services/api/runtime-evidence'];
+const exactSelectors = ids => ids.flatMap(id => ['--match', `/^${id.replaceAll('/', '\\/')}$/`]);
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
@@ -74,17 +152,15 @@ export const __applySuiteToolingPathEntriesForTests = (env, repoRoot, userConfig
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
-  'core',
   'storage',
-  'indexing',
-  'language',
-  'benchmarks',
-  'search',
-  'embeddings',
-  'services',
   'fixtures',
   'tools'
 ]);
+// These canonical owners were previously reachable only through redundant
+// script wrappers. API replacements already belong to their dedicated cohort.
+const RETIRED_DELEGATION_OWNER_IDS = ['smoke/tantivy', 'smoke/e2e', 'smoke/baseline',
+  'services/mcp/tools-list', 'services/mcp/schema', 'services/mcp/robustness',
+  'tooling/fixtures/fixture-eval'];
 const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => ({
   label: gate.label,
   command: process.execPath,
@@ -114,7 +190,7 @@ const createOutputForwarder = (stream) => (chunk) => {
  * @param {boolean} dryRun
  * @returns {Promise<void>}
  */
-const runStep = async (step, env, dryRun) => {
+export const runSuiteStep = async (step, env, dryRun) => {
   const commandLine = renderCommand(step.command, step.args);
   if (dryRun) {
     console.error(`[dry-run] ${step.label}: ${commandLine}`);
@@ -146,10 +222,9 @@ const ensureDir = async (dir) => {
   await fsPromises.mkdir(dir, { recursive: true });
 };
 
-const main = async () => {
-  const argv = parseArgs();
+export const buildSuitePlan = async (argv) => {
   const mode = argv.mode;
-  const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
+  const baseLane = argv.lane || (mode === 'nightly' ? 'all' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
   __applySuiteToolingPathEntriesForTests(baseEnv, ROOT, userConfig);
@@ -230,6 +305,13 @@ const main = async () => {
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
     },
     {
+      label: 'Tooling provider API integration',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(['services/api/core']),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'tooling-provider-api.json')]
+    },
+    {
       label: 'Tooling doctor gate',
       command: process.execPath,
       args: ['tools/ci/tooling-doctor-gate.js', '--mode', mode, '--json', toolingDoctorJson]
@@ -287,6 +369,20 @@ const main = async () => {
     },
     ...buildUsrGateSteps(diagnosticsDir),
     {
+      label: 'Serial compiler/build CLI contracts',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_CLI_CONTRACT_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-compiler-api-contracts.json')]
+    },
+    {
+      label: 'Serial runtime budgets',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_RUNTIME_BUDGET_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-runtime-budgets.json')]
+    },
+    {
       label: 'CI test lane',
       command: process.execPath,
       args: [
@@ -295,9 +391,19 @@ const main = async () => {
         baseLane,
         '--exclude',
         'services/api/',
-        ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
+        ...(mode === 'nightly' ? ['--exclude',
+          `/^tooling\\/script-coverage\\/(${SCRIPT_COVERAGE_GROUPS.join('|')})\\//`,
+          '--exclude', '/^services\\/soak\\/operational-recovery$/',
+          ...RETIRED_DELEGATION_OWNER_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`])] : []),
+        ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_CLI_CONTRACT_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         '--timeout-ms',
-        '600000',
+        '30000',
+        '--retries',
+        '0',
+        '--native-status-redo=false',
         '--junit',
         junitPath,
         '--report-file',
@@ -315,6 +421,28 @@ const main = async () => {
         '--log-dir',
         logDir
       ]
+    },
+    {
+      label: 'Serial ANN generation',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_ANN_GENERATION_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-ann-generation.json')]
+    },
+    {
+      label: 'Serial native lifecycle',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_NATIVE_LIFECYCLE_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-native-lifecycle.json')]
+    },
+    {
+      label: 'API contract cohort',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...(mode === 'nightly'
+        ? ['--match', '/^services\\/api\\//', '--exclude', '/^services\\/api\\/core$/'] : exactSelectors(API_CONTRACT_IDS)),
+      '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+      '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'api-contracts.json')]
     },
     {
       label: 'Import resolution SLO gate',
@@ -357,11 +485,13 @@ const main = async () => {
         args: [
           'tests/run.js',
           '--lane',
-          'ci-long',
+          'all',
           '--match',
           'services/soak/operational-recovery',
+          '--jobs', '1', '--pairofcleats-threads', '1',
           '--timeout-ms',
-          '600000',
+          '30000',
+          '--retries', '0', '--native-status-redo=false',
           '--log-dir',
           logDir
         ]
@@ -384,21 +514,38 @@ const main = async () => {
       }]
       : []),
     ...(mode === 'nightly'
+      ? [{
+        label: 'Retained canonical fixture owners',
+        command: process.execPath,
+        args: ['tests/run.js', '--lane', 'all', ...exactSelectors(RETIRED_DELEGATION_OWNER_IDS),
+          '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000',
+          '--retries', '0', '--native-status-redo=false']
+      }]
+      : []),
+    ...(mode === 'nightly'
       ? SCRIPT_COVERAGE_GROUPS.map((group) => ({
         label: `Script coverage (${group})`,
         command: process.execPath,
-        args: [`tests/tooling/script-coverage/script-coverage-${group}.test.js`]
+        args: ['tests/run.js', '--lane', 'all', '--match', `/^tooling\\/script-coverage\\/${group}\\//`,
+          '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000',
+          '--retries', '0', '--native-status-redo=false']
       }))
       : [])
   ];
 
-  console.error(`Suite mode: ${mode}`);
+  return { steps, env, diagnosticsDir, coveragePath };
+};
+
+const main = async () => {
+  const argv = parseArgs();
+  const { steps, env, diagnosticsDir } = await buildSuitePlan(argv);
+  console.error(`Suite mode: ${argv.mode}`);
   console.error(`Diagnostics: ${diagnosticsDir}`);
-  console.error(`JUnit: ${junitPath}`);
-  console.error(`Logs: ${logDir}`);
+  console.error(`JUnit: ${argv.junit}`);
+  console.error(`Logs: ${argv['log-dir']}`);
 
   for (const step of steps) {
-    await runStep(step, env, argv['dry-run']);
+    await runSuiteStep(step, env, argv['dry-run']);
   }
 };
 

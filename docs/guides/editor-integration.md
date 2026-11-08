@@ -10,6 +10,17 @@ Editor integrations use structured JSON contracts for editor-facing workflows.
 
 The JSON payload includes top-level search buckets (`code`, `prose`, `extractedProse`, `records`) plus backend and optional stats/explain fields.
 
+Indexed metadata enumeration admits only canonical filter pagination with a concrete generation and bounded opaque cursor. Continuation keeps its captured options, transport destination and repository mapping; cursor/generation/endpoint failure preserves the previous results and requires an explicit restart. Ranked text has no exhaustive continuation. Exact hit identity includes section, ID domain and value type, so numeric zero, string zero and a chunk UID are distinct. Sublime retains its selected hit across appended pages and local reopening; supported-editor focus qualification remains separate.
+
+Both adapters admit initial page membership before publishing history/results:
+returned counts must match the captured rows, known totals must cover that page,
+and an advancing page must contain a result. Invalid pages retain the prior view.
+VS Code assigns stable native TreeItem IDs to result sets, grouping rows and hit
+occurrences, including duplicate canonical IDs and anonymous captured ordinals.
+These IDs preserve display identity across refresh/grouping and appended pages;
+they are never semantic/source authority. Real editor focus/expansion acceptance
+and the authored initial-page/identity regressions remain unvalidated.
+
 ## Deterministic packaging flow
 
 Canonical packaging commands:
@@ -29,151 +40,86 @@ node tools/package-vscode.js --smoke
 Packaging behavior is deterministic:
 
 - stable file ordering
-- normalized archive roots (`PairOfCleats/`, `extension/`)
+- Sublime resources directly at the ZIP root; VS Code resources under `extension/`
 - fixed archive metadata (`mtime`, mode bits)
 - per-archive SHA-256 output and JSON manifest
 
 See `docs/specs/editor-packaging-determinism.md` for contract details.
 
-## VS Code extension
+## Editor first-use guides
 
-The bundled VS Code extension lives in `extensions/vscode` and defines:
+Use the self-contained [VS Code installation and first-search guide](../../extensions/vscode/README.md) or [Sublime Text user guide](../../sublime/PairOfCleats/README.md). They distinguish the PairOfCleats application installation from the target repository and document native commands, scoped settings, execution-host policy, bounded evidence, progress and recovery. Packaged walkthroughs link back to their bundled guide.
 
-- `PairOfCleats: Search`
-- `PairOfCleats: Search Selection`
-- `PairOfCleats: Search Symbol Under Cursor`
-- `PairOfCleats: Repeat Last Search`
-- `PairOfCleats: Explain Search`
-- `PairOfCleats: Open Index Directory`
-- `PairOfCleats: Index Build`
-- `PairOfCleats: Start Index Watch`
-- `PairOfCleats: Stop Index Watch`
-- `PairOfCleats: Index Validate`
-- `PairOfCleats: Start Service API`
-- `PairOfCleats: Stop Service API`
-- `PairOfCleats: Start Service Indexer`
-- `PairOfCleats: Stop Service Indexer`
-- `PairOfCleats: Setup`
-- `PairOfCleats: Bootstrap`
-- `PairOfCleats: Tooling Doctor`
-- `PairOfCleats: Config Dump`
-- `PairOfCleats: Index Health`
-- `PairOfCleats: Code Map`
-- `PairOfCleats: Architecture Check`
-- `PairOfCleats: Impact Analysis`
-- `PairOfCleats: Suggest Tests`
-- `PairOfCleats: Workspace Manifest`
-- `PairOfCleats: Workspace Status`
-- `PairOfCleats: Workspace Build`
-- `PairOfCleats: Workspace Catalog`
-- `PairOfCleats: Workflow Status`
-- `PairOfCleats: Rerun Last Workflow`
-- `PairOfCleats: Recent Workflows`
-- `PairOfCleats: Reopen Last Results`
-- `PairOfCleats: Search History`
-- `PairOfCleats: Group Results by Section`
-- `PairOfCleats: Group Results by File`
-- `PairOfCleats: Group Results by Query`
+## VS Code settings reference
 
-Settings:
+The extension's Settings UI supplies defaults and accepted values. Executable,
+environment and service-destination authority belongs in User Settings; search
+and presentation settings follow the selected repository resource. The canonical
+[editor contract](../../src/contracts/editor-config-contract.json) and extension
+manifest define these names:
 
-- `pairofcleats.cliPath`
-- `pairofcleats.cliArgs`
-- `pairofcleats.apiServerUrl`
-- `pairofcleats.apiTimeoutMs`
-- `pairofcleats.apiExecutionMode`
-- `pairofcleats.searchMode`
-- `pairofcleats.searchBackend`
-- `pairofcleats.searchAnn`
-- `pairofcleats.maxResults`
-- `pairofcleats.searchContextLines`
-- `pairofcleats.searchFile`
-- `pairofcleats.searchPath`
-- `pairofcleats.searchLang`
-- `pairofcleats.searchExt`
-- `pairofcleats.searchType`
-- `pairofcleats.searchAsOf`
-- `pairofcleats.searchSnapshot`
-- `pairofcleats.searchFilter`
-- `pairofcleats.searchAuthor`
-- `pairofcleats.searchModifiedAfter`
-- `pairofcleats.searchModifiedSince`
-- `pairofcleats.searchChurn`
-- `pairofcleats.searchCaseSensitive`
-- `pairofcleats.env`
-- `pairofcleats.extraSearchArgs`
-- `pairofcleats.inlineHoverEnabled`
-- `pairofcleats.inlineDiagnosticsEnabled`
-- `pairofcleats.inlineDecorationsEnabled`
-- `pairofcleats.inlineMaxItems`
+- `pairofcleats.cliPath`: installed CLI executable or JavaScript entrypoint.
+- `pairofcleats.nodePath`: Node executable for a JavaScript CLI entrypoint.
+- `pairofcleats.cliArgs`: installation-level CLI arguments.
+- `pairofcleats.apiServerUrl`: selected service destination.
+- `pairofcleats.apiTimeoutMs`: service request deadline.
+- `pairofcleats.apiExecutionMode`: CLI, preferred API, or required API transport.
+- `pairofcleats.env`: explicit environment overrides for owned commands.
+- `pairofcleats.extraSearchArgs`: additional search arguments.
+- `pairofcleats.searchMode`: indexed content mode.
+- `pairofcleats.searchBackend`: retrieval backend.
+- `pairofcleats.searchAnn`: approximate-nearest-neighbor selection.
+- `pairofcleats.maxResults`: result count limit.
+- `pairofcleats.searchFile`: file selector.
+- `pairofcleats.searchPath`: path selector.
+- `pairofcleats.searchLang`: language selector.
+- `pairofcleats.searchExt`: extension selector.
+- `pairofcleats.searchType`: chunk type selector.
+- `pairofcleats.searchAsOf`: temporal selector.
+- `pairofcleats.searchSnapshot`: saved snapshot selector.
+- `pairofcleats.searchFilter`: structured filter expression.
+- `pairofcleats.searchAuthor`: author selector.
+- `pairofcleats.searchModifiedAfter`: modification timestamp lower bound.
+- `pairofcleats.searchModifiedSince`: relative modification selector.
+- `pairofcleats.searchChurn`: churn selector.
+- `pairofcleats.searchCaseSensitive`: case-sensitive search selection.
+- `pairofcleats.inlineHoverEnabled`: inline hover presentation.
+- `pairofcleats.inlineDiagnosticsEnabled`: inline diagnostic presentation.
+- `pairofcleats.inlineDecorationsEnabled`: inline decoration presentation.
+- `pairofcleats.inlineMaxItems`: inline item limit.
 
-The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`. `pairofcleats.searchAsOf` and `pairofcleats.searchSnapshot` are mutually exclusive; if both are set, the extension fails closed with an explicit configuration error.
 
-VS Code API-backed workflow behavior:
-
-- `pairofcleats.apiServerUrl` points at an `http://` or `https://` PairOfCleats API server.
-- `pairofcleats.apiTimeoutMs` controls API request timeout in milliseconds.
-- `pairofcleats.apiExecutionMode` accepts `cli`, `prefer`, or `require`.
-- `search`, symbol lookup, and index health can use the API path when the configured mode and server probe allow it.
-- CLI-only workflows fail closed when `require` forces API mode onto an unsupported surface.
-
-VS Code inline signal behavior:
-
-- hover, file-level diagnostics, and lightweight file decorations are CLI-backed today and fail quiet when `pairofcleats.apiExecutionMode=require`
-- inline surfaces use bounded context-pack requests with `--hops 0 --includeRisk --includeTypes`
-- `pairofcleats.inlineHoverEnabled`, `pairofcleats.inlineDiagnosticsEnabled`, and `pairofcleats.inlineDecorationsEnabled` allow users to disable noisy inline surfaces independently
-- `pairofcleats.inlineMaxItems` bounds the number of risk flows, type facts, warnings, and truncation notes shown in hover output
-
-Repo targeting behavior:
-
-- resolves repo context at the repo-root level, not only at the workspace-folder level
-- prefers the active editor's nearest repo root when it sits inside a nested repo
-- prompts for an explicit repo root when multiple local repo candidates are open and no active editor pins the target
-- keeps the selected repo label visible in workflow status and persisted search result sets
-- currently supports local `file:` workspaces only; remote workspace URIs fail closed with an explicit error
-
-Operational command behavior:
-
-- setup/bootstrap/doctor/config-dump/index-health run against the selected local repo root
-- setup/bootstrap/doctor use the configured CLI resolution path
-- config-dump uses `tools/config/dump.js --json --repo <repo>`
-- index-health uses `tools/index/report-artifacts.js --json --repo <repo>`
-- code-map uses `pairofcleats report map --json --format html-iso --out ...` and opens the generated map artifact
-- architecture-check uses `pairofcleats architecture-check --json --repo <repo> --rules <path>`
-- impact uses `pairofcleats impact --json --repo <repo> ...` with prompted seed/changed inputs
-- suggest-tests uses `pairofcleats suggest-tests --json --repo <repo> ...` with prompted changed paths
-- workspace commands use `pairofcleats workspace manifest|status|build|catalog --json --workspace <path>`
-- long-running workflow commands persist session metadata in workspace state, drive a status bar item keyed to the active repo context, and expose rerun/recent-workflow commands without requiring a second task runner stack
-- search runs persist normalized result sets in workspace state, populate the `PairOfCleats Results` explorer view, and support grouping by query, section, or file
-- saved result-set actions support open, reveal-in-explorer, copy-path, reopen-last-results, and rerun from history
-- command output is summarized in the `PairOfCleats` output channel with the raw JSON payload appended below the summary
-
-Results explorer menus:
-
-- the explorer title exposes search, history, reopen-last-results, and grouping commands
-- result-hit context menus expose open, reveal, and copy-path actions
-- result-set context menus expose rerun
-
-Default keybindings:
-
-- `Ctrl+Alt+F` / `Cmd+Alt+F`: `PairOfCleats: Search Selection`
-- `Ctrl+Alt+.` / `Cmd+Alt+.`: `PairOfCleats: Search Symbol Under Cursor`
-- `Ctrl+Alt+R` / `Cmd+Alt+R`: `PairOfCleats: Repeat Last Search`
-
-Walkthrough/onboarding:
-
-- the extension contributes a `Get Started with PairOfCleats` walkthrough
-- walkthrough media lives under `extensions/vscode/walkthroughs/`
-
-Packaging/publish hardening:
-
-- `tools/package-vscode.js` validates required manifest metadata before packaging
-- the VSIX must ship `README.md` and all walkthrough markdown files referenced by `package.json`
-- marketplace metadata is declared directly in `extensions/vscode/package.json`
- 
 ## Sublime package
 
-The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/pairofcleats.sublime-package`.
+The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/PairOfCleats.sublime-package`.
+
+The archive contains plugin.py and its resources directly at the ZIP root, matching
+an unpacked `Packages/PairOfCleats/` installation. Startup diagnostics explain old
+lowercase/nested archives and loose files shadowing a packed revision without
+deleting user files. Archive verification and copied Python imports do not qualify
+actual editor installation; supported-host acceptance remains separate.
+
+Saved searches and result sessions preserve repository, temporal selector, ANN,
+sparse fallback and advanced filters. Repeat/history/context actions keep that
+scope after settings or active folders change. Legacy entries without complete
+scope require a new explicit search. Escape in an options picker cancels before
+dispatch. Indexed completions retain the original buffer, change count, request
+and replacement range; stale or superseded responses cannot edit another word.
+
+VS Code exact source locations bind both the requested URI and the actually
+opened document URI to the verified local file. Equal text in a sibling or
+virtual document cannot establish that binding; closed documents cannot supply
+native ranges. Final publication rechecks the actual document URI and the
+per-request cache includes the selected repository root. These source assertions
+are authored and unrun, with supported editor-host acceptance still separate.
+
+Sublime exact highlighting likewise retains the originally requested file through
+native opening/loading and binds the returned view to that file. Identical-text
+sibling or scratch views cannot supply the original location. A delayed action
+retains copied original hit fields and refuses a renamed view or replaced context
+before changing its selection/highlight. These native-consumer controls remain
+authored and unrun; line-only legacy highlighting retains its existing approximate
+behavior.
 
 Repository discovery selects the nearest `.pairofcleats.json`, `.git` directory,
 or `.git` file. This keeps a linked Git worktree or submodule rooted at its working

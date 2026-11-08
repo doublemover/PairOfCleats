@@ -1,0 +1,226 @@
+> **DEPRECATED — 2026-10-22, PR #572.** Replaced by
+> [HTTP API server contract](../api/server.md), authoritative runtime schemas and
+> router/response owners linked there. This frozen Phase 14.6/15.3 proposal
+> specified a nested error envelope, `results` wrapper and text-only GET search
+> that differ from the shipped interface. Its active/authoritative wording below
+> is historical. Retained for provenance; do not implement it as a parallel API.
+
+# HTTP API spec (Phase 14.6 + Phase 15.3)
+
+## Status
+
+- **Spec version:** 1
+- **Audience:** PairOfCleats contributors implementing HTTP surfaces for snapshots, diffs, as-of search, and federated search.
+- **Implementation status:** active implemented contract for current Phase 14.6/15.3 HTTP surfaces: single-repo as-of search, snapshot routes, diff routes, and workspacePath-based federated search. Standalone workspaceId lookup without a workspacePath is not part of the active contract.
+
+This document defines API behavior only. CLI/MCP routes may expose the same semantics, but the HTTP contract here is authoritative for request/response shape, path redaction, and error behavior.
+
+---
+
+## 1. Security and safety invariants
+
+1. Absolute paths are redacted by default.
+2. Every repo path must pass allowlist checks before any file access.
+3. Explicit refs/roots never silently fallback to `latest`/`current`.
+4. Structured errors always include `code`, `message`, and `details` when available.
+
+---
+
+## 2. Shared conventions
+
+### 2.1 Content types
+
+- Request: `application/json`
+- Response: `application/json`
+- Stream endpoint (`events`): `application/x-ndjson`
+
+### 2.2 Error envelope
+
+```json
+{
+  "ok": false,
+  "backend": "api",
+  "error": {
+    "code": "ERR_CODE",
+    "message": "Human readable error",
+    "details": {}
+  }
+}
+```
+
+All error responses must use this envelope shape.
+
+### 2.3 Status codes
+
+- `200`: success response
+- `400`: invalid input / contract violation
+- `403`: allowlist or authorization failure
+- `404`: missing snapshot/diff/ref
+- `409`: cohort/config mismatch requiring explicit override
+- `500`: unexpected internal failure
+
+### 2.4 Common error codes
+
+- `ERR_INVALID_REQUEST`
+- `ERR_UNAUTHORIZED_REPO_ROOT`
+- `ERR_INDEX_REF_INVALID`
+- `ERR_INDEX_REF_NOT_FOUND`
+- `ERR_INDEX_REF_MISSING_ARTIFACTS`
+- `ERR_FEDERATED_REPO_FLAG_NOT_ALLOWED`
+- `ERR_FEDERATED_MULTI_COHORT`
+- `ERR_SNAPSHOT_CREATE_VALIDATION_REQUIRED`
+- `ERR_DIFF_INPUT_MISMATCH`
+
+---
+
+## 3. Search endpoints
+
+### 3.1 `GET /search`
+
+Single-repo search with optional as-of targeting.
+
+#### Query params
+
+- `q` (required): query text
+- `repo` (optional): repo root/path token
+- `asOf` (optional): canonical IndexRef (`latest|build:<id>|snap:<id>|tag:<tag>|path:<path>`)
+- existing search knobs (`mode`, `top`, `backend`, `filter`, `stats`, etc.)
+
+#### Rules
+
+- If `asOf` is present and explicit, missing artifacts must fail with `ERR_INDEX_REF_MISSING_ARTIFACTS`.
+- No silent fallback from explicit `asOf`.
+
+#### Success envelope
+
+```json
+{
+  "ok": true,
+  "asOf": {
+    "ref": "snap:snap-20260211-120000-abc123",
+    "type": "snapshot",
+    "identityHash": "a1b2c3d4",
+    "summary": {}
+  },
+  "results": {
+    "backend": "sqlite",
+    "code": [],
+    "prose": [],
+    "records": []
+  }
+}
+```
+
+### 3.2 `POST /search/federated`
+
+Federated workspace search.
+
+#### Request body
+
+- `workspacePath` (required, allowlisted)
+- `workspaceId` (optional cross-check against the resolved workspace)
+- `query` (required)
+- `search` (mode/top/backend/filter/etc)
+- `select` (`repos`, `tags`, `repoFilter`, `includeDisabled`)
+- `merge` (`strategy`, `rrfK`)
+- `limits` (`perRepoTop`, `concurrency`)
+- `cohort` policy (`strict`, explicit key, `allowUnsafeMix`)
+
+#### Response requirements
+
+- Always include `repoSetId`, `manifestHash`, cohort selection summary, and per-repo diagnostics.
+- Every hit includes `repoId`, `repoAlias`, `globalId`.
+- If both `workspaceId` and `workspacePath` are provided and resolve to different workspaces, fail with `ERR_INVALID_REQUEST`.
+
+---
+
+## 4. Snapshot endpoints
+
+### 4.1 `GET /index/snapshots`
+
+- Returns deterministic list sorted by `(createdAt desc, id asc)`.
+
+### 4.2 `GET /index/snapshots/:id`
+
+- Returns one snapshot record.
+
+### 4.3 `POST /index/snapshots`
+
+Request:
+
+```json
+{
+  "label": "release-candidate",
+  "tags": ["release"],
+  "modes": ["code", "prose"]
+}
+```
+
+Rules:
+
+- Snapshot creation requires successful validation for selected modes.
+- Missing/false validation fails (`ERR_SNAPSHOT_CREATE_VALIDATION_REQUIRED`).
+
+---
+
+## 5. Diff endpoints
+
+### 5.1 `GET /index/diffs`
+
+- Deterministic list sorted by `(createdAt desc, id asc)`.
+
+### 5.2 `GET /index/diffs/:id`
+
+- Returns `inputs.json` + `summary.json` view.
+
+### 5.3 `GET /index/diffs/:id/events`
+
+- Streams NDJSON from `events.jsonl`.
+- Must preserve deterministic ordering from stored artifact.
+
+---
+
+## 6. Path redaction contract
+
+### 6.1 Default behavior
+
+- API responses never include absolute filesystem paths.
+- Persisted artifacts also never include absolute paths.
+
+### 6.2 Debug override
+
+- `debug.includePaths=true` may include paths only for authorized callers.
+- Even in debug mode, persisted artifacts remain redacted.
+
+---
+
+## 7. Determinism and caching
+
+1. JSON output keys are stable in API serializers.
+2. Federated responses include enough metadata for deterministic cache keying:
+   - `repoSetId`, `manifestHash`, `selectedRepoIds`, cohort result, effective backend decisions.
+
+---
+
+## 8. Implementation touchpoints
+
+- `tools/api/router/search.js`
+- `tools/api/router/index-snapshots.js`
+- `tools/api/router/index-diffs.js`
+- `tools/api/validation.js`
+- `src/retrieval/federation/coordinator.js`
+- `src/index/index-ref.js`
+
+---
+
+## 9. Required tests
+
+Current implemented HTTP surfaces are covered by:
+
+- `tests/services/api/search-contract-matrix.test.js`
+- `tests/services/api/federated-search-validation-matrix.test.js`
+- `tests/services/api/router-contract-matrix.test.js`
+- `tests/services/api/index-route-client-error-classification.test.js`
+- `tests/services/api/index-route-decode-validation.test.js`
+- `tests/services/api/context-pack-workspace-allowlist.test.js`
+- `tests/services/api/repo-authorization.test.js`

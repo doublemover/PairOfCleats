@@ -120,6 +120,7 @@ export const applyOutputBudgetPolicy = (payload, policy = null) => {
   if (!isPlainObject(payload)) return payload;
   const budget = normalizeOutputBudgetPolicy(policy);
   const out = { ...payload };
+  const branchQualification = isPlainObject(payload.stats?.branchQualification) ? payload.stats.branchQualification : null;
   for (const mode of ['prose', 'extractedProse', 'code', 'records']) {
     const hits = Array.isArray(out[mode]) ? out[mode] : null;
     if (!hits) continue;
@@ -134,13 +135,15 @@ export const applyOutputBudgetPolicy = (payload, policy = null) => {
   }
   if (isPlainObject(out.stats)) {
     out.stats = clampPayloadStats(out.stats, budget);
+    if (branchQualification) out.stats.branchQualification = branchQualification;
   }
   if (budget.totalMaxBytes) {
     const modes=['code','prose','extractedProse','records'];
     let omitted=0;
     const measure=()=>Buffer.byteLength(JSON.stringify(out),'utf8');
     if(measure()>budget.totalMaxBytes){
-      delete out.stats;
+      if (branchQualification) out.stats = { branchQualification };
+      else delete out.stats;
       for(const mode of modes) if(Array.isArray(out[mode])) out[mode]=out[mode].map(hit=>compactHit(hit,false));
       out.outputBudget={maxBytes:budget.totalMaxBytes,truncated:true,omittedHits:0};
       const rebuild=()=>{out.bundles=buildResultBundles(out);out.outputBudget.omittedHits=omitted;};

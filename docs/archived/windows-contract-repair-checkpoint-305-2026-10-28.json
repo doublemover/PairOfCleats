@@ -1,0 +1,1416 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-contract-repair-checkpoint-305",
+  "date": "2026-10-28",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "runtime": {
+    "node": "v26.12.1",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "baseline": "windows-full-validation-checkpoint-265-2026-10-28.json",
+  "setup": "windows-security-and-validation-followup-2026-10-28.json",
+  "policy": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "focused": {
+    "source": "cb64a38e392024d4dc69dbd5e2dd1d4fe9d7a028",
+    "sha256": "1a66e702d80a445bc6ee594716f95d007d63e328fafd52e247581f9af2f95ebf",
+    "summary": {
+      "durationMs": 67665,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    },
+    "tests": [
+      {
+        "id": "indexing/build/service-embedding-queue-ownership",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 15076,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/build/stage3-service-queue-status",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 2760,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/embeddings/queue-cancellation-propagation",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 327,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/embeddings/writer-and-queue-contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 934,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/call-summary-context",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 107,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/call-summary-worklist-parity",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 131,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/compiler-call-adapter",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1795,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/compiler-call-execution-owners",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1940,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/ordered-aggregate-flow",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 7757,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/ordered-snapshot-flow",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 12187,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/semantic/ordered-storage-index",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 358,
+        "attempts": 1
+      },
+      {
+        "id": "retrieval/federation/query-policy-cache-identity",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 4520,
+        "attempts": 1
+      },
+      {
+        "id": "shared/jsonrpc/mcp-test-reader-fragmentation",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 176,
+        "attempts": 1
+      },
+      {
+        "id": "storage/semantic/trace-parity",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3549,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/config/contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 4102,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/ambiguous",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 565,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/argument-conflict",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 399,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/argument-selection",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 564,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/command-text",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 566,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/database-changed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 535,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/duplicate-identical",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 499,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/empty",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 472,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/empty-selection",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 379,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/explicit-invalid",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 379,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/launch-changed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 477,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/malformed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 366,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/missing",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 463,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/mixed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 491,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/nested-response",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 504,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/over-budget",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 365,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/partial",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 568,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/required",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 428,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/response",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 585,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/response-changed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 858,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/response-missing",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 640,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/source-escape",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 113,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/source-replaced",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 470,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/unreadable",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 361,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/unrelated",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 495,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/lsp/compilation-database-admission/wrong-kind",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 364,
+        "attempts": 1
+      }
+    ]
+  },
+  "warningConsumers": {
+    "source": {
+      "parentHead": "cb64a38e392024d4dc69dbd5e2dd1d4fe9d7a028",
+      "changes": [
+        {
+          "path": "src/index/tooling/orchestrator.js",
+          "sha256": "1e9a0d9e7b5f17895cf7fc408b3da02bbb19bcd6cb3b68bcd74a42509a84e809"
+        },
+        {
+          "path": "tests/helpers/default-tooling-diagnostics.js",
+          "sha256": "76ba3ce4b7055db4b3fbc72ba4d3b3e6636af8b69a554cfe6b24e1865bb201f9"
+        },
+        {
+          "path": "tests/tooling/type-inference/tooling-runtime-contract-matrix.test.js",
+          "sha256": "a1f59b63e0b1fb94d5a0eb5a67b3fa63155edebfc9bc27dad4da66f08a078e1d"
+        }
+      ]
+    },
+    "sha256": "34f724430157a2fb255e766de2bb4ae89b5c29e93cc03320f04e65f6dbadcbb6",
+    "summary": {
+      "durationMs": 63417,
+      "failed": 0,
+      "passed": 6,
+      "skipped": 0,
+      "total": 6
+    },
+    "tests": [
+      {
+        "id": "services/api/core",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 17727,
+        "attempts": 1
+      },
+      {
+        "id": "services/core-observability",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 16929,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/script-coverage/tools/repo-build-index-code",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 25193,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/type-inference/tooling-runtime-contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1103,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/typescript-provider-planner-skips-do-not-degrade",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1728,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/typescript-provider-runtime-unavailable-degrades",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 724,
+        "attempts": 1
+      }
+    ]
+  },
+  "earlierObservations": [
+    {
+      "source": "74ee1bd73 with new config regression/diagnostic assertions",
+      "sha256": "c341fbf656b164d3be7a358ade0e2c5a1ab6d7201c5903a63a44ab5a7a89c7c2",
+      "summary": {
+        "durationMs": 1992,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "id": "tooling/config/contract-matrix",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 341,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/missing",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 1641,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Uncommitted repair batch; aggregate return still failed",
+      "sha256": "ee08ae9f6f2549134f0bf0f7e66b522f78d79cf9c206dff14e38672d4c1fbc47",
+      "summary": {
+        "durationMs": 24505,
+        "failed": 1,
+        "passed": 29,
+        "skipped": 0,
+        "total": 30
+      },
+      "tests": [
+        {
+          "id": "indexing/semantic/ordered-aggregate-flow",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 3226,
+          "attempts": 1
+        },
+        {
+          "id": "retrieval/federation/query-policy-cache-identity",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 4138,
+          "attempts": 1
+        },
+        {
+          "id": "shared/jsonrpc/mcp-test-reader-fragmentation",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 161,
+          "attempts": 1
+        },
+        {
+          "id": "storage/semantic/trace-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 3131,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/config/contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 2899,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/ambiguous",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 478,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/argument-conflict",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 347,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/argument-selection",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 481,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/command-text",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 476,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/database-changed",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 463,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/duplicate-identical",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 485,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/empty",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 482,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/empty-selection",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 364,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/explicit-invalid",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 355,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/launch-changed",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 462,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/malformed",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 373,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/missing",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 480,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/mixed",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 542,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/nested-response",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 523,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/over-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 358,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/partial",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 495,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/required",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 371,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/response",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 498,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/response-changed",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 510,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/response-missing",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 490,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/source-escape",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 103,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/source-replaced",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 517,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/unreadable",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 386,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/unrelated",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 502,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/lsp/compilation-database-admission/wrong-kind",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 382,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "74ee1bd73 plus aggregate assertion name",
+      "sha256": "cde3ecca70913c3324851c61f91c9dc7f1cb829824848e5bef79f3eda595afc2",
+      "summary": {
+        "durationMs": 3130,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "indexing/semantic/ordered-aggregate-flow",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 3123,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Uncommitted aggregate owner fix",
+      "sha256": "3e901c2506fe4c8e8f48674150965dddc6064f38d137a39842bd93b3cc7fa16a",
+      "summary": {
+        "durationMs": 6647,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "indexing/semantic/ordered-aggregate-flow",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 6640,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Uncommitted aggregate fix; mixed-workload fixture still failed",
+      "sha256": "6e54c374b3bb69e0e21e22b607fb8311659f7360809aaec50ba6a6292229644e",
+      "summary": {
+        "durationMs": 22661,
+        "failed": 1,
+        "passed": 6,
+        "skipped": 0,
+        "total": 7
+      },
+      "tests": [
+        {
+          "id": "indexing/semantic/call-summary-context",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 111,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/semantic/call-summary-worklist-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 127,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/semantic/compiler-call-adapter",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 1706,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/semantic/compiler-call-execution-owners",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 1631,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/semantic/ordered-aggregate-flow",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 7005,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/semantic/ordered-snapshot-flow",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 11639,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/semantic/ordered-storage-index",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 428,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Diagnostic: a new fixture incorrectly read the plan selection shape; not production defect evidence",
+      "sha256": "02c981be15e85395a41366f24ee7f8e101b49a436740788d7dc2495905bcf499",
+      "summary": {
+        "durationMs": 9116,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "indexing/build/service-embedding-queue-ownership",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 9107,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Valid original duplicate-queue reproduction on cb64a38e3 predecessor source, with both parent and Stage2 service intent",
+      "sha256": "3cb018634ed42f08191274c62eaaafe4fc22c1d99a54ea79363e7b63e989376e",
+      "summary": {
+        "durationMs": 8871,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "indexing/build/service-embedding-queue-ownership",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 8860,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "One admitted job; diagnostic assertion still used string case equality instead of native path equality",
+      "sha256": "cd253e1a572b27939bdda017da88b7cf0ad698182a83b303a1b4ca426245cdbf",
+      "summary": {
+        "durationMs": 13614,
+        "failed": 1,
+        "passed": 3,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "id": "indexing/build/service-embedding-queue-ownership",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 9105,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/build/stage3-service-queue-status",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 3183,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/embeddings/queue-cancellation-propagation",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 373,
+          "attempts": 1
+        },
+        {
+          "id": "indexing/embeddings/writer-and-queue-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 941,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Uncommitted queue owner fix; both full and explicit Stage2 routes pass",
+      "sha256": "00b25b6ecd96087b3ef3825897153bf6a7720a54991189f55d91a74ca8bfaaa3",
+      "summary": {
+        "durationMs": 16156,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "indexing/build/service-embedding-queue-ownership",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 16151,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Diagnostic: new helper incorrectly expected unprojected structured fields",
+      "sha256": "77aca0860dfba4a8efa8a5600fdc6432f3bad57f19f779e7c900eedcb28102c6",
+      "summary": {
+        "durationMs": 56828,
+        "failed": 3,
+        "passed": 0,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "services/api/core",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 15717,
+          "attempts": 1
+        },
+        {
+          "id": "services/core-observability",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 15724,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/script-coverage/tools/repo-build-index-code",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 25367,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Actual warning-summary mismatch remains, script coverage passes",
+      "sha256": "c8a11868b8fc548b288f03fef289c704a442ef825919396313f54fbf6f82136d",
+      "summary": {
+        "durationMs": 54242,
+        "failed": 2,
+        "passed": 1,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "services/api/core",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 14630,
+          "attempts": 1
+        },
+        {
+          "id": "services/core-observability",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 15335,
+          "attempts": 1
+        },
+        {
+          "id": "tooling/script-coverage/tools/repo-build-index-code",
+          "status": "passed",
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 24265,
+          "attempts": 1
+        }
+      ]
+    },
+    {
+      "source": "Original warning suppression reproduction: one contributing warning provider incorrectly omitted",
+      "sha256": "0ab5887acf128229572d2b5fc791b86ded2751303e7806e7c966df1365aea0cf",
+      "summary": {
+        "durationMs": 1046,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "tooling/type-inference/tooling-runtime-contract-matrix",
+          "status": "failed",
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "durationMs": 1039,
+          "attempts": 1
+        }
+      ]
+    }
+  ],
+  "fixes": [
+    {
+      "commit": "db2da4ba721e89bbcab5336b3a3b4204da1f34ef",
+      "area": "Clangd configuration",
+      "change": "Preserve absence; explicit empty input remains invalid. lspBindings65."
+    },
+    {
+      "commit": "93dc1f72ed5f422ccc9e8b9f49155d6897eead9c",
+      "area": "Compilation admission fixture ownership",
+      "change": "Lightweight command helper prevents eager provider loading before controlled collector hooks; all 25 original case controls retained."
+    },
+    {
+      "commit": "7320b98979dbd146d869613fa6c8e1e52b094a70",
+      "area": "MCP test reader",
+      "change": "Independently assert malformed ASCII header and invalid header encoding; all byte-split/UTF-8/body/cleanup negatives retained."
+    },
+    {
+      "commit": "33db758bdc619d6d06708bb97675bcd9dc2732cb",
+      "area": "Federated policy",
+      "change": "Use supported cache-prewarm environment override, assert it reaches normalization and preserves outer cache identity; no config allowlist relaxation."
+    },
+    {
+      "commit": "384995e4c1a2b03b14db1fb015464b0cf5bf9a0d",
+      "area": "Semantic SQLite query plans",
+      "change": "Explain actual executed SQL and argument bindings; retain forward/reverse index and no-scan assertions."
+    },
+    {
+      "commit": "2f22da2760c5ae0d38069df3054dd8f8028f7054",
+      "area": "Returned aggregate ownership",
+      "change": "Consume bounded returned typed-array values before escape; preserve unsupported containers/captures/external-call fences, overwrite and slice exclusions. cfgFlow32/callFlow51. Make every work-count sample use the same declared workload, unchanged thresholds."
+    },
+    {
+      "commit": "cb64a38e392024d4dc69dbd5e2dd1d4fe9d7a028",
+      "area": "Service queue admission",
+      "change": "Streamed Stage3 owns full-build admission; explicit Stage2 retains pipeline admission. Fresh-cache generation-bound positive and queue rejection/cancellation controls pass. Git fixture launches hidden on Windows."
+    },
+    {
+      "area": "Contributing provider warnings",
+      "change": "Eligible warnings/errors survive useful contributions. Healthy providers and explicitly ineligible planner misses remain controls. Published diagnostics and the bounded three-item operator summary agree."
+    }
+  ],
+  "acceptance": {
+    "uniqueFocusedCases": 46,
+    "fullSuite": "Scheduled at the next commit boundary, checkpoint 305. This receipt does not assert a complete candidate pass.",
+    "remaining": [
+      "Queued vector-only required dense readiness/publication remains failing; duplicate admission is fixed separately.",
+      "Other baseline failures, Windows native workflow lifetimes and performance qualification remain open.",
+      "No new native crash cause or Linux/macOS/model/release qualification is established."
+    ]
+  },
+  "historicalWorkspace": {
+    "root": ".tmp/tasks/windows-contracts-298-20261028/",
+    "availability": "Raw logs are historical author-workspace evidence, not clean-checkout fixtures."
+  },
+  "frontGate": {
+    "parentHead": "cb64a38e392024d4dc69dbd5e2dd1d4fe9d7a028",
+    "workingSource": [
+      {
+        "path": "src/index/tooling/orchestrator.js",
+        "sha256": "1e9a0d9e7b5f17895cf7fc408b3da02bbb19bcd6cb3b68bcd74a42509a84e809"
+      },
+      {
+        "path": "tests/helpers/default-tooling-diagnostics.js",
+        "sha256": "76ba3ce4b7055db4b3fbc72ba4d3b3e6636af8b69a554cfe6b24e1865bb201f9"
+      },
+      {
+        "path": "tests/tooling/type-inference/tooling-runtime-contract-matrix.test.js",
+        "sha256": "a1f59b63e0b1fb94d5a0eb5a67b3fa63155edebfc9bc27dad4da66f08a078e1d"
+      }
+    ],
+    "results": [
+      {
+        "name": "format",
+        "exitCode": 0,
+        "program": "npm",
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "startedAt": "2026-10-29T01:20:08.5816557Z",
+        "finishedAt": "2026-10-29T01:20:56.8202177Z",
+        "logSha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+      },
+      {
+        "name": "config-budget",
+        "exitCode": 0,
+        "program": "npm",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "startedAt": "2026-10-29T01:20:56.8419465Z",
+        "finishedAt": "2026-10-29T01:20:59.1478656Z",
+        "logSha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188"
+      },
+      {
+        "name": "env-check",
+        "exitCode": 0,
+        "program": "npm",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "startedAt": "2026-10-29T01:20:59.1517930Z",
+        "finishedAt": "2026-10-29T01:21:00.7590115Z",
+        "logSha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91"
+      },
+      {
+        "name": "generated-freshness",
+        "exitCode": 0,
+        "program": "node",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "startedAt": "2026-10-29T01:21:00.7618370Z",
+        "finishedAt": "2026-10-29T01:21:13.6654347Z",
+        "logSha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6"
+      },
+      {
+        "name": "command-surface",
+        "exitCode": 0,
+        "program": "node",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "startedAt": "2026-10-29T01:21:13.6687599Z",
+        "finishedAt": "2026-10-29T01:21:16.6843203Z",
+        "logSha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577"
+      },
+      {
+        "name": "workflow-contract",
+        "exitCode": 0,
+        "program": "node",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "startedAt": "2026-10-29T01:21:16.6865350Z",
+        "finishedAt": "2026-10-29T01:21:16.9419326Z",
+        "logSha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f"
+      },
+      {
+        "name": "gate",
+        "exitCode": 0,
+        "program": "node",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-contracts-298-20261028\\gate.json",
+          "--log-dir",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-contracts-298-20261028\\gate-logs"
+        ],
+        "startedAt": "2026-10-29T01:21:16.9441189Z",
+        "finishedAt": "2026-10-29T01:21:41.8633398Z",
+        "logSha256": "19b7a255afe3127a6b2288222b6e5ff664f1c774b68bed55a063bca59f3836e4"
+      },
+      {
+        "name": "diff-check",
+        "exitCode": 0,
+        "program": "git",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "startedAt": "2026-10-29T01:21:41.8658735Z",
+        "finishedAt": "2026-10-29T01:21:41.9571196Z",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "gateSummary": {
+      "durationMs": 24071,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    }
+  }
+}

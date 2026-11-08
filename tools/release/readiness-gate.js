@@ -13,6 +13,9 @@ import {
   toPosixRelative as toPosixRelativePath
 } from './file-walk.js';
 import { toIso } from './metadata-support.js';
+import { readPackageVersion } from './metadata-support.js';
+import { releaseSourceErrors, SBOM_SOURCE_PROPERTY } from './source-revision.js';
+import { qualifyReleaseReport } from './report-contract.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats release readiness-gate',
@@ -425,6 +428,14 @@ const validateTrustSbomFiles = ({ trustManifest, trustManifestShapeErrors }) => 
       });
       continue;
     }
+    const document = readJsonIfExists(resolution.path, 'trust.sboms', label);
+    const properties = document?.metadata?.properties;
+    const identities = Array.isArray(properties) ? properties.filter(property => property?.name === SBOM_SOURCE_PROPERTY) : [];
+    const sourceErrors = identities.length === 1 ? releaseSourceErrors(identities[0].value, releaseGitSha) : ['SBOM must record exactly one observed source commit'];
+    if (document?.bomFormat !== 'CycloneDX' || sourceErrors.length) {
+      result.invalidFiles.push({ id, path: resolution.relative, error: `${label}: ${sourceErrors.join('; ') || 'invalid CycloneDX document'}` });
+      continue;
+    }
     result.files.push(resolution.relative);
   }
   result.status = result.missingFiles.length === 0 && result.invalidFiles.length === 0
@@ -684,7 +695,8 @@ const assertReleaseReport = (label, filePath, payload) => {
     }
     return { ok: false, path: filePath ? toPosixRelative(filePath) : null };
   }
-  const shapeErrors = validateReleaseReportShape(payload);
+  const shapeErrors = [...validateReleaseReportShape(payload), ...qualifyReleaseReport(payload,
+    { root, role: label, releaseVersion: readPackageVersion(root).version, releaseGitSha })];
   if (shapeErrors.length > 0) {
     addBlocker(
       `${label}.invalid-shape`,
@@ -790,6 +802,10 @@ const run = async () => {
     runtime: assertReleaseReport('runtime', runtimeReportPath, runtimeReport),
     nodeVerify: assertReleaseReport('nodeVerify', nodeVerifyReportPath, nodeVerifyReport),
     tuiVerify: (() => {
+      // A structurally valid failed run cannot qualify as passing evidence.
+      // Retain its failure independently of those qualification diagnostics.
+      const failedReportPaths = new Set(tuiReports.filter(entry => !entry.invalidJson && entry.payload?.ok === false
+        && validateReleaseReportShape(entry.payload).length === 0).map(entry => entry.path));
       const reports = tuiReports.map((entry) => ({
         path: entry.path,
         target: entry.target,
@@ -798,7 +814,8 @@ const run = async () => {
           : null,
         invalidJson: entry.invalidJson,
         invalidShape: !entry.invalidJson && entry.payload
-          ? validateReleaseReportShape(entry.payload).length > 0
+          ? [...validateReleaseReportShape(entry.payload), ...qualifyReleaseReport(entry.payload,
+            { root, role: 'tuiVerify', releaseVersion: readPackageVersion(root).version, releaseGitSha })].length > 0
           : false,
         ok: entry.payload?.ok === true,
         targetMismatch: false
@@ -825,7 +842,7 @@ const run = async () => {
         .filter((entry) => expectedTargetSet.has(entry.target) && entry.invalidShape)
         .map((entry) => entry.path);
       const failedReports = reports
-        .filter((entry) => expectedTargetSet.has(entry.target) && !entry.invalidJson && !entry.invalidShape && !entry.ok)
+        .filter((entry) => expectedTargetSet.has(entry.target) && failedReportPaths.has(entry.path))
         .map((entry) => entry.path);
       const targetMismatchReports = reports
         .filter((entry) => expectedTargetSet.has(entry.target) && entry.targetMismatch)
@@ -978,6 +995,9 @@ const run = async () => {
       );
     }
   };
+  for (const [label, payload] of [['trust manifest', trustManifest], ['provenance summary', provenanceSummary], ['checksum bundle', checksumBundle]]) {
+    if (payload) validateTrustSha({ label: label + ' observed checkout', value: payload.observedSourceCommit });
+  }
   if (!hasInvalidJson('trust.provenanceSummary') && provenanceSummary) {
     validateTrustSha({ label: 'provenance summary', value: provenanceSummary.sha });
   }

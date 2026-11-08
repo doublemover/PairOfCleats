@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.6.0",
+  "schemaVersion": "1.17.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -116,7 +116,7 @@
     },
     {
       "name": "cache_gc",
-      "description": "Garbage-collect repo caches.",
+      "description": "Preview cleanup of only the selected repository cache using quota or age limits. Explicit dryRun=false applies deletion; process-lifetime leases protect cooperating sessions. Shared CAS and other repositories require user-owned maintenance CLI scope.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -269,6 +269,200 @@
           "seed": {
             "type": "string",
             "description": "Chunk/file/symbol seed reference."
+          },
+          "taskPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "task",
+              "granularity"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "task": {
+                "enum": [
+                  "edit-safe",
+                  "exploration"
+                ]
+              },
+              "granularity": {
+                "enum": [
+                  "file",
+                  "function",
+                  "excerpt"
+                ]
+              },
+              "wholeFileFallback": {
+                "type": "boolean"
+              }
+            },
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "task": {
+                    "const": "edit-safe"
+                  },
+                  "granularity": {
+                    "enum": [
+                      "file",
+                      "function"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "task": {
+                    "const": "exploration"
+                  },
+                  "granularity": {
+                    "const": "excerpt"
+                  },
+                  "wholeFileFallback": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          },
+          "renderedTokenBudget": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "maxTokens",
+              "profile"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "maxTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "reservedTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "rendering": {
+                "const": "context-text-v1"
+              },
+              "profile": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "revision",
+                  "directory",
+                  "tokenizerSha256",
+                  "configSha256"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "revision": {
+                    "type": "string",
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+                  },
+                  "directory": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "tokenizerSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "configSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "addSpecialTokens": {
+                    "type": "boolean"
+                  },
+                  "engine": {
+                    "const": "huggingface-tokenizers-0.2.0-v1"
+                  }
+                }
+              }
+            }
+          },
+          "evidenceSelection": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "algorithm"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "algorithm": {
+                "enum": [
+                  "top-k",
+                  "mmr",
+                  "role-coverage",
+                  "facility-location"
+                ]
+              },
+              "maxCandidates": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              "maxSelected": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16
+              },
+              "maxPairwise": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4096
+              },
+              "maxWorkUnits": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 262144
+              },
+              "maxWallClockMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "maxPoolBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 524288
+              },
+              "maxMeasurements": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "lambda": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "pathSemantics": {
+            "enum": [
+              "graph-witness"
+            ]
           },
           "hops": {
             "type": "number",
@@ -623,6 +817,278 @@
       }
     },
     {
+      "name": "graph_evidence",
+      "description": "Experimental, qualification pending: page retained call occurrences or resolved adjacency in an explicit immutable build. Bounded retained-family coverage does not establish upstream semantic completeness.",
+      "inputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "buildId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!\\.\\.?$)[^/\\\\:\\u0000]+$"
+              },
+              "family": {
+                "const": "call_sites"
+              },
+              "filter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "callerChunkUid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "targetChunkUid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "chunkUid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "resolution": {
+                    "enum": [
+                      "resolved",
+                      "ambiguous",
+                      "unresolved"
+                    ]
+                  },
+                  "direction": {
+                    "enum": [
+                      "out",
+                      "in",
+                      "both"
+                    ]
+                  }
+                },
+                "required": [],
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "direction"
+                      ],
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "out",
+                            "in"
+                          ]
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "chunkUid": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
+                      "required": [
+                        "chunkUid"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 512
+                  },
+                  "scanRows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4096
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 8192,
+                    "maximum": 4194304
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "buildId",
+              "family"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "buildId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!\\.\\.?$)[^/\\\\:\\u0000]+$"
+              },
+              "family": {
+                "const": "graph_relation_edges"
+              },
+              "filter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "graph": {
+                    "enum": [
+                      "callGraph",
+                      "usageGraph",
+                      "importGraph"
+                    ]
+                  },
+                  "from": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "to": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "node": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "direction": {
+                    "enum": [
+                      "out",
+                      "in",
+                      "both"
+                    ]
+                  }
+                },
+                "required": [],
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "direction"
+                      ],
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "out",
+                            "in"
+                          ]
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "node": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
+                      "required": [
+                        "node"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 512
+                  },
+                  "scanRows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4096
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 8192,
+                    "maximum": 4194304
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "buildId",
+              "family"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "index_status",
       "description": "Return cache and index status for a repo path.",
       "inputSchema": {
@@ -646,6 +1112,3514 @@
             "description": "Repo path (defaults to server cwd)."
           }
         }
+      }
+    },
+    {
+      "name": "repository_answer",
+      "description": "Experimental: run a pinned typed query and render qualified facts and exact source quotations; compare or inspect historical answers. Deliver mode returns a complete source-preserving evidence pack; ordinary transports cannot attest visibility or suppress bodies. Explicit retention writes bounded immutable derived answers with expected-base and revision-intent checks; retained mode reads historical storage without current source authority. No narrative synthesis or program-wide completeness claim.",
+      "inputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "query": {
+                "$ref": "#/$defs/query"
+              },
+              "questionRef": {
+                "$ref": "#/$defs/questionRef"
+              },
+              "mode": {
+                "const": "compile"
+              },
+              "quoteRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "partitionId": {
+                      "type": "string",
+                      "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                    },
+                    "localId": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "partitionId",
+                    "localId"
+                  ]
+                },
+                "maxItems": 16,
+                "uniqueItems": true
+              },
+              "openRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text"
+                  ]
+                },
+                "maxItems": 64
+              },
+              "retention": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expectedBaseDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "resumeIntent": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "epoch": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "intentId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9-]{36}$"
+                      },
+                      "questionRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ]
+                      },
+                      "worldId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "expectedBaseDigest": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "epoch",
+                      "intentId",
+                      "questionRef",
+                      "worldId",
+                      "expectedBaseDigest"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedBaseDigest"
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "query",
+              "questionRef",
+              "mode"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "query": {
+                "$ref": "#/$defs/query"
+              },
+              "questionRef": {
+                "$ref": "#/$defs/questionRef"
+              },
+              "mode": {
+                "const": "compare"
+              },
+              "previous": {
+                "$ref": "#/$defs/revision"
+              },
+              "quoteRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "partitionId": {
+                      "type": "string",
+                      "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                    },
+                    "localId": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "partitionId",
+                    "localId"
+                  ]
+                },
+                "maxItems": 16,
+                "uniqueItems": true
+              },
+              "openRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text"
+                  ]
+                },
+                "maxItems": 64
+              },
+              "retention": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expectedBaseDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "resumeIntent": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "epoch": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "intentId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9-]{36}$"
+                      },
+                      "questionRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ]
+                      },
+                      "worldId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "expectedBaseDigest": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "epoch",
+                      "intentId",
+                      "questionRef",
+                      "worldId",
+                      "expectedBaseDigest"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedBaseDigest"
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "query",
+              "questionRef",
+              "mode",
+              "previous"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "mode": {
+                "const": "inspect"
+              },
+              "revision": {
+                "$ref": "#/$defs/revision"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "mode",
+              "revision"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "mode": {
+                "const": "retained"
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "questionRef": {
+                "$ref": "#/$defs/questionRef"
+              },
+              "revisionReceipt": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "answerDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "manifestHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "questionRef": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "revision": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "revision"
+                    ]
+                  },
+                  "worldId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "epoch": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "answerDigest",
+                  "manifestHash",
+                  "questionRef",
+                  "worldId",
+                  "epoch"
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "mode",
+              "repoRoot",
+              "questionRef"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "query": {
+                "$ref": "#/$defs/query"
+              },
+              "questionRef": {
+                "$ref": "#/$defs/questionRef"
+              },
+              "mode": {
+                "const": "deliver"
+              },
+              "delivery": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "contextRef": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "consumerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "sessionId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "contextEpoch": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "windowRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "taskRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ]
+                      },
+                      "branchId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "scopeDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "policyDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "worldRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "repositoryNamespace": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "generation": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "baseBuildId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "semanticRevision": {
+                                "const": 0
+                              }
+                            },
+                            "required": [
+                              "baseBuildId",
+                              "semanticRevision"
+                            ]
+                          },
+                          "sourceSnapshotId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "contextKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "domainId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "producerId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          }
+                        },
+                        "required": [
+                          "repositoryNamespace",
+                          "generation",
+                          "sourceSnapshotId",
+                          "contextKey",
+                          "domainId",
+                          "producerId"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "consumerId",
+                      "sessionId",
+                      "contextEpoch",
+                      "windowRevision",
+                      "taskRef",
+                      "branchId",
+                      "scopeDigest",
+                      "policyDigest",
+                      "worldRef"
+                    ]
+                  },
+                  "expectedBaseDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requiredExactSourceRoles": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 64,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "uniqueItems": true
+                  },
+                  "unresolvedRoles": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 64,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "uniqueItems": true
+                  },
+                  "continuation": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "producerId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "requestDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "cursor": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          }
+                        },
+                        "required": [
+                          "producerId",
+                          "requestDigest",
+                          "cursor"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limits": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "packetBytes": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 131072
+                      },
+                      "reconstructedBytes": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 131072
+                      }
+                    },
+                    "required": [
+                      "packetBytes",
+                      "reconstructedBytes"
+                    ]
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "contextRef",
+                  "expectedBaseDigest",
+                  "requiredExactSourceRoles",
+                  "unresolvedRoles",
+                  "continuation",
+                  "limits"
+                ]
+              },
+              "quoteRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "partitionId": {
+                      "type": "string",
+                      "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                    },
+                    "localId": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "partitionId",
+                    "localId"
+                  ]
+                },
+                "maxItems": 16,
+                "uniqueItems": true
+              },
+              "openRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text"
+                  ]
+                },
+                "maxItems": 64
+              },
+              "quoteRoles": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "array",
+                  "minItems": 0,
+                  "maxItems": 64,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "query",
+              "questionRef",
+              "mode",
+              "delivery"
+            ]
+          }
+        ],
+        "$defs": {
+          "query": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "mode": {
+                "const": "execute"
+              },
+              "question": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "world": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "repositoryNamespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "generation": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "baseBuildId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "semanticRevision": {
+                            "const": 0
+                          }
+                        },
+                        "required": [
+                          "baseBuildId",
+                          "semanticRevision"
+                        ]
+                      },
+                      "sourceSnapshotId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "contextKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "domainId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "producerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      }
+                    },
+                    "required": [
+                      "repositoryNamespace",
+                      "generation",
+                      "sourceSnapshotId",
+                      "contextKey",
+                      "domainId",
+                      "producerId"
+                    ]
+                  },
+                  "semantics": {
+                    "const": "retained-facts"
+                  },
+                  "bind": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                        },
+                        "sort": {
+                          "enum": [
+                            "Invocation",
+                            "Declaration",
+                            "Literal"
+                          ]
+                        },
+                        "scan": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePaths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 32,
+                                  "uniqueItems": true
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePaths",
+                                "invocationKind"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePrefix": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePrefix",
+                                "invocationKind"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sort"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  },
+                  "where": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "all": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$"
+                            },
+                            "predicate": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 4096
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "enum": [
+                                          "string",
+                                          "number",
+                                          "boolean",
+                                          "null",
+                                          "bigint"
+                                        ]
+                                      },
+                                      "representation": {
+                                        "type": "string",
+                                        "maxLength": 4096
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "representation"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "minItems": 0,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "predicate",
+                            "args"
+                          ]
+                        },
+                        "minItems": 0,
+                        "maxItems": 64
+                      }
+                    },
+                    "required": [
+                      "all"
+                    ]
+                  },
+                  "select": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "distinctBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "order": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "source-order"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "world",
+                  "semantics",
+                  "bind",
+                  "where",
+                  "select",
+                  "distinctBy",
+                  "order"
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "artifact",
+                  "sqlite"
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "records": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65536
+                  },
+                  "workMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 250
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "generation",
+              "mode",
+              "question"
+            ]
+          },
+          "questionRef": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "id",
+              "revision"
+            ]
+          },
+          "revision": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "kind": {
+                "const": "repository-answer-revision"
+              },
+              "rendererVersion": {
+                "const": 2
+              },
+              "questionRef": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "revision": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "id",
+                  "revision"
+                ]
+              },
+              "world": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "repositoryNamespace": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "generation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "baseBuildId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "semanticRevision": {
+                        "const": 0
+                      }
+                    },
+                    "required": [
+                      "baseBuildId",
+                      "semanticRevision"
+                    ]
+                  },
+                  "sourceSnapshotId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "contextKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "domainId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "producerId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "repositoryNamespace",
+                  "generation",
+                  "sourceSnapshotId",
+                  "contextKey",
+                  "domainId",
+                  "producerId"
+                ]
+              },
+              "worldId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "inputs": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "questionRef": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "revision": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "revision"
+                    ]
+                  },
+                  "queryReceipt": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "schemaVersion": {
+                        "const": 1
+                      },
+                      "kind": {
+                        "const": "repository-question-indexed-page"
+                      },
+                      "profile": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "world": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "repositoryNamespace": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "generation": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "baseBuildId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "semanticRevision": {
+                                "const": 0
+                              }
+                            },
+                            "required": [
+                              "baseBuildId",
+                              "semanticRevision"
+                            ]
+                          },
+                          "sourceSnapshotId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "contextKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "domainId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "producerId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          }
+                        },
+                        "required": [
+                          "repositoryNamespace",
+                          "generation",
+                          "sourceSnapshotId",
+                          "contextKey",
+                          "domainId",
+                          "producerId"
+                        ]
+                      },
+                      "requestDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "logicalPlanId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "physicalPlanId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "status": {
+                        "enum": [
+                          "partial",
+                          "complete-in-retained-input"
+                        ]
+                      },
+                      "rows": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "rowId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "bindings": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "variable": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 65
+                                      },
+                                      "sort": {
+                                        "const": "Invocation"
+                                      },
+                                      "ref": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "partitionId": {
+                                            "type": "string",
+                                            "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                          },
+                                          "localId": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "partitionId",
+                                          "localId"
+                                        ]
+                                      },
+                                      "source": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "sourceUnitId": {
+                                            "type": "string",
+                                            "pattern": "^su1:[a-f0-9]{64}$"
+                                          },
+                                          "sourceHash": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{64}$"
+                                          },
+                                          "path": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 4096
+                                          },
+                                          "span": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                          },
+                                          "coordinateUnit": {
+                                            "const": "utf16"
+                                          }
+                                        },
+                                        "required": [
+                                          "sourceUnitId",
+                                          "sourceHash",
+                                          "path",
+                                          "span",
+                                          "coordinateUnit"
+                                        ]
+                                      },
+                                      "invocationKind": {
+                                        "enum": [
+                                          "call",
+                                          "optionalCall",
+                                          "construct",
+                                          "tag",
+                                          "import"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "variable",
+                                      "sort",
+                                      "ref",
+                                      "source",
+                                      "invocationKind"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "variable": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 65
+                                      },
+                                      "sort": {
+                                        "const": "Declaration"
+                                      },
+                                      "ref": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "partitionId": {
+                                            "type": "string",
+                                            "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                          },
+                                          "localId": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "partitionId",
+                                          "localId"
+                                        ]
+                                      },
+                                      "source": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "sourceUnitId": {
+                                            "type": "string",
+                                            "pattern": "^su1:[a-f0-9]{64}$"
+                                          },
+                                          "sourceHash": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{64}$"
+                                          },
+                                          "path": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 4096
+                                          },
+                                          "span": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                          },
+                                          "coordinateUnit": {
+                                            "const": "utf16"
+                                          }
+                                        },
+                                        "required": [
+                                          "sourceUnitId",
+                                          "sourceHash",
+                                          "path",
+                                          "span",
+                                          "coordinateUnit"
+                                        ]
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "maxLength": 4096
+                                      }
+                                    },
+                                    "required": [
+                                      "variable",
+                                      "sort",
+                                      "ref",
+                                      "source",
+                                      "name"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "variable": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 65
+                                      },
+                                      "sort": {
+                                        "const": "Literal"
+                                      },
+                                      "ref": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "partitionId": {
+                                            "type": "string",
+                                            "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                          },
+                                          "localId": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "partitionId",
+                                          "localId"
+                                        ]
+                                      },
+                                      "source": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "sourceUnitId": {
+                                            "type": "string",
+                                            "pattern": "^su1:[a-f0-9]{64}$"
+                                          },
+                                          "sourceHash": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{64}$"
+                                          },
+                                          "path": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 4096
+                                          },
+                                          "span": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                          },
+                                          "coordinateUnit": {
+                                            "const": "utf16"
+                                          }
+                                        },
+                                        "required": [
+                                          "sourceUnitId",
+                                          "sourceHash",
+                                          "path",
+                                          "span",
+                                          "coordinateUnit"
+                                        ]
+                                      },
+                                      "scalar": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "type": {
+                                                "enum": [
+                                                  "string",
+                                                  "number",
+                                                  "boolean",
+                                                  "null",
+                                                  "bigint"
+                                                ]
+                                              },
+                                              "representation": {
+                                                "type": "string",
+                                                "maxLength": 4096
+                                              }
+                                            },
+                                            "required": [
+                                              "type",
+                                              "representation"
+                                            ]
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "variable",
+                                      "sort",
+                                      "ref",
+                                      "source",
+                                      "scalar"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "maxItems": 3,
+                              "minItems": 3
+                            },
+                            "witnesses": {
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "operatorId": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 63
+                                      },
+                                      "ref": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "partitionId": {
+                                            "type": "string",
+                                            "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                          },
+                                          "localId": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
+                                        },
+                                        "required": [
+                                          "partitionId",
+                                          "localId"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "operatorId",
+                                      "ref"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "operatorId": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 63
+                                      },
+                                      "meaning": {
+                                        "const": "recorded-target-candidate"
+                                      },
+                                      "fact": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "owner": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "partitionId": {
+                                                "type": "string",
+                                                "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                              },
+                                              "localId": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
+                                            },
+                                            "required": [
+                                              "partitionId",
+                                              "localId"
+                                            ]
+                                          },
+                                          "member": {
+                                            "enum": [
+                                              "semantic_edges",
+                                              "semantic_operands"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "rowHash": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{64}$"
+                                          }
+                                        },
+                                        "required": [
+                                          "owner",
+                                          "member",
+                                          "offset",
+                                          "rowHash"
+                                        ]
+                                      },
+                                      "contextKey": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 65536
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "certainty": {
+                                        "enum": [
+                                          "exact-static",
+                                          "modeled",
+                                          "heuristic"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "operatorId",
+                                      "meaning",
+                                      "fact",
+                                      "contextKey",
+                                      "certainty"
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "operatorId": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 63
+                                      },
+                                      "meaning": {
+                                        "const": "syntactic-zero-based-argument"
+                                      },
+                                      "fact": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "owner": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "partitionId": {
+                                                "type": "string",
+                                                "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                              },
+                                              "localId": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
+                                            },
+                                            "required": [
+                                              "partitionId",
+                                              "localId"
+                                            ]
+                                          },
+                                          "member": {
+                                            "enum": [
+                                              "semantic_edges",
+                                              "semantic_operands"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          },
+                                          "rowHash": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{64}$"
+                                          }
+                                        },
+                                        "required": [
+                                          "owner",
+                                          "member",
+                                          "offset",
+                                          "rowHash"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "operatorId",
+                                      "meaning",
+                                      "fact"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "maxItems": 64
+                            },
+                            "detailRequest": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "repoRoot": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "generation": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "baseBuildId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 4096
+                                    },
+                                    "semanticRevision": {
+                                      "const": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "baseBuildId",
+                                    "semanticRevision"
+                                  ]
+                                },
+                                "refs": {
+                                  "type": "array",
+                                  "minItems": 3,
+                                  "maxItems": 3,
+                                  "items": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "partitionId": {
+                                        "type": "string",
+                                        "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                      },
+                                      "localId": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991
+                                      }
+                                    },
+                                    "required": [
+                                      "partitionId",
+                                      "localId"
+                                    ]
+                                  }
+                                },
+                                "include": {
+                                  "type": "array",
+                                  "maxItems": 2,
+                                  "uniqueItems": true,
+                                  "items": {
+                                    "enum": [
+                                      "names",
+                                      "operands"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "repoRoot",
+                                "generation",
+                                "refs"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "rowId",
+                            "bindings",
+                            "witnesses",
+                            "detailRequest"
+                          ]
+                        },
+                        "maxItems": 128
+                      },
+                      "originMap": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "operatorId": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 63
+                            },
+                            "authored": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "clauseId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 64
+                                  },
+                                  "path": {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 64
+                                        },
+                                        {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991
+                                        }
+                                      ]
+                                    },
+                                    "maxItems": 8
+                                  }
+                                },
+                                "required": [
+                                  "clauseId",
+                                  "path"
+                                ]
+                              },
+                              "maxItems": 64
+                            }
+                          },
+                          "required": [
+                            "operatorId",
+                            "authored"
+                          ]
+                        },
+                        "maxItems": 64
+                      },
+                      "frontier": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "operatorId": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 63
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "ref": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "partitionId": {
+                                  "type": "string",
+                                  "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                },
+                                "localId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "partitionId",
+                                "localId"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "operatorId",
+                            "reason"
+                          ]
+                        },
+                        "maxItems": 64
+                      },
+                      "refutations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "operatorId": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 63
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "ref": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "partitionId": {
+                                  "type": "string",
+                                  "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                                },
+                                "localId": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "partitionId",
+                                "localId"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "operatorId",
+                            "reason"
+                          ]
+                        },
+                        "maxItems": 64
+                      },
+                      "frontierOmitted": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "refutationsOmitted": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "completion": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "enumeration": {
+                            "enum": [
+                              "partial",
+                              "complete-in-retained-input"
+                            ]
+                          },
+                          "analysis": {
+                            "enum": [
+                              "unobserved",
+                              "incomplete",
+                              "complete"
+                            ]
+                          },
+                          "programSemantics": {
+                            "const": "not-established"
+                          },
+                          "rankedPrefix": {
+                            "const": "not-established"
+                          }
+                        },
+                        "required": [
+                          "enumeration",
+                          "analysis",
+                          "programSemantics",
+                          "rankedPrefix"
+                        ]
+                      },
+                      "counts": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "returnedRows": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "emittedThroughCursor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "unresolvedThroughCursor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "totalInRetainedRelation": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "programTotal": {
+                            "const": null
+                          }
+                        },
+                        "required": [
+                          "returnedRows",
+                          "emittedThroughCursor",
+                          "unresolvedThroughCursor",
+                          "totalInRetainedRelation",
+                          "programTotal"
+                        ]
+                      },
+                      "verification": {
+                        "const": "retained-records-and-source-headers"
+                      },
+                      "supportSelection": {
+                        "const": "one-deterministic-witness-per-row"
+                      },
+                      "diagnosticSelection": {
+                        "const": "bounded-observed-clause-failures"
+                      }
+                    },
+                    "required": [
+                      "schemaVersion",
+                      "kind",
+                      "profile",
+                      "world",
+                      "requestDigest",
+                      "logicalPlanId",
+                      "physicalPlanId",
+                      "status",
+                      "rows",
+                      "originMap",
+                      "frontier",
+                      "refutations",
+                      "frontierOmitted",
+                      "refutationsOmitted",
+                      "completion",
+                      "counts",
+                      "verification",
+                      "supportSelection",
+                      "diagnosticSelection"
+                    ]
+                  },
+                  "quotations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "sourceUnitId": {
+                              "type": "string",
+                              "pattern": "^su1:[a-f0-9]{64}$"
+                            },
+                            "sourceHash": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "path": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 4096
+                            },
+                            "span": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "minItems": 2,
+                              "maxItems": 2
+                            },
+                            "coordinateUnit": {
+                              "const": "utf16"
+                            }
+                          },
+                          "required": [
+                            "sourceUnitId",
+                            "sourceHash",
+                            "path",
+                            "span",
+                            "coordinateUnit"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "maxLength": 32768
+                        },
+                        "contentHash": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "text",
+                        "contentHash"
+                      ]
+                    },
+                    "maxItems": 16
+                  },
+                  "openRequirements": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2048
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "text"
+                      ]
+                    },
+                    "maxItems": 64
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "questionRef",
+                  "queryReceipt",
+                  "quotations",
+                  "openRequirements"
+                ]
+              },
+              "claims": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "predicateId": {
+                      "enum": [
+                        "retainedQueryTuple",
+                        "retainedQueryCount",
+                        "sourceContains"
+                      ]
+                    },
+                    "predicateVersion": {
+                      "const": 1
+                    },
+                    "worldId": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "argumentsDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "assertionKind": {
+                      "enum": [
+                        "structuralFact",
+                        "checkedDomainFact",
+                        "sourceText"
+                      ]
+                    },
+                    "polarity": {
+                      "const": "positive"
+                    },
+                    "quantifierScope": {
+                      "enum": [
+                        "returned-page-tuples",
+                        "named-retained-relation",
+                        "exact-source-interval"
+                      ]
+                    },
+                    "sourceValidity": {
+                      "enum": [
+                        "retained-source-headers",
+                        "verified-retained-snapshot"
+                      ]
+                    },
+                    "supportState": {
+                      "const": "supported"
+                    },
+                    "supportSelection": {
+                      "const": "selected-provider-receipt"
+                    },
+                    "alternativesComplete": {
+                      "const": false
+                    },
+                    "counterSupportState": {
+                      "const": "not-assessed"
+                    },
+                    "support": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "rule": {
+                            "enum": [
+                              "retained-query-row-v1",
+                              "retained-query-count-v1",
+                              "verified-source-quotation-v1"
+                            ]
+                          },
+                          "inputIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "maxItems": 3
+                          },
+                          "dependencyClaimIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "maxItems": 128
+                          },
+                          "compatibilityRule": {
+                            "const": "exact-world-branch-assumptions-v1"
+                          }
+                        },
+                        "required": [
+                          "rule",
+                          "inputIds",
+                          "dependencyClaimIds",
+                          "compatibilityRule"
+                        ]
+                      },
+                      "maxItems": 1
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "predicateId",
+                    "predicateVersion",
+                    "worldId",
+                    "argumentsDigest",
+                    "assertionKind",
+                    "polarity",
+                    "quantifierScope",
+                    "sourceValidity",
+                    "supportState",
+                    "supportSelection",
+                    "alternativesComplete",
+                    "counterSupportState",
+                    "support"
+                  ]
+                },
+                "maxItems": 145
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 131072
+              },
+              "fragments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "claim",
+                        "qualification",
+                        "open-requirement"
+                      ]
+                    },
+                    "span": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "claimIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "maxItems": 1
+                    },
+                    "sourceRefs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "sourceUnitId": {
+                            "type": "string",
+                            "pattern": "^su1:[a-f0-9]{64}$"
+                          },
+                          "sourceHash": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "path": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "span": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                          },
+                          "coordinateUnit": {
+                            "const": "utf16"
+                          }
+                        },
+                        "required": [
+                          "sourceUnitId",
+                          "sourceHash",
+                          "path",
+                          "span",
+                          "coordinateUnit"
+                        ]
+                      },
+                      "maxItems": 3
+                    },
+                    "quoteSpan": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "span",
+                    "claimIds",
+                    "sourceRefs"
+                  ]
+                },
+                "maxItems": 212
+              },
+              "unresolvedRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048
+                    },
+                    "state": {
+                      "const": "open"
+                    },
+                    "reason": {
+                      "const": "caller-requirement-has-no-admitted-checker"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text",
+                    "state",
+                    "reason"
+                  ]
+                },
+                "maxItems": 64
+              },
+              "dependencyFootprint": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "inventoryId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "queryDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "domainId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "policy": {
+                    "const": "invalidate-the-whole-answer-on-any-input-world-change"
+                  },
+                  "negativeAndDomainDependencies": {
+                    "const": "covered-conservatively-by-the-full-inventory"
+                  }
+                },
+                "required": [
+                  "inventoryId",
+                  "queryDigest",
+                  "domainId",
+                  "policy",
+                  "negativeAndDomainDependencies"
+                ]
+              },
+              "qualification": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "interpretation": {
+                    "const": "retained-query-facts-and-exact-source-quotations"
+                  },
+                  "programSemantics": {
+                    "const": "not-established"
+                  },
+                  "questionCoverage": {
+                    "enum": [
+                      "retained-question-answered",
+                      "retained-question-partial"
+                    ]
+                  },
+                  "narrative": {
+                    "const": "none"
+                  }
+                },
+                "required": [
+                  "interpretation",
+                  "programSemantics",
+                  "questionCoverage",
+                  "narrative"
+                ]
+              },
+              "cost": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "serializedBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "quotedSourceBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "claimsBuilt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "serializedBytes",
+                  "quotedSourceBytes",
+                  "claimsBuilt"
+                ]
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "kind",
+              "rendererVersion",
+              "questionRef",
+              "world",
+              "worldId",
+              "inputs",
+              "claims",
+              "text",
+              "fragments",
+              "unresolvedRequirements",
+              "dependencyFootprint",
+              "qualification",
+              "cost",
+              "digest"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "repository_query",
+      "description": "Experimental: describe an immutable source domain, execute typed correlated target/literal questions, or explain every original clause at one exact binding tuple. Read-only source-linked retained facts and replayable pages; program semantics and runtime callees are not established.",
+      "inputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "mode": {
+                "const": "describe"
+              },
+              "scan": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "sourcePaths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "uniqueItems": true
+                      },
+                      "invocationKind": {
+                        "enum": [
+                          "call",
+                          "optionalCall",
+                          "construct",
+                          "tag",
+                          "import"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourcePaths",
+                      "invocationKind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "sourcePrefix": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "invocationKind": {
+                        "enum": [
+                          "call",
+                          "optionalCall",
+                          "construct",
+                          "tag",
+                          "import"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourcePrefix",
+                      "invocationKind"
+                    ]
+                  }
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "artifact",
+                  "sqlite"
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "generation",
+              "mode",
+              "scan"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "mode": {
+                "const": "execute"
+              },
+              "question": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "world": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "repositoryNamespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "generation": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "baseBuildId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "semanticRevision": {
+                            "const": 0
+                          }
+                        },
+                        "required": [
+                          "baseBuildId",
+                          "semanticRevision"
+                        ]
+                      },
+                      "sourceSnapshotId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "contextKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "domainId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "producerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      }
+                    },
+                    "required": [
+                      "repositoryNamespace",
+                      "generation",
+                      "sourceSnapshotId",
+                      "contextKey",
+                      "domainId",
+                      "producerId"
+                    ]
+                  },
+                  "semantics": {
+                    "const": "retained-facts"
+                  },
+                  "bind": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                        },
+                        "sort": {
+                          "enum": [
+                            "Invocation",
+                            "Declaration",
+                            "Literal"
+                          ]
+                        },
+                        "scan": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePaths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 32,
+                                  "uniqueItems": true
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePaths",
+                                "invocationKind"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePrefix": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePrefix",
+                                "invocationKind"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sort"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  },
+                  "where": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "all": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$"
+                            },
+                            "predicate": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 4096
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "enum": [
+                                          "string",
+                                          "number",
+                                          "boolean",
+                                          "null",
+                                          "bigint"
+                                        ]
+                                      },
+                                      "representation": {
+                                        "type": "string",
+                                        "maxLength": 4096
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "representation"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "minItems": 0,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "predicate",
+                            "args"
+                          ]
+                        },
+                        "minItems": 0,
+                        "maxItems": 64
+                      }
+                    },
+                    "required": [
+                      "all"
+                    ]
+                  },
+                  "select": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "distinctBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "order": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "source-order"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "world",
+                  "semantics",
+                  "bind",
+                  "where",
+                  "select",
+                  "distinctBy",
+                  "order"
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "artifact",
+                  "sqlite"
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "records": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65536
+                  },
+                  "workMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 250
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "generation",
+              "mode",
+              "question"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "mode": {
+                "const": "explain"
+              },
+              "question": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "world": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "repositoryNamespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "generation": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "baseBuildId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "semanticRevision": {
+                            "const": 0
+                          }
+                        },
+                        "required": [
+                          "baseBuildId",
+                          "semanticRevision"
+                        ]
+                      },
+                      "sourceSnapshotId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "contextKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "domainId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "producerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      }
+                    },
+                    "required": [
+                      "repositoryNamespace",
+                      "generation",
+                      "sourceSnapshotId",
+                      "contextKey",
+                      "domainId",
+                      "producerId"
+                    ]
+                  },
+                  "semantics": {
+                    "const": "retained-facts"
+                  },
+                  "bind": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                        },
+                        "sort": {
+                          "enum": [
+                            "Invocation",
+                            "Declaration",
+                            "Literal"
+                          ]
+                        },
+                        "scan": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePaths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 32,
+                                  "uniqueItems": true
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePaths",
+                                "invocationKind"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePrefix": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePrefix",
+                                "invocationKind"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sort"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  },
+                  "where": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "all": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$"
+                            },
+                            "predicate": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 4096
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "enum": [
+                                          "string",
+                                          "number",
+                                          "boolean",
+                                          "null",
+                                          "bigint"
+                                        ]
+                                      },
+                                      "representation": {
+                                        "type": "string",
+                                        "maxLength": 4096
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "representation"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "minItems": 0,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "predicate",
+                            "args"
+                          ]
+                        },
+                        "minItems": 0,
+                        "maxItems": 64
+                      }
+                    },
+                    "required": [
+                      "all"
+                    ]
+                  },
+                  "select": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "distinctBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "order": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "source-order"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "world",
+                  "semantics",
+                  "bind",
+                  "where",
+                  "select",
+                  "distinctBy",
+                  "order"
+                ]
+              },
+              "bindingRefs": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "invocation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "partitionId": {
+                        "type": "string",
+                        "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                      },
+                      "localId": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "partitionId",
+                      "localId"
+                    ]
+                  },
+                  "declaration": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "partitionId": {
+                        "type": "string",
+                        "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                      },
+                      "localId": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "partitionId",
+                      "localId"
+                    ]
+                  },
+                  "literal": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "partitionId": {
+                        "type": "string",
+                        "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                      },
+                      "localId": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "partitionId",
+                      "localId"
+                    ]
+                  }
+                },
+                "required": [
+                  "invocation",
+                  "declaration",
+                  "literal"
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "artifact",
+                  "sqlite"
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "records": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65536
+                  },
+                  "workMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 250
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "generation",
+              "mode",
+              "question",
+              "bindingRefs"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1840,18 +5814,12 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "repoPath": {
-            "type": "string",
-            "description": "Repo path (defaults to server cwd)."
-          },
           "query": {
             "type": "string"
           },
-          "cursor": {
+          "repoPath": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 8192,
-            "description": "Filter-only nextCursor; reuse identical filters, modes and generation."
+            "description": "Repo path (defaults to server cwd)."
           },
           "asOf": {
             "type": "string",
@@ -1865,24 +5833,11 @@
             "type": "string",
             "description": "Alias for snapshot; conflicting references fail."
           },
-          "mode": {
+          "cursor": {
             "type": "string",
-            "enum": [
-              "both",
-              "code",
-              "prose",
-              "extracted-prose",
-              "records",
-              "all"
-            ]
-          },
-          "backend": {
-            "type": "string",
-            "enum": [
-              "memory",
-              "sqlite",
-              "sqlite-fts"
-            ]
+            "minLength": 1,
+            "maxLength": 8192,
+            "description": "Filter-only nextCursor; reuse identical filters, modes and generation."
           },
           "output": {
             "type": "string",
@@ -1892,20 +5847,30 @@
             ],
             "description": "Return compact JSON (default) or full payload."
           },
-          "ann": {
-            "type": "boolean",
-            "description": "Enable ANN re-ranking (default uses config)."
+          "mode": {
+            "type": "string",
+            "enum": [
+              "code",
+              "prose",
+              "records",
+              "both",
+              "all",
+              "extracted-prose"
+            ]
           },
-          "allowSparseFallback": {
-            "type": "boolean",
-            "description": "Allow ANN fallback when sparse-only is requested but sparse is unavailable."
-          },
-          "allowUnsafeMix": {
-            "type": "boolean",
-            "description": "Allow compatibility/profile cohort mixing when keys do not match."
+          "backend": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "memory",
+              "sqlite",
+              "sqlite-fts",
+              "lmdb"
+            ]
           },
           "top": {
-            "type": "number",
+            "type": "integer",
+            "minimum": 0,
             "description": "Top N results."
           },
           "context": {
@@ -2002,21 +5967,13 @@
             "type": "string",
             "description": "Filter by risk flow."
           },
-          "branchesMin": {
-            "type": "number",
-            "description": "Min branch count."
+          "chunkAuthor": {
+            "type": "string",
+            "description": "Filter by chunk author (git blame)."
           },
-          "loopsMin": {
-            "type": "number",
-            "description": "Min loop count."
-          },
-          "breaksMin": {
-            "type": "number",
-            "description": "Min break count."
-          },
-          "continuesMin": {
-            "type": "number",
-            "description": "Min continue count."
+          "modifiedAfter": {
+            "type": "string",
+            "description": "Filter by last modified date (parseable string)."
           },
           "visibility": {
             "type": "string",
@@ -2025,6 +5982,64 @@
           "extends": {
             "type": "string",
             "description": "Filter by inheritance."
+          },
+          "lang": {
+            "type": "string",
+            "description": "Language filter (maps to extensions)."
+          },
+          "branch": {
+            "type": "string",
+            "description": "Git branch filter (current branch)."
+          },
+          "filter": {
+            "type": "string",
+            "description": "Canonical filter expression."
+          },
+          "branchesMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min branch count."
+          },
+          "loopsMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min loop count."
+          },
+          "breaksMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min break count."
+          },
+          "continuesMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min continue count."
+          },
+          "churnMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Minimum git churn (added+deleted lines)."
+          },
+          "modifiedSince": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Filter by last modified recency (days)."
+          },
+          "ann": {
+            "type": "boolean",
+            "description": "Enable ANN re-ranking (default uses config)."
+          },
+          "allowSparseFallback": {
+            "type": "boolean",
+            "description": "Allow ANN fallback when sparse-only is requested but sparse is unavailable."
+          },
+          "allowUnsafeMix": {
+            "type": "boolean",
+            "description": "Allow compatibility/profile cohort mixing when keys do not match."
+          },
+          "lint": {
+            "type": "boolean",
+            "description": "Filter chunks with lint results."
           },
           "async": {
             "type": "boolean",
@@ -2038,28 +6053,30 @@
             "type": "boolean",
             "description": "Filter chunks with returns."
           },
-          "churnMin": {
-            "type": "number",
-            "description": "Minimum git churn (added+deleted lines)."
-          },
-          "chunkAuthor": {
-            "type": "string",
-            "description": "Filter by chunk author (git blame)."
-          },
-          "modifiedAfter": {
-            "type": "string",
-            "description": "Filter by last modified date (parseable string)."
-          },
-          "modifiedSince": {
-            "type": "number",
-            "description": "Filter by last modified recency (days)."
-          },
-          "lint": {
+          "case": {
             "type": "boolean",
-            "description": "Filter chunks with lint results."
+            "description": "Case-sensitive matching for file/path and tokens."
+          },
+          "caseFile": {
+            "type": "boolean",
+            "description": "Case-sensitive file/path matching."
+          },
+          "caseTokens": {
+            "type": "boolean",
+            "description": "Case-sensitive token matching."
           },
           "path": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
             "description": "Substring/regex match for file paths."
           },
           "paths": {
@@ -2075,44 +6092,77 @@
               }
             ]
           },
-          "filter": {
-            "type": "string",
-            "description": "Canonical filter expression."
-          },
           "file": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
             "description": "Substring/regex match for file paths."
           },
           "ext": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
             "description": "Extension filter (ex: .js)."
           },
-          "lang": {
-            "type": "string",
-            "description": "Language filter (maps to extensions)."
-          },
-          "branch": {
-            "type": "string",
-            "description": "Git branch filter (current branch)."
-          },
-          "case": {
-            "type": "boolean",
-            "description": "Case-sensitive matching for file/path and tokens."
-          },
-          "caseFile": {
-            "type": "boolean",
-            "description": "Case-sensitive file/path matching."
-          },
-          "caseTokens": {
-            "type": "boolean",
-            "description": "Case-sensitive token matching."
-          },
           "meta": {
-            "type": "object",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ],
             "description": "Metadata filters for records (key/value)."
           },
           "metaJson": {
-            "type": "string",
+            "type": [
+              "string",
+              "object",
+              "array",
+              "number",
+              "boolean",
+              "null"
+            ],
             "description": "JSON metadata filters for records."
           }
         },
@@ -2857,8 +6907,7 @@
           }
         },
         "required": [
-          "workspacePath",
-          "query"
+          "workspacePath"
         ]
       }
     },
@@ -2931,7 +6980,8 @@
               "enum": [
                 "operands",
                 "names",
-                "ownership"
+                "ownership",
+                "providerEvidence"
               ]
             }
           },
@@ -3231,6 +7281,12 @@
             "enum": [
               "artifact",
               "sqlite"
+            ]
+          },
+          "pathSemantics": {
+            "enum": [
+              "balanced-call-value",
+              "relation-neighborhood"
             ]
           },
           "slot": {
@@ -3658,6 +7714,12 @@
             "enum": [
               "artifact",
               "sqlite"
+            ]
+          },
+          "pathSemantics": {
+            "enum": [
+              "balanced-call-value",
+              "relation-neighborhood"
             ]
           },
           "slot": {

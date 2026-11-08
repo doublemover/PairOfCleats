@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "aliases",
+    "required-conflict",
+    "free-conflict",
+    "hard-conflict",
+    "invalid-budget",
+    "uncovered",
+    "managed-child",
+    "field-order"
+  ]
+}

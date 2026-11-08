@@ -11,6 +11,7 @@ import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 import { runNode } from '../../../helpers/run-node.js';
 import { getRepoCacheRoot } from '../../../../src/shared/repo-paths.js';
 import { createAbortError } from '../../../../src/shared/abort.js';
+import { errorGraphIncludes, errorGraphMatches } from '../../../helpers/error-graph.js';
 
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('embedding-inferred-dimensions', { clean: true });
 const repoRoot = path.join(tempRoot, 'repo');
@@ -121,9 +122,14 @@ try {
     dispose: async () => { probeDisposals++; throw new Error('controlled cleanup failure'); }
   }));
   const probeConfig = parseBuildEmbeddingsArgs(['--repo', repoRoot, '--index-root', indexRoot, '--mode', 'code', '--progress', 'off']);
-  await assert.rejects(runBuildEmbeddingsWithConfig(probeConfig), error => error === probeError);
-  assert.equal(probeError.cleanupError?.message, 'controlled cleanup failure');
-  assert.equal(probeError.cacheOwnershipPending, true, 'cleanup failure remains observable without replacing the original provider code/name/cause');
+  let probeFailure;
+  await assert.rejects(runBuildEmbeddingsWithConfig(probeConfig), error => {
+    probeFailure = error;
+    return error.code === 'ERR_CONTROLLED_PROBE' && errorGraphIncludes(error, probeError);
+  });
+  assert.equal(errorGraphMatches(probeFailure.cleanupError, /controlled cleanup failure/), true);
+  assert.equal(probeError.cleanupError, undefined, 'outward cleanup context does not rewrite the original provider error');
+  assert.equal(probeFailure.cacheOwnershipPending, true, 'cleanup failure remains observable without replacing the original provider code/name/cause');
   assert.equal(probeDisposals, 1, 'startup failure releases the provider lease exactly once and preserves its original error');
   const failedProbe = JSON.parse(await fs.readFile(path.join(indexRoot, 'build_state.json'), 'utf8')).runtime.attempts.at(-1);
   assert.equal(failedProbe.lifecycle, 'failed');

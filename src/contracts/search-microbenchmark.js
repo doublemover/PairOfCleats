@@ -1,0 +1,2 @@
+export const SEARCH_MICRO_REPORT_VERSION = 2;
+export const SEARCH_MICRO_WORK_VERSION = 1;

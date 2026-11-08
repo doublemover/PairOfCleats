@@ -1,18 +1,20 @@
 const PUNCT_RE = /[=<>!:+\-*/%&|^~.?]{1,4}|[()[\]{}.,;:]/g;
-const MAX_PUNCT_TOKENS = 20000;
+export const PUNCTUATION_TOKEN_LIMIT = 20000;
 
-export function extractPunctuationTokens(text) {
-  if (!text) return [];
+export function capturePunctuationTokens(text) {
   PUNCT_RE.lastIndex = 0;
   const out = [];
+  let truncated = false;
   let match;
-  while ((match = PUNCT_RE.exec(text)) !== null) {
+  while (text && (match = PUNCT_RE.exec(text)) !== null) {
+    if (out.length === PUNCTUATION_TOKEN_LIMIT) { truncated = true; break; }
     out.push(match[0]);
-    if (out.length >= MAX_PUNCT_TOKENS) break;
     if (!match[0]) PUNCT_RE.lastIndex += 1;
   }
-  return out;
+  return { tokens: out, coverage: { limit: PUNCTUATION_TOKEN_LIMIT, emitted: out.length, truncated } };
 }
+
+export const extractPunctuationTokens = text => capturePunctuationTokens(text).tokens;
 
 export function extractNgrams(tokens, nStart = 2, nEnd = 4) {
   const grams = [];

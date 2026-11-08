@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-dump-readonly-'));
@@ -22,7 +23,7 @@ try {
     ['build_index.js', '--repo', repo, '--config-dump', '--json', '--threads', '8', '--quality', 'fast']
   ];
   for (const args of invocations) {
-    const result = spawnSync(process.execPath, args, { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000 });
+    const result = runNodeFixture(args, 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000 } });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(await fs.readFile(sentinel, 'utf8'), 'preserve');
     assert.deepEqual(await fs.readdir(path.dirname(sentinel)), ['sentinel']);
@@ -38,7 +39,7 @@ try {
   }
   await fs.rm(base, { recursive: true });
   for (const args of invocations) {
-    const result = spawnSync(process.execPath, args, { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000 });
+    const result = runNodeFixture(args, 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000 } });
     assert.equal(result.status, 0, result.stderr);
     await assert.rejects(fs.stat(base), { code: 'ENOENT' });
   }

@@ -160,6 +160,7 @@ try {
     await runCrossFileInference({
       runtime: {
         root: fixtureRoot, buildRoot: fixtureRoot, repoCacheRoot: fixtureRoot,
+        buildId: 'semantic-foundations-fixture-generation',
         typeInferenceEnabled: true, typeInferenceCrossFileEnabled: true,
         riskAnalysisEnabled: false, riskAnalysisCrossFileEnabled: false,
         riskInterproceduralEnabled: false, toolingEnabled: false

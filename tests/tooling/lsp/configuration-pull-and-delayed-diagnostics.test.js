@@ -5,7 +5,7 @@ import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
 import { resolveLspServerPresetByKey } from '../../../src/index/tooling/lsp-presets.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-lsp-settings-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-lsp-settings-')));
 const tracePath = path.join(root, 'trace.jsonl');
 const text = 'road: 1\n';
 const virtualPath = 'sample.yaml';

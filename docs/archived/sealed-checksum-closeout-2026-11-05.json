@@ -1,0 +1,2717 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "sourceParent": "48ab658730e1a74c3bcf5cf0b04e4552e136c9cc",
+  "candidateIdentity": "Containing commit plus exact source hashes. Focused rechecks supersede only affected observations; no final-head whole-suite or hosted pass is claimed.",
+  "issue": 1234,
+  "runtime": {
+    "node": "26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "bounds": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "sources": [
+    {
+      "path": "src/shared/artifact-io/binary-columnar.js",
+      "sha256": "58b8279a0d59f403344f454ac3d02b737084028544b44b3908037460c966bd55",
+      "normalizedTextSha256": "288e68b7e36b66b7b9558dc4de535eb8937393acdff27b9a2d59e6bae6b3f903"
+    },
+    {
+      "path": "src/index/build/artifacts/token-postings.js",
+      "sha256": "1258f5849abf5e1ab46f8c2c89c7ac65f23d02078a42bec9b2e4a407175d40c6",
+      "normalizedTextSha256": "317f4de9982a7f7e7f69adfe6c0223a051cc410ef74530edc15f0b3b5d1ceed4"
+    },
+    {
+      "path": "src/index/build/artifacts/writers/chunk-meta/writer.js",
+      "sha256": "9ae6f0b92ddb1b3f904793c1cd51716a16c1f0038a635bcecd2b54c434c85853",
+      "normalizedTextSha256": "400d5105e41627468be66884fa54e057be1dacce5f0e5513d5ae8e229176ffdb"
+    },
+    {
+      "path": "src/index/build/artifacts-write/index.js",
+      "sha256": "31eff3303ae8aae62fb2c5873ccc29b1962df9c155134b696e03ccd957815eb4",
+      "normalizedTextSha256": "31eff3303ae8aae62fb2c5873ccc29b1962df9c155134b696e03ccd957815eb4"
+    },
+    {
+      "path": "src/index/build/artifacts/piece-registry.js",
+      "sha256": "8debad160bfe117e775c9fe3c7872057d6908c7d4e6a405c95b42c3524a81c72",
+      "normalizedTextSha256": "8debad160bfe117e775c9fe3c7872057d6908c7d4e6a405c95b42c3524a81c72"
+    },
+    {
+      "path": "src/index/build/artifacts/write-queue.js",
+      "sha256": "dc799588e0907ffc671c3f65be3af79d564b4d8c35ca284dde53e08aab5bd595",
+      "normalizedTextSha256": "f398fe28d6cd0a3265c06ffc27bb71a3604d57a3080015449abadbe81974611b"
+    },
+    {
+      "path": "src/index/build/artifacts/checksums.js",
+      "sha256": "3a21091ee7eab8f80c9742b91436da29d4bedc8fbe2b47a70ee4eff222cbe55f",
+      "normalizedTextSha256": "fc95eb60050d4c6a55cf2bf39426fdb86d11a1d5b95c311e9c48b31b9b1d4748"
+    },
+    {
+      "path": "src/index/build/artifacts/writers/semantic/family.js",
+      "sha256": "e37a7b397225ac1157c0aec110426bcdc68b4d94cb7d629e5684e233e4bdd8b8",
+      "normalizedTextSha256": "f31a99cda43dfda981e28043d0d401f72a8555d481403bb2fed2b7c46184bae9"
+    },
+    {
+      "path": "src/shared/contained-file-resource.js",
+      "sha256": "52cfef5e0941cfc0c480fcf9274c4c9bc1e478ca02850f0c786fa336e03949b8",
+      "normalizedTextSha256": "52cfef5e0941cfc0c480fcf9274c4c9bc1e478ca02850f0c786fa336e03949b8"
+    },
+    {
+      "path": "tests/helpers/manifest-work-probe.js",
+      "sha256": "8a904d1186f1d688407666eb2111ffd5fcaaec381ba996964d29eeb605ca79ee",
+      "normalizedTextSha256": "8a904d1186f1d688407666eb2111ffd5fcaaec381ba996964d29eeb605ca79ee"
+    },
+    {
+      "path": "tests/indexing/artifacts/binary-frame-manifest-integrity.test.js",
+      "sha256": "b3d455aaf321fb8f8a51ffbe28e7268488df7e2cdab96adee16a0f8cba67d7c5",
+      "normalizedTextSha256": "b3d455aaf321fb8f8a51ffbe28e7268488df7e2cdab96adee16a0f8cba67d7c5"
+    },
+    {
+      "path": "tests/indexing/artifacts/chunk-meta-binary-eager-start.test.js",
+      "sha256": "f78a27511be18f775da3b586f94caaf58c08cfdc6074a1c3b0f6849684120d12",
+      "normalizedTextSha256": "967350334f602b9143445ad8afcf3ed88bf73c9019e650775fbea816a05a0f65"
+    },
+    {
+      "path": "tests/indexing/artifacts/field-postings-adaptive-shards-and-binary.test.js",
+      "sha256": "17ea02ccfa4adb53e7688b2a1fcd55ae6ead89c106990ce4084eb3f2922e19bf",
+      "normalizedTextSha256": "dad60a101cd71c95179a86b5e65898b75dde30f2e25b5b828ab630a35260622e"
+    },
+    {
+      "path": "tests/indexing/artifacts/token-postings-binary-columnar-streaming.test.js",
+      "sha256": "40addcc1b804d41dc75e0482ad66bda02c5cf599a4b56516def047d10e9cec22",
+      "normalizedTextSha256": "5f2b33b466283bf083fe85b91e172f995e9894b53eb62dc6c513a72fd481e446"
+    },
+    {
+      "path": "tests/indexing/semantic/sealed-piece-manifest-work.test.js",
+      "sha256": "afeeef0b31bfefd03b69b6a95c6c0ec70b7489da6f8082a444731c75d4efb43b",
+      "normalizedTextSha256": "afeeef0b31bfefd03b69b6a95c6c0ec70b7489da6f8082a444731c75d4efb43b"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-frame-checksum-receipts.test.js",
+      "sha256": "aabacddf3bcf3312d085bda5d929f677f4e8fec4a75661f7544444e7958c2a15",
+      "normalizedTextSha256": "aabacddf3bcf3312d085bda5d929f677f4e8fec4a75661f7544444e7958c2a15"
+    },
+    {
+      "path": "tests/indexing/semantic/publication-recovery.test.js",
+      "sha256": "b74392d10e8aed222a6ca5f5f6e0e5e541376b024cbb0fb90aad54d0be3712bc",
+      "normalizedTextSha256": "b74392d10e8aed222a6ca5f5f6e0e5e541376b024cbb0fb90aad54d0be3712bc"
+    },
+    {
+      "path": "tests/indexing/semantic/validated-family-frontier-order.test.js",
+      "sha256": "0f0dc402243245e4bd433db6388fc1e6240cfe7fcbce701fc6d79b4f6515310e",
+      "normalizedTextSha256": "0f0dc402243245e4bd433db6388fc1e6240cfe7fcbce701fc6d79b4f6515310e"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-columnar-phase-timings.test.js",
+      "sha256": "17ac90d7484c1ce590d1ac9a73cce650e7955f26697047b0fed7158d432db1ba",
+      "normalizedTextSha256": "a4ddb80bbf538ebe0be71dc078028565400e96f1536e1b7fb30a5a1ae0fa7cb2"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-columnar-streaming-frames.test.js",
+      "sha256": "74cac6416c6ce2696c9687f66d6e972f2668bb36778136740af696ab0d6095b7",
+      "normalizedTextSha256": "518aaa9711ccdaef09cc9bc52b9531259324b00af8bee6a21594936fc5c1fdd1"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-frame-bounded-batches.test.js",
+      "sha256": "52374f00a6046f5300a019896df33a8f0a2a3095af8d919f2d394dbc3b82e726",
+      "normalizedTextSha256": "df3842b979fe489441f478931ee82a8cd8ad17fa336c932632c49de5c9e3d1f3"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-frame-producer-resource-lifetime.test.js",
+      "sha256": "6b092ac46b3dacd16c7e2146d47d00ac204c3420c70225a9336fda9603661442",
+      "normalizedTextSha256": "6b092ac46b3dacd16c7e2146d47d00ac204c3420c70225a9336fda9603661442"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-frame-resource-lifetime.test.js",
+      "sha256": "b7cb30165b7c09bf5803f8643e51473139069f3407322eadc3a2f23b31f92c7f",
+      "normalizedTextSha256": "b7cb30165b7c09bf5803f8643e51473139069f3407322eadc3a2f23b31f92c7f"
+    },
+    {
+      "path": "tests/tooling/ci/run-suite-api-plan.test.js",
+      "sha256": "80792e47c88a6575f0e3633611f566fa3bc954ca2c9311ce96c82592473d24d0",
+      "normalizedTextSha256": "80792e47c88a6575f0e3633611f566fa3bc954ca2c9311ce96c82592473d24d0"
+    },
+    {
+      "path": "tests/tooling/shared-module-performance.test.js",
+      "sha256": "ced11323d34dd98cba9c7268d94df34478b4409ccf86e8e57a71e0d26d978224",
+      "normalizedTextSha256": "7b9d72a6c76f7260cdd26fab812843ef26a8d1021dbdec7c10a3b599505b8375"
+    },
+    {
+      "path": "tests/shared/artifact-io/binary-frame-checksum-receipts.test.js.cases.json",
+      "sha256": "b826962779841cfcf41f7cbca801451b64f39cfa1718da0647d1aa7ae123ba30",
+      "normalizedTextSha256": "b826962779841cfcf41f7cbca801451b64f39cfa1718da0647d1aa7ae123ba30"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "sha256": "a3040ff35086e417e2e4907de7fd92e8e057ef20019966e1ea5319ab8972f8b0",
+      "normalizedTextSha256": "a3040ff35086e417e2e4907de7fd92e8e057ef20019966e1ea5319ab8972f8b0"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.manifest.json",
+      "sha256": "01530786aa2e1b689dec4f536477ce4a39fe351cd9088c736d245750f850b98c",
+      "normalizedTextSha256": "01530786aa2e1b689dec4f536477ce4a39fe351cd9088c736d245750f850b98c"
+    },
+    {
+      "path": "tools/ci/run-suite.js",
+      "sha256": "69fde6f7c2e935ccc8f00a9c25e9f022c8c93b0695e9b5d63b82ba722c55bf88",
+      "normalizedTextSha256": "69fde6f7c2e935ccc8f00a9c25e9f022c8c93b0695e9b5d63b82ba722c55bf88"
+    }
+  ],
+  "original": {
+    "report": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915782663-rmm08f",
+      "summary": {
+        "durationMs": 863,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 856,
+          "exitCode": 1,
+          "id": "indexing/artifacts/binary-frame-manifest-integrity",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915782663-rmm08f\\indexing_artifacts_binary-frame-manifest-integrity.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915782663-rmm08f\\indexing_artifacts_binary-frame-manifest-integrity.attempt-1.failure.json"
+          ],
+          "path": "indexing/artifacts/binary-frame-manifest-integrity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "rawLog": "id: indexing/artifacts/binary-frame-manifest-integrity\npath: indexing/artifacts/binary-frame-manifest-integrity.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"manifestConstruction\":{\"manifests\":[{\"elapsedMs\":35.7743999999999,\"cpu\":{\"user\":31000,\"system\":0}}],\"checksums\":[{\"filename\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\binary-frame-manifest-integrity-29036-1793915783421-u960q3\\\\producer\\\\token_postings.binary-columnar.bin\",\"bytes\":2,\"algorithm\":\"xxh64\"},{\"filename\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\binary-frame-manifest-integrity-29036-1793915783421-u960q3\\\\producer\\\\token_postings.binary-columnar.lengths.varint\",\"bytes\":1,\"algorithm\":\"xxh64\"},{\"filename\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\binary-frame-manifest-integrity-29036-1793915783421-u960q3\\\\producer\\\\token_postings.binary-columnar.offsets.bin\",\"bytes\":8,\"algorithm\":\"xxh64\"},{\"filename\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\binary-frame-manifest-integrity-29036-1793915783421-u960q3\\\\producer\\\\token_postings.binary-columnar.meta.json\",\"bytes\":298,\"algorithm\":\"xxh64\"}]},\"binaryManifestReadCalls\":3,\"binaryManifestReadBytes\":11}\n\n--- stderr ---\n\n→ Wrote pieces manifest (4 entries).\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: manifest construction must reuse completed binary members rather than rereading them\r\n\r\n3 !== 0\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/artifacts/binary-frame-manifest-integrity.test.js:37:10 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: 3,\r\n  expected: 0,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+    "restoration": {
+      "restored": true,
+      "sources": [
+        {
+          "candidateSha256": "58B8279A0D59F403344F454AC3D02B737084028544B44B3908037460C966BD55",
+          "path": "src/shared/artifact-io/binary-columnar.js",
+          "baselineSha256": "9324DF2E66B69A068E6821A42AEB969538656FE932ABB54707BEE453230A7155"
+        },
+        {
+          "candidateSha256": "1258F5849ABF5E1AB46F8C2C89C7AC65F23D02078A42BEC9B2E4A407175D40C6",
+          "path": "src/index/build/artifacts/token-postings.js",
+          "baselineSha256": "864F84DB264FFE04124DDF67177F3693F5B11D8C651BD4F90FDE4A50CEAA3AE9"
+        },
+        {
+          "candidateSha256": "9AE6F0B92DDB1B3F904793C1CD51716A16C1F0038A635BCECD2B54C434C85853",
+          "path": "src/index/build/artifacts/writers/chunk-meta/writer.js",
+          "baselineSha256": "E2553774A0EEE5B135AAE14749109585E5583BF7BD39471F69889CF66074DD3C"
+        },
+        {
+          "candidateSha256": "31EFF3303AE8AAE62FB2C5873CCC29B1962DF9C155134B696E03CCD957815EB4",
+          "path": "src/index/build/artifacts-write/index.js",
+          "baselineSha256": "D69FDC7784E5FC371C1952A349D589E84BA54AE7B06889FF0F1F36BD1F51267A"
+        }
+      ],
+      "baselineCommit": "48ab658730e1a74c3bcf5cf0b04e4552e136c9cc"
+    },
+    "scope": "Four original published producer files restored for the actual token-publication fixture; current dependencies, resource owners and new observing fixture remain. Candidate bytes are restored in finally and SHA256-verified."
+  },
+  "focusedReports": [
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw",
+      "summary": {
+        "durationMs": 6048,
+        "failed": 1,
+        "passed": 12,
+        "skipped": 0,
+        "total": 13
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1056,
+          "exitCode": 0,
+          "id": "indexing/artifacts/binary-frame-manifest-integrity",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_binary-frame-manifest-integrity.attempt-1.log"
+          ],
+          "path": "indexing/artifacts/binary-frame-manifest-integrity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 530,
+          "exitCode": 0,
+          "id": "indexing/artifacts/chunk-meta-binary-eager-start",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_chunk-meta-binary-eager-start.attempt-1.log"
+          ],
+          "path": "indexing/artifacts/chunk-meta-binary-eager-start.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2120,
+          "exitCode": 0,
+          "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_field-postings-adaptive-shards-and-binary.attempt-1.log"
+          ],
+          "path": "indexing/artifacts/field-postings-adaptive-shards-and-binary.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 370,
+          "exitCode": 0,
+          "id": "indexing/artifacts/token-postings-binary-columnar-streaming",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_token-postings-binary-columnar-streaming.attempt-1.log"
+          ],
+          "path": "indexing/artifacts/token-postings-binary-columnar-streaming.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 601,
+          "exitCode": 1,
+          "id": "indexing/semantic/sealed-piece-manifest-work",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_semantic_sealed-piece-manifest-work.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_semantic_sealed-piece-manifest-work.attempt-1.failure.json"
+          ],
+          "path": "indexing/semantic/sealed-piece-manifest-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 193,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/changed",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_changed.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 175,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/empty",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_empty.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 163,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/forged",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_forged.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 162,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/oversized",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_oversized.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 157,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/parent-changed",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_parent-changed.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 174,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/partial",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_partial.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 160,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/positive",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_positive.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 162,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/replaced",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_replaced.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6",
+      "summary": {
+        "durationMs": 5555,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1593,
+          "exitCode": 0,
+          "id": "indexing/semantic/publication-recovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_publication-recovery.attempt-1.log"
+          ],
+          "path": "indexing/semantic/publication-recovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 907,
+          "exitCode": 0,
+          "id": "indexing/semantic/sealed-piece-manifest-work",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_sealed-piece-manifest-work.attempt-1.log"
+          ],
+          "path": "indexing/semantic/sealed-piece-manifest-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 633,
+          "exitCode": 0,
+          "id": "indexing/semantic/validated-family-frontier-order/bad-target",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_validated-family-frontier-order_bad-target.attempt-1.log"
+          ],
+          "path": "indexing/semantic/validated-family-frontier-order.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 795,
+          "exitCode": 0,
+          "id": "indexing/semantic/validated-family-frontier-order/frontier-order",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_validated-family-frontier-order_frontier-order.attempt-1.log"
+          ],
+          "path": "indexing/semantic/validated-family-frontier-order.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 666,
+          "exitCode": 0,
+          "id": "indexing/semantic/validated-family-frontier-order/late-completion",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_validated-family-frontier-order_late-completion.attempt-1.log"
+          ],
+          "path": "indexing/semantic/validated-family-frontier-order.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 129,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-columnar-phase-timings",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-columnar-phase-timings.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-columnar-phase-timings.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 182,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-columnar-streaming-frames",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-columnar-streaming-frames.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-columnar-streaming-frames.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 180,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-bounded-batches",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-frame-bounded-batches.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-bounded-batches.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 232,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-frame-producer-resource-lifetime.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-producer-resource-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 220,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-resource-lifetime",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-frame-resource-lifetime.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-resource-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql",
+      "summary": {
+        "durationMs": 6534,
+        "failed": 1,
+        "passed": 2,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 727,
+          "exitCode": 0,
+          "id": "shared/artifact-io/binary-frame-checksum-receipts/oversized",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql\\shared_artifact-io_binary-frame-checksum-receipts_oversized.attempt-1.log"
+          ],
+          "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1669,
+          "exitCode": 1,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql\\tooling_ci_run-suite-api-plan.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql\\tooling_ci_run-suite-api-plan.attempt-1.failure.json"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4124,
+          "exitCode": 0,
+          "id": "tooling/shared-module-performance",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql\\tooling_shared-module-performance.attempt-1.log"
+          ],
+          "path": "tooling/shared-module-performance.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916181405-887ipq",
+      "summary": {
+        "durationMs": 15809,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 15803,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916181405-887ipq\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  ],
+  "latestFocused": {
+    "total": 24,
+    "passed": 24,
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 1056,
+        "exitCode": 0,
+        "id": "indexing/artifacts/binary-frame-manifest-integrity",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_binary-frame-manifest-integrity.attempt-1.log"
+        ],
+        "path": "indexing/artifacts/binary-frame-manifest-integrity.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 530,
+        "exitCode": 0,
+        "id": "indexing/artifacts/chunk-meta-binary-eager-start",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_chunk-meta-binary-eager-start.attempt-1.log"
+        ],
+        "path": "indexing/artifacts/chunk-meta-binary-eager-start.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2120,
+        "exitCode": 0,
+        "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_field-postings-adaptive-shards-and-binary.attempt-1.log"
+        ],
+        "path": "indexing/artifacts/field-postings-adaptive-shards-and-binary.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 370,
+        "exitCode": 0,
+        "id": "indexing/artifacts/token-postings-binary-columnar-streaming",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\indexing_artifacts_token-postings-binary-columnar-streaming.attempt-1.log"
+        ],
+        "path": "indexing/artifacts/token-postings-binary-columnar-streaming.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1593,
+        "exitCode": 0,
+        "id": "indexing/semantic/publication-recovery",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_publication-recovery.attempt-1.log"
+        ],
+        "path": "indexing/semantic/publication-recovery.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 907,
+        "exitCode": 0,
+        "id": "indexing/semantic/sealed-piece-manifest-work",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_sealed-piece-manifest-work.attempt-1.log"
+        ],
+        "path": "indexing/semantic/sealed-piece-manifest-work.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 633,
+        "exitCode": 0,
+        "id": "indexing/semantic/validated-family-frontier-order/bad-target",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_validated-family-frontier-order_bad-target.attempt-1.log"
+        ],
+        "path": "indexing/semantic/validated-family-frontier-order.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 795,
+        "exitCode": 0,
+        "id": "indexing/semantic/validated-family-frontier-order/frontier-order",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_validated-family-frontier-order_frontier-order.attempt-1.log"
+        ],
+        "path": "indexing/semantic/validated-family-frontier-order.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 666,
+        "exitCode": 0,
+        "id": "indexing/semantic/validated-family-frontier-order/late-completion",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\indexing_semantic_validated-family-frontier-order_late-completion.attempt-1.log"
+        ],
+        "path": "indexing/semantic/validated-family-frontier-order.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 129,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-columnar-phase-timings",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-columnar-phase-timings.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-columnar-phase-timings.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 182,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-columnar-streaming-frames",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-columnar-streaming-frames.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-columnar-streaming-frames.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 180,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-bounded-batches",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-frame-bounded-batches.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-bounded-batches.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 193,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/changed",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_changed.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 175,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/empty",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_empty.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 163,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/forged",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_forged.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 727,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/oversized",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql\\shared_artifact-io_binary-frame-checksum-receipts_oversized.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 157,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/parent-changed",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_parent-changed.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 174,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/partial",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_partial.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 160,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/positive",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_positive.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 162,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-checksum-receipts/replaced",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915794448-qd88xw\\shared_artifact-io_binary-frame-checksum-receipts_replaced.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-checksum-receipts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 232,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-frame-producer-resource-lifetime.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-producer-resource-lifetime.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 220,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-frame-resource-lifetime",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793915821764-a2t7v6\\shared_artifact-io_binary-frame-resource-lifetime.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-frame-resource-lifetime.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 15803,
+        "exitCode": 0,
+        "id": "tooling/ci/run-suite-api-plan",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916181405-887ipq\\tooling_ci_run-suite-api-plan.attempt-1.log"
+        ],
+        "path": "tooling/ci/run-suite-api-plan.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 4124,
+        "exitCode": 0,
+        "id": "tooling/shared-module-performance",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916124672-h0jlql\\tooling_shared-module-performance.attempt-1.log"
+        ],
+        "path": "tooling/shared-module-performance.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "rawMeasurements": {
+    "tokenManifest": {
+      "manifestConstruction": {
+        "manifests": [
+          {
+            "elapsedMs": 28.648599999999988,
+            "cpu": {
+              "user": 0,
+              "system": 31000
+            }
+          }
+        ],
+        "checksums": [
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\binary-frame-manifest-integrity-23176-1793915795142-ydz257\\producer\\token_postings.binary-columnar.meta.json",
+            "bytes": 298,
+            "algorithm": "xxh64"
+          }
+        ]
+      },
+      "binaryManifestReadCalls": 0,
+      "binaryManifestReadBytes": 0
+    },
+    "largeManifest": {
+      "largeManifest": {
+        "manifests": [
+          {
+            "elapsedMs": 86.85180000000003,
+            "cpu": {
+              "user": 15000,
+              "system": 31000
+            }
+          }
+        ],
+        "checksums": [
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\binary-frame-checksum-oversized-24016-1793916124841-0c0tvc\\frames\\metadata.json",
+            "bytes": 19,
+            "algorithm": "xxh64"
+          }
+        ]
+      },
+      "sealedBytes": 1060962,
+      "binaryManifestReadBytes": 0
+    },
+    "fieldManifest": {
+      "manifestConstruction": {
+        "manifests": [
+          {
+            "elapsedMs": 93.11590000000001,
+            "cpu": {
+              "user": 32000,
+              "system": 78000
+            }
+          }
+        ],
+        "checksums": [
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\call_sites.jsonl",
+            "bytes": 0,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\call_sites.jsonl.offsets.bin",
+            "bytes": 0,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\.filelists.json",
+            "bytes": 111,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\determinism_report.json",
+            "bytes": 3350,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\field_postings.binary-columnar.meta.json",
+            "bytes": 282,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\index_state.json",
+            "bytes": 1440,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\repo_map.json",
+            "bytes": 3,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_coverage.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_edges.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_frontier.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_lookup.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_manifest.json",
+            "bytes": 314,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_operands.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_operation_index.json",
+            "bytes": 135,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_ownership.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_query_index.json",
+            "bytes": 135,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_records.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\symbol_edges.jsonl",
+            "bytes": 0,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\semantic_sources.json",
+            "bytes": 105,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\symbol_edges.jsonl.offsets.bin",
+            "bytes": 0,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\symbol_occurrences.jsonl",
+            "bytes": 0,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\symbol_occurrences.jsonl.offsets.bin",
+            "bytes": 0,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\field-postings-adaptive-shards-and-binary\\out\\token_postings.binary-columnar.meta.json",
+            "bytes": 304,
+            "algorithm": "xxh64"
+          }
+        ]
+      },
+      "binaryMembers": 3,
+      "scope": "manifest-only CPU/I/O; independent integrity verification remains outside this probe"
+    },
+    "semanticManifest": {
+      "manifestConstruction": {
+        "manifests": [
+          {
+            "elapsedMs": 69.31100000000004,
+            "cpu": {
+              "user": 63000,
+              "system": 15000
+            }
+          },
+          {
+            "elapsedMs": 48.58179999999993,
+            "cpu": {
+              "user": 16000,
+              "system": 31000
+            }
+          }
+        ],
+        "checksums": [
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic\\semantic-sources\\efa0d6c673258dbcf6ef89bd5353c420b0dcf80cb140a15bdcbe6acb3c06a7e6.utf8",
+            "bytes": 27,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_coverage.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_edges.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_frontier.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_lookup.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_manifest.json",
+            "bytes": 3413,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_operands.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_operation_index.json",
+            "bytes": 1184,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_ownership.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_query_index.json",
+            "bytes": 481,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_records.json",
+            "bytes": 1289,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_sources.json",
+            "bytes": 961,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic\\semantic-sources\\efa0d6c673258dbcf6ef89bd5353c420b0dcf80cb140a15bdcbe6acb3c06a7e6.utf8",
+            "bytes": 27,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_coverage.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_edges.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_frontier.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_manifest.json",
+            "bytes": 3413,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_lookup.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_operands.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_operation_index.json",
+            "bytes": 1184,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_ownership.json",
+            "bytes": 309,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_query_index.json",
+            "bytes": 481,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_records.json",
+            "bytes": 1289,
+            "algorithm": "xxh64"
+          },
+          {
+            "filename": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sealed-semantic-manifest-work-29876-1793915823890-fyyrm0\\index-code\\semantic_sources.json",
+            "bytes": 961,
+            "algorithm": "xxh64"
+          }
+        ]
+      },
+      "sealedPieces": 12,
+      "independentControlReadBytes": 3361,
+      "canonicalManifestParity": true,
+      "independentCorruptionRejected": true
+    },
+    "independentIndexValidation": {
+      "independentValidation": {
+        "elapsedMs": 189.92179999999996,
+        "cpu": {
+          "user": 156000,
+          "system": 110000
+        },
+        "ok": true
+      }
+    }
+  },
+  "interpretation": {
+    "binaryOriginal": {
+      "extraReads": 3,
+      "extraBytes": 11
+    },
+    "binaryRepaired": {
+      "extraReads": 0,
+      "extraBytes": 0,
+      "ordinaryJsonBytesStillHashed": 298
+    },
+    "largeBinary": {
+      "sealedBytes": 1060962,
+      "binaryManifestReadBytes": 0,
+      "ordinaryJsonBytesStillHashed": 19
+    },
+    "semantic": {
+      "sealedPieces": 12,
+      "manifestReadsOfSealedPieces": 0,
+      "independentSha256ControlBytes": 3361,
+      "canonicalManifestEqualExceptGeneratedAt": true
+    },
+    "workScope": "Actual manifest boundary CPU/elapsed observations and original checksum calls/bytes; independent full-index/semantic integrity remain separate. The original binary manifest reread used xxh64; supported writer-backed SHA256 records replace it without changing artifact schemas. No latency or end-to-end speedup claimed."
+  },
+  "intermediateFailures": [
+    "The first 13-case run passed 12; a new one-row semantic producer fixture incorrectly submitted three rows in one batch. It now submits three ordered one-row batches, preserving the limit and all assertions.",
+    "A later CI-plan run inherited a stale PAIROFCLEATS_TRUSTED_CONFIG path and correctly rejected it. The affected check passes under the same cleaned test-launch environment used for other batches; no global setting, public authority or test deadline changed."
+  ],
+  "publicationGate": {
+    "format": {
+      "exitCode": 0,
+      "historicalWorkspacePath": ".tmp/tasks/ci-lite-1104/binary-checksum-format-final.log",
+      "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+    },
+    "checks": [
+      {
+        "name": "config-budget",
+        "startedAt": "2026-11-05T22:04:37.5609586Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-config-budget.log",
+        "durationMs": 2684,
+        "exitCode": 0
+      },
+      {
+        "name": "env-check",
+        "startedAt": "2026-11-05T22:04:40.2760325Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-env-check.log",
+        "durationMs": 1457,
+        "exitCode": 0
+      },
+      {
+        "name": "generated-freshness",
+        "startedAt": "2026-11-05T22:04:41.7372099Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-generated-freshness.log",
+        "durationMs": 16060,
+        "exitCode": 0
+      },
+      {
+        "name": "command-surface",
+        "startedAt": "2026-11-05T22:04:57.7994079Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-command-surface.log",
+        "durationMs": 4341,
+        "exitCode": 0
+      },
+      {
+        "name": "workflow-contract",
+        "startedAt": "2026-11-05T22:05:02.1439210Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-workflow-contract.log",
+        "durationMs": 516,
+        "exitCode": 0
+      },
+      {
+        "name": "gate",
+        "startedAt": "2026-11-05T22:05:02.6628317Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-gate.log",
+        "durationMs": 51073,
+        "exitCode": 0
+      },
+      {
+        "name": "diff-check",
+        "startedAt": "2026-11-05T22:05:53.7387556Z",
+        "log": ".tmp/tasks/ci-lite-1104/binary-checksum-diff-check.log",
+        "durationMs": 128,
+        "exitCode": 0
+      }
+    ],
+    "gate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v",
+      "summary": {
+        "durationMs": 49503,
+        "failed": 0,
+        "passed": 43,
+        "skipped": 0,
+        "total": 43
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 174,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 138,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 119,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 96,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 99,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 87,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 210,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 81,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 103,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 334,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2472,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 437,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 435,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 514,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 587,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 432,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 484,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 408,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 349,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 817,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 341,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 965,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 967,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 992,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 959,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 859,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 662,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 971,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1427,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1525,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1035,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1246,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 752,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2805,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1438,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 432,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 639,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1657,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1573,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 267,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 170,
+          "exitCode": 0,
+          "id": "ci/gate-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\ci_gate-policy.attempt-1.log"
+          ],
+          "path": "ci/gate-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 19260,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793916304203-gqgv8v\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  },
+  "orderedCi": {
+    "added": [
+      "indexing/artifacts/binary-frame-manifest-integrity",
+      "indexing/artifacts/chunk-meta-binary-eager-start",
+      "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+      "indexing/semantic/sealed-piece-manifest-work",
+      "shared/artifact-io/binary-frame-checksum-receipts/changed",
+      "shared/artifact-io/binary-frame-checksum-receipts/empty",
+      "shared/artifact-io/binary-frame-checksum-receipts/forged",
+      "shared/artifact-io/binary-frame-checksum-receipts/oversized",
+      "shared/artifact-io/binary-frame-checksum-receipts/parent-changed",
+      "shared/artifact-io/binary-frame-checksum-receipts/partial",
+      "shared/artifact-io/binary-frame-checksum-receipts/positive",
+      "shared/artifact-io/binary-frame-checksum-receipts/replaced",
+      "indexing/semantic/publication-recovery",
+      "shared/artifact-io/binary-columnar-phase-timings",
+      "shared/artifact-io/binary-frame-bounded-batches",
+      "shared/artifact-io/binary-frame-producer-resource-lifetime",
+      "shared/artifact-io/binary-frame-resource-lifetime"
+    ],
+    "ciLiteCount": 2161,
+    "serialWork": [
+      "indexing/artifacts/binary-frame-manifest-integrity",
+      "indexing/semantic/sealed-piece-manifest-work",
+      "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+      "shared/artifact-io/binary-frame-checksum-receipts/oversized"
+    ]
+  },
+  "hostedBeforePublication": {
+    "head": "48ab658730e1a74c3bcf5cf0b04e4552e136c9cc",
+    "runId": 42114621504,
+    "windowsAuthority": {
+      "jobId": 127552392046,
+      "passed": 39,
+      "failed": 1,
+      "timedOut": 1,
+      "failures": [
+        "tooling/reports/map-selected-index-identity",
+        "tui/operator-settings-authority"
+      ],
+      "artifactId": 13456046811,
+      "artifactSha256": "c54af4b38c8d17998c6adb752060acca387cdfc02921e8b6624a0a8d5d702244",
+      "note": "Newly observed separate authority fixture/child deadline failures remain under repair; no native stack or crash attribution is inferred."
+    }
+  },
+  "remaining": [
+    "Changed-head hosted/platform acceptance remains separate.",
+    "CI2168 Windows authority timeout/failure requires a separate targeted repair; the broader CI run remains in progress at capture.",
+    "No optional-backend, release, editor or native Tantivy qualification is included.",
+    "Historical .tmp/.testLogs paths and recovery snapshots are author-workspace provenance, not clean-checkout deliverables."
+  ]
+}

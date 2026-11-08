@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["siblings-1", "siblings-4", "siblings-16", "zero-children", "qualification-guards", "changed-child-inventory", "destination-copy-failure", "cancel-between-children"]
+}

@@ -953,7 +953,7 @@ export const selectTailWorkerWriteEntry = (laneQueues, options = {}) => {
  * Select a deterministic micro-write batch from a queue head.
  *
  * @param {Array<object>} queue
- * @param {{maxEntries?:number,maxBytes?:number,maxEntryBytes?:number}} [options]
+ * @param {{maxEntries?:number,maxBytes?:number,maxEntryBytes?:number,canSelect?:(entry:object)=>boolean}} [options]
  * @returns {{entries:Array<object>,estimatedBytes:number}}
  */
 export const selectMicroWriteBatch = (queue, options = {}) => {
@@ -970,10 +970,21 @@ export const selectMicroWriteBatch = (queue, options = {}) => {
   const maxEntryBytes = Number.isFinite(Number(options?.maxEntryBytes))
     ? Math.max(1024, Math.floor(Number(options.maxEntryBytes)))
     : (64 * 1024);
-  const first = queue.shift();
-  if (!first) {
+  const canSelect = typeof options.canSelect === 'function' ? options.canSelect : () => true;
+  const initialLength = queue.length;
+  const first = queue[0];
+  if (!first || !canSelect(first)) {
     return { entries, estimatedBytes: 0 };
   }
+  // Admission and byte inspection must finish before ownership leaves the
+  // queue. A rejected candidate or a throwing policy cannot discard a writer.
+  const commit = estimatedBytes => {
+    if (queue.length !== initialLength || entries.some((entry, index) => queue[index] !== entry)) {
+      throw new Error('Artifact micro-write queue changed during admission.');
+    }
+    queue.splice(0, entries.length);
+    return { entries, estimatedBytes };
+  };
   const firstEstimatedBytes = toNonNegativeNumberOrNull(first.estimatedBytes) ?? 0;
   entries.push(first);
   if (
@@ -982,18 +993,18 @@ export const selectMicroWriteBatch = (queue, options = {}) => {
     || !isMicroCoalescibleWrite(first, maxEntryBytes)
     || firstEstimatedBytes > maxBytes
   ) {
-    return { entries, estimatedBytes: firstEstimatedBytes };
+    return commit(firstEstimatedBytes);
   }
   let totalEstimatedBytes = firstEstimatedBytes;
-  while (queue.length > 0 && entries.length < maxEntries) {
-    const candidate = queue[0];
-    if (!isMicroCoalescibleWrite(candidate, maxEntryBytes)) break;
+  while (entries.length < queue.length && entries.length < maxEntries) {
+    const candidate = queue[entries.length];
+    if (!canSelect(candidate) || !isMicroCoalescibleWrite(candidate, maxEntryBytes)) break;
     const estimated = toNonNegativeNumberOrNull(candidate.estimatedBytes) ?? 0;
     if (estimated <= 0 || (totalEstimatedBytes + estimated) > maxBytes) break;
-    entries.push(queue.shift());
+    entries.push(candidate);
     totalEstimatedBytes += estimated;
   }
-  return { entries, estimatedBytes: totalEstimatedBytes };
+  return commit(totalEstimatedBytes);
 };
 
 /**

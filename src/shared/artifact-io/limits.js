@@ -1,18 +1,21 @@
 import { getHeapStatistics } from 'node:v8';
+import { addStorageFailureContext } from '../storage/operation-error.js';
+import { readArtifactFailureField, retainArtifactReadFailure } from './json/fallback.js';
 
-export const toJsonTooLargeError = (filePath, size) => {
+export const toJsonTooLargeError = (filePath, size, { cause, causePresent = false } = {}) => {
   const err = new Error(
     `JSON artifact too large to load (${size} bytes): ${filePath}`
   );
   err.code = 'ERR_JSON_TOO_LARGE';
-  return err;
+  return causePresent ? addStorageFailureContext(err, {}, retainArtifactReadFailure(cause), { secondaryPresent: true }) : err;
 };
 
 export const shouldTreatAsTooLarge = (err) => {
-  if (!err) return false;
-  if (err.code === 'ERR_STRING_TOO_LONG') return true;
-  if (err.code === 'ERR_BUFFER_TOO_LARGE' || err.code === 'ERR_OUT_OF_RANGE') return true;
-  const message = typeof err.message === 'string' ? err.message : '';
+  const code = readArtifactFailureField(err, 'code');
+  if (code === 'ERR_STRING_TOO_LONG') return true;
+  if (code === 'ERR_BUFFER_TOO_LARGE' || code === 'ERR_OUT_OF_RANGE') return true;
+  const originalMessage = readArtifactFailureField(err, 'message');
+  const message = typeof originalMessage === 'string' ? originalMessage : '';
   return message.includes('Invalid string length');
 };
 

@@ -35,4 +35,10 @@ for await (const row of loadJsonArrayArtifactRows(testRoot, 'dense_vectors_uint8
 assert.equal(rows.length, 1, 'expected one vector row when maxBytes is Infinity');
 assert.deepEqual(rows[0], { vector: [1, 2, 3] }, 'unexpected row payload');
 
+await assert.rejects(async () => {
+  for await (const _row of loadJsonArrayArtifactRows(testRoot, 'dense_vectors_uint8', {
+    strict: true, maxBytes: Number.POSITIVE_INFINITY
+  })) assert.fail('strict manifest reads cannot admit a nonfinite budget');
+}, { code: 'ERR_MANIFEST_MAX_BYTES' });
+
 console.log('manifest maxBytes Infinity loader test passed');

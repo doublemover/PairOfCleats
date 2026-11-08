@@ -289,7 +289,7 @@ export function* buildAliasEdges({ membersByFile, intern = null }) {
     for (const member of members || []) {
       const aliases = member.dataflow?.aliases || null;
       if (!Array.isArray(aliases) || !aliases.length) continue;
-      for (const alias of aliases.slice(0, 3)) {
+      for (const alias of aliases) {
         if (!alias) continue;
         const labelRaw = `alias:${alias}`;
         const label = intern ? intern(labelRaw) : labelRaw;

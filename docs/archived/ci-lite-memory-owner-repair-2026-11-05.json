@@ -1,0 +1,4880 @@
+{
+  "schemaVersion": 1,
+  "encoding": "sha256-shared-json-tables-v1",
+  "data": {
+    "schemaVersion": 1,
+    "date": "2026-11-05",
+    "baseline": "31173fe6f19c9238945a96ae399f1ca531daab75",
+    "runId": 41980213311,
+    "macJob": 127089070939,
+    "macSerial": {
+      "passed": 31,
+      "failed": 1,
+      "timeouts": 0,
+      "skipped": 0,
+      "allSixPairedSqliteCasesPassed": true
+    },
+    "artifact": {
+      "id": 13394715561,
+      "bytes": 1177122,
+      "sha256": "8977317d5f89d58e3980ca50886224e367572fdd4b032acf882146b19ba6bfe5"
+    },
+    "originalFailure": [
+      {
+        "path": ".testLogs/run-1793860602755-u4qkm4/perf_bench_representative-workload-consumers_memory-transient.attempt-1.failure.json",
+        "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"perf/bench/representative-workload-consumers/memory-transient\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"resolvedExecutable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"arguments\": [\n      \"/Users/runner/work/PairOfCleats/PairOfCleats/tests/perf/bench/representative-workload-consumers.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"/Users/runner/work/PairOfCleats/PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"darwin\",\n      \"arch\": \"arm64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 27456,\n    \"childPid\": 29517,\n    \"startedAt\": \"2026-11-05T06:37:39.800Z\",\n    \"endedAt\": \"2026-11-05T06:37:40.478Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"/Users/runner/work/PairOfCleats/PairOfCleats/.testLogs/run-1793860602755-u4qkm4/perf_bench_representative-workload-consumers_memory-transient.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 998,\n      \"retainedStringUnits\": 998,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 426,\n      \"retainedStringUnits\": 426,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+      },
+      {
+        "path": ".testLogs/run-1793860602755-u4qkm4/perf_bench_representative-workload-consumers_memory-transient.attempt-1.log",
+        "text": "id: perf/bench/representative-workload-consumers/memory-transient\npath: perf/bench/representative-workload-consumers.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"transientMemory\":{\"before\":{\"rss\":59834368,\"heapTotal\":7225344,\"heapUsed\":4775920,\"external\":2291888,\"arrayBuffers\":137903},\"during\":{\"rss\":198524928,\"heapTotal\":7225344,\"heapUsed\":4789848,\"external\":136509656,\"arrayBuffers\":134355631},\"after\":{\"rss\":198524928,\"heapTotal\":7225344,\"heapUsed\":4779632,\"external\":2291928,\"arrayBuffers\":137903},\"checksum\":2,\"requestedBytes\":134217728,\"touchedBytes\":134217728,\"touchedChecksum\":134217728,\"preparationCollections\":2,\"releaseCollections\":2,\"observation\":{\"observedBoundaryMax\":{\"heapUsed\":4779632,\"rss\":198524928,\"external\":2291928,\"arrayBuffers\":137903},\"boundaryPolicy\":\"before-and-after-only;transients-unobserved\",\"sampleCount\":2,\"processLifetimeRss\":{\"scope\":\"fresh-child-process-lifetime\",\"through\":\"released-explicit-transient-control\",\"includes\":\"startup-input-admission-and-any-warmup\",\"method\":\"node.process.resourceUsage.maxRSS\",\"rawUnit\":\"KiB\",\"outputUnit\":\"bytes\",\"state\":\"observed\",\"bytes\":198524928,\"rawMaxRSS\":193872,\"reason\":null}}}}\n\n--- stderr ---\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: control must actually release a transient allocation\n    at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/perf/bench/representative-workload-consumers.test.js:153:12 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v26.13.0\n"
+      }
+    ],
+    "actualMemory": {
+      "before": {
+        "rss": 59834368,
+        "heapTotal": 7225344,
+        "heapUsed": 4775920,
+        "external": 2291888,
+        "arrayBuffers": 137903
+      },
+      "during": {
+        "rss": 198524928,
+        "heapTotal": 7225344,
+        "heapUsed": 4789848,
+        "external": 136509656,
+        "arrayBuffers": 134355631
+      },
+      "after": {
+        "rss": 198524928,
+        "heapTotal": 7225344,
+        "heapUsed": 4779632,
+        "external": 2291928,
+        "arrayBuffers": 137903
+      },
+      "checksum": 2,
+      "requestedBytes": 134217728,
+      "touchedBytes": 134217728,
+      "touchedChecksum": 134217728,
+      "preparationCollections": 2,
+      "releaseCollections": 2,
+      "observation": {
+        "observedBoundaryMax": {
+          "heapUsed": 4779632,
+          "rss": 198524928,
+          "external": 2291928,
+          "arrayBuffers": 137903
+        },
+        "boundaryPolicy": "before-and-after-only;transients-unobserved",
+        "sampleCount": 2,
+        "processLifetimeRss": {
+          "scope": "fresh-child-process-lifetime",
+          "through": "released-explicit-transient-control",
+          "includes": "startup-input-admission-and-any-warmup",
+          "method": "node.process.resourceUsage.maxRSS",
+          "rawUnit": "KiB",
+          "outputUnit": "bytes",
+          "state": "observed",
+          "bytes": 198524928,
+          "rawMaxRSS": 193872,
+          "reason": null
+        }
+      }
+    },
+    "macSqliteRaw": [
+      {
+        "path": ".testLogs/bench35-sqlite-wide-a2-1793860693228.json",
+        "receipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+          },
+          "selected": "sqlite-wide-a2",
+          "partition": {
+            "$shared": "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb"
+          },
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "schemaVersion": 2,
+            "kind": "sqlite-artifact-build",
+            "status": "completed",
+            "source": {
+              "state": "dirty",
+              "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+            },
+            "runtime": {
+              "node": "v26.13.0",
+              "platform": "darwin",
+              "arch": "arm64"
+            },
+            "scope": "synthetic-lexical-artifact-ingest;no-dense-or-semantic-speed-claim",
+            "inputBytes": 157934386,
+            "workload": {
+              "chunks": 32768,
+              "requestedChunks": 32768,
+              "trials": 1,
+              "trialOffset": 1,
+              "generated": true,
+              "profile": "wide",
+              "retainedWideMetadata": true
+            },
+            "threshold": {
+              "minimumInputBytes": 134217728,
+              "observedInputBytes": 157934386,
+              "defaultOptimizationEligible": true
+            },
+            "cachePolicy": "fresh-database-per-arm-trial;shared-process-and-OS-cache-uncontrolled",
+            "samples": [
+              {
+                "trial": 2,
+                "order": [
+                  "current",
+                  "baseline"
+                ],
+                "label": "current",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-hBTLgj/work/trial-2-current.db",
+                "count": 32768,
+                "durationMs": 3240.530584,
+                "loadMs": 32.98704099999986,
+                "buildMs": 3207.543543,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "wal",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 4096,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 7.206334000000425,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.10020799999983865,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 599.640625,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 172570352,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 7.206334000000425,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 33554432,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.10020799999983865,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 599.640625,
+                        "thresholdMs": 200,
+                        "walBytes": 172570352,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.7266249999997854,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1048.1786670000001,
+                      "rowsPerSec": 31262
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 749.6298330000004,
+                      "rowsPerSec": 43712
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 749.6298330000004,
+                      "rowsPerSec": 43712
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 31.31183299999975,
+                      "rowsPerSec": 1046505
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 143.41850000000068,
+                      "rowsPerSec": 14
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 143.45424999999977,
+                      "rowsPerSec": 456843
+                    },
+                    "minhash_signatures": {
+                      "rows": 0,
+                      "durationMs": 0.8789999999999054,
+                      "rowsPerSec": 0
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 39.39716700000008,
+                      "rowsPerSec": 254
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 48
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "pragmas": {
+                    "journal_mode": "wal",
+                    "synchronous": 1,
+                    "temp_store": 2,
+                    "cache_size": -65536,
+                    "mmap_size": 2147418112,
+                    "journal_size_limit": 33554432,
+                    "wal_autocheckpoint": 8192,
+                    "locking_mode": "exclusive"
+                  },
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "docLengthBatches": 110,
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "fileManifestBatches": 1,
+                  "ftsOptimize": {
+                    "table": "chunks_fts",
+                    "optimized": true,
+                    "durationMs": 13.120708999999806,
+                    "error": null
+                  },
+                  "optimize": {
+                    "optimized": true,
+                    "analyzed": true,
+                    "durationMs": 40.752167000000554
+                  },
+                  "validationMs": 0.24979200000052515
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1473.9626660000004
+              },
+              {
+                "trial": 2,
+                "order": [
+                  "current",
+                  "baseline"
+                ],
+                "label": "baseline",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-hBTLgj/work/trial-2-baseline.db",
+                "count": 32768,
+                "durationMs": 4608.262625000001,
+                "loadMs": 381.2751670000007,
+                "buildMs": 4226.9874580000005,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "delete",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 0,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.24666699999943376,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.1522499999991851,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 246.8433330000007,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.24666699999943376,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.1522499999991851,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 246.8433330000007,
+                        "thresholdMs": 200,
+                        "walBytes": 0,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.09570799999983137,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1388.2889589999995,
+                      "rowsPerSec": 23603
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 1486.7562500000004,
+                      "rowsPerSec": 22040
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 1486.7562500000004,
+                      "rowsPerSec": 22040
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 4.1664160000000265,
+                      "rowsPerSec": 480
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 178.89995799999997,
+                      "rowsPerSec": 366328
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 16.75041699999929,
+                      "rowsPerSec": 1956250
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 34.257791,
+                      "rowsPerSec": 292
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 42
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "docLengthBatches": 110,
+                  "fileManifestBatches": 1,
+                  "validationMs": 0.02620799999931478
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1580.7303329999995
+              }
+            ],
+            "paired": [
+              {
+                "trial": 2,
+                "deltaMs": -1367.7320410000011,
+                "deltaPct": -29.679993357583445
+              }
+            ],
+            "generatedWork": {
+              "state": "completed",
+              "scope": "verified-unique-generated-work-only",
+              "runIdentity": "d4a0dbef-5839-485a-9983-52d298f1f177",
+              "workRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-hBTLgj/work",
+              "bytesReclaimed": 501347122,
+              "retainedReceiptRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-hBTLgj",
+              "callerIndexRetained": true
+            },
+            "receiptPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-hBTLgj/final.json"
+          }
+        }
+      },
+      {
+        "path": ".testLogs/bench35-sqlite-wide-b1-1793860703884.json",
+        "receipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+          },
+          "selected": "sqlite-wide-b1",
+          "partition": {
+            "$shared": "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb"
+          },
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "schemaVersion": 2,
+            "kind": "sqlite-artifact-build",
+            "status": "completed",
+            "source": {
+              "state": "dirty",
+              "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+            },
+            "runtime": {
+              "node": "v26.13.0",
+              "platform": "darwin",
+              "arch": "arm64"
+            },
+            "scope": "synthetic-lexical-artifact-ingest;no-dense-or-semantic-speed-claim",
+            "inputBytes": 157934386,
+            "workload": {
+              "chunks": 32768,
+              "requestedChunks": 32768,
+              "trials": 1,
+              "trialOffset": 0,
+              "generated": true,
+              "profile": "wide",
+              "retainedWideMetadata": true
+            },
+            "threshold": {
+              "minimumInputBytes": 134217728,
+              "observedInputBytes": 157934386,
+              "defaultOptimizationEligible": true
+            },
+            "cachePolicy": "fresh-database-per-arm-trial;shared-process-and-OS-cache-uncontrolled",
+            "samples": [
+              {
+                "trial": 1,
+                "order": [
+                  "baseline",
+                  "current"
+                ],
+                "label": "baseline",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-kZaATf/work/trial-1-baseline.db",
+                "count": 32768,
+                "durationMs": 2754.296333,
+                "loadMs": 335.75175000000013,
+                "buildMs": 2418.544583,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "delete",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 0,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.3411660000001575,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.11079200000040146,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 120.0897500000001,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.3411660000001575,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.11079200000040146,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [],
+                    "stallCounts": {
+                      "commit": 0,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.22079200000007404,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 963.0331669999996,
+                      "rowsPerSec": 34026
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 650.3311659999999,
+                      "rowsPerSec": 50387
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 650.3311659999999,
+                      "rowsPerSec": 50387
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 2.997875000000022,
+                      "rowsPerSec": 667
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 95.48399999999947,
+                      "rowsPerSec": 686356
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 14.25774999999976,
+                      "rowsPerSec": 2298259
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 20.791417000000365,
+                      "rowsPerSec": 481
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 42
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "docLengthBatches": 110,
+                  "fileManifestBatches": 1,
+                  "validationMs": 0.2053329999998823
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1317.5629579999995
+              },
+              {
+                "trial": 1,
+                "order": [
+                  "baseline",
+                  "current"
+                ],
+                "label": "current",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-kZaATf/work/trial-1-current.db",
+                "count": 32768,
+                "durationMs": 2612.7644170000003,
+                "loadMs": 28.061416999999892,
+                "buildMs": 2584.7030000000004,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "wal",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 4096,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 7.423291999999492,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.0857079999987036,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 477.0509170000005,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 172570352,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 7.423291999999492,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 33554432,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.0857079999987036,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 477.0509170000005,
+                        "thresholdMs": 200,
+                        "walBytes": 172570352,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 1.2837079999999332,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 866.5031669999998,
+                      "rowsPerSec": 37816
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 613.4864169999992,
+                      "rowsPerSec": 53413
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 613.4864169999992,
+                      "rowsPerSec": 53413
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 24.194958000000042,
+                      "rowsPerSec": 1354332
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 97.73212500000045,
+                      "rowsPerSec": 20
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 97.74374999999964,
+                      "rowsPerSec": 670488
+                    },
+                    "minhash_signatures": {
+                      "rows": 0,
+                      "durationMs": 0.677082999999584,
+                      "rowsPerSec": 0
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 19.555875000000015,
+                      "rowsPerSec": 511
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 48
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "pragmas": {
+                    "journal_mode": "wal",
+                    "synchronous": 1,
+                    "temp_store": 2,
+                    "cache_size": -65536,
+                    "mmap_size": 2147418112,
+                    "journal_size_limit": 33554432,
+                    "wal_autocheckpoint": 8192,
+                    "locking_mode": "exclusive"
+                  },
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "docLengthBatches": 110,
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "fileManifestBatches": 1,
+                  "ftsOptimize": {
+                    "table": "chunks_fts",
+                    "optimized": true,
+                    "durationMs": 22.406167000001005,
+                    "error": null
+                  },
+                  "optimize": {
+                    "optimized": true,
+                    "analyzed": true,
+                    "durationMs": 40.75258300000132
+                  },
+                  "validationMs": 0.04291700000067067
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1168.2270419999986
+              }
+            ],
+            "paired": [
+              {
+                "trial": 1,
+                "deltaMs": -141.53191599999946,
+                "deltaPct": -5.138587097701352
+              }
+            ],
+            "generatedWork": {
+              "state": "completed",
+              "scope": "verified-unique-generated-work-only",
+              "runIdentity": "742b7ba5-0eda-4771-9548-8be1df7ec8af",
+              "workRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-kZaATf/work",
+              "bytesReclaimed": 501347122,
+              "retainedReceiptRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-kZaATf",
+              "callerIndexRetained": true
+            },
+            "receiptPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-kZaATf/final.json"
+          }
+        }
+      },
+      {
+        "path": ".testLogs/bench35-sqlite-wide-b2-1793860715789.json",
+        "receipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+          },
+          "selected": "sqlite-wide-b2",
+          "partition": {
+            "$shared": "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb"
+          },
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "schemaVersion": 2,
+            "kind": "sqlite-artifact-build",
+            "status": "completed",
+            "source": {
+              "state": "dirty",
+              "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+            },
+            "runtime": {
+              "node": "v26.13.0",
+              "platform": "darwin",
+              "arch": "arm64"
+            },
+            "scope": "synthetic-lexical-artifact-ingest;no-dense-or-semantic-speed-claim",
+            "inputBytes": 157934386,
+            "workload": {
+              "chunks": 32768,
+              "requestedChunks": 32768,
+              "trials": 1,
+              "trialOffset": 1,
+              "generated": true,
+              "profile": "wide",
+              "retainedWideMetadata": true
+            },
+            "threshold": {
+              "minimumInputBytes": 134217728,
+              "observedInputBytes": 157934386,
+              "defaultOptimizationEligible": true
+            },
+            "cachePolicy": "fresh-database-per-arm-trial;shared-process-and-OS-cache-uncontrolled",
+            "samples": [
+              {
+                "trial": 2,
+                "order": [
+                  "current",
+                  "baseline"
+                ],
+                "label": "current",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-t0pJTn/work/trial-2-current.db",
+                "count": 32768,
+                "durationMs": 2757.3046670000003,
+                "loadMs": 25.0612500000002,
+                "buildMs": 2732.243417,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "wal",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 4096,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 3.89641599999959,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.07933400000001711,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 562.1522500000001,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 172570352,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 3.89641599999959,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 33554432,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.07933400000001711,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 562.1522500000001,
+                        "thresholdMs": 200,
+                        "walBytes": 172570352,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.8515839999995478,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 869.5532500000004,
+                      "rowsPerSec": 37684
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 658.4077499999999,
+                      "rowsPerSec": 49769
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 658.4077499999999,
+                      "rowsPerSec": 49769
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 22.348083999999744,
+                      "rowsPerSec": 1466255
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 102.58166699999992,
+                      "rowsPerSec": 19
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 102.6023339999997,
+                      "rowsPerSec": 638738
+                    },
+                    "minhash_signatures": {
+                      "rows": 0,
+                      "durationMs": 0.7682909999998628,
+                      "rowsPerSec": 0
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 23.753833000000213,
+                      "rowsPerSec": 421
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 48
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "pragmas": {
+                    "journal_mode": "wal",
+                    "synchronous": 1,
+                    "temp_store": 2,
+                    "cache_size": -65536,
+                    "mmap_size": 2147418112,
+                    "journal_size_limit": 33554432,
+                    "wal_autocheckpoint": 8192,
+                    "locking_mode": "exclusive"
+                  },
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "docLengthBatches": 110,
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "fileManifestBatches": 1,
+                  "ftsOptimize": {
+                    "table": "chunks_fts",
+                    "optimized": true,
+                    "durationMs": 12.441584000000148,
+                    "error": null
+                  },
+                  "optimize": {
+                    "optimized": true,
+                    "analyzed": true,
+                    "durationMs": 34.5698339999999
+                  },
+                  "validationMs": 0.24720799999977316
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1484.5557499999995
+              },
+              {
+                "trial": 2,
+                "order": [
+                  "current",
+                  "baseline"
+                ],
+                "label": "baseline",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-t0pJTn/work/trial-2-baseline.db",
+                "count": 32768,
+                "durationMs": 3499.289791000001,
+                "loadMs": 442.0636249999998,
+                "buildMs": 3057.2261660000013,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "delete",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 0,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.19720799999959127,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.045959000000948436,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 182.01816700000018,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.19720799999959127,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.045959000000948436,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [],
+                    "stallCounts": {
+                      "commit": 0,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.13091700000040873,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1026.3077500000009,
+                      "rowsPerSec": 31928
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 1035.1888330000002,
+                      "rowsPerSec": 31654
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 1035.1888330000002,
+                      "rowsPerSec": 31654
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 2.93237500000032,
+                      "rowsPerSec": 682
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 108.26475000000028,
+                      "rowsPerSec": 605331
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 15.426041000000623,
+                      "rowsPerSec": 2124200
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 26.260791999999128,
+                      "rowsPerSec": 381
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 42
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "docLengthBatches": 110,
+                  "fileManifestBatches": 1,
+                  "validationMs": 0.06212500000037835
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1105.0243750000009
+              }
+            ],
+            "paired": [
+              {
+                "trial": 2,
+                "deltaMs": -741.9851240000007,
+                "deltaPct": -21.20387759562953
+              }
+            ],
+            "generatedWork": {
+              "state": "completed",
+              "scope": "verified-unique-generated-work-only",
+              "runIdentity": "8d35bfc5-abdb-4cbb-96c9-fbfcfd2dd5e3",
+              "workRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-t0pJTn/work",
+              "bytesReclaimed": 501347122,
+              "retainedReceiptRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-t0pJTn",
+              "callerIndexRetained": true
+            },
+            "receiptPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-t0pJTn/final.json"
+          }
+        }
+      },
+      {
+        "path": ".testLogs/bench35-sqlite-wide-a1-1793860678300.json",
+        "receipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+          },
+          "selected": "sqlite-wide-a1",
+          "partition": {
+            "$shared": "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb"
+          },
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "schemaVersion": 2,
+            "kind": "sqlite-artifact-build",
+            "status": "completed",
+            "source": {
+              "state": "dirty",
+              "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+            },
+            "runtime": {
+              "node": "v26.13.0",
+              "platform": "darwin",
+              "arch": "arm64"
+            },
+            "scope": "synthetic-lexical-artifact-ingest;no-dense-or-semantic-speed-claim",
+            "inputBytes": 157934386,
+            "workload": {
+              "chunks": 32768,
+              "requestedChunks": 32768,
+              "trials": 1,
+              "trialOffset": 0,
+              "generated": true,
+              "profile": "wide",
+              "retainedWideMetadata": true
+            },
+            "threshold": {
+              "minimumInputBytes": 134217728,
+              "observedInputBytes": 157934386,
+              "defaultOptimizationEligible": true
+            },
+            "cachePolicy": "fresh-database-per-arm-trial;shared-process-and-OS-cache-uncontrolled",
+            "samples": [
+              {
+                "trial": 1,
+                "order": [
+                  "baseline",
+                  "current"
+                ],
+                "label": "baseline",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-o51is8/work/trial-1-baseline.db",
+                "count": 32768,
+                "durationMs": 6097.43,
+                "loadMs": 1116.8480840000002,
+                "buildMs": 4980.581916,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "delete",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 0,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.5366250000006403,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.1833329999990383,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 183.66029100000014,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.5366250000006403,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.1833329999990383,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [],
+                    "stallCounts": {
+                      "commit": 0,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.26650000000017826,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1885.4121669999995,
+                      "rowsPerSec": 17380
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 1580.66475,
+                      "rowsPerSec": 20731
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 1580.66475,
+                      "rowsPerSec": 20731
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 4.777250000000095,
+                      "rowsPerSec": 419
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 119.30029099999956,
+                      "rowsPerSec": 549336
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 17.110874999999396,
+                      "rowsPerSec": 1915039
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 20.320167000000765,
+                      "rowsPerSec": 492
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 42
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "docLengthBatches": 110,
+                  "fileManifestBatches": 1,
+                  "validationMs": 0.37516599999980826
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1989.9701249999998
+              },
+              {
+                "trial": 1,
+                "order": [
+                  "baseline",
+                  "current"
+                ],
+                "label": "current",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-o51is8/work/trial-1-current.db",
+                "count": 32768,
+                "durationMs": 3075.464333,
+                "loadMs": 77.18812499999876,
+                "buildMs": 2998.276208000001,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "wal",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 4096,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 6.574166000000332,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.08870800000113377,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 498.3881249999995,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 172570352,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 6.574166000000332,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 33554432,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.08870800000113377,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 498.3881249999995,
+                        "thresholdMs": 200,
+                        "walBytes": 172570352,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 1.853541000000405,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1127.7037919999984,
+                      "rowsPerSec": 29057
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 628.8881249999995,
+                      "rowsPerSec": 52105
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 628.8881249999995,
+                      "rowsPerSec": 52105
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 19.78141599999981,
+                      "rowsPerSec": 1656504
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 114.58745900000031,
+                      "rowsPerSec": 17
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 114.59983300000022,
+                      "rowsPerSec": 571868
+                    },
+                    "minhash_signatures": {
+                      "rows": 0,
+                      "durationMs": 0.778041999999914,
+                      "rowsPerSec": 0
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 28.324166000000332,
+                      "rowsPerSec": 353
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 48
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "pragmas": {
+                    "journal_mode": "wal",
+                    "synchronous": 1,
+                    "temp_store": 2,
+                    "cache_size": -65536,
+                    "mmap_size": 2147418112,
+                    "journal_size_limit": 33554432,
+                    "wal_autocheckpoint": 8192,
+                    "locking_mode": "exclusive"
+                  },
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "docLengthBatches": 110,
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "fileManifestBatches": 1,
+                  "ftsOptimize": {
+                    "table": "chunks_fts",
+                    "optimized": true,
+                    "durationMs": 14.347416000000521,
+                    "error": null
+                  },
+                  "optimize": {
+                    "optimized": true,
+                    "analyzed": true,
+                    "durationMs": 37.08400000000074
+                  },
+                  "validationMs": 0.05362500000046566
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1672.6115420000006
+              }
+            ],
+            "paired": [
+              {
+                "trial": 1,
+                "deltaMs": -3021.9656670000004,
+                "deltaPct": -49.56130151555656
+              }
+            ],
+            "generatedWork": {
+              "state": "completed",
+              "scope": "verified-unique-generated-work-only",
+              "runIdentity": "2644d249-8fb0-4286-8629-5068f5d8b9ab",
+              "workRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-o51is8/work",
+              "bytesReclaimed": 501347122,
+              "retainedReceiptRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-o51is8",
+              "callerIndexRetained": true
+            },
+            "receiptPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-o51is8/final.json"
+          }
+        }
+      },
+      {
+        "path": ".testLogs/bench35-sqlite-wide-c1-1793860727756.json",
+        "receipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+          },
+          "selected": "sqlite-wide-c1",
+          "partition": {
+            "$shared": "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb"
+          },
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "schemaVersion": 2,
+            "kind": "sqlite-artifact-build",
+            "status": "completed",
+            "source": {
+              "state": "dirty",
+              "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+            },
+            "runtime": {
+              "node": "v26.13.0",
+              "platform": "darwin",
+              "arch": "arm64"
+            },
+            "scope": "synthetic-lexical-artifact-ingest;no-dense-or-semantic-speed-claim",
+            "inputBytes": 157934386,
+            "workload": {
+              "chunks": 32768,
+              "requestedChunks": 32768,
+              "trials": 1,
+              "trialOffset": 0,
+              "generated": true,
+              "profile": "wide",
+              "retainedWideMetadata": true
+            },
+            "threshold": {
+              "minimumInputBytes": 134217728,
+              "observedInputBytes": 157934386,
+              "defaultOptimizationEligible": true
+            },
+            "cachePolicy": "fresh-database-per-arm-trial;shared-process-and-OS-cache-uncontrolled",
+            "samples": [
+              {
+                "trial": 1,
+                "order": [
+                  "baseline",
+                  "current"
+                ],
+                "label": "baseline",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-fTkHhu/work/trial-1-baseline.db",
+                "count": 32768,
+                "durationMs": 3314.279291,
+                "loadMs": 334.367041,
+                "buildMs": 2979.91225,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "delete",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 0,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.13695800000004965,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.03262499999982538,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 162.03250000000025,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.13695800000004965,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.03262499999982538,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [],
+                    "stallCounts": {
+                      "commit": 0,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.24604199999976117,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1140.7066249999998,
+                      "rowsPerSec": 28726
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 829.1875829999999,
+                      "rowsPerSec": 39518
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 829.1875829999999,
+                      "rowsPerSec": 39518
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 3.2757080000001224,
+                      "rowsPerSec": 611
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 109.52858400000059,
+                      "rowsPerSec": 598346
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 14.563999999999396,
+                      "rowsPerSec": 2249931
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 23.421291000000565,
+                      "rowsPerSec": 427
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 42
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "docLengthBatches": 110,
+                  "fileManifestBatches": 1,
+                  "validationMs": 0.11329200000000128
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1273.1963750000004
+              },
+              {
+                "trial": 1,
+                "order": [
+                  "baseline",
+                  "current"
+                ],
+                "label": "current",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-fTkHhu/work/trial-1-current.db",
+                "count": 32768,
+                "durationMs": 3337.636957999999,
+                "loadMs": 45.33433299999979,
+                "buildMs": 3292.3026249999994,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "wal",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 4096,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 6.039582999999766,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.10570900000129768,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 493.74016699999993,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 172570352,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 6.039582999999766,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 33554432,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.10570900000129768,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 493.74016699999993,
+                        "thresholdMs": 200,
+                        "walBytes": 172570352,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 2.110791999999492,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1208.5356250000004,
+                      "rowsPerSec": 27114
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 712.8182500000003,
+                      "rowsPerSec": 45970
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 712.8182500000003,
+                      "rowsPerSec": 45970
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 23.579915999998775,
+                      "rowsPerSec": 1389657
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 125.49224999999933,
+                      "rowsPerSec": 16
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 125.50795800000014,
+                      "rowsPerSec": 522166
+                    },
+                    "minhash_signatures": {
+                      "rows": 0,
+                      "durationMs": 0.8092080000005808,
+                      "rowsPerSec": 0
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 28.86004200000025,
+                      "rowsPerSec": 346
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 48
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "pragmas": {
+                    "journal_mode": "wal",
+                    "synchronous": 1,
+                    "temp_store": 2,
+                    "cache_size": -65536,
+                    "mmap_size": 2147418112,
+                    "journal_size_limit": 33554432,
+                    "wal_autocheckpoint": 8192,
+                    "locking_mode": "exclusive"
+                  },
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "docLengthBatches": 110,
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "fileManifestBatches": 1,
+                  "ftsOptimize": {
+                    "table": "chunks_fts",
+                    "optimized": true,
+                    "durationMs": 13.812332999999853,
+                    "error": null
+                  },
+                  "optimize": {
+                    "optimized": true,
+                    "analyzed": true,
+                    "durationMs": 64.44908399999986
+                  },
+                  "validationMs": 0.04100000000107684
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1028.9192500000008
+              }
+            ],
+            "paired": [
+              {
+                "trial": 1,
+                "deltaMs": 23.35766699999931,
+                "deltaPct": 0.7047585598301209
+              }
+            ],
+            "generatedWork": {
+              "state": "completed",
+              "scope": "verified-unique-generated-work-only",
+              "runIdentity": "a5470fbe-1c2e-4d14-8c4e-c531cafc7979",
+              "workRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-fTkHhu/work",
+              "bytesReclaimed": 501347122,
+              "retainedReceiptRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-fTkHhu",
+              "callerIndexRetained": true
+            },
+            "receiptPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-fTkHhu/final.json"
+          }
+        }
+      },
+      {
+        "path": ".testLogs/bench35-sqlite-wide-c2-1793860742037.json",
+        "receipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+          },
+          "selected": "sqlite-wide-c2",
+          "partition": {
+            "$shared": "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb"
+          },
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "schemaVersion": 2,
+            "kind": "sqlite-artifact-build",
+            "status": "completed",
+            "source": {
+              "state": "dirty",
+              "revision": "1c80abe3f4af1a9f535b9f52c153d87794488f4a"
+            },
+            "runtime": {
+              "node": "v26.13.0",
+              "platform": "darwin",
+              "arch": "arm64"
+            },
+            "scope": "synthetic-lexical-artifact-ingest;no-dense-or-semantic-speed-claim",
+            "inputBytes": 157934386,
+            "workload": {
+              "chunks": 32768,
+              "requestedChunks": 32768,
+              "trials": 1,
+              "trialOffset": 1,
+              "generated": true,
+              "profile": "wide",
+              "retainedWideMetadata": true
+            },
+            "threshold": {
+              "minimumInputBytes": 134217728,
+              "observedInputBytes": 157934386,
+              "defaultOptimizationEligible": true
+            },
+            "cachePolicy": "fresh-database-per-arm-trial;shared-process-and-OS-cache-uncontrolled",
+            "samples": [
+              {
+                "trial": 2,
+                "order": [
+                  "current",
+                  "baseline"
+                ],
+                "label": "current",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-aJMHJL/work/trial-2-current.db",
+                "count": 32768,
+                "durationMs": 3493.094917,
+                "loadMs": 29.31508299999996,
+                "buildMs": 3463.779834,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "wal",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 4096,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 8.667790999999852,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 172335104,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.09837500000048749,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 724.5695410000008,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 172570352,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 8.667790999999852,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 33554432,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.09837500000048749,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 172335104,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 724.5695410000008,
+                        "thresholdMs": 200,
+                        "walBytes": 172570352,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 1.0936249999999745,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1158.4834580000002,
+                      "rowsPerSec": 28285
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 754.6461670000003,
+                      "rowsPerSec": 43422
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 754.6461670000003,
+                      "rowsPerSec": 43422
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 30.469042000000627,
+                      "rowsPerSec": 1075452
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 132.8510840000008,
+                      "rowsPerSec": 15
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 132.8712919999998,
+                      "rowsPerSec": 493229
+                    },
+                    "minhash_signatures": {
+                      "rows": 0,
+                      "durationMs": 0.8017079999999623,
+                      "rowsPerSec": 0
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 23.751792000000023,
+                      "rowsPerSec": 421
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 48
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "pragmas": {
+                    "journal_mode": "wal",
+                    "synchronous": 1,
+                    "temp_store": 2,
+                    "cache_size": -65536,
+                    "mmap_size": 2147418112,
+                    "journal_size_limit": 33554432,
+                    "wal_autocheckpoint": 8192,
+                    "locking_mode": "exclusive"
+                  },
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "docLengthBatches": 110,
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "fileManifestBatches": 1,
+                  "ftsOptimize": {
+                    "table": "chunks_fts",
+                    "optimized": true,
+                    "durationMs": 22.856582999999773,
+                    "error": null
+                  },
+                  "optimize": {
+                    "optimized": true,
+                    "analyzed": true,
+                    "durationMs": 42.97570900000028
+                  },
+                  "validationMs": 0.35958300000038435
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1650.9714999999997
+              },
+              {
+                "trial": 2,
+                "order": [
+                  "current",
+                  "baseline"
+                ],
+                "label": "baseline",
+                "outPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-aJMHJL/work/trial-2-baseline.db",
+                "count": 32768,
+                "durationMs": 4170.245,
+                "loadMs": 605.3448749999989,
+                "buildMs": 3564.900125000001,
+                "stats": {
+                  "batchSize": 700,
+                  "statementStrategy": "multi-row",
+                  "ingestPlan": {
+                    "batchSize": 700,
+                    "transactionRows": 36000,
+                    "batchesPerTransaction": 51,
+                    "filesPerTransaction": 2000,
+                    "repoTier": "medium",
+                    "walPressure": "off"
+                  },
+                  "runtimeTelemetry": {
+                    "walSnapshots": [
+                      {
+                        "stage": "open",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": "delete",
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 0,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": null,
+                        "checkpointMode": null
+                      },
+                      {
+                        "stage": "post-commit:after-checkpoint",
+                        "source": "artifacts",
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.16641700000036508,
+                        "checkpointMode": "TRUNCATE"
+                      },
+                      {
+                        "stage": "close:after-checkpoint",
+                        "source": null,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0,
+                        "durationMs": 0.045041999999739346,
+                        "checkpointMode": "TRUNCATE"
+                      }
+                    ],
+                    "commits": [
+                      {
+                        "stage": "artifact-build",
+                        "source": "artifacts",
+                        "durationMs": 246.61954100000003,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "dbBytes": 171077632,
+                        "walBytes": 0,
+                        "shmBytes": 0
+                      }
+                    ],
+                    "checkpoints": [
+                      {
+                        "stage": "post-commit",
+                        "source": "artifacts",
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.16641700000036508,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      },
+                      {
+                        "stage": "close",
+                        "source": null,
+                        "mode": "TRUNCATE",
+                        "durationMs": 0.045041999999739346,
+                        "pageSize": 4096,
+                        "journalMode": null,
+                        "walEnabled": false,
+                        "walPressure": "off",
+                        "before": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        },
+                        "after": {
+                          "dbBytes": 171077632,
+                          "walBytes": 0,
+                          "shmBytes": 0
+                        }
+                      }
+                    ],
+                    "stalls": [
+                      {
+                        "kind": "commit",
+                        "stage": "artifact-build",
+                        "durationMs": 246.61954100000003,
+                        "thresholdMs": 200,
+                        "walBytes": 0,
+                        "walPressure": "off"
+                      }
+                    ],
+                    "stallCounts": {
+                      "commit": 1,
+                      "checkpoint": 0
+                    },
+                    "plan": {
+                      "$shared": "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6"
+                    }
+                  },
+                  "tables": {
+                    "file_meta_stage": {
+                      "rows": 0,
+                      "durationMs": 0.098374999999578,
+                      "rowsPerSec": 0
+                    },
+                    "chunks_stage": {
+                      "rows": 32768,
+                      "durationMs": 1251.9125840000015,
+                      "rowsPerSec": 26174
+                    },
+                    "chunks": {
+                      "rows": 32768,
+                      "durationMs": 893.8146659999984,
+                      "rowsPerSec": 36661
+                    },
+                    "chunks_fts": {
+                      "rows": 32768,
+                      "durationMs": 893.8146659999984,
+                      "rowsPerSec": 36661
+                    },
+                    "token_vocab": {
+                      "rows": 2,
+                      "durationMs": 4.735457999999198,
+                      "rowsPerSec": 422
+                    },
+                    "token_postings": {
+                      "rows": 65536,
+                      "durationMs": 138.94654099999934,
+                      "rowsPerSec": 471663
+                    },
+                    "doc_lengths": {
+                      "rows": 32768,
+                      "durationMs": 21.03254200000083,
+                      "rowsPerSec": 1557967
+                    },
+                    "token_stats": {
+                      "rows": 1,
+                      "durationMs": 0,
+                      "rowsPerSec": null
+                    },
+                    "file_manifest": {
+                      "rows": 10,
+                      "durationMs": 22.634249999999156,
+                      "rowsPerSec": 442
+                    }
+                  },
+                  "chunkMeta": {
+                    "passes": 1,
+                    "rows": 32768,
+                    "streamedRows": 32768,
+                    "tokenTextMaterialized": 32768,
+                    "tokenTextSkipped": 0,
+                    "sourceRows": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 32768,
+                      "array": 0
+                    },
+                    "sourceFiles": {
+                      "json": 0,
+                      "columnar": 0,
+                      "jsonl": 151
+                    }
+                  },
+                  "prepare": {
+                    "total": 42
+                  },
+                  "transaction": {
+                    "begin": 1,
+                    "commit": 1,
+                    "rollback": 0
+                  },
+                  "inputBytes": 157934386,
+                  "vectorAnn": {
+                    "enabled": false,
+                    "ready": false,
+                    "table": "dense_vectors_ann"
+                  },
+                  "insertStatements": {
+                    "updateMode": "full",
+                    "insertClause": "INSERT"
+                  },
+                  "multiRow": {
+                    "$shared": "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc"
+                  },
+                  "chunkMetaBatches": 47,
+                  "chunkIdentity": {
+                    "schemaVersion": 1,
+                    "kind": "sqlite-artifact-chunk-identity",
+                    "mode": "code",
+                    "count": 32768,
+                    "sha256": "7bb7dbc3ee52f50b10e6712d236cc33b29b926c18aafafa3be533239c883db20",
+                    "coverage": "normalized-artifact-stage-chunks"
+                  },
+                  "tokenVocabBatches": 1,
+                  "tokenPostingBatches": 328,
+                  "docLengthBatches": 110,
+                  "fileManifestBatches": 1,
+                  "validationMs": 0.012541000000055647
+                },
+                "observation": {
+                  "chunks": 32768,
+                  "postings": 65536,
+                  "files": 10,
+                  "contentSha256": "6fdffd011b509611a9f005a4e7f32ce2e6231e7a2b5c986a2fc5dfaa1660d686",
+                  "semantic": "admitted-disabled-family",
+                  "lanes": {
+                    "sparse": true,
+                    "dense": false,
+                    "phrase": false,
+                    "chargram": false
+                  }
+                },
+                "validationMs": 1563.0870829999985
+              }
+            ],
+            "paired": [
+              {
+                "trial": 2,
+                "deltaMs": -677.150083,
+                "deltaPct": -16.237657092089318
+              }
+            ],
+            "generatedWork": {
+              "state": "completed",
+              "scope": "verified-unique-generated-work-only",
+              "runIdentity": "009bd11c-28ed-47d5-a4bd-ce134677d98e",
+              "workRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-aJMHJL/work",
+              "bytesReclaimed": 501347122,
+              "retainedReceiptRoot": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-aJMHJL",
+              "callerIndexRetained": true
+            },
+            "receiptPath": "/Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/benchmarks/sqlite-build-from-artifacts/run-aJMHJL/final.json"
+          }
+        }
+      }
+    ],
+    "attribution": {
+      "demonstrated": "Full128MiB ordinary Buffer backing store was released; resident size stayed unchanged. Forced collection did not establish an OS RSS-decommit contract.",
+      "source": "Pinned V8 ordinary backing stores delegate to the embedder allocator; resizable stores use a distinct page owner, whose POSIX free calls munmap.",
+      "scope": "Test-control ownership/measurement assumption, not a demonstrated application memory leak.",
+      "references": [
+        "https://github.com/nodejs/node/blob/v26.13.0/deps/v8/src/objects/backing-store.cc#L126",
+        "https://github.com/nodejs/node/blob/v26.13.0/deps/v8/src/base/platform/platform-posix.cc#L497",
+        "https://github.com/nodejs/node/blob/v26.13.0/deps/uv/src/unix/darwin.c#L145",
+        "https://github.com/apple-oss-distributions/libmalloc/blob/main/include/malloc/malloc.h"
+      ]
+    },
+    "repair": {
+      "bufferControl": "Retain the real128MiB Buffer, full byte/checksum witnesses, array-buffer and external release, RSS growth and actual native high-water observation.",
+      "rssControl": "Separate fresh child uses a128MiB resizable backing store, destroys it after touching every byte, and retains the original64/32/32MiB RSS and high-water bounds.",
+      "limits": {
+        "wholeCaseMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false
+      },
+      "newDependencies": [],
+      "expectedWarnings": [],
+      "publicSurfaceChanges": []
+    },
+    "acceptance": {
+      "focused": {
+        "report": {
+          "junit": null,
+          "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861409694-fzgkv6",
+          "summary": {
+            "durationMs": 1547,
+            "failed": 0,
+            "passed": 1,
+            "skipped": 0,
+            "total": 1
+          },
+          "tests": [
+            {
+              "attempts": 1,
+              "durationMs": 1542,
+              "exitCode": 0,
+              "id": "perf/bench/representative-workload-consumers/memory-transient",
+              "lane": "perf",
+              "logs": [
+                "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861409694-fzgkv6\\perf_bench_representative-workload-consumers_memory-transient.attempt-1.log"
+              ],
+              "path": "perf/bench/representative-workload-consumers.test.js",
+              "signal": null,
+              "skipReason": null,
+              "status": "passed",
+              "tags": [
+                "bench",
+                "perf"
+              ],
+              "termination": null,
+              "timedOut": false,
+              "timeoutClass": null
+            }
+          ]
+        },
+        "log": "id: perf/bench/representative-workload-consumers/memory-transient\npath: perf/bench/representative-workload-consumers.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"transientMemory\":{\"allocationKind\":\"buffer-disposal\",\"before\":{\"rss\":53026816,\"heapTotal\":7475200,\"heapUsed\":5220504,\"external\":2376458,\"arrayBuffers\":137903},\"during\":{\"rss\":187428864,\"heapTotal\":7475200,\"heapUsed\":5235400,\"external\":136594226,\"arrayBuffers\":134355631},\"after\":{\"rss\":53211136,\"heapTotal\":7475200,\"heapUsed\":5225040,\"external\":2376498,\"arrayBuffers\":137903},\"checksum\":2,\"requestedBytes\":134217728,\"touchedBytes\":134217728,\"touchedChecksum\":134217728,\"preparationCollections\":2,\"releaseCollections\":2,\"observation\":{\"observedBoundaryMax\":{\"heapUsed\":5225040,\"rss\":53211136,\"external\":2376498,\"arrayBuffers\":137903},\"boundaryPolicy\":\"before-and-after-only;transients-unobserved\",\"sampleCount\":2,\"processLifetimeRss\":{\"scope\":\"fresh-child-process-lifetime\",\"through\":\"released-explicit-transient-control\",\"includes\":\"startup-input-admission-and-any-warmup\",\"method\":\"node.process.resourceUsage.maxRSS\",\"rawUnit\":\"KiB\",\"outputUnit\":\"bytes\",\"state\":\"observed\",\"bytes\":187428864,\"rawMaxRSS\":183036,\"reason\":null}}}}\n{\"transientMemory\":{\"allocationKind\":\"rss-transient\",\"before\":{\"rss\":53485568,\"heapTotal\":7737344,\"heapUsed\":5220312,\"external\":2376458,\"arrayBuffers\":137903},\"during\":{\"rss\":187949056,\"heapTotal\":7737344,\"heapUsed\":5236216,\"external\":136594226,\"arrayBuffers\":137903},\"after\":{\"rss\":53837824,\"heapTotal\":7737344,\"heapUsed\":5224808,\"external\":2376498,\"arrayBuffers\":137903},\"checksum\":2,\"requestedBytes\":134217728,\"touchedBytes\":134217728,\"touchedChecksum\":134217728,\"preparationCollections\":2,\"releaseCollections\":2,\"observation\":{\"observedBoundaryMax\":{\"heapUsed\":5224808,\"rss\":53837824,\"external\":2376498,\"arrayBuffers\":137903},\"boundaryPolicy\":\"before-and-after-only;transients-unobserved\",\"sampleCount\":2,\"processLifetimeRss\":{\"scope\":\"fresh-child-process-lifetime\",\"through\":\"released-explicit-transient-control\",\"includes\":\"startup-input-admission-and-any-warmup\",\"method\":\"node.process.resourceUsage.maxRSS\",\"rawUnit\":\"KiB\",\"outputUnit\":\"bytes\",\"state\":\"observed\",\"bytes\":188239872,\"rawMaxRSS\":183828,\"reason\":null}}}}\n{\"receipt\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\bench35-memory-transient-1793861411228.json\",\"sha256\":\"1863b16b78466efbfc3891428bb92d905f9c5007ee989f964625e3fb2148f236\"}\n",
+        "rawReceipt": {
+          "historicalAuthorWorkspace": true,
+          "source": {
+            "state": "dirty",
+            "revision": "31173fe6f19c9238945a96ae399f1ca531daab75"
+          },
+          "selected": "memory-transient",
+          "scope": "synthetic-workload-specific-observations;not-application-wide-speedup",
+          "evidence": {
+            "allocationKind": "rss-transient",
+            "before": {
+              "rss": 53485568,
+              "heapTotal": 7737344,
+              "heapUsed": 5220312,
+              "external": 2376458,
+              "arrayBuffers": 137903
+            },
+            "during": {
+              "rss": 187949056,
+              "heapTotal": 7737344,
+              "heapUsed": 5236216,
+              "external": 136594226,
+              "arrayBuffers": 137903
+            },
+            "after": {
+              "rss": 53837824,
+              "heapTotal": 7737344,
+              "heapUsed": 5224808,
+              "external": 2376498,
+              "arrayBuffers": 137903
+            },
+            "checksum": 2,
+            "requestedBytes": 134217728,
+            "touchedBytes": 134217728,
+            "touchedChecksum": 134217728,
+            "preparationCollections": 2,
+            "releaseCollections": 2,
+            "observation": {
+              "observedBoundaryMax": {
+                "heapUsed": 5224808,
+                "rss": 53837824,
+                "external": 2376498,
+                "arrayBuffers": 137903
+              },
+              "boundaryPolicy": "before-and-after-only;transients-unobserved",
+              "sampleCount": 2,
+              "processLifetimeRss": {
+                "scope": "fresh-child-process-lifetime",
+                "through": "released-explicit-transient-control",
+                "includes": "startup-input-admission-and-any-warmup",
+                "method": "node.process.resourceUsage.maxRSS",
+                "rawUnit": "KiB",
+                "outputUnit": "bytes",
+                "state": "observed",
+                "bytes": 188239872,
+                "rawMaxRSS": 183828,
+                "reason": null
+              }
+            },
+            "bufferDisposal": {
+              "allocationKind": "buffer-disposal",
+              "before": {
+                "rss": 53026816,
+                "heapTotal": 7475200,
+                "heapUsed": 5220504,
+                "external": 2376458,
+                "arrayBuffers": 137903
+              },
+              "during": {
+                "rss": 187428864,
+                "heapTotal": 7475200,
+                "heapUsed": 5235400,
+                "external": 136594226,
+                "arrayBuffers": 134355631
+              },
+              "after": {
+                "rss": 53211136,
+                "heapTotal": 7475200,
+                "heapUsed": 5225040,
+                "external": 2376498,
+                "arrayBuffers": 137903
+              },
+              "checksum": 2,
+              "requestedBytes": 134217728,
+              "touchedBytes": 134217728,
+              "touchedChecksum": 134217728,
+              "preparationCollections": 2,
+              "releaseCollections": 2,
+              "observation": {
+                "observedBoundaryMax": {
+                  "heapUsed": 5225040,
+                  "rss": 53211136,
+                  "external": 2376498,
+                  "arrayBuffers": 137903
+                },
+                "boundaryPolicy": "before-and-after-only;transients-unobserved",
+                "sampleCount": 2,
+                "processLifetimeRss": {
+                  "scope": "fresh-child-process-lifetime",
+                  "through": "released-explicit-transient-control",
+                  "includes": "startup-input-admission-and-any-warmup",
+                  "method": "node.process.resourceUsage.maxRSS",
+                  "rawUnit": "KiB",
+                  "outputUnit": "bytes",
+                  "state": "observed",
+                  "bytes": 187428864,
+                  "rawMaxRSS": 183036,
+                  "reason": null
+                }
+              }
+            },
+            "measurementBoundary": "two-separate-fresh-children;malloc-disposal-and-page-backed-RSS-transient"
+          }
+        },
+        "rawSha256": "1863b16b78466efbfc3891428bb92d905f9c5007ee989f964625e3fb2148f236",
+        "runtime": {
+          "node": "26.13.0",
+          "platform": "win32",
+          "arch": "x64",
+          "abi": "147"
+        }
+      },
+      "publicationGate": {
+        "status": "passed",
+        "checks": [
+          "npm run format",
+          "npm run config:budget",
+          "npm run env:check",
+          "node tools/docs/generated-surfaces.js --check-freshness",
+          "node tools/ci/check-command-surface.js",
+          "node tests/ci/workflow-contract.test.js",
+          "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+          "git diff --check"
+        ],
+        "report": {
+          "junit": null,
+          "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4",
+          "summary": {
+            "durationMs": 36317,
+            "failed": 0,
+            "passed": 43,
+            "skipped": 0,
+            "total": 43
+          },
+          "tests": {
+            "$columns": [
+              "attempts",
+              "durationMs",
+              "exitCode",
+              "id",
+              "lane",
+              "logs",
+              "path",
+              "signal",
+              "skipReason",
+              "status",
+              "tags",
+              "termination",
+              "timedOut",
+              "timeoutClass"
+            ],
+            "$rows": [
+              [
+                1,
+                78,
+                0,
+                "indexing/policy/hotpath-membership-guard",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+                ],
+                "indexing/policy/hotpath-membership-guard.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                71,
+                0,
+                "indexing/policy/module-cache-boundedness-contract",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+                ],
+                "indexing/policy/module-cache-boundedness-contract.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                81,
+                0,
+                "indexing/policy/generated-matrix",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_generated-matrix.attempt-1.log"
+                ],
+                "indexing/policy/generated-matrix.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/artifact-surface-version",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_artifact-surface-version.attempt-1.log"
+                ],
+                "indexing/contracts/artifact-surface-version.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/n-minus-one-adapter",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+                ],
+                "indexing/contracts/n-minus-one-adapter.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                72,
+                0,
+                "indexing/contracts/public-artifact-surface-doc",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+                ],
+                "indexing/contracts/public-artifact-surface-doc.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                171,
+                0,
+                "indexing/contracts/index-compatibility-key-generation",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-generation.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                68,
+                0,
+                "indexing/contracts/semver-policy-enforced",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+                ],
+                "indexing/contracts/semver-policy-enforced.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                79,
+                0,
+                "indexing/contracts/index-state-dense-sidecars-present",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+                ],
+                "indexing/contracts/index-state-dense-sidecars-present.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                157,
+                0,
+                "contracts/manifest-max-bytes-validation",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\contracts_manifest-max-bytes-validation.attempt-1.log"
+                ],
+                "contracts/manifest-max-bytes-validation.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1657,
+                0,
+                "indexing/policy/repo-inventory",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_repo-inventory.attempt-1.log"
+                ],
+                "indexing/policy/repo-inventory.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                258,
+                0,
+                "indexing/policy/shared-module-cycle-guard",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+                ],
+                "indexing/policy/shared-module-cycle-guard.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                221,
+                0,
+                "indexing/contracts/loader-matrix-parity",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+                ],
+                "indexing/contracts/loader-matrix-parity.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                296,
+                0,
+                "indexing/policy/analysis-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_analysis-schema.attempt-1.log"
+                ],
+                "indexing/policy/analysis-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                282,
+                0,
+                "indexing/contracts/snapshots",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_snapshots.attempt-1.log"
+                ],
+                "indexing/contracts/snapshots.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                272,
+                0,
+                "indexing/contracts/builds-current-repo-head-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+                ],
+                "indexing/contracts/builds-current-repo-head-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                287,
+                0,
+                "indexing/contracts/call-sites-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_call-sites-schema.attempt-1.log"
+                ],
+                "indexing/contracts/call-sites-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                275,
+                0,
+                "indexing/contracts/diffs",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_diffs.attempt-1.log"
+                ],
+                "indexing/contracts/diffs.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                285,
+                0,
+                "indexing/contracts/additional-properties-policy",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_additional-properties-policy.attempt-1.log"
+                ],
+                "indexing/contracts/additional-properties-policy.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                528,
+                0,
+                "indexing/contracts/index-compatibility-key-enforced-on-load",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                273,
+                0,
+                "indexing/contracts/schema-registry-single-source",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+                ],
+                "indexing/contracts/schema-registry-single-source.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                719,
+                0,
+                "tooling/api-contracts/caps",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_api-contracts_caps.attempt-1.log"
+                ],
+                "tooling/api-contracts/caps.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                817,
+                0,
+                "tooling/api-contracts/schema-validate",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_api-contracts_schema-validate.attempt-1.log"
+                ],
+                "tooling/api-contracts/schema-validate.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                827,
+                0,
+                "tooling/api-contracts/fail-on-warn",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+                ],
+                "tooling/api-contracts/fail-on-warn.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                790,
+                0,
+                "tooling/api-contracts/optional-params",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_api-contracts_optional-params.attempt-1.log"
+                ],
+                "tooling/api-contracts/optional-params.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                698,
+                0,
+                "tooling/api-contracts/large-call-sites",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_api-contracts_large-call-sites.attempt-1.log"
+                ],
+                "tooling/api-contracts/large-call-sites.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                568,
+                0,
+                "indexing/contracts/embedding-identity-gating-on-load",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+                ],
+                "indexing/contracts/embedding-identity-gating-on-load.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                883,
+                0,
+                "ci/capability-gate.smoke",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\ci_capability-gate_smoke.attempt-1.log"
+                ],
+                "ci/capability-gate.smoke.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1202,
+                0,
+                "indexing/contracts/index-compatibility-key-federation-block",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-federation-block.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                71,
+                0,
+                "indexing/policy/stable-entrypoints",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_stable-entrypoints.attempt-1.log"
+                ],
+                "indexing/policy/stable-entrypoints.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1384,
+                0,
+                "indexing/policy/optional-deps",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_optional-deps.attempt-1.log"
+                ],
+                "indexing/policy/optional-deps.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                961,
+                0,
+                "indexing/policy/analysis-gating",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_policy_analysis-gating.attempt-1.log"
+                ],
+                "indexing/policy/analysis-gating.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1169,
+                0,
+                "ci/tooling-doctor-gate.smoke",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+                ],
+                "ci/tooling-doctor-gate.smoke.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                741,
+                0,
+                "tooling/api-contracts/basic",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_api-contracts_basic.attempt-1.log"
+                ],
+                "tooling/api-contracts/basic.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                2513,
+                0,
+                "contracts/module-export-surface-compat",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\contracts_module-export-surface-compat.attempt-1.log"
+                ],
+                "contracts/module-export-surface-compat.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1285,
+                0,
+                "indexing/contracts/semantic-foundations",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_semantic-foundations.attempt-1.log"
+                ],
+                "indexing/contracts/semantic-foundations.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                365,
+                0,
+                "indexing/contracts/semantic-handoff-contracts",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+                ],
+                "indexing/contracts/semantic-handoff-contracts.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                551,
+                0,
+                "indexing/contracts/runtime-evidence",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_runtime-evidence.attempt-1.log"
+                ],
+                "indexing/contracts/runtime-evidence.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1501,
+                0,
+                "indexing/contracts/index-format-cutover",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\indexing_contracts_index-format-cutover.attempt-1.log"
+                ],
+                "indexing/contracts/index-format-cutover.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1442,
+                0,
+                "ci/windows-authority-cohort",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\ci_windows-authority-cohort.attempt-1.log"
+                ],
+                "ci/windows-authority-cohort.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                245,
+                0,
+                "ci/ordered-lane-discovery",
+                "integration",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\ci_ordered-lane-discovery.attempt-1.log"
+                ],
+                "ci/ordered-lane-discovery.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "integration"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                156,
+                0,
+                "ci/gate-policy",
+                "integration",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\ci_gate-policy.attempt-1.log"
+                ],
+                "ci/gate-policy.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "integration"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                11837,
+                0,
+                "tooling/ci/run-suite-api-plan",
+                "unit",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793861537934-kwlat4\\tooling_ci_run-suite-api-plan.attempt-1.log"
+                ],
+                "tooling/ci/run-suite-api-plan.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "tooling",
+                  "unit"
+                ],
+                null,
+                false,
+                null
+              ]
+            ]
+          }
+        }
+      },
+      "hosted": "Pending push; prior-source results above are not replacement acceptance."
+    },
+    "sourceBlobs": {
+      "tests/fixtures/benchmarks/transient-memory.js": "5b2e85f43ce6d9847465a59f9da220630188c1fb",
+      "tests/perf/bench/representative-workload-consumers.test.js": "23f8fbc7843bf7b610a32473daefcd6a5612630c",
+      "src/../tools/bench/map/observation.js": "458a02177e859c47341c26403151b8f97f508484"
+    }
+  },
+  "sharedValues": {
+    "31773cd9cdfc530cf96b7abd3548a0da884b6a3c1e11b06fe52346fae404dbbb": {
+      "series": "wide32768-six-paired-trials",
+      "requiredCapsules": [
+        "sqlite-wide-a1",
+        "sqlite-wide-a2",
+        "sqlite-wide-b1",
+        "sqlite-wide-b2",
+        "sqlite-wide-c1",
+        "sqlite-wide-c2"
+      ],
+      "changedBoundary": "each original two-trial process has two fresh-process paired capsules; all six pairs and original alternating arm order retained",
+      "latencyGainClaim": false
+    },
+    "57781d5907918b9f844b07ad9d7b1055e42628d026ceb1c2797b12620d9a0bc6": {
+      "batchSize": 700,
+      "transactionRows": 36000,
+      "batchesPerTransaction": 51,
+      "filesPerTransaction": 2000,
+      "rowsPerFile": 12,
+      "repoTier": "medium",
+      "walPressure": "off",
+      "pageSize": 4096,
+      "journalMode": null,
+      "walEnabled": false,
+      "walBytes": 0,
+      "rowCount": 0,
+      "fileCount": 0,
+      "repoBytes": 157934386,
+      "inputBytes": 157934386,
+      "telemetry": {
+        "planVersion": 1,
+        "baseBatchSize": 700,
+        "batchAdjustments": [],
+        "walPressure": "off",
+        "requestedOverride": false
+      },
+      "source": null
+    },
+    "af6210a9c7d70073a7c2f700c25487ca02868d05c18a9ca4ec34db5a0a3b8efc": {
+      "chunks": {
+        "maxRows": 31,
+        "maxVariables": 999
+      },
+      "chunks_fts": {
+        "maxRows": 124,
+        "maxVariables": 999
+      },
+      "token_vocab": {
+        "maxRows": 300,
+        "maxVariables": 999,
+        "inputRows": 2,
+        "dedupedRows": 0,
+        "prepared": 1,
+        "runs": 1,
+        "rows": 2
+      },
+      "token_postings": {
+        "maxRows": 200,
+        "maxVariables": 999,
+        "inputRows": 65536,
+        "dedupedRows": 0,
+        "prepared": 2,
+        "runs": 328,
+        "rows": 65536
+      },
+      "doc_lengths": {
+        "maxRows": 300,
+        "maxVariables": 999,
+        "inputRows": 32768,
+        "dedupedRows": 0,
+        "prepared": 2,
+        "runs": 110,
+        "rows": 32768
+      },
+      "phrase_vocab": {
+        "maxRows": 300,
+        "maxVariables": 999
+      },
+      "phrase_postings": {
+        "maxRows": 300,
+        "maxVariables": 999
+      },
+      "chargram_vocab": {
+        "maxRows": 300,
+        "maxVariables": 999
+      },
+      "chargram_postings": {
+        "maxRows": 300,
+        "maxVariables": 999
+      }
+    }
+  },
+  "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+}

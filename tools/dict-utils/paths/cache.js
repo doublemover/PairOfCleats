@@ -4,7 +4,8 @@ import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 import { getCacheRootBase, getDefaultCacheRoot } from '../cache.js';
-import { getRepoCacheRoot } from './repo.js';
+import { getStorageCategorySelection } from '../../../src/shared/cache-roots.js';
+import { resolveRepoCacheRootPath } from './repo.js';
 
 /**
  * Resolve runtime cache limits and TTLs for a repo.
@@ -42,14 +43,14 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
  * @param {object|null} userConfig
  * @returns {string}
  */
-export function getModelsDir(repoRoot, userConfig = null) {
-  const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
+export function getModelsDir(repoRoot, userConfig = null, { env = process.env } = {}) {
+  const cfg = userConfig || loadUserConfig(repoRoot, { env });
+  const envConfig = getEnvConfig(env);
   const envModelsDir = envConfig.modelsDir || '';
   if (envModelsDir) return envModelsDir;
-  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot({ env });
   const models = cfg.models || {};
-  return models.dir || path.join(cacheRoot, 'models');
+  return models.dir || getStorageCategorySelection('models', { env }) || path.join(cacheRoot, 'models');
 }
 
 /**
@@ -63,14 +64,14 @@ export function getToolingDir(repoRoot, userConfig = null) {
   const envConfig = getEnvConfig();
   const homeRoot = envConfig.homeRoot || getCacheRootBase();
   const tooling = cfg.tooling || {};
-  return envConfig.toolingDir || tooling.dir || path.join(homeRoot, 'tooling');
+  return envConfig.toolingDir || tooling.dir || getStorageCategorySelection('tooling') || path.join(homeRoot, 'tooling');
 }
 
 /**
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string},pyright:object,sourcekit:object}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir?:string},pyright:object,sourcekit:object}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
@@ -89,9 +90,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const dart = tooling.dart && typeof tooling.dart === 'object' ? tooling.dart : {};
   const lifecycle = tooling.lifecycle && typeof tooling.lifecycle === 'object' ? tooling.lifecycle : null;
   const toolingCache = tooling.cache || {};
-  const timeoutMs = Number(tooling.timeoutMs);
-  const maxRetries = Number(tooling.maxRetries);
-  const breakerThreshold = Number(tooling.circuitBreakerThreshold);
+  const timeoutMs = tooling.timeoutMs == null ? NaN : Number(tooling.timeoutMs);
+  const maxRetries = tooling.maxRetries == null ? NaN : Number(tooling.maxRetries);
+  const breakerThreshold = tooling.circuitBreakerThreshold == null ? NaN : Number(tooling.circuitBreakerThreshold);
   const logDir = getEnvConfig().toolingLogDir || (typeof tooling.logDir === 'string' ? tooling.logDir : '');
   const installScope = (tooling.installScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
@@ -198,8 +199,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     },
     clangd: {
       ...clangd,
-      requireCompilationDatabase: clangd.requireCompilationDatabase === true,
-      compileCommandsDir: typeof clangd.compileCommandsDir === 'string' ? clangd.compileCommandsDir : ''
+      requireCompilationDatabase: clangd.requireCompilationDatabase === true
     },
     pyright,
     gopls,
@@ -229,6 +229,8 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   if (extensions.dir) return extensions.dir;
   if (sqliteVector.dir) return sqliteVector.dir;
+  const selected = getStorageCategorySelection('extensions');
+  if (selected) return selected;
   // Extensions are shared assets and should not live under repo-scoped cache data.
   const cacheRoot = isTestingEnv()
     ? getDefaultCacheRoot()
@@ -243,7 +245,7 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
  * @returns {string}
  */
 export function getMetricsDir(repoRoot, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'metrics');
+  return path.join(resolveRepoCacheRootPath(repoRoot, userConfig), 'metrics');
 }
 
 /**
@@ -253,5 +255,5 @@ export function getMetricsDir(repoRoot, userConfig = null) {
  * @returns {string}
  */
 export function getQueryCacheDir(repoRoot, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'query-cache');
+  return path.join(resolveRepoCacheRootPath(repoRoot, userConfig), 'query-cache');
 }

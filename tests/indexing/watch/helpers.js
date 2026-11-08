@@ -12,14 +12,14 @@ export const normalizeAbsPath = (value) => path.resolve(String(value || '')).rep
 export const waitFor = async (predicate, timeoutMs = 5000) => {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for condition.');
 };
 
 export const createTempWatchRepo = async ({ prefix, files }) => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)));
   applyTestEnv({ cacheRoot: tempRoot });
 
   const repoRoot = path.join(tempRoot, 'repo');

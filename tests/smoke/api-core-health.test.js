@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { buildIndex, search, status } from '../../src/integrations/core/index.js';
 import { createApiRouter } from '../../tools/api/router.js';
-import { applyTestEnv } from '../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 import { cleanup, root } from './smoke-utils.js';
 
@@ -41,8 +41,6 @@ const runCoreSmoke = async () => {
   await fsPromises.mkdir(repoRoot, { recursive: true });
   await writeCoreFixture(repoRoot);
 
-  const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-  const previousEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS;
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
@@ -68,9 +66,10 @@ const runCoreSmoke = async () => {
       PAIROFCLEATS_WORKER_POOL: 'off'
     }
   });
-  process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
-  process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
-  try {
+  await withTemporaryEnv(Object.fromEntries([
+    'PAIROFCLEATS_TESTING', 'PAIROFCLEATS_CACHE_ROOT', 'PAIROFCLEATS_EMBEDDINGS',
+    'PAIROFCLEATS_TEST_CONFIG', 'PAIROFCLEATS_WORKER_POOL'
+  ].map(key => [key, env[key]])), async () => {
     await buildIndex(repoRoot, {
       stage: 'stage1',
       mode: 'code',
@@ -85,18 +84,7 @@ const runCoreSmoke = async () => {
 
     const statusPayload = await status(repoRoot);
     assert.equal(normalizePathForCompare(statusPayload?.repo?.root), normalizePathForCompare(repoRoot));
-  } finally {
-    if (previousCacheRoot == null) {
-      delete process.env.PAIROFCLEATS_CACHE_ROOT;
-    } else {
-      process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
-    }
-    if (previousEmbeddings == null) {
-      delete process.env.PAIROFCLEATS_EMBEDDINGS;
-    } else {
-      process.env.PAIROFCLEATS_EMBEDDINGS = previousEmbeddings;
-    }
-  }
+  });
 };
 
 const runRouterSmoke = async () => {

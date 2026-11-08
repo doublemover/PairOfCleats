@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "valid", "wrong-pid", "pid-unavailable", "bad-signature", "bad-version", "oversize", "short-header",
+    "directory-overflow", "stream-overflow", "header-overlap", "duplicate-stream", "full-memory", "missing-context",
+    "exception-parameters", "missing-thread", "thread-overflow", "thread-context", "module-overflow", "module-name", "pdb-name"
+  ]
+}

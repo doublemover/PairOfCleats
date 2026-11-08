@@ -32,6 +32,12 @@ context.tokenClassificationRuntime = createTokenClassificationRuntime({
   context,
   fileBytes: 2048
 });
+const allowance = { ...context.tokenClassificationRuntime };
+const unsupported = tokenizeChunkText({ text: 'unknown', mode: 'code', ext: '.unknown', languageId: 'unknown-language', context });
+assert.ok(unsupported.identifierTokens.includes('unknown'));
+assert.equal(context.tokenClassificationRuntime.remainingChunks, allowance.remainingChunks);
+assert.equal(context.tokenClassificationRuntime.remainingBytes, allowance.remainingBytes,
+  'an unsupported first segment must preserve the same runtime allowance for the following native segment');
 
 const first = tokenizeChunkText({
   text: 'function one(v) { return v + 1; }',

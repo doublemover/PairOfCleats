@@ -1,3 +1,5 @@
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -29,8 +31,9 @@ export const readRuntimeMemberJson = async options => {
 export const openVerifiedRuntimeMember = async ({ root, relativePath, expectedHash, expectedBytes,
   maxBytes, signal = null, metrics = null }) => {
   const filename = path.join(root, relativePath);
-  const handle = await openContainedFile(root, filename);
+  let handle;
   try {
+    handle = await openContainedFile(root, filename);
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size !== expectedBytes || stat.size > maxBytes) throw runtimeImportError('Runtime member size exceeds its pinned allowance.');
     const hash = createHash('sha256'), buffer = Buffer.alloc(65536);
@@ -51,7 +54,13 @@ export const openVerifiedRuntimeMember = async ({ root, relativePath, expectedHa
     verifyContainedFileHandle(handle, root, filename);
     return handle;
   } catch (error) {
-    if (error.code === 'ERR_UNSAFE_FILE_PATH') error = runtimeImportError(error.message);
-    await closeRuntimeResources([handle], error);
+    let failure = error;
+    try {
+      const diagnostic = describeStorageFailure(error, { phase: 'runtime-member-verification' });
+      if (diagnostic.code === 'ERR_UNSAFE_FILE_PATH') {
+        failure = addStorageFailureContext(runtimeImportError(diagnostic.message), {}, error, { secondaryPresent: true });
+      }
+    } catch (inspection) { failure = inspection; }
+    await closeRuntimeResources([handle], failure, { hasOperationError: true });
   }
 };

@@ -68,4 +68,20 @@ assert.equal(partialTruncation.some((entry) => entry.cap === 'maxPartialFlows'),
 assert.equal(partialRiskTruncation.some((entry) => entry.cap === 'maxPartialFlows'), true);
 assert.equal(partialCapHits.has('maxPartialFlows'), true);
 
+for (const partial of [false, true]) {
+  const ids = new Set();
+  const candidates = Array.from({ length: 64 }, (_, index) => {
+    const row = buildRankedFlow(index);
+    row.flow.source.ruleId = 'x'.repeat(24576);
+    row.flow.partialFlowId = 'partial-' + index;
+    row.flow.frontier = { chunkUid: 'frontier', blockedExpansions: [{ callSiteIds: ['blocked-' + index] }] };
+    return row;
+  });
+  const select = partial ? selectRiskPartialFlowsWithinBudget : selectRiskFlowsWithinBudget;
+  const rejected = select({ [partial ? 'rankedPartialFlows' : 'rankedFlows']: candidates,
+    truncation: [], riskTruncation: [], referencedCallSiteIds: ids, riskCapHits: new Set() });
+  assert.equal((partial ? rejected.selectedRawPartialFlows : rejected.selectedRawFlows).length, 0);
+  assert.deepEqual([...ids], [], 'byte-rejected path/frontier evidence cannot become a hydration dependency');
+}
+
 console.log('risk budget trimming test passed');

@@ -63,7 +63,10 @@ const testEnv = applyTestEnv({
 });
 
 const buildResult = runNode(
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+  // Standalone embedding scheduling consumes the supported lexical seed. A
+  // complete embedding/SQLite build here computes outputs that this fixture
+  // immediately discards, before the actual cold scheduler operation below.
+  [path.join(root, 'build_index.js'), '--stage', 'stage1', '--stub-embeddings', '--repo', repoRoot],
   'embeddings scheduler backpressure build',
   repoRoot,
   testEnv,

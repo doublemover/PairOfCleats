@@ -2,6 +2,7 @@ import path from 'node:path';
 import ignore from 'ignore';
 import { toPosix } from '../../shared/file-paths.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
+import { GENERATED_INCLUDE_SELECTION_CONTRACT } from './generated-policy-traversal.js';
 
 export const GENERATED_POLICY_REASON_CODE = 'USR-R-GENERATED-METADATA-ONLY';
 export const GENERATED_POLICY_INDEX_MODE_METADATA_ONLY = 'metadata-only';
@@ -289,6 +290,7 @@ export const resolveGeneratedPolicyDecision = ({
       indexMode: 'full',
       reasonCode: null,
       policy: 'include',
+      selectionContract: GENERATED_INCLUDE_SELECTION_CONTRACT,
       matchedPattern: matchedInclude
     };
   }

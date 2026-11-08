@@ -24,12 +24,17 @@ That command is the production-readiness baseline and should stay green before r
 
 ## Manual operator spot-checks
 
+Use a disposable task-owned service fixture and one explicit absolute service
+config/queue directory from [the service runbook](service-mode.md). Record its
+identity first. The shutdown/resume steps below deliberately mutate that fixture;
+do not run them against ambient production queues as a documentation check.
+
 ### 1. Config
 
 - validate the main repo config:
 
 ```bash
-pairofcleats config validate --json
+pairofcleats config validate --repo "path/to/disposable-project" --effective --json
 ```
 
 - validate the service config by invoking an indexer command with `--json`; invalid values should fail fast with a field path and hint.
@@ -39,21 +44,21 @@ pairofcleats config validate --json
 - confirm canonical queue status:
 
 ```bash
-pairofcleats service indexer status --queue index --json
-pairofcleats service indexer status --queue embeddings --json
+pairofcleats service indexer status --config "path/to/disposable-service-config.json" --queue index --json
+pairofcleats service indexer status --config "path/to/disposable-service-config.json" --queue embeddings --json
 ```
 
 - confirm shutdown and resume behavior:
 
 ```bash
-pairofcleats service indexer shutdown --queue index --shutdown-mode drain --json
-pairofcleats service indexer resume --queue index --json
+pairofcleats service indexer shutdown --config "path/to/disposable-service-config.json" --queue index --shutdown-mode drain --json
+pairofcleats service indexer resume --config "path/to/disposable-service-config.json" --queue index --json
 ```
 
 - inspect repair state if queue behavior looks inconsistent:
 
 ```bash
-pairofcleats service indexer inspect --queue index --json
+pairofcleats service indexer inspect --config "path/to/disposable-service-config.json" --queue index --json
 ```
 
 ### 3. API
@@ -74,8 +79,8 @@ pairofcleats service api --json
 - verify indexes can be built and searched with the expected backend/mode mix:
 
 ```bash
-pairofcleats index build
-pairofcleats search <query>
+pairofcleats index build --repo "path/to/disposable-project" --mode code --threads 1 --no-sqlite
+pairofcleats search --repo "path/to/disposable-project" --mode code --backend memory -- "known-fixture-term"
 ```
 
 ### 5. Release workflow

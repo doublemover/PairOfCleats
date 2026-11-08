@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { buildDiagnosticsReport } from '../../../tools/reports/diagnostics-report.js';
-import { loadServiceConfig } from '../../../tools/service/config.js';
+import { DEFAULT_SERVICE_CONFIG, loadServiceConfig, resolveRepoRegistry } from '../../../tools/service/config.js';
+import { resolveQueueAdmissionPolicy } from '../../../tools/service/admission-policy.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -98,4 +99,41 @@ assert.equal(payload.code, 'INVALID_REQUEST', 'expected invalid-request error co
 assert.equal(payload.fieldPath, 'queue.maxQueued', 'expected offending field path');
 assert.equal(typeof payload.hint, 'string', 'expected actionable hint');
 
+for (const [parts, value] of [
+  [['queue', 'maxRetries'], 3], [['worker', 'concurrency'], 2],
+  [['embeddings', 'queue', 'maxRetries'], 3], [['embeddings', 'worker', 'concurrency'], 2],
+  [['sync', 'intervalMs'], 60000], [['queue', 'retention', 'doneJobs'], 3],
+  [['embeddings', 'queue', 'retention', 'failedJobs'], 2], [['security', 'allowShell'], true]
+]) {
+  const expected = structuredClone(DEFAULT_SERVICE_CONFIG), partial = {};
+  let patch = partial, target = expected;
+  for (const part of parts.slice(0, -1)) {
+    patch[part] = {}; patch = patch[part]; target = target[part];
+  }
+  patch[parts.at(-1)] = value; target[parts.at(-1)] = value;
+  const partialPath = path.join(tempRoot, 'partial.json');
+  fs.writeFileSync(partialPath, JSON.stringify(partial));
+  const actual = loadServiceConfig(partialPath);
+  assert.deepEqual(actual, expected, `partial ${parts.join('.')} override preserves all unrelated defaults`);
+  assert.equal(actual.embeddings.worker.maxMemoryMb, 4096, 'embedding child heap policy retains its default');
+  assert.equal(resolveQueueAdmissionPolicy({ queueConfig: actual.queue, workerConfig: actual.worker }).maxQueued, 20);
+}
+const nullablePath = path.join(tempRoot, 'nullable.json');
+fs.writeFileSync(nullablePath, JSON.stringify({ queue: { maxQueued: null } }));
+assert.equal(loadServiceConfig(nullablePath).queue.maxQueued, null, 'explicit null remains distinct from omission');
+for (const policy of ['none', 'fetch', 'pull']) {
+  for (const spelling of [policy, policy.toUpperCase(), ` ${policy.toUpperCase()} `]) {
+    const policyPath = path.join(tempRoot, 'policy.json');
+    fs.writeFileSync(policyPath, JSON.stringify({ sync: { policy: spelling }, repos: [{ path: tempRoot, syncPolicy: spelling }] }));
+    const parsed = loadServiceConfig(policyPath);
+    assert.equal(parsed.sync.policy, policy, 'global dispatch policy is canonical');
+    assert.equal(parsed.repos[0].syncPolicy, policy, 'repo override dispatch policy is canonical');
+  }
+}
+const registryPath = path.join(tempRoot, 'registry.json'), fileConfigPath = path.join(tempRoot, 'file-config.json');
+fs.writeFileSync(registryPath, JSON.stringify({ repos: [{ path: tempRoot, syncPolicy: ' FETCH ' }] }));
+fs.writeFileSync(fileConfigPath, JSON.stringify({ reposFile: 'registry.json' }));
+assert.equal(resolveRepoRegistry(loadServiceConfig(fileConfigPath), fileConfigPath)[0].syncPolicy, 'fetch');
+fs.writeFileSync(fileConfigPath, JSON.stringify({ repos: [], reposFile: 'registry.json' }));
+assert.deepEqual(resolveRepoRegistry(loadServiceConfig(fileConfigPath), fileConfigPath), [], 'explicit empty inline registry retains precedence');
 console.log('service config validation test passed');

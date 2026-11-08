@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -21,7 +22,7 @@ const formatRate = (value) => (Number.isFinite(value) ? value.toFixed(1) : '0');
 
 const main = async () => {
   const { rows } = parseArgs(process.argv.slice(2));
-  const benchRoot = path.join(process.cwd(), '.benchCache', 'artifact-io-streaming');
+  const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'artifact-io-streaming');
   await fs.rm(benchRoot, { recursive: true, force: true });
   await fs.mkdir(benchRoot, { recursive: true });
   const jsonlPath = path.join(benchRoot, 'rows.jsonl');

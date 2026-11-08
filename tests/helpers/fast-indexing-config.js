@@ -2,9 +2,6 @@ import { mergeConfig } from '../../src/shared/config.js';
 
 const FAST_INDEXING_TEST_CONFIG = Object.freeze({
   indexing: {
-    artifacts: {
-      binaryColumnar: false
-    },
     scm: {
       provider: 'none'
     },

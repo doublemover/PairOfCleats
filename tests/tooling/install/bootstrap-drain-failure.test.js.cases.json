@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["observer-and-drain", "task-and-drain", "original-observer-resources"]
+}

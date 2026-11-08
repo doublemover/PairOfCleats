@@ -112,12 +112,16 @@ export const createSupervisorSession = ({
     } catch {}
     const waitPromise = waitForExit();
     if (child.exitCode !== null) return waitPromise;
-    const bounded = await Promise.race([
-      waitPromise,
-      new Promise((resolve) => {
-        setTimeout(() => resolve(null), Math.max(1, Number(waitTimeoutMs) || timeoutMs));
-      })
-    ]);
+    let deadlineTimer;
+    let bounded;
+    try {
+      bounded = await Promise.race([
+        waitPromise,
+        new Promise((resolve) => {
+          deadlineTimer = setTimeout(() => resolve(null), Math.max(1, Number(waitTimeoutMs) || timeoutMs));
+        })
+      ]);
+    } finally { clearTimeout(deadlineTimer); }
     if (bounded !== null) return bounded;
     forceKill();
     return waitForExit();

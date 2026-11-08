@@ -8,6 +8,26 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const cases = [
   {
+    name: 'pre-abort and capacity wakeup cannot admit cancelled reservations, including bypass',
+    async run() {
+      for (const bypass of [false, true]) {
+        const queue = createPostingsQueue({ maxPending: 1, maxHeapFraction: 1 });
+        const controller = new AbortController(), reason = new Error('cancelled before reserve');
+        controller.abort(reason);
+        await assert.rejects(queue.reserve({ signal: controller.signal, bypass }), error => error?.code === 'ABORT_ERR' && error.cause === reason);
+        assert.equal(queue.stats().pending.count, 0);
+      }
+      const queue = createPostingsQueue({ maxPending: 1, maxHeapFraction: 1 });
+      const first = await queue.reserve(), controller = new AbortController();
+      const reason = new Error('cancelled at capacity release'); let waited = false;
+      const pending = queue.reserve({ signal: controller.signal, onWait: () => { waited = true; } });
+      assert.equal(waited, true); first.release(); controller.abort(reason);
+      await assert.rejects(pending, error => error?.code === 'ABORT_ERR' && error.cause === reason);
+      assert.equal(queue.stats().pending.count, 0);
+      const healthy = await queue.reserve(); assert.equal(queue.stats().pending.count, 1); healthy.release();
+    }
+  },
+  {
     name: 'stats reflect current pending reservations and high-water marks',
     async run() {
       const queue = createPostingsQueue({

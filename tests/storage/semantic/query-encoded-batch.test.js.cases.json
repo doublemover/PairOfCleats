@@ -1,0 +1,1 @@
+{"schemaVersion":1,"cases":["query-memory","query-merged","operation-memory","operation-merged","query-reuse","operation-reuse","query-mutation","operation-mutation","query-duplicate","operation-duplicate","query-unordered","operation-unordered","query-oversize","operation-oversize"]}

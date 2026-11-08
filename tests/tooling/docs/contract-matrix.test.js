@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { buildArtifactSchemaIndex } from '../../../src/contracts/artifact-schema-index.js';
 import { USR_REPORT_SCHEMA_DEFS, USR_SCHEMA_DEFS } from '../../../src/contracts/schemas/usr.js';
+import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { loadRunRules } from '../../runner/run-config.js';
 import {
   assertEvidenceAvailability,
@@ -228,6 +229,7 @@ const expandSimpleBraceAlternates = (value) => {
     'benchmarks/',
     'rules/',
     'temp/',
+    '.tmp/',
     '.testLogs/',
     '.github/'
   ];
@@ -433,9 +435,8 @@ const expandSimpleBraceAlternates = (value) => {
     path.join(root, 'docs', 'specs', 'tooling-and-api-contract.md'),
     'utf8'
   );
-  assert.match(
-    toolingApiSpec,
-    /\*\*Status:\*\* Active implemented public tooling\/API contract; current MCP schema version is `1\.4\.1`\./,
+  assert.ok(
+    toolingApiSpec.includes('**Status:** Active implemented public tooling/API contract; current MCP schema version is `' + MCP_SCHEMA_VERSION + '`.'),
     'tooling/API contract spec must record active implemented status and current MCP schema version'
   );
   assert.doesNotMatch(
@@ -445,18 +446,24 @@ const expandSimpleBraceAlternates = (value) => {
   );
 
   const httpApiSpec = await fsPromises.readFile(path.join(root, 'docs', 'specs', 'http-api.md'), 'utf8');
+  assert.match(httpApiSpec, /DEPRECATED[\s\S]*\[HTTP API server contract\]\(\.\.\/api\/server\.md\)/,
+    'superseded HTTP proposal redirects to the authoritative current guide');
+  const archivedHttpApi = await fsPromises.readFile(path.join(root, 'docs', 'archived', 'http-api.md'), 'utf8');
+  assert.match(archivedHttpApi, /DEPRECATED[\s\S]*HTTP API server contract[\s\S]*historical/,
+    'the original proposal remains archived with its provenance and replacement');
+  const httpApiGuide = await fsPromises.readFile(path.join(root, 'docs', 'api', 'server.md'), 'utf8');
   assert.match(
-    httpApiSpec,
-    /\*\*Implementation status:\*\* active implemented contract.*workspacePath-based federated search/,
-    'HTTP API spec must record current implemented snapshot/diff/as-of/federated surface status'
+    httpApiGuide,
+    /Runtime validators and schemas remain authoritative:[\s\S]*`GET \/index\/snapshots`[\s\S]*`GET \/index\/diffs`/,
+    'current HTTP guide identifies runtime authority and implemented snapshot/diff surfaces'
   );
   assert.match(
-    httpApiSpec,
-    /`workspacePath` \(required, allowlisted\)[\s\S]*`workspaceId` \(optional cross-check against the resolved workspace\)/,
+    httpApiGuide,
+    /Required:[\s\S]*`workspacePath` \(string, non-empty, allowlisted\)[\s\S]*Optional:[\s\S]*`workspaceId` \(must match resolved workspace `repoSetId` when provided\)/,
     'HTTP API spec must document workspacePath as required and workspaceId as a cross-check'
   );
   assert.doesNotMatch(
-    httpApiSpec,
+    httpApiGuide,
     /federation pending|pending Phase 14\.6|\(new\)/,
     'HTTP API spec must not retain stale pending/new route language for implemented surfaces'
   );
@@ -534,8 +541,11 @@ const expandSimpleBraceAlternates = (value) => {
   const roadmapText = await fsPromises.readFile(path.join(root, 'docs', 'roadmap.md'), 'utf8');
   assert.match(roadmapText, /^Last audited: \d{4}-\d{2}-\d{2}$/m, 'current roadmap must identify its latest audit date');
   const roadmapAuditDate = roadmapText.match(/^Last audited: (\d{4}-\d{2}-\d{2})$/m)[1];
-  assert.ok(roadmapText.includes(`Current reconciliation, ${roadmapAuditDate}:`),
-    'current reconciliation must match the roadmap audit date');
+  assert.match(roadmapText, /^Last reconciled: \d{4}-\d{2}-\d{2}$/m, 'current roadmap must identify its issue reconciliation date');
+  const roadmapReconciledDate = roadmapText.match(/^Last reconciled: (\d{4}-\d{2}-\d{2})$/m)[1];
+  assert.ok(roadmapReconciledDate <= roadmapAuditDate, 'issue reconciliation cannot postdate the latest roadmap audit');
+  assert.ok(roadmapText.includes(`Current reconciliation, ${roadmapReconciledDate}:`),
+    'current reconciliation must match its explicitly recorded issue reconciliation date');
   const initiativesTable = readMarkdownTableAfterHeading(roadmapText, '## Current Initiatives');
   assert.deepEqual(initiativesTable.header, ['Initiative', 'Status', 'Done now', 'Remaining / next']);
   const expectedStatuses = new Map([
@@ -545,7 +555,7 @@ const expandSimpleBraceAlternates = (value) => {
     ['Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval', 'implemented'],
     ['Lexicon, relation boosts, chargram enrichment, and ANN candidate safety', 'implemented'],
     ['USR consolidated contract and rollout program', 'implemented'],
-    ['Shared-module reduction', 'checkpoint clean'],
+    ['Shared-module reduction', 'coupling audit open'],
     ['Duplicate-code reduction', 'checkpoint clean'],
     ['Production readiness', 'deferred validation'],
     ['Phase 0.5 language/framework execution contract', 'implemented'],
@@ -564,7 +574,29 @@ const expandSimpleBraceAlternates = (value) => {
   assert.match(byName.get('USR consolidated contract and rollout program')['Remaining / next'],
     /former approval-lock process is archived.*not a release blocker/);
   assert.match(byName.get('Shared-module reduction')['Remaining / next'],
-    /No known shared-module implementation batch remains open.*concrete/);
+    /October 18 direct\/transitive import-budget failures without raising baselines/);
+  const windowsQualification = roadmapText.match(
+    /The Windows deep suite is \*\*green\*\* at `([a-f0-9]{9,40})`/
+  );
+  assert.ok(windowsQualification, 'scope Windows acceptance to an immutable candidate');
+  const windowsReceipt = await fsPromises.readFile(
+    path.join(root, 'docs', 'archived', 'windows-deep-repairs-2026-10-18.md'), 'utf8'
+  );
+  const qualifiedHead = windowsReceipt.match(/\| Exact committed\/pushed head \| `([a-f0-9]{40})` \|/);
+  assert.ok(qualifiedHead?.[1].startsWith(windowsQualification[1]),
+    'the active status must identify the exact head in the durable qualification receipt');
+  assert.match(windowsReceipt, /All \*\*2982 required cases pass first attempt\*\*/,
+    'retain complete required-case acceptance rather than a latest-observation aggregate');
+  assert.match(windowsReceipt, /Candidate 21[\s\S]*?2981 required passes[\s\S]*?one failure/,
+    'the later qualified candidate must preserve the preceding failed candidate');
+  assert.match(roadmapText,
+    /Linux\/macOS full deep execution,[\s\S]*?release qualification remain separate\./,
+    'Windows acceptance must not imply cross-platform, optional-backend or release qualification');
+  const deepAudit = await fsPromises.readFile(
+    path.join(root, 'docs', 'archived', 'deep-test-audit-2026-10-18.md'), 'utf8'
+  );
+  assert.match(deepAudit, /tooling\/shared-module-performance/,
+    'reopening the coupling audit must retain the concrete failing fixture');
   assert.match(byName.get('Duplicate-code reduction')['Remaining / next'], /future intentional full audit refresh/);
   const integrationArchive = await fsPromises.readFile(
     path.join(root, 'docs', 'archived', 'ordinary-integration-roadmap-2026-10-06.md'), 'utf8'

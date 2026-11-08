@@ -1,26 +1,127 @@
-/** A supplied real adapter may reorder existing evidence, never introduce members. */
-export const rerankEvidence = async ({adapter,query,hits,signal,maxMs=2000}) => {
-  if(!adapter)return hits;
-  if(!adapter.id||typeof adapter.rerank!=='function')throw new TypeError('Reranker requires id and rerank');
-  if(hits.length>64)throw new RangeError('Reranker evidence window exceeds 64');
-  const controller=new AbortController();
-  const cancel=()=>controller.abort(signal?.reason);
-  signal?.addEventListener('abort',cancel,{once:true});
-  if(signal?.aborted)cancel();
-  let timer;
+import { createHash } from 'node:crypto';
+import { stableStringify } from '../../shared/stable-json.js';
+import { createAbortError, throwIfAborted } from '../../shared/abort.js';
+import { buildRetrievalHitKey } from '../hit-comparison.js';
+import { pendingRerankerWorkFailure, trackRerankerWork } from '../rerankers/failure-ownership.js';
+import { classifyRerankerError } from './reranker-error-classification.js';
+import { captureRerankerAdapter, captureRerankerScores } from './reranker-evidence-admission.js';
+import { assertRerankPoolAdapter } from './rerank-policy.js';
+import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
+import { createScoreCoordinateIdentity } from '../scoring/score-space.js';
+
+const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
+const freeze = (value, depth = 0) => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  if (depth > 64) throw new RangeError('Reranker member snapshot exceeds64 nesting levels.');
+  for (const item of Object.values(value)) freeze(item, depth + 1);
+  return Object.freeze(value);
+};
+const cancelled = () => Object.assign(createAbortError('Reranker cancelled'), { cancelled: true });
+
+/** Adapters only score a request-owned snapshot. Timeout fallback isolates late
+ * work, retaining actual adapter ownership until its own settlement confirms.
+ * Legacy direct calls reject errors unless fallback is explicitly requested. */
+const runEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
+  finalOutputCap = hits.length, policyKey = null, poolPolicy = null, sourceContext = null,
+  fallback = false }, captureDiagnostic) => {
+  throwIfAborted(signal, 'Reranker cancelled');
+  if (!adapter) return hits;
+  const originalAdapter = captureRerankerAdapter(adapter);
+  if (!Array.isArray(hits) || hits.length > 64) throw new RangeError('Reranker evidence window exceeds64');
+  if (!Number.isSafeInteger(finalOutputCap) || finalOutputCap < 0 || finalOutputCap > 64
+    || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 10000) throw new RangeError('Invalid reranker output/deadline cap.');
+  if (poolPolicy !== null) assertRerankPoolAdapter(poolPolicy, adapter, originalAdapter, policyKey, { finalOutputCap, maxMs, poolSize: hits.length });
+  const controller = new AbortController();
+  let timer, rejectCancelled, work = null, tracked = null, timedOut = false, members = null;
+  const cancel = () => { controller.abort(signal?.reason); rejectCancelled?.(cancelled()); };
+  const cancellation = new Promise((_, reject) => { rejectCancelled = reject; });
+  signal?.addEventListener('abort', cancel, { once: true });
+  const diagnostic = { schemaVersion: 1, adapter: originalAdapter.id, adapterIdentity: originalAdapter.identityKey,
+    policyKey, pool: hits.length, finalOutputCap, status: 'not-started', pending: false, reason: null, resultIdentity: null };
+  const attach = (output, settlement = null) => {
+    const captured = Object.freeze({ ...diagnostic });
+    Object.defineProperty(output, 'rerankDiagnostic', { value: captured });
+    if (settlement) Object.defineProperties(output, { rerankerSettlement: { value: settlement }, rerankerOwner: { value: adapter } });
+    captureDiagnostic(captured, settlement ? tracked : null, adapter);
+    return output;
+  };
   try {
-    const result=await Promise.race([
-      Promise.resolve().then(()=>adapter.rerank({query,hits,signal:controller.signal})),
-      new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Reranker deadline exceeded'));},Math.max(1,Math.min(10000,maxMs)));})
-    ]);
-    if(controller.signal.aborted)throw new Error('Reranker cancelled');
-    if(!Array.isArray(result)||result.length!==hits.length)throw new TypeError('Reranker must score each evidence member');
-    const scores=new Map();
-    for(const entry of result){
-      if(!Number.isInteger(entry?.index)||entry.index<0||entry.index>=hits.length||scores.has(entry.index)||!Number.isFinite(entry.score))throw new TypeError('Invalid reranker evidence scores');
-      scores.set(entry.index,entry.score);
+    if (signal?.aborted) throw cancelled();
+    if (!hits.length) { diagnostic.status = 'empty'; return attach([]); }
+    if (Buffer.byteLength(JSON.stringify(hits)) > 2 * 1024 * 1024) throw new RangeError('Reranker member snapshot exceeds2MiB.');
+    members = structuredClone(hits);
+    const borrowed = freeze(structuredClone(members));
+    const requestQuery = String(query || ''), requestSource = sourceContext ? freeze(structuredClone(sourceContext)) : null;
+    const identities = members.map(hit => buildRetrievalHitKey(hit, null, requestSource || {}));
+    if (policyKey && (identities.some(key => !key) || new Set(identities).size !== identities.length
+      || !requestSource?.generation)) throw new Error('Expanded rerank pools require unique source and selected generation identities.');
+    diagnostic.resultIdentity = digest({ version: 1, adapter: originalAdapter.identityKey ?? originalAdapter.id,
+      query: requestQuery, sourceContext: requestSource, members: identities, policyKey,
+      sourceScores: members.map(hit => [hit.score ?? null, hit.scoreType ?? null, hit.sparseScore ?? null, hit.annScore ?? null]),
+      finalOutputCap, maxMs, fallback, tie: 'source-rank', formatting: originalAdapter.formattingIdentity });
+    work = Promise.resolve().then(() => {
+      throwIfAborted(controller.signal);
+      return originalAdapter.rerank({ query: requestQuery, hits: borrowed, signal: controller.signal, sourceContext: requestSource });
+    });
+    tracked = trackRerankerWork(work);
+    const result = await Promise.race([work, cancellation, new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+        reject(Object.assign(new Error('Reranker deadline exceeded'), { code: 'ERR_RERANK_DEADLINE' }));
+      }, maxMs);
+    })]);
+    throwIfAborted(signal, 'Reranker cancelled');
+    const scores = captureRerankerScores(result, members.length, originalAdapter);
+    diagnostic.status = 'scored';
+    const ranked = members.map((hit, index) => ({ ...hit, sourceScore: hit.score, sourceScoreType: hit.scoreType,
+      score: scores.get(index), scoreType: 'model_rerank', reranker: originalAdapter.id,
+      scoreCoordinateIdentity: originalAdapter.identityKey && originalAdapter.formattingIdentity
+        ? createScoreCoordinateIdentity({ type: 'model_rerank', adapter: originalAdapter.identityKey,
+          formatting: originalAdapter.formattingIdentity, metric: 'adapter-score', normalization: 'none', calibration: 'none' }) : null,
+      ...(hit.scoreBreakdown ? { scoreBreakdown: reconcileSelectedScore(hit.scoreBreakdown, {
+        score: scores.get(index), type: 'model_rerank', stage: 'model', sourceScore: hit.score, sourceType: hit.scoreType
+      }) } : {}),
+      rerankProvenance: { schemaVersion: 1, identity: diagnostic.resultIdentity, policyKey,
+        generation: requestSource?.generation ?? null, sourceIdentity: identities[index], sourceRank: index + 1,
+        poolCap: members.length, finalOutputCap }, __rank: index }))
+      .sort((a, b) => b.score - a.score || a.__rank - b.__rank).slice(0, finalOutputCap).map(({ __rank, ...hit }) => hit);
+    return attach(ranked, tracked.pending ? tracked.promise : null);
+  } catch (error) {
+    let classified = classifyRerankerError(error);
+    error = classified.error;
+    if (classified.pending) throw error;
+    if (timedOut && !signal?.aborted && classified.abort) {
+      error = Object.assign(new Error('Reranker deadline exceeded', { cause: error }), { code: 'ERR_RERANK_DEADLINE' });
+      classified = classifyRerankerError(error);
     }
-    return hits.map((hit,index)=>({...hit,sourceScore:hit.score,sourceScoreType:hit.scoreType,score:scores.get(index),scoreType:'model_rerank',reranker:adapter.id,__rank:index}))
-      .sort((a,b)=>b.score-a.score||a.__rank-b.__rank).map(({__rank,...hit})=>hit);
-  } finally {clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
+    if (signal?.aborted || classified.abort || classified.cancelled) {
+      const cancellationError = signal?.aborted ? cancelled() : error;
+      if (tracked?.pending) throw pendingRerankerWorkFailure(cancellationError, adapter, tracked);
+      throw cancellationError;
+    }
+    diagnostic.status = fallback ? 'fallback' : 'failed'; diagnostic.reason = classified.reason;
+    diagnostic.pending = tracked?.pending === true;
+    if (!fallback) {
+      if (diagnostic.pending) throw pendingRerankerWorkFailure(error, adapter, tracked);
+      throw error;
+    }
+    return attach((members || hits).slice(0, finalOutputCap).map(hit => ({ ...hit, rerankProvenance: {
+      schemaVersion: 1, identity: diagnostic.resultIdentity, policyKey, status: 'pre-rerank-fallback', reason: diagnostic.reason } })),
+    diagnostic.pending ? tracked.promise : null);
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
+};
+
+/** Diagnostics observe an already selected outcome. Their original failure is
+ * independent of scoring and cannot retry the adapter or relabel it fallback. */
+export const rerankEvidence = async options => {
+  const onDiagnostic = options.onDiagnostic;
+  let diagnostic = null, tracked = null, originalAdapter = null;
+  const output = await runEvidence(options, (value, work, adapter) => { diagnostic = value; tracked = work; originalAdapter = adapter; });
+  try { if (diagnostic && onDiagnostic != null) await onDiagnostic({ ...diagnostic }); }
+  catch (primary) {
+    if (tracked?.pending) throw pendingRerankerWorkFailure(primary, originalAdapter, tracked);
+    throw primary;
+  }
+  return output;
 };

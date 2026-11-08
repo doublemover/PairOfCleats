@@ -1,4 +1,5 @@
 import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';
+import { createEmbeddingTokenEstimator } from '../shared/embedding-token-estimation.js';
 import {
   formatEmbeddingInput,
   formatEmbeddingInputs,
@@ -72,6 +73,10 @@ export function createEmbedder({
   });
   const inputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelAwareCharsPerToken = resolveModelAwareCharsPerToken(modelId);
+  const estimateFallback = value => Math.max(1, Math.ceil((typeof value === 'string' ? value.length : 0) / modelAwareCharsPerToken));
+  const estimateAdapterTokens = createEmbeddingTokenEstimator({
+    estimate: adapter?.estimateTokensBatch, receiver: adapter, fallback: estimateFallback
+  });
   let observedDims = null;
   let inferenceSucceeded = false;
   const observeVectors = (vectors) => {
@@ -113,26 +118,7 @@ export function createEmbedder({
       kind: 'passage',
       formatting: inputFormatting
     });
-    const fallback = payloads.map((value) => {
-      const chars = typeof value === 'string' ? value.length : 0;
-      return Math.max(1, Math.ceil(chars / modelAwareCharsPerToken));
-    });
-    if (typeof adapter?.estimateTokensBatch !== 'function') {
-      return fallback;
-    }
-    try {
-      const estimated = await adapter.estimateTokensBatch(payloads);
-      if (!Array.isArray(estimated) || estimated.length !== payloads.length) {
-        return fallback;
-      }
-      const out = new Array(estimated.length);
-      for (let i = 0; i < estimated.length; i += 1) {
-        out[i] = Math.max(1, Math.floor(Number(estimated[i]) || fallback[i] || 1));
-      }
-      return out;
-    } catch {
-      return fallback;
-    }
+    return (await estimateAdapterTokens?.(payloads)) ?? payloads.map(estimateFallback);
   };
   // Surface adapter concurrency capability so embedding pipelines can safely
   // decide whether code/doc batches may run in parallel.

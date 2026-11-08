@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const args = process.argv.slice(2);
 if (args.includes('--version') || args.includes('--help')) {
-  process.stdout.write('ast-grep stub\n');
+  process.stdout.write('ast-grep 0.40.4\n');
   process.exit(0);
 }
 const payload = {

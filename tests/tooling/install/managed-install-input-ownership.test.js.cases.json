@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["descriptor-during-download", "descriptor-during-selection", "mutated-source-refusal", "borrowed-buffer-before-write", "passive-contract", "pending-acquisition-before-fields", "pending-progress-before-acquisition"]
+}

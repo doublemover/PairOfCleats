@@ -21,17 +21,26 @@ export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
  * @param {number} [minVal]
  * @param {number} [maxVal]
  * @param {number} [levels]
+ * @param {Float32Array|null} [destination] Exact-length owned output slice.
  * @returns {Float32Array|null}
  */
-export function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 256) {
+export function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 256, destination = null) {
   if (!vec || typeof vec.length !== 'number') return null;
+  if (destination !== null && (!(destination instanceof Float32Array) || destination.length !== vec.length)) {
+    throw new TypeError('Dequantization destination must be an exact-length Float32Array.');
+  }
+  if (destination && ArrayBuffer.isView(vec) && vec.buffer === destination.buffer
+    && vec.byteOffset < destination.byteOffset + destination.byteLength
+    && destination.byteOffset < vec.byteOffset + vec.byteLength) {
+    throw new TypeError('Dequantization source and destination must not overlap.');
+  }
   const rawLevels = Number(levels);
   let resolvedLevels = Number.isFinite(rawLevels) ? Math.floor(rawLevels) : 256;
   if (!Number.isFinite(resolvedLevels)) resolvedLevels = 256;
   if (resolvedLevels < 2) resolvedLevels = 2;
   if (resolvedLevels > 256) resolvedLevels = 256;
   const scale = (maxVal - minVal) / (resolvedLevels - 1);
-  const out = new Float32Array(vec.length);
+  const out = destination ?? new Float32Array(vec.length);
   for (let i = 0; i < vec.length; i++) {
     out[i] = vec[i] * scale + minVal;
   }

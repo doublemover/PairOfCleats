@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRuntimeImportFixture } from './runtime-import-fixture.js';
 import { applyTestEnv } from './test-env.js';
-import { buildIndex } from '../../src/integrations/core/index.js';
+import { buildIndex } from '../../src/integrations/core/build-index.js';
 import { openPublishedSemanticStore } from '../../src/semantic/published-store.js';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 
@@ -22,7 +22,7 @@ export const createVerifiedRuntimeImportFixture = async () => {
       embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
       riskAnalysis: false, treeSitter: { enabled: false }
     } } });
-    await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: false,
+    await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: false, threads: 1,
       'stub-embeddings': true, 'scm-provider': 'none' });
     const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
     const { store, manifest } = await openPublishedSemanticStore({ repoRoot, indexDir });

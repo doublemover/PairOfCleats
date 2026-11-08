@@ -5,6 +5,13 @@
   "run_id": "fixture-supervised",
   "variants": [
     {
+      "id": "desktop-color",
+      "width": 120,
+      "height": 40,
+      "color": true,
+      "unicode": true
+    },
+    {
       "id": "narrow-color",
       "width": 80,
       "height": 24,

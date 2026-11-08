@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "positive", "snapshot", "concurrent-sqlite", "source-change", "native-change", "embedding-change",
+    "root-mismatch", "invalid-request", "commit-once", "commit-failure-coalesced", "native-success",
+    "native-write-failure", "native-close-failure", "native-result-pending", "mutation-revoked",
+    "mutation-release-revoked", "pending-request", "source-observer-revoked", "patch-observer-revoked"
+  ]
+}

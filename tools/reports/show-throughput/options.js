@@ -32,6 +32,13 @@ const toOptionalString = (value) => {
   const text = String(value || '').trim();
   return text || null;
 };
+const normalizeFocusedMode = value => {
+  const raw = toOptionalString(value);
+  if (!raw) return null;
+  const mode = raw.toLowerCase() === 'extractedprose' ? 'extracted-prose' : raw.toLowerCase();
+  if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) throw new TypeError('Throughput --mode must be code, prose, extracted-prose or records.');
+  return mode;
+};
 
 const toOptionalPositiveInt = (value) => {
   const parsed = Number(value);
@@ -155,7 +162,7 @@ export const resolveShowThroughputOptions = ({
     folderFilter: folder || language,
     repoFilter: toOptionalString(parsed.repo),
     languageFilter: language,
-    modeFilter: toOptionalString(parsed.mode),
+    modeFilter: normalizeFocusedMode(parsed.mode),
     latestCount: toOptionalPositiveInt(parsed.latest),
     sortMetric: normalizeChoice(parsed.sort, SORT_CHOICES, 'regressions'),
     topN: toOptionalPositiveInt(parsed.top) || 10,

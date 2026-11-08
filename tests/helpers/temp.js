@@ -15,7 +15,10 @@ export const RETRYABLE_RM_CODES = new Set([
 
 export const makeTempDir = async (prefix = 'pairofcleats-') => {
   const base = path.join(os.tmpdir(), prefix);
-  return fsPromises.mkdtemp(base);
+  // A fixture owns its newly created physical root. System temporary paths may
+  // use macOS /var aliases or Windows short names; those spellings must not
+  // masquerade as a second storage authority or hide observed native work.
+  return fsPromises.realpath(await fsPromises.mkdtemp(base));
 };
 
 export const rmDirRecursive = async (

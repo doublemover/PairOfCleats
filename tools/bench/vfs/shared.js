@@ -1,4 +1,4 @@
-import { formatStats, summarizeDurations } from '../micro/utils.js';
+import { formatStats, normalizeSampledBenchOptions, summarizeDurations } from '../micro/utils.js';
 
 export function clampInt(value, min, fallback) {
   const parsed = Number(value);
@@ -39,29 +39,41 @@ export function buildLookupIndices(count, max, seedValue) {
 }
 
 export function runSampled({ iterations, samples, fn }) {
-  const timings = [];
-  const perSample = Math.max(1, Math.floor(iterations / samples));
-  const remainder = iterations - perSample * samples;
+  const { samples: effectiveSamples } = normalizeSampledBenchOptions({ iterations, samples });
+  if (typeof fn !== 'function') throw new TypeError('A synchronous VFS benchmark operation is required.');
+  const timings = [], bucketOperations = [];
+  const perSample = Math.floor(iterations / effectiveSamples);
+  const remainder = iterations - perSample * effectiveSamples;
   let totalMs = 0;
   let index = 0;
-  for (let i = 0; i < samples; i += 1) {
+  for (let i = 0; i < effectiveSamples; i += 1) {
     const loops = perSample + (i < remainder ? 1 : 0);
     const start = process.hrtime.bigint();
     for (let j = 0; j < loops; j += 1) {
-      fn(index);
+      const result = fn(index);
+      if (result && typeof result.then === 'function') {
+        let settled = false;
+        Promise.resolve(result).then(() => { settled = true; }, () => { settled = true; });
+        throw Object.assign(new TypeError('The synchronous VFS benchmark cannot measure asynchronous operations.'), {
+          cacheOwnershipPending: true, cacheOwnershipReleased: () => settled
+        });
+      }
       index += 1;
     }
     const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
     timings.push(elapsed);
+    bucketOperations.push(loops);
     totalMs += elapsed;
   }
   const stats = summarizeDurations(timings);
-  const opsPerSec = totalMs > 0 ? iterations / (totalMs / 1000) : 0;
-  return { totalMs, opsPerSec, stats };
+  const opsPerSec = totalMs > 0 ? index / (totalMs / 1000) : 0;
+  return { schemaVersion: 2, requestedIterations: iterations, completedOperations: index,
+    requestedSamples: samples, effectiveSamples, bucketOperations, rawSampleDurationsMs: timings,
+    statsUnit: 'milliseconds-per-bucket', totalMs, opsPerSec, stats };
 }
 
 export function printBench(label, bench) {
   const stats = bench.stats ? formatStats(bench.stats) : 'n/a';
   const ops = Number.isFinite(bench.opsPerSec) ? bench.opsPerSec.toFixed(1) : 'n/a';
-  console.error(`- ${label}: ${stats} | ops/sec ${ops}`);
+  console.error(`- ${label}: bucket ${stats} | ops/sec ${ops}`);
 }

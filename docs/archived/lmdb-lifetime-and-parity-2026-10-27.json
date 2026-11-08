@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "40f3bc7854f9a9575a52fda1524083a132d89283",
+  "sourceTree": "b095e9a6396eca442b89c76707f609b9aae12c95",
+  "implementationCommits": [
+    "fff95d513ae4e0d83d8b1d27512d39d6f9358e4e",
+    "40f3bc7854f9a9575a52fda1524083a132d89283"
+  ],
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "closed": [
+      1084,
+      1093
+    ],
+    "partial": [
+      1574
+    ]
+  },
+  "native": {
+    "package": "lmdb",
+    "version": "3.5.1",
+    "readSourceSha256": "3b18789dbcc7fa1fbf068431247ea0f3db9f1f660c3c67fdd3b69180e7293cd1",
+    "binary": {
+      "path": "node_modules/@lmdb/lmdb-win32-x64/node.napi.node",
+      "sha256": "35a0b137cfee86bcef943929a6448b86e87f225d7b97f82a85fc28f109d70138"
+    },
+    "dependencyChanges": false,
+    "patchChanges": false
+  },
+  "proof": {
+    "baselineHead": "6fc5426327c73157c3ed3f1a08ba1dd2d3da810f",
+    "scope": "Selected original owner modules loaded only in controlled child processes through a local Node load hook; checkout files were never reverted.",
+    "before": [
+      {
+        "name": "prefetch-retrieval",
+        "exitCode": 1,
+        "durationMs": 210,
+        "receipt": ".tmp/tasks/lmdb-owner-closeout-20261027/before-proven-prefetch-retrieval.json",
+        "failure": "AssertionError [ERR_ASSERTION]: neither owner may report closed while the actual prefetch callback remains outstanding"
+      },
+      {
+        "name": "prefetch-builder",
+        "exitCode": 1,
+        "durationMs": 205,
+        "receipt": ".tmp/tasks/lmdb-owner-closeout-20261027/before-proven-prefetch-builder.json",
+        "failure": "AssertionError [ERR_ASSERTION]: neither owner may report closed while the actual prefetch callback remains outstanding"
+      },
+      {
+        "name": "metadata-parity",
+        "exitCode": 1,
+        "durationMs": 1220,
+        "receipt": ".tmp/tasks/lmdb-owner-closeout-20261027/before-proven-metadata-parity.json",
+        "failure": "AssertionError [ERR_ASSERTION]: actual native and memory readers retain the same file metadata"
+      }
+    ],
+    "after": {
+      "nativePrefetchCases": 2,
+      "metadataFormatCases": 3,
+      "failurePropagationCases": 4
+    },
+    "nativePrefetch": "Real native prefetch completes, but its callback handoff is held to keep the library outstanding-read count live. Neither retrieval nor canonical build owner may complete before release. Reopen/readback confirms native data survives.",
+    "metadata": "Actual LMDB builder/native readback and memory reader agree on file/ext/author/modification/external docs/churn, retaining explicit zero; JSON, sharded JSONL and columnar selected families override stale aliases. Each corrupt selected family rejects before replacing the prior valid store.",
+    "errorAuthority": "Four actual native handle cases preserve original initialization/tracking causes and native cleanup failures, close healthy siblings and never retry uncertain closure. Separate controls retain original failure observers after report callback replacement."
+  },
+  "checks": {
+    "format": {
+      "exitCode": 0,
+      "receipt": ".tmp/tasks/lmdb-owner-closeout-20261027/format-final.stdout.log"
+    },
+    "focused": {
+      "total": 21,
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 13782,
+      "tests": [
+        {
+          "id": "retrieval/backend/disposal-failure-authority",
+          "status": "passed",
+          "durationMs": 74,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/context-initialization",
+          "status": "passed",
+          "durationMs": 481,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/dispose-siblings",
+          "status": "passed",
+          "durationMs": 480,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/lmdb-initialization",
+          "status": "passed",
+          "durationMs": 473,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/lmdb-failure-propagation/tracking",
+          "status": "passed",
+          "durationMs": 477,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/explicit-false",
+          "status": "passed",
+          "durationMs": 353,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/initialization-failure",
+          "status": "passed",
+          "durationMs": 306,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/native-observation",
+          "status": "passed",
+          "durationMs": 388,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/backend/sqlite-uncached-close-ownership/sticky-failure",
+          "status": "passed",
+          "durationMs": 367,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/cli/backend-lifecycle",
+          "status": "passed",
+          "durationMs": 623,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/index-hydration-contract",
+          "status": "passed",
+          "durationMs": 108,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/manifest-array-inputs",
+          "status": "passed",
+          "durationMs": 150,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/native-artifact-parity/columnar",
+          "status": "passed",
+          "durationMs": 2541,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/native-artifact-parity/json",
+          "status": "passed",
+          "durationMs": 2755,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/native-artifact-parity/jsonl",
+          "status": "passed",
+          "durationMs": 2773,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder",
+          "status": "passed",
+          "durationMs": 246,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval",
+          "status": "passed",
+          "durationMs": 209,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/replacement-atomicity",
+          "status": "passed",
+          "durationMs": 109,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/selected-generation-inputs",
+          "status": "passed",
+          "durationMs": 514,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/native-command-resource-closure",
+          "status": "passed",
+          "durationMs": 167,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/native-database-lifetime",
+          "status": "passed",
+          "durationMs": 170,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    "frontGate": [
+      {
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget",
+        "durationMs": 2156,
+        "executable": "npm.cmd",
+        "exitCode": 0
+      },
+      {
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment",
+        "durationMs": 1331,
+        "executable": "npm.cmd",
+        "exitCode": 0
+      },
+      {
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated",
+        "durationMs": 11451,
+        "executable": "node",
+        "exitCode": 0
+      },
+      {
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface",
+        "durationMs": 4492,
+        "executable": "node",
+        "exitCode": 0
+      },
+      {
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow",
+        "durationMs": 243,
+        "executable": "node",
+        "exitCode": 0
+      },
+      {
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "name": "gate-lane",
+        "durationMs": 23862,
+        "executable": "node",
+        "exitCode": 0
+      },
+      {
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff",
+        "durationMs": 73,
+        "executable": "git",
+        "exitCode": 0
+      }
+    ],
+    "gateLane": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 23031
+    }
+  },
+  "fixtureCorrections": [
+    "The first baseline invocation used a Windows path instead of a file URL for --import.",
+    "The first prefetch interception spread non-enumerable native exports, losing getAddress; corrected with an inherited native binding object overriding only prefetch.",
+    "The first parity fixture put machine-only lmdb configuration into repository config; removed the prohibited fixture field without changing config authority."
+  ],
+  "coverageContinuity": "Late replacement of db.close in the old lifecycle fixture is now rejected by original-method capture; its asynchronous-closure assertion moved to two actual native prefetch controls. The inert LMDB-shaped registry fixture now supplies its actual completion callback while retaining its existing wait and failure assertions.",
+  "remaining": [
+    "#1574 custom backend producer/publication registration, launch authority and original reader/cache/builder/sidecar session adoption.",
+    "Category-specific custom output and multi-repository/adapter cleanup qualification; external roots remain protected.",
+    "No native access-violation attribution, whole-suite, performance, optional-backend, non-Windows, hosted CI or release acceptance is claimed."
+  ],
+  "evidence": "Raw .tmp/.testLogs receipts are historical author-workspace material, absent in clean checkouts. Prepared dependencies were unchanged; actual native operations and the environment gate supplement prior setup verification, without claiming a fresh bootstrap."
+}

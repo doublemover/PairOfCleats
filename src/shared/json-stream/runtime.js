@@ -51,20 +51,20 @@ const resolvePositiveInt = (value, fallback) => {
  * This keeps timers/heartbeats responsive while streaming very large payloads.
  *
  * @param {{every?:number,minIntervalMs?:number}} [input]
- * @returns {()=>Promise<void>}
+ * @returns {()=>Promise<void>|undefined}
  */
 const createCooperativeYielder = (input = {}) => {
   const every = resolvePositiveInt(input?.every, 2048);
   const minIntervalMs = resolvePositiveInt(input?.minIntervalMs, 8);
   let steps = 0;
   let lastYieldAt = Date.now();
-  return async () => {
+  return () => {
     steps += 1;
     if ((steps % every) !== 0) return;
     const now = Date.now();
     if ((now - lastYieldAt) < minIntervalMs) return;
     lastYieldAt = now;
-    await waitForImmediate();
+    return waitForImmediate();
   };
 };
 

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["relative-path", "relative-command", "authority", "name-order", "missing"]
+}

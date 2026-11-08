@@ -1,4 +1,5 @@
 import { buildHeuristicDataflow, hasReturnValue } from './flow.js';
+import { syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
 
 /**
  * Slice a declaration signature from raw text.
@@ -305,12 +306,9 @@ export function buildDefaultDocMeta(chunk, options = {}) {
   if (options.includeVisibility) out.visibility = meta.visibility || null;
   if (options.includeImplFor) out.implFor = meta.implFor || null;
   appendDocMetaFields(out, options.extraFields);
-  out.dataflow = meta.dataflow || null;
-  out.throws = meta.throws || [];
-  out.awaits = meta.awaits || [];
-  out.yields = meta.yields || false;
-  out.returnsValue = meta.returnsValue || false;
-  out.controlFlow = meta.controlFlow || null;
+  for (const field of ['dataflow', 'throws', 'awaits', 'yields', 'returnsValue', 'controlFlow', 'flowEvidence']) {
+    if (Object.hasOwn(meta, field) && meta[field] != null) out[field] = meta[field];
+  }
   return out;
 }
 
@@ -444,14 +442,25 @@ export function buildBraceDelimitedMethodRelations(text, chunks, options) {
   const exports = new Set();
   const calls = [];
   const usages = new Set();
+  const nativeChunks = [];
+  let heuristicCalls = false;
   if (Array.isArray(chunks) && typeof collectCallsAndUsages === 'function' && typeof findBodyBounds === 'function') {
     for (const chunk of chunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (isExported(chunk)) exports.add(chunk.name);
       if (!callableKinds.has(chunk.kind)) continue;
       if (!shouldScanCallable(chunk)) continue;
+      if (Array.isArray(chunk.meta?.syntaxCalls)) {
+        nativeChunks.push(chunk);
+        for (const detail of chunk.meta.syntaxCalls) if (detail.callee) {
+          calls.push([chunk.name,detail.callee]); usages.add(detail.callee);
+        }
+        continue;
+      }
       const bounds = findBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
+      if (chunk.meta?.bodyless || !(bounds.bodyStart >= chunk.start && bounds.bodyStart < chunk.end)) continue;
+      heuristicCalls = true;
+      const scanStart = bounds.bodyStart + 1;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
       const slice = text.slice(scanStart, scanEnd);
       const { calls: chunkCalls, usages: chunkUsages } = collectCallsAndUsages(slice);
@@ -463,6 +472,9 @@ export function buildBraceDelimitedMethodRelations(text, chunks, options) {
     imports,
     exports: Array.from(exports),
     calls,
+    ...(nativeChunks.length ? { callDetails: syntaxRelationsForChunks(nativeChunks).callDetails,
+      callOwnership: 'native-syntax-occurrences-v1' } : {}),
+    ...(heuristicCalls ? { callCoverage: 'partial-heuristic-callable-bodies' } : {}),
     usages: Array.from(usages)
   };
 }

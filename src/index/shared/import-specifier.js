@@ -17,29 +17,30 @@ export const sanitizeImportSpecifier = (
   {
     maxLength = 4096,
     stripSurroundingQuotes = true,
-    stripTrailingPunctuation = true
+    stripTrailingPunctuation = true,
+    literal = false
   } = {}
 ) => {
   if (value == null) return '';
-  let token = String(value).trim();
+  let token = literal ? String(value) : String(value).trim();
   if (!token) return '';
   if (token.length > maxLength) return '';
   if (CONTROL_CHAR_RE.test(token)) return '';
 
-  if (stripSurroundingQuotes) {
+  if (stripSurroundingQuotes && !literal) {
     token = token
       .replace(/^[`"']/, '')
       .replace(/[`"']$/, '');
   }
-  if (stripTrailingPunctuation) {
+  if (stripTrailingPunctuation && !literal) {
     token = token.replace(/[);,]+$/g, '');
   }
 
-  token = token.trim();
+  if (!literal) token = token.trim();
   if (!token) return '';
   if (token.length > maxLength) return '';
   if (CONTROL_CHAR_RE.test(token)) return '';
-  if (PSEUDO_TOKEN_RE.test(token)) return '';
+  if (!literal && PSEUDO_TOKEN_RE.test(token)) return '';
   return token;
 };
 

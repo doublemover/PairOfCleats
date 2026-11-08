@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -8,11 +9,12 @@ const buildWorker = ({
   claimedJob,
   executeMs,
   policy,
-  touchImpl = async () => ({ ok: true })
+  touchImpl = null
 }) => {
   const touched = [];
   let claimed = false;
   let finalized = 0;
+  let receipt;
   const worker = createQueueWorker({
     queueDir: 'queue-dir',
     resolvedQueueName: 'index',
@@ -21,19 +23,22 @@ const buildWorker = ({
     startBuildProgressMonitor: () => async () => {},
     touchJobHeartbeat: async (...args) => {
       touched.push(args);
-      return touchImpl(...args);
+      if (touchImpl) return touchImpl(...args);
+      receipt = { ...receipt, lease: { ...receipt.lease, expiresAt: new Date(Date.now() + policy.leaseMs).toISOString() } };
+      return receipt;
     },
     requeueStaleJobs: async () => ({ stale: 0, retried: 0, failed: 0 }),
-    claimNextJob: async () => {
+    claimNextJob: async (_dir, _queue, options) => {
       if (claimed) return null;
       claimed = true;
-      return {
+      receipt = createQueueClaimFixture({
         ...claimedJob,
         lease: {
           owner: 'queue-worker:test',
           version: 1
         }
-      };
+      }, options, { leaseMs: policy.leaseMs });
+      return receipt;
     },
     ensureQueueDir: async () => {},
     executeClaimedJob: async () => {

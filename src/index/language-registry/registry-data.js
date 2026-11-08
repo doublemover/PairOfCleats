@@ -1,4 +1,6 @@
-import { createTypeScriptSyntaxContext, prepareTypeScriptSyntax } from '../../lang/typescript/syntax-context.js';
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../deferred-language-functions.js';
+import { toParsedLiteralImportEntries } from '../../shared/import-extraction.js';
 import path from 'node:path';
 import {
   isCLike,
@@ -17,34 +19,7 @@ import {
   isLua,
   isSql
 } from '../constants.js';
-import { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, computeCLikeFlow, extractCLikeDocMeta } from '../../lang/clike.js';
-import { buildGoChunks, buildGoRelations, collectGoImports, computeGoFlow, extractGoDocMeta } from '../../lang/go.js';
-import { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlow, extractJavaDocMeta } from '../../lang/java.js';
-import { buildCodeRelations, collectImports, extractDocMeta, parseJavaScriptAst } from '../../lang/javascript.js';
-import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, computeTypeScriptFlow, extractTypeScriptDocMeta } from '../../lang/typescript.js';
-import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeCSharpFlow, extractCSharpDocMeta } from '../../lang/csharp.js';
-import * as kotlinLang from '../../lang/kotlin.js';
-import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../../lang/ruby.js';
-import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../../lang/php.js';
-import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../../lang/html.js';
-import { buildCssChunks, buildCssRelations, collectCssImports, computeCssFlow, extractCssDocMeta } from '../../lang/css.js';
-import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../../lang/lua.js';
-import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } from '../../lang/sql.js';
-import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../../lang/perl.js';
-import {
-  getPythonAst,
-  collectPythonImportEntries,
-  collectPythonImports,
-  buildPythonRelations,
-  extractPythonDocMeta,
-  buildPythonChunksFromAst,
-  buildPythonHeuristicChunks
-} from '../../lang/python.js';
-import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../../lang/rust.js';
-import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../../lang/swift.js';
-import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../../lang/shell.js';
-import { buildTreeSitterChunksAsync } from '../../lang/tree-sitter.js';
-import { buildControlFlowOnly, JS_CONTROL_FLOW, PY_CONTROL_FLOW } from './control-flow.js';
+import { buildControlFlowOnly, PY_CONTROL_FLOW } from './control-flow.js';
 import {
   buildConfigFileAdapters,
   buildHeuristicAdapters,
@@ -53,7 +28,80 @@ import {
   normalizeRelPath,
   shouldSkipPythonAstForFile
 } from './adapters/index.js';
+const require = createRequire(import.meta.url);
+const { createTypeScriptSyntaxContext, prepareTypeScriptSyntax, prepareTypeScriptBabelSyntax } = deferLanguageFunctions(
+  () => require('../../lang/typescript/syntax-context.js'),
+  ['createTypeScriptSyntaxContext', 'prepareTypeScriptSyntax', 'prepareTypeScriptBabelSyntax']
+);
+const { preparedJavaScriptRelations, preparedJavaScriptFlow } = deferLanguageFunctions(
+  () => require('../../lang/javascript/prepared-relations.js'),
+  ['preparedJavaScriptRelations', 'preparedJavaScriptFlow']
+);
+const { resolveJsTsExports } = deferLanguageFunctions(
+  () => require('../../lang/js-ts-exports.js'),
+  ['resolveJsTsExports']
+);
 
+const { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, computeCLikeFlow, extractCLikeDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/clike.js'),
+  [
+    'buildCLikeChunks',
+    'buildCLikeRelations',
+    'collectCLikeImports',
+    'computeCLikeFlow',
+    'extractCLikeDocMeta'
+  ]
+);
+const { buildGoChunks, buildGoRelations, collectGoImports, computeGoFlow, extractGoDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/go.js'),
+  ['buildGoChunks', 'buildGoRelations', 'collectGoImports', 'computeGoFlow', 'extractGoDocMeta']
+);
+const { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlow, extractJavaDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/java.js'),
+  [
+    'buildJavaChunks',
+    'buildJavaRelations',
+    'collectJavaImports',
+    'computeJavaFlow',
+    'extractJavaDocMeta'
+  ]
+);
+const { collectImports, extractDocMeta, parseJavaScriptAst } = deferLanguageFunctions(
+  () => require('../../lang/javascript.js'),
+  ['collectImports', 'extractDocMeta', 'parseJavaScriptAst']
+);
+const {
+  buildTypeScriptChunks,
+  buildTypeScriptRelations,
+  collectTypeScriptImports,
+  computeTypeScriptFlow,
+  extractTypeScriptDocMeta
+} = deferLanguageFunctions(
+  () => require('../../lang/typescript.js'),
+  [
+    'buildTypeScriptChunks',
+    'buildTypeScriptRelations',
+    'collectTypeScriptImports',
+    'computeTypeScriptFlow',
+    'extractTypeScriptDocMeta'
+  ]
+);
+const {
+  buildCSharpChunks,
+  buildCSharpRelations,
+  collectCSharpImports,
+  computeCSharpFlow,
+  extractCSharpDocMeta
+} = deferLanguageFunctions(
+  () => require('../../lang/csharp.js'),
+  [
+    'buildCSharpChunks',
+    'buildCSharpRelations',
+    'collectCSharpImports',
+    'computeCSharpFlow',
+    'extractCSharpDocMeta'
+  ]
+);
 const {
   buildKotlinChunks,
   buildKotlinRelations,
@@ -61,7 +109,143 @@ const {
   computeKotlinFlow,
   extractKotlinDocMeta,
   getKotlinFileStats
-} = kotlinLang;
+} = deferLanguageFunctions(
+  () => require('../../lang/kotlin.js'),
+  [
+    'buildKotlinChunks',
+    'buildKotlinRelations',
+    'collectKotlinImports',
+    'computeKotlinFlow',
+    'extractKotlinDocMeta',
+    'getKotlinFileStats'
+  ]
+);
+const { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/ruby.js'),
+  [
+    'buildRubyChunks',
+    'buildRubyRelations',
+    'collectRubyImports',
+    'computeRubyFlow',
+    'extractRubyDocMeta'
+  ]
+);
+const { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/php.js'),
+  ['buildPhpChunks', 'buildPhpRelations', 'collectPhpImports', 'computePhpFlow', 'extractPhpDocMeta']
+);
+const {
+  buildHtmlChunks,
+  prepareHtmlChunkContext,
+  buildHtmlRelations,
+  collectHtmlImports,
+  collectHtmlImportEntries,
+  computeHtmlFlow,
+  extractHtmlDocMeta,
+  getHtmlMetadata
+} = deferLanguageFunctions(
+  () => require('../../lang/html.js'),
+  [
+    'buildHtmlChunks',
+    'prepareHtmlChunkContext',
+    'buildHtmlRelations',
+    'collectHtmlImports',
+    'collectHtmlImportEntries',
+    'computeHtmlFlow',
+    'extractHtmlDocMeta',
+    'getHtmlMetadata'
+  ]
+);
+const {
+  prepareCssChunkContext,
+  buildCssRelations,
+  collectCssImports,
+  collectCssImportEntries,
+  computeCssFlow,
+  extractCssDocMeta
+} = deferLanguageFunctions(
+  () => require('../../lang/css.js'),
+  [
+    'prepareCssChunkContext',
+    'buildCssRelations',
+    'collectCssImports',
+    'collectCssImportEntries',
+    'computeCssFlow',
+    'extractCssDocMeta'
+  ]
+);
+const { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/lua.js'),
+  ['buildLuaChunks', 'buildLuaRelations', 'collectLuaImports', 'computeLuaFlow', 'extractLuaDocMeta']
+);
+const { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/sql.js'),
+  ['buildSqlChunks', 'buildSqlRelations', 'collectSqlImports', 'computeSqlFlow', 'extractSqlDocMeta']
+);
+const { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/perl.js'),
+  [
+    'buildPerlChunks',
+    'buildPerlRelations',
+    'collectPerlImports',
+    'computePerlFlow',
+    'extractPerlDocMeta'
+  ]
+);
+const {
+  getPythonAst,
+  collectPythonImportEntries,
+  collectPythonImports,
+  buildPythonRelations,
+  extractPythonDocMeta
+} = deferLanguageFunctions(
+  () => require('../../lang/python.js'),
+  [
+    'getPythonAst',
+    'collectPythonImportEntries',
+    'collectPythonImports',
+    'buildPythonRelations',
+    'extractPythonDocMeta'
+  ]
+);
+const { preparePythonChunkContext } = deferLanguageFunctions(
+  () => require('../../lang/python/prepared-chunks.js'),
+  ['preparePythonChunkContext']
+);
+const { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/rust.js'),
+  [
+    'buildRustChunks',
+    'buildRustRelations',
+    'collectRustImports',
+    'computeRustFlow',
+    'extractRustDocMeta'
+  ]
+);
+const { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/swift.js'),
+  [
+    'buildSwiftChunks',
+    'buildSwiftRelations',
+    'collectSwiftImports',
+    'computeSwiftFlow',
+    'extractSwiftDocMeta'
+  ]
+);
+const { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } = deferLanguageFunctions(
+  () => require('../../lang/shell.js'),
+  [
+    'buildShellChunks',
+    'buildShellRelations',
+    'collectShellImports',
+    'computeShellFlow',
+    'extractShellDocMeta'
+  ]
+);
+const { buildTreeSitterChunksAsync } = deferLanguageFunctions(
+  () => require('../../lang/tree-sitter.js'),
+  ['buildTreeSitterChunksAsync']
+);
 
 /**
  * Normalize possibly-null option bags to plain objects for spread-safe merges.
@@ -83,7 +267,7 @@ const resolveScopedParser = (options, parserScope) => options?.[parserScope]?.pa
  * @param {object} input
  * @returns {object}
  */
-const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras = null }) => ({
+export const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras = null }) => ({
   ...toObjectOptions(options),
   ext,
   relPath,
@@ -100,11 +284,11 @@ const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras =
  * @param {object} input
  * @returns {object}
  */
-const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = null }) => ({
+export const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = null }) => ({
+  ...toObjectOptions(options),
   relPath,
   parser: resolveScopedParser(options, parserScope),
-  ...(extras || {}),
-  ...options
+  ...(extras || {})
 });
 
 /**
@@ -199,6 +383,22 @@ const createParserChunkAdapter = ({
   return adapter;
 };
 
+const createHtmlAdapter = () => {
+  const adapter = createParserChunkAdapter({
+    id: 'html', match: ext => isHtml(ext), collectImports: collectHtmlImports,
+    chunkKey: 'htmlChunks', buildChunks: buildHtmlChunks, buildRelations: buildHtmlRelations,
+    parserScope: 'html', flow: computeHtmlFlow, metadata: getHtmlMetadata
+  });
+  return {
+    ...adapter,
+    collectImportEntries: collectHtmlImportEntries,
+    prepare: async ({ text, relPath, ext, options }) => prepareHtmlChunkContext(text,
+      buildChunkPrepareOptions({ options, relPath, ext, parserScope: 'html' })),
+    buildRelations: ({ text, context }) => buildHtmlRelations(text, context.htmlChunks, context.htmlMeta),
+    extractDocMeta: ({ chunk, context }) => extractHtmlDocMeta(chunk, context?.htmlMeta)
+  };
+};
+
 /**
  * Shared SQL adapter extras so chunking and relations use the same dialect.
  * @param {object} input
@@ -275,28 +475,18 @@ const PARSER_CHUNK_LANGUAGE_ADAPTERS = [
     extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
     flow: computePhpFlow
   }),
-  createParserChunkAdapter({
-    id: 'html',
-    match: (ext) => isHtml(ext),
-    collectImports: collectHtmlImports,
-    chunkKey: 'htmlChunks',
-    buildChunks: buildHtmlChunks,
-    buildRelations: buildHtmlRelations,
-    parserScope: 'html',
-    extractDocMeta: ({ chunk, fileRelations }) => extractHtmlDocMeta(chunk, fileRelations),
-    flow: computeHtmlFlow,
-    metadata: getHtmlMetadata
-  }),
-  createParserChunkAdapter({
-    id: 'css',
-    match: (ext) => isCss(ext),
-    collectImports: collectCssImports,
-    chunkKey: 'cssChunks',
-    buildChunks: buildCssChunks,
-    buildRelations: buildCssRelations,
-    parserScope: 'css',
+  createHtmlAdapter(),
+  createManagedAdapter({
+    id: 'css', match: ext => isCss(ext), collectImports: collectCssImports, collectImportEntries: collectCssImportEntries,
+    prepare: async ({ text, relPath, ext, options }) => {
+      const cssOptions = buildChunkPrepareOptions({ options, relPath, ext, parserScope: 'css' });
+      return prepareCssChunkContext(text, cssOptions);
+    },
+    buildRelations: ({ text, context, options }) => buildCssRelations(text, context.cssChunks,
+      { ...options, cssSourceFacts: context.cssSourceFacts }),
     extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
-    flow: computeCssFlow
+    flow: ({ text, chunk, options }) => computeCssFlow(text, chunk, flowOptions(options)),
+    attachName: true
   }),
   createParserChunkAdapter({
     id: 'lua',
@@ -373,6 +563,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
     id: 'javascript',
     match: (ext) => isJsLike(ext),
     collectImports,
+    collectImportEntries: (text, options) => toParsedLiteralImportEntries(collectImports(text, options)),
     prepare: async ({ text, mode, ext, options }) => {
       if (mode !== 'code') return {};
       const context = {};
@@ -383,21 +574,14 @@ const MANAGED_LANGUAGE_ADAPTERS = [
         options
       });
       if (treeChunks && treeChunks.length) context.jsChunks = treeChunks;
-      if (options?.relationsEnabled !== false || options?.semanticEnabled === true) {
-        context.jsAst = parseJavaScriptAst(text, { ...options, ext });
-      }
+      context.jsAst = parseJavaScriptAst(text, { ...options, ext });
       return context;
     },
-    buildRelations: ({ text, relPath, context, options, ext }) =>
-      buildCodeRelations(text, relPath, {
-        ...options,
-        ext,
-        ast: context?.jsAst,
-        dataflow: options.astDataflowEnabled,
-        controlFlow: options.controlFlowEnabled
-      }),
-    extractDocMeta: ({ text, chunk, fileRelations }) => extractDocMeta(text, chunk, fileRelations),
-    flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, JS_CONTROL_FLOW),
+    buildRelations: ({ text, relPath, context, options, ext }) => preparedJavaScriptRelations(text, relPath, context, { ...options, ext }),
+    extractDocMeta: ({ text, chunk, fileRelations, context, sourceView }) => ({
+      ...extractDocMeta(text, chunk, fileRelations, sourceView), ...resolveJsTsExports(context?.jsAst, chunk)
+    }),
+    flow: preparedJavaScriptFlow,
     attachName: false
   },
   {
@@ -425,7 +609,8 @@ const MANAGED_LANGUAGE_ADAPTERS = [
           parser: options?.typescript?.parser
         });
       }
-      return { tsChunks, tsSyntax, typeScriptSyntaxContext };
+      const exportAst = prepareTypeScriptBabelSyntax(text, syntaxOptions);
+      return { tsChunks, tsSyntax, typeScriptSyntaxContext, exportAst };
     },
     buildRelations: ({ text, context, options, ext }) => {
       if (options?.typescript?.importsOnly === true) {
@@ -439,7 +624,9 @@ const MANAGED_LANGUAGE_ADAPTERS = [
       }
       return buildTypeScriptRelations(text, context.tsChunks, { ...options, ext, typeScriptSyntaxContext: context.typeScriptSyntaxContext });
     },
-    extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
+    extractDocMeta: ({ chunk, context }) => ({
+      ...extractTypeScriptDocMeta(chunk), ...resolveJsTsExports(context?.exportAst, chunk)
+    }),
     flow: ({ text, chunk, options }) => (options?.typescript?.importsOnly === true
       ? null
       : computeTypeScriptFlow(text, chunk, flowOptions(options))),
@@ -453,7 +640,6 @@ const MANAGED_LANGUAGE_ADAPTERS = [
       if (mode !== 'code') return {};
       let pythonAst = null;
       let pythonAstMetrics = null;
-      let pythonChunks = null;
       const pythonAstEnabled = options?.pythonAst?.enabled !== false;
       const pythonAstSkip = shouldSkipPythonAstForFile({ text, relPath, options });
       const runPythonAst = pythonAstEnabled && !pythonAstSkip.skip;
@@ -472,16 +658,9 @@ const MANAGED_LANGUAGE_ADAPTERS = [
           + `(${pythonAstSkip.reason || 'policy'}).`
         );
       }
-      if (pythonAst) {
-        pythonChunks = buildPythonChunksFromAst(text, pythonAst);
-      }
-      if (!pythonChunks || !pythonChunks.length) {
-        pythonChunks = buildPythonHeuristicChunks(text);
-      }
-      return { pythonAst, pythonAstMetrics, pythonChunks };
+      return preparePythonChunkContext({ text, pythonAst, pythonAstMetrics });
     },
-    buildRelations: ({ text, relPath, context, options }) =>
-      buildPythonRelations(text, relPath, context.pythonAst, options),
+    buildRelations: ({ text, context }) => buildPythonRelations(text, context.pythonAst),
     extractDocMeta: ({ chunk, fileRelations, context }) =>
       extractPythonDocMeta(chunk, fileRelations, context),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, PY_CONTROL_FLOW),
@@ -491,8 +670,9 @@ const MANAGED_LANGUAGE_ADAPTERS = [
     id: 'clike',
     match: (ext) => isCLike(ext),
     collectImports: collectCLikeImports,
-    buildRelations: ({ text, relPath, options }) => buildCLikeRelations(text, relPath, options),
-    extractDocMeta: ({ text, chunk, fileRelations }) => extractCLikeDocMeta(text, chunk, fileRelations),
+    prepare: ({ text, ext, options }) => ({ clikeChunks: buildCLikeChunks(text, ext, options) }),
+    buildRelations: ({ text, ext, context, options }) => buildCLikeRelations(text, context.clikeChunks, { ...options, ext }),
+    extractDocMeta: ({ chunk }) => extractCLikeDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeCLikeFlow(text, chunk, flowOptions(options)),
     attachName: true
   },

@@ -17,6 +17,13 @@ import {
 } from '../helpers/analysis-surface-parity.js';
 
 applyTestEnv();
+const phase = label => console.error(`[risk-parity] ${label} (${Math.round(process.uptime() * 1000)}ms)`);
+const cases = ['filters-and-aliases', 'empty-results', 'degraded-artifact', 'invalid-request'];
+const selectedCase = process.env.PAIROFCLEATS_TEST_ID?.split('context-pack/risk-filters-parity/')[1];
+if (selectedCase) assert.ok(cases.includes(selectedCase), `unknown parity case: ${selectedCase}`);
+const includesCase = name => !selectedCase || selectedCase === name;
+assert.deepEqual(JSON.parse(await fs.readFile(new URL('./risk-filters-parity.test.js.cases.json', import.meta.url))),
+  { schemaVersion: 1, cases });
 
 const normalizeRisk = (payload) => ({
   present: payload?.risk != null,
@@ -29,20 +36,19 @@ const normalizeRisk = (payload) => ({
   partialFlowIds: Array.isArray(payload?.risk?.partialFlows) ? payload.risk.partialFlows.map((flow) => flow.partialFlowId) : []
 });
 
+phase('fixture start');
 const { fixtureRoot, codeDir, env } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
-  cacheName: 'risk-interprocedural-js-simple-context-pack-parity',
+  cacheName: `risk-interprocedural-js-simple-context-pack-parity-${selectedCase || 'aggregate'}`,
   requireRiskTags: true,
   cacheScope: 'isolated',
   requiredModes: ['code']
 });
+phase('fixture ready');
 
-const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false }).catch(() => []);
-const partialFlows = await loadJsonArrayArtifact(codeDir, 'risk_partial_flows', { strict: false }).catch(() => []);
-if ((!Array.isArray(flows) || flows.length === 0) && (!Array.isArray(partialFlows) || partialFlows.length === 0)) {
-  console.log('risk flows unavailable; skipping context-pack parity test.');
-  process.exit(0);
-}
+const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false });
+const partialFlows = await loadJsonArrayArtifact(codeDir, 'risk_partial_flows', { strict: false });
+assert.ok(Array.isArray(flows) && flows.length, 'fixture must publish a positive risk flow for filter parity');
 
 const flow = Array.isArray(flows) && flows.length ? flows[0] : null;
 const partialFlow = Array.isArray(partialFlows) && partialFlows.length ? partialFlows[0] : null;
@@ -64,6 +70,7 @@ const disabledGraphCliArgs = [
 ];
 
 await withTemporaryEnv(env, async () => {
+  phase('harness start');
   const harness = await createAnalysisSurfaceHarness({ fixtureRoot, env: process.env });
   try {
     const seed = `chunk:${chunkUid}`;
@@ -74,34 +81,37 @@ await withTemporaryEnv(env, async () => {
       ...disabledGraphArgs
     };
 
-    const noRiskCli = harness.runCli([
-      'context-pack',
-      '--json',
-      '--repo', fixtureRoot,
-      '--seed', seed,
-      '--hops', '0',
-      ...disabledGraphCliArgs
-    ]);
-    assert.equal(noRiskCli.status, 0, `expected CLI context-pack without risk to succeed: ${noRiskCli.stderr}`);
+    if (includesCase('filters-and-aliases')) {
+      phase('no-risk controls');
+      const noRiskCli = harness.runCli([
+        'context-pack',
+        '--json',
+        '--repo', fixtureRoot,
+        '--seed', seed,
+        '--hops', '0',
+        ...disabledGraphCliArgs
+      ]);
+      assert.equal(noRiskCli.status, 0, `expected CLI context-pack without risk to succeed: ${noRiskCli.stderr}`);
 
-    const noRiskApi = await harness.runApi('/analysis/context-pack', baseArgs);
-    assert.equal(noRiskApi.status, 200, 'expected API context-pack without risk to succeed');
+      const noRiskApi = await harness.runApi('/analysis/context-pack', baseArgs);
+      assert.equal(noRiskApi.status, 200, 'expected API context-pack without risk to succeed');
 
-    const noRiskMcp = await harness.runMcp('context_pack', baseArgs);
-    assert.equal(noRiskMcp.ok, true, 'expected MCP context-pack without risk to succeed');
+      const noRiskMcp = await harness.runMcp('context_pack', baseArgs);
+      assert.equal(noRiskMcp.ok, true, 'expected MCP context-pack without risk to succeed');
 
-    assert.deepEqual(normalizeRisk(noRiskCli.parsed), {
-      present: false,
-      status: null,
-      degraded: null,
-      analysisStatus: null,
-      artifactStatus: null,
-      filters: null,
-      flowIds: [],
-      partialFlowIds: []
-    });
-    assert.deepEqual(normalizeRisk(noRiskApi.parsed?.result), normalizeRisk(noRiskCli.parsed));
-    assert.deepEqual(normalizeRisk(noRiskMcp.result), normalizeRisk(noRiskCli.parsed));
+      assert.deepEqual(normalizeRisk(noRiskCli.parsed), {
+        present: false,
+        status: null,
+        degraded: null,
+        analysisStatus: null,
+        artifactStatus: null,
+        filters: null,
+        flowIds: [],
+        partialFlowIds: []
+      });
+      assert.deepEqual(normalizeRisk(noRiskApi.parsed?.result), normalizeRisk(noRiskCli.parsed));
+      assert.deepEqual(normalizeRisk(noRiskMcp.result), normalizeRisk(noRiskCli.parsed));
+    }
 
     const args = {
       ...baseArgs,
@@ -114,6 +124,7 @@ await withTemporaryEnv(env, async () => {
       }
     };
 
+    phase('canonical filters');
     const cliRun = harness.runCli([
       'context-pack',
       '--json',
@@ -137,151 +148,166 @@ await withTemporaryEnv(env, async () => {
     assert.equal(mcpPayload.ok, true, 'expected MCP context-pack request to succeed');
 
     const expected = normalizeRisk(cliRun.parsed);
+    assert.ok(expected.flowIds.includes(flow.flowId), 'matching filters must retain the indexed positive flow');
     assert.deepEqual(normalizeRisk(apiResponse.parsed?.result), expected, 'expected API context-pack risk output to match CLI');
     assert.deepEqual(normalizeRisk(mcpPayload.result), expected, 'expected MCP context-pack risk output to match CLI');
 
-    assert.deepEqual(
-      buildContextPackRequestInput({
+    if (includesCase('filters-and-aliases')) {
+      phase('filter aliases');
+      assert.deepEqual(
+        buildContextPackRequestInput({
+          ...args,
+          filters: {
+            flow_id: flow?.flowId,
+            source_rule: flow?.source?.ruleId,
+            sink_rule: flow?.sink?.ruleId
+          }
+        }).riskFilters,
+        {
+          flow_id: flow?.flowId,
+          source_rule: flow?.source?.ruleId,
+          sink_rule: flow?.sink?.ruleId
+        },
+        'expected shared context-pack request projection to preserve snake_case risk filters'
+      );
+
+      const kebabCaseMcpPayload = await harness.runMcp('context_pack', {
+        ...args,
+        filters: {
+          'flow-id': flow?.flowId,
+          'source-rule': flow?.source?.ruleId,
+          'sink-rule': flow?.sink?.ruleId
+        }
+      });
+      assert.equal(kebabCaseMcpPayload.ok, true, 'expected kebab-case MCP context-pack request to succeed');
+      assert.deepEqual(normalizeRisk(kebabCaseMcpPayload.result), expected, 'expected kebab-case MCP context-pack risk output to match CLI');
+
+      const snakeCaseApiResponse = await harness.runApi('/analysis/context-pack', {
         ...args,
         filters: {
           flow_id: flow?.flowId,
           source_rule: flow?.source?.ruleId,
           sink_rule: flow?.sink?.ruleId
         }
-      }).riskFilters,
-      {
-        flow_id: flow?.flowId,
-        source_rule: flow?.source?.ruleId,
-        sink_rule: flow?.sink?.ruleId
-      },
-      'expected shared context-pack request projection to preserve snake_case risk filters'
-    );
+      });
+      assert.equal(snakeCaseApiResponse.status, 200, 'expected snake_case API context-pack filters to succeed');
+      assert.deepEqual(
+        normalizeRisk(snakeCaseApiResponse.parsed?.result),
+        expected,
+        'expected snake_case API filters to match canonical filtered risk output'
+      );
+    }
 
-    const kebabCaseMcpPayload = await harness.runMcp('context_pack', {
-      ...args,
-      filters: {
-        'flow-id': flow?.flowId,
-        'source-rule': flow?.source?.ruleId,
-        'sink-rule': flow?.sink?.ruleId
-      }
-    });
-    assert.equal(kebabCaseMcpPayload.ok, true, 'expected kebab-case MCP context-pack request to succeed');
-    assert.deepEqual(normalizeRisk(kebabCaseMcpPayload.result), expected, 'expected kebab-case MCP context-pack risk output to match CLI');
-
-    const snakeCaseApiResponse = await harness.runApi('/analysis/context-pack', {
-      ...args,
-      filters: {
-        flow_id: flow?.flowId,
-        source_rule: flow?.source?.ruleId,
-        sink_rule: flow?.sink?.ruleId
-      }
-    });
-    assert.equal(snakeCaseApiResponse.status, 200, 'expected snake_case API context-pack filters to succeed');
-    assert.deepEqual(
-      normalizeRisk(snakeCaseApiResponse.parsed?.result),
-      expected,
-      'expected snake_case API filters to match canonical filtered risk output'
-    );
-
-    const emptyArgs = {
-      ...args,
-      filters: { flowId: 'sha1:ffffffffffffffffffffffffffffffffffffffff' }
-    };
-    const emptyCli = harness.runCli([
-      'context-pack',
-      '--json',
-      '--repo', fixtureRoot,
-      '--seed', emptyArgs.seed,
-      '--hops', String(emptyArgs.hops),
-      '--includeRisk',
-      ...disabledGraphCliArgs,
-      '--flow-id', 'sha1:ffffffffffffffffffffffffffffffffffffffff'
-    ]);
-    assert.equal(emptyCli.status, 0, 'expected CLI empty filter result to stay non-fatal');
-    assert.deepEqual(normalizeRisk(emptyCli.parsed).flowIds, [], 'expected CLI empty filter result to stay non-fatal');
-
-    const emptyMcpPayload = await harness.runMcp('context_pack', emptyArgs);
-    assert.equal(emptyMcpPayload.ok, true, 'expected MCP empty filter result to stay non-fatal');
-    assert.deepEqual(normalizeRisk(emptyMcpPayload.result).flowIds, [], 'expected MCP empty filter result to stay non-fatal');
-
-    const manifest = loadPiecesManifest(codeDir, { strict: true });
-    const riskFlowsPresence = resolveArtifactPresence(codeDir, 'risk_flows', { manifest, strict: false });
-    const riskFlowsPath = riskFlowsPresence.paths?.[0] || null;
-    assert.ok(riskFlowsPath, 'expected fixture index to include risk_flows artifact');
-    const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
-    const manifestText = await fs.readFile(manifestPath, 'utf8');
-    const manifestJson = JSON.parse(manifestText);
-    const manifestBody = manifestJson?.fields && typeof manifestJson.fields === 'object'
-      ? manifestJson.fields
-      : manifestJson;
-    manifestBody.pieces = (Array.isArray(manifestBody?.pieces) ? manifestBody.pieces : [])
-      .filter((entry) => !String(entry?.name || '').startsWith('risk_flows'));
-    await fs.writeFile(manifestPath, `${JSON.stringify(manifestJson, null, 2)}\n`, 'utf8');
-    try {
-      const degradedArgs = {
-        ...baseArgs,
-        includeRisk: true
+    if (includesCase('empty-results')) {
+      phase('empty result');
+      const emptyArgs = {
+        ...args,
+        filters: { flowId: 'sha1:ffffffffffffffffffffffffffffffffffffffff' }
       };
-      const degradedCli = harness.runCli([
+      const emptyCli = harness.runCli([
         'context-pack',
         '--json',
         '--repo', fixtureRoot,
-        '--seed', degradedArgs.seed,
-        '--hops', String(degradedArgs.hops),
+        '--seed', emptyArgs.seed,
+        '--hops', String(emptyArgs.hops),
         '--includeRisk',
-        ...disabledGraphCliArgs
+        ...disabledGraphCliArgs,
+        '--flow-id', 'sha1:ffffffffffffffffffffffffffffffffffffffff'
       ]);
-      assert.equal(degradedCli.status, 0, 'expected degraded CLI context-pack call to stay non-fatal');
+      assert.equal(emptyCli.status, 0, 'expected CLI empty filter result to stay non-fatal');
+      assert.deepEqual(normalizeRisk(emptyCli.parsed).flowIds, [], 'expected CLI empty filter result to stay non-fatal');
 
-      const degradedApi = await harness.runApi('/analysis/context-pack', degradedArgs);
-      assert.equal(degradedApi.status, 200, 'expected degraded API context-pack call to stay non-fatal');
-
-      const degradedExpected = normalizeRisk(degradedCli.parsed);
-      assert.equal(degradedExpected.status, 'degraded');
-      assert.equal(degradedExpected.degraded, true);
-      assert.equal(degradedExpected.artifactStatus?.flows, 'missing');
-      assert.deepEqual(normalizeRisk(degradedApi.parsed?.result), degradedExpected);
-    } finally {
-      await fs.writeFile(manifestPath, manifestText, 'utf8');
+      const emptyMcpPayload = await harness.runMcp('context_pack', emptyArgs);
+      assert.equal(emptyMcpPayload.ok, true, 'expected MCP empty filter result to stay non-fatal');
+      assert.deepEqual(normalizeRisk(emptyMcpPayload.result).flowIds, [], 'expected MCP empty filter result to stay non-fatal');
     }
 
-    const invalidCli = harness.runCli([
-      'context-pack',
-      '--json',
-      '--repo', fixtureRoot,
-      '--seed', args.seed,
-      '--hops', String(args.hops),
-      '--includeRisk',
-      ...disabledGraphCliArgs,
-      '--severity', 'urgent'
-    ]);
-    assert.equal(invalidCli.status, 1, 'expected CLI invalid filter to fail');
-    assert.deepEqual(normalizeSurfaceError(invalidCli.parsed), {
-      code: 'INVALID_REQUEST',
-      reason: 'invalid_risk_filters'
-    });
+    if (includesCase('degraded-artifact')) {
+      phase('degraded artifact');
+      const manifest = loadPiecesManifest(codeDir, { strict: true });
+      const riskFlowsPresence = resolveArtifactPresence(codeDir, 'risk_flows', { manifest, strict: false });
+      const riskFlowsPath = riskFlowsPresence.paths?.[0] || null;
+      assert.ok(riskFlowsPath, 'expected fixture index to include risk_flows artifact');
+      const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
+      const manifestText = await fs.readFile(manifestPath, 'utf8');
+      const manifestJson = JSON.parse(manifestText);
+      const manifestBody = manifestJson?.fields && typeof manifestJson.fields === 'object'
+        ? manifestJson.fields
+        : manifestJson;
+      manifestBody.pieces = (Array.isArray(manifestBody?.pieces) ? manifestBody.pieces : [])
+        .filter((entry) => !String(entry?.name || '').startsWith('risk_flows'));
+      await fs.writeFile(manifestPath, `${JSON.stringify(manifestJson, null, 2)}\n`, 'utf8');
+      try {
+        const degradedArgs = {
+          ...baseArgs,
+          includeRisk: true
+        };
+        const degradedCli = harness.runCli([
+          'context-pack',
+          '--json',
+          '--repo', fixtureRoot,
+          '--seed', degradedArgs.seed,
+          '--hops', String(degradedArgs.hops),
+          '--includeRisk',
+          ...disabledGraphCliArgs
+        ]);
+        assert.equal(degradedCli.status, 0, 'expected degraded CLI context-pack call to stay non-fatal');
 
-    const invalidApiResponse = await harness.runApi('/analysis/context-pack', {
-      ...args,
-      filters: { severity: 'urgent' }
-    });
-    assert.equal(invalidApiResponse.status, 400, 'expected API invalid filter to fail');
-    assert.deepEqual(normalizeSurfaceError(invalidApiResponse.parsed), {
-      code: 'INVALID_REQUEST',
-      reason: 'invalid_risk_filters'
-    });
+        const degradedApi = await harness.runApi('/analysis/context-pack', degradedArgs);
+        assert.equal(degradedApi.status, 200, 'expected degraded API context-pack call to stay non-fatal');
 
-    const invalidMcp = await harness.runMcp('context_pack', {
-      ...args,
-      filters: { severity: 'urgent' }
-    });
-    assert.equal(invalidMcp.ok, false, 'expected MCP invalid filter to fail');
-    assert.deepEqual(normalizeSurfaceError(invalidMcp.error), {
-      code: 'INVALID_REQUEST',
-      reason: 'invalid_risk_filters'
-    });
+        const degradedExpected = normalizeRisk(degradedCli.parsed);
+        assert.equal(degradedExpected.status, 'degraded');
+        assert.equal(degradedExpected.degraded, true);
+        assert.equal(degradedExpected.artifactStatus?.flows, 'missing');
+        assert.deepEqual(normalizeRisk(degradedApi.parsed?.result), degradedExpected);
+      } finally {
+        await fs.writeFile(manifestPath, manifestText, 'utf8');
+      }
+    }
+
+    if (includesCase('invalid-request')) {
+      phase('invalid filters');
+      const invalidCli = harness.runCli([
+        'context-pack',
+        '--json',
+        '--repo', fixtureRoot,
+        '--seed', args.seed,
+        '--hops', String(args.hops),
+        '--includeRisk',
+        ...disabledGraphCliArgs,
+        '--severity', 'urgent'
+      ]);
+      assert.equal(invalidCli.status, 1, 'expected CLI invalid filter to fail');
+      assert.deepEqual(normalizeSurfaceError(invalidCli.parsed), {
+        code: 'INVALID_REQUEST',
+        reason: 'invalid_risk_filters'
+      });
+
+      const invalidApiResponse = await harness.runApi('/analysis/context-pack', {
+        ...args,
+        filters: { severity: 'urgent' }
+      });
+      assert.equal(invalidApiResponse.status, 400, 'expected API invalid filter to fail');
+      assert.deepEqual(normalizeSurfaceError(invalidApiResponse.parsed), {
+        code: 'INVALID_REQUEST',
+        reason: 'invalid_risk_filters'
+      });
+
+      const invalidMcp = await harness.runMcp('context_pack', {
+        ...args,
+        filters: { severity: 'urgent' }
+      });
+      assert.equal(invalidMcp.ok, false, 'expected MCP invalid filter to fail');
+      assert.deepEqual(normalizeSurfaceError(invalidMcp.error), {
+        code: 'INVALID_REQUEST',
+        reason: 'invalid_risk_filters'
+      });
+    }
   } finally {
+    phase('harness close start');
     await harness.close();
+    phase('harness close done');
   }
 });
 

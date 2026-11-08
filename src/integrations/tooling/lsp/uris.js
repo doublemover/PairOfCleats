@@ -59,10 +59,13 @@ export const buildVfsToken = async ({ virtualPath, docHash = null, mode = null }
 
 export const registerVfsTokenMapping = (token, virtualPath) => {
   if (!token || !virtualPath) return;
+  // Content-only tokens can name several origins. Keep a bounded ambiguity
+  // marker rather than assigning token-only responses to the latest writer.
+  const ambiguous = TOKEN_CACHE.has(token) && TOKEN_CACHE.get(token) !== virtualPath;
   if (TOKEN_CACHE.has(token)) {
     TOKEN_CACHE.delete(token);
   }
-  TOKEN_CACHE.set(token, virtualPath);
+  TOKEN_CACHE.set(token, ambiguous ? null : virtualPath);
   if (TOKEN_CACHE.size <= TOKEN_CACHE_MAX) return;
   const overflow = TOKEN_CACHE.size - TOKEN_CACHE_MAX;
   const iterator = TOKEN_CACHE.keys();

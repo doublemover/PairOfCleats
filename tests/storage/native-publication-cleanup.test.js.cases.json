@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "sqlite-owned", "lmdb-owned", "sqlite-source-retained", "lmdb-source-retained",
+    "sqlite-saved", "lmdb-saved", "sqlite-unregistered", "lmdb-unregistered",
+    "sqlite-legacy", "lmdb-legacy", "sqlite-modified", "lmdb-modified",
+    "sqlite-reader", "lmdb-reader", "sqlite-plan-race", "lmdb-plan-race",
+    "sqlite-interrupted", "lmdb-interrupted", "sqlite-malformed", "lmdb-malformed",
+    "sqlite-foreign-member", "lmdb-foreign-member", "sqlite-dry-run", "lmdb-dry-run",
+    "sqlite-shared", "lmdb-shared", "sqlite-source-history", "lmdb-source-history",
+    "sqlite-replaced-attempt", "lmdb-replaced-attempt", "sqlite-producer", "lmdb-producer",
+    "sqlite-builder", "lmdb-builder", "sqlite-late-close", "lmdb-late-close",
+    "sqlite-mcp", "lmdb-mcp", "sqlite-invalid-ready", "lmdb-invalid-ready",
+    "sqlite-replacement", "lmdb-replacement", "sqlite-compaction", "sqlite-zero-reuse",
+    "sqlite-close-mutation", "lmdb-close-mutation", "sqlite-duplicate", "lmdb-duplicate", "sqlite-incremental",
+    "sqlite-foreign-home-reader", "lmdb-foreign-home-reader", "sqlite-foreign-home-plan-race", "lmdb-foreign-home-plan-race",
+    "sqlite-readonly-unregistered", "lmdb-readonly-unregistered", "sqlite-registered-coordinator-required", "lmdb-registered-coordinator-required"
+  ]
+}

@@ -81,7 +81,8 @@ try {
     const expectedVirtualPath = buildVfsVirtualPath({
       containerPath,
       segmentUid: row.segmentUid,
-      effectiveExt: row.effectiveExt
+      effectiveExt: row.effectiveExt,
+      segmentStart: row.segmentStart, segmentEnd: row.segmentEnd
     });
     assert.equal(row.virtualPath, expectedVirtualPath, 'virtualPath should be a deterministic function of containerPath+segmentUid+effectiveExt');
 

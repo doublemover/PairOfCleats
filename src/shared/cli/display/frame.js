@@ -7,7 +7,8 @@ export const buildDisplayFrameLines = ({ state, taskLines, width, logWindowSize 
   const logLines = state.logLines.slice(-logSlots);
   while (logLines.length < logSlots) logLines.push('');
   if (statusLine) logLines.push(statusLine);
-  return [...logLines, '', ...taskLines, ''].map((rawLine) => truncateLine(rawLine || '', width));
+  // Keep one unused cell to avoid terminal autowrap and ambiguous physical rows.
+  return [...logLines, '', ...taskLines, ''].map((rawLine) => truncateLine(rawLine || '', Math.max(1, width - 1)));
 };
 
 export const writeDisplayFrame = ({ state, term, lines }) => {
@@ -40,7 +41,8 @@ export const writeDisplayFrame = ({ state, term, lines }) => {
     moveCursorDown(term, row - cursorRow);
     term('\r');
     term.eraseLine();
-    term(frameLines[row] || '');
+    if (typeof term.noFormat === 'function') term.noFormat(frameLines[row] || '');
+    else term('%s', frameLines[row] || '');
     term('\n');
     cursorRow = row + 1;
   }

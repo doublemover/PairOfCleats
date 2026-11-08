@@ -8,7 +8,7 @@ const DEFAULT_DICT_SEGMENTATION = {
 const VALID_DICT_SEGMENT_MODES = new Set(['auto', 'greedy', 'dp', 'aho']);
 const MAX_AHO_DICT_SIZE = 200000;
 
-const normalizeDictSegmentation = (options = {}) => {
+export const normalizeDictSegmentation = (options = {}) => {
   const modeRaw = typeof options.segmentation === 'string'
     ? options.segmentation.toLowerCase()
     : '';

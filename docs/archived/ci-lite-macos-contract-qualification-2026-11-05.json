@@ -1,0 +1,1255 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "baseline": "bccff0eddfa20527e88b1d50c9e372e31504e662",
+  "observedCandidate": "25162d46fb2746065e8743955f18e3f994b91e2e",
+  "runId": 42018171549,
+  "jobId": 127214723076,
+  "originalArtifact": {
+    "id": 13413750162,
+    "sha256": "97fa37450ba5adc543e364b66bb95531eff1fb999b8305c3f249c5c6e0868ae7",
+    "files": [
+      {
+        "path": ".testLogs/run-1793878910647-8hmr1j/indexing_runtime_build-cli-selected-outcome_stage2-prose.attempt-1.failure.json",
+        "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/runtime/build-cli-selected-outcome/stage2-prose\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"resolvedExecutable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"arguments\": [\n      \"/Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/runtime/build-cli-selected-outcome.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"/Users/runner/work/PairOfCleats/PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"darwin\",\n      \"arch\": \"arm64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 45335,\n    \"childPid\": 15413,\n    \"startedAt\": \"2026-11-05T11:59:23.883Z\",\n    \"endedAt\": \"2026-11-05T11:59:40.095Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": {\n      \"stream\": \"stderr\",\n      \"line\": \"[init] extracted-prose index dir: /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tes... [full: --progress jsonl]\",\n      \"observedAt\": \"2026-11-05T11:59:40.029Z\"\n    },\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"/Users/runner/work/PairOfCleats/PairOfCleats/.testLogs/run-1793878910647-8hmr1j/indexing_runtime_build-cli-selected-outcome_stage2-prose.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 5112,\n      \"retainedStringUnits\": 5112,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+      },
+      {
+        "path": ".testLogs/run-1793878910647-8hmr1j/indexing_runtime_build-cli-selected-outcome_stage2-prose.attempt-1.log",
+        "content": "id: indexing/runtime/build-cli-selected-outcome/stage2-prose\npath: indexing/runtime/build-cli-selected-outcome.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: [init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 22ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=fast (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (1ms)\n[init] cache root (env): /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tests/cache/... [full: --progress jsonl]\n[init] repo cache root: /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tests/cache/b... [full: --progress jsonl]\n[init] platform preset: darwin:posix (fs=posix, subprocessFanout=3, reason=posix-default).\n[init] startup calibration (6ms)\n[init] startup calibration: io=6ms (bytes=8192).\n[init] runtime envelope (0ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt 540b8378-98c1-4dde-b65b-ae6d4f0c6c24; receipt: /Users/runner/work/PairOfC... [full: --progress jsonl]\n[init] build root: /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tests/cache/build-... [full: --progress jsonl]\n[init] current index root: /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tests/cach... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (3ms)\n[init] dictionaries (28ms)\n[init] dictionaries (28ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=12, cpu=1.\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (3ms)\nBuild environment snapshot.\n[init] runtime receipt (26ms)\n[init] runtime ready (279ms)\n→ Preprocess: 3 files across 2 mode(s).\n[stage2] fused prose/extracted-prose mode group active.\n[init] prose index dir: /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tests/cache/b... [full: --progress jsonl]\n📄  Scanning prose ...\n[          Prose | Stage 1]\n→ Reusing shared discovery results.\n→ Found 1 files.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 12, CPU: 1\n[stage1] admission parse=r0/p0/cap2/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n[tokenization] Worker pool unavailable; using main thread.\n→ Indexed 1 chunks, total tokens: 8\nEmbeddings disabled (stage2); skipping dense vector build.\n[chunk_meta] writing JSON\nWriting index files (17 artifacts)...\n[perf] adaptive artifact write concurrency 2 -> 3 (backlog, pending=17, mem=0.72, gc=0.08, ... [full: --progress jsonl]\nWriting index files 1/17 (5.9%) | field_postings.json\nWriting index files 17/17 (100.0%) | minhash_signatures.packed.bin\n\nWriting index files (19 artifacts)...\nWriting index files 19/19 (100.0%) | index_state.json\n\n📦  prose: 1 chunks, 6 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (28 entries).\n[init] extracted-prose index dir: /Users/runner/work/PairOfCleats/PairOfCleats/.tmp/dev/tes... [full: --progress jsonl]\n📄  Scanning extracted-prose ...\n[Extracted Prose | Stage 1]\n→ Reusing shared discovery results.\n→ Found 2 files.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 12, CPU: 1\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n→ Indexed 0 chunks, total tokens: 0\n[chunk_meta] writing JSON\nWriting index files (13 artifacts)...\n[perf] adaptive artifact write concurrency 2 -> 3 (backlog, pending=13, mem=0.60, gc=0.00, ... [full: --progress jsonl]\nWriting index files 1/13 (7.7%) | filter_index.json\nWriting index files 13/13 (100.0%) | repo_map.json\n\nWriting index files (15 artifacts)...\nWriting index files 15/15 (100.0%) | index_state.json\n\n📦  extracted-prose: 0 chunks, 0 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (17 entries).\n\n\n1 !== 0\n\n    at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/indexing/runtime/build-cli-selected-outcome.test.js:34:8 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 1,\n  expected: 0,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.13.0\n"
+      },
+      {
+        "path": ".testLogs/run-1793878910647-8hmr1j/lang_contracts_yaml-syntax-node-boundaries.attempt-1.failure.json",
+        "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"lang/contracts/yaml-syntax-node-boundaries\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"resolvedExecutable\": \"/Users/runner/hostedtoolcache/node/26.13.0/arm64/bin/node\",\n    \"arguments\": [\n      \"/Users/runner/work/PairOfCleats/PairOfCleats/tests/lang/contracts/yaml-syntax-node-boundaries.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"/Users/runner/work/PairOfCleats/PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"darwin\",\n      \"arch\": \"arm64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 45335,\n    \"childPid\": 69742,\n    \"startedAt\": \"2026-11-05T11:47:43.479Z\",\n    \"endedAt\": \"2026-11-05T11:47:44.028Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"/Users/runner/work/PairOfCleats/PairOfCleats/.testLogs/run-1793878910647-8hmr1j/lang_contracts_yaml-syntax-node-boundaries.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 829,\n      \"retainedStringUnits\": 829,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+      },
+      {
+        "path": ".testLogs/run-1793878910647-8hmr1j/lang_contracts_yaml-syntax-node-boundaries.attempt-1.log",
+        "content": "id: lang/contracts/yaml-syntax-node-boundaries\npath: lang/contracts/yaml-syntax-node-boundaries.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: {\"reason\":\"time-limit\",\"metrics\":{\"localLimitMs\":30,\"effectiveLimitMsAtEntry\":30,\"measuredOverrunMs\":23.484083,\"elapsedMs\":53.496707999999956}}\n+ actual - expected\n\n+ 'yaml-unavailable'\n- 'yaml-syntax-nodes'\n        ^\n\n    at file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/lang/contracts/yaml-syntax-node-boundaries.test.js:20:8\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\n    at async node:internal/modules/esm/loader:650:26\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 'yaml-unavailable',\n  expected: 'yaml-syntax-nodes',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v26.13.0\n"
+      }
+    ]
+  },
+  "yaml": {
+    "producerUnchanged": true,
+    "baselineLog": "node:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: {\"reason\":\"time-limit\",\"metrics\":{\"localLimitMs\":30,\"effectiveLimitMsAtEntry\":30,\"measuredOverrunMs\":1,\"elapsedMs\":31}}\r\n+ actual - expected\r\n\r\n+ 'yaml-unavailable'\r\n- 'yaml-syntax-nodes'\r\n        ^\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/lang/contracts/yaml-syntax-node-boundaries.test.js:20:8\r\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\r\n    at async node:internal/modules/esm/loader:650:26\r\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5) {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: 'yaml-unavailable',\r\n  expected: 'yaml-syntax-nodes',\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+    "afterLog": "YAML syntax-node ownership rejects scalar phantoms and keeps aliases/tags inert under exact caller/resource bounds\r\n",
+    "control": "A scoped preload advances the default clock by31ms in the real vendor Lexer constructor. The original syntax fixture incorrectly requires a positive model despite the legitimate30ms fallback. Structural comparisons now use a restored controlled performance clock; existing content/security/size/depth/caller-budget negatives remain, plus explicit default30ms/31ms-overrun rejection. This is not wall-clock latency qualification."
+  },
+  "outcomes": {
+    "original": "The child returns1 after16.2s with a configured15s CLI limit; its original stdout/error receipt was not uploaded. No unseen child cause is attributed from the final log line.",
+    "repair": "Retain every original child argument,15s CLI deadline, stale-statistics denial and outcome assertion. Move all four canonical cases into the existing serial30s contract cohort; report total23, one broad exclusion and original ordered-lane membership each. Retain complete child status/error/stdout/stderr JSON in successful and failed artifacts on all three platforms.",
+    "planBefore": {
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\r\n+ actual - expected\r\n\r\n  [\r\n-   'indexing/runtime/build-cli-selected-outcome/stage1-code',\r\n-   'indexing/runtime/build-cli-selected-outcome/stage2-prose',\r\n-   'indexing/runtime/build-cli-selected-outcome/stage3-disabled',\r\n-   'indexing/runtime/build-cli-selected-outcome/stage4-sqlite',\r\n    'tooling/api-contracts/export-identity-cli/js-default-anonymous',\r\n    'tooling/api-contracts/export-identity-cli/js-default-arrow',\r\n    'tooling/api-contracts/export-identity-cli/js-default-class',\r\n    'tooling/api-contracts/export-identity-cli/js-fail',\r\n    'tooling/api-contracts/export-identity-cli/js-report',\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/tooling/ci/run-suite-api-plan.test.js:65:14\r\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\r\n    at async node:internal/modules/esm/loader:650:26\r\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5) {\r\n  generatedMessage: true,\r\n  code: 'ERR_ASSERTION',\r\n  actual: [\r\n    'tooling/api-contracts/export-identity-cli/js-default-anonymous',\r\n    'tooling/api-contracts/export-identity-cli/js-default-arrow',\r\n    'tooling/api-contracts/export-identity-cli/js-default-class',\r\n    'tooling/api-contracts/export-identity-cli/js-fail',\r\n    'tooling/api-contracts/export-identity-cli/js-report',\r\n    'tooling/api-contracts/export-identity-cli/ts-default-anonymous',\r\n    'tooling/api-contracts/export-identity-cli/ts-default-arrow',\r\n    'tooling/api-contracts/export-identity-cli/ts-default-class',\r\n    'tooling/api-contracts/export-identity-cli/ts-fail',\r\n    'tooling/api-contracts/export-identity-cli/ts-report',\r\n    'tooling/api-contracts/qualified-target-joins-cli/js-clean',\r\n    'tooling/api-contracts/qualified-target-joins-cli/js-violation',\r\n    'tooling/api-contracts/qualified-target-joins-cli/ts-clean',\r\n    'tooling/api-contracts/qualified-target-joins-cli/ts-violation',\r\n    'tooling/api-contracts/typescript-parameter-cli/clean',\r\n    'tooling/api-contracts/typescript-parameter-cli/policy',\r\n    'tooling/api-contracts/zero-warning-cap-cli/clean',\r\n    'tooling/api-contracts/zero-warning-cap-cli/markdown',\r\n    'tooling/api-contracts/zero-warning-cap-cli/violation'\r\n  ],\r\n  expected: [\r\n    'indexing/runtime/build-cli-selected-outcome/stage1-code',\r\n    'indexing/runtime/build-cli-selected-outcome/stage2-prose',\r\n    'indexing/runtime/build-cli-selected-outcome/stage3-disabled',\r\n    'indexing/runtime/build-cli-selected-outcome/stage4-sqlite',\r\n    'tooling/api-contracts/export-identity-cli/js-default-anonymous',\r\n    'tooling/api-contracts/export-identity-cli/js-default-arrow',\r\n    'tooling/api-contracts/export-identity-cli/js-default-class',\r\n    'tooling/api-contracts/export-identity-cli/js-fail',\r\n    'tooling/api-contracts/export-identity-cli/js-report',\r\n    'tooling/api-contracts/export-identity-cli/ts-default-anonymous',\r\n    'tooling/api-contracts/export-identity-cli/ts-default-arrow',\r\n    'tooling/api-contracts/export-identity-cli/ts-default-class',\r\n    'tooling/api-contracts/export-identity-cli/ts-fail',\r\n    'tooling/api-contracts/export-identity-cli/ts-report',\r\n    'tooling/api-contracts/qualified-target-joins-cli/js-clean',\r\n    'tooling/api-contracts/qualified-target-joins-cli/js-violation',\r\n    'tooling/api-contracts/qualified-target-joins-cli/ts-clean',\r\n    'tooling/api-contracts/qualified-target-joins-cli/ts-violation',\r\n    'tooling/api-contracts/typescript-parameter-cli/clean',\r\n    'tooling/api-contracts/typescript-parameter-cli/policy',\r\n    'tooling/api-contracts/zero-warning-cap-cli/clean',\r\n    'tooling/api-contracts/zero-warning-cap-cli/markdown',\r\n    'tooling/api-contracts/zero-warning-cap-cli/violation'\r\n  ],\r\n  operator: 'deepStrictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    "childReceipts": [
+      {
+        "name": "build-cli-selected-outcome-stage1-code-26484.json",
+        "receipt": {
+          "status": 0,
+          "signal": null,
+          "output": [
+            null,
+            "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage1-code-26484-1793880824539-j75oy9\\\\repo\",\"status\":\"index-published\",\"capabilities\":[{\"capability\":\"sparse-retrieval\",\"status\":\"completed\",\"modes\":[\"code\"],\"reason\":null}],\"requestedStages\":[\"stage1\"],\"stages\":[{\"stage\":\"stage1\",\"status\":\"completed\",\"modes\":[\"code\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"passed\",\"ok\":true,\"issueCount\":0,\"warningCount\":7,\"issues\":null},\"publication\":{\"status\":\"published\",\"buildId\":\"20261105T121348Z_56aaf3d3_noscm_58296ee1\",\"modes\":[\"code\"]},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[{\"stage\":\"stage1\",\"buildId\":\"20261105T121348Z_56aaf3d3_noscm_58296ee1\",\"buildRoot\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage1-code-26484-1793880824539-j75oy9\\\\cache\\\\repos\\\\repo-cd919f5b7dda\\\\builds\\\\20261105T121348Z_56aaf3d3_noscm_58296ee1\",\"attemptId\":\"4237e77c-84dd-4785-b756-dac50b98fe61\",\"modes\":[\"code\"],\"receiptPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage1-code-26484-1793880824539-j75oy9\\\\cache\\\\repos\\\\repo-cd919f5b7dda\\\\builds\\\\20261105T121348Z_56aaf3d3_noscm_58296ee1/build_state.json\"}],\"counts\":null,\"error\":null}\n",
+            "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 12ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build... [full: --progress jsonl]\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (3ms)\n[init] startup calibration: io=3ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (1ms)\n[runtime] attempt 4237e77c-84dd-4785-b756-dac50b98fe61; receipt: C:\\Users\\sneak\\Development... [full: --progress jsonl]\n[init] build root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-cli-o... [full: --progress jsonl]\n[init] current index root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\bui... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (4ms)\n[init] dictionaries (33ms)\n[init] dictionaries (33ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage1 (sparse) overrides enabled.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=32, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nLint metadata disabled via indexing.lint.\nComplexity metadata disabled via indexing.complexity.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (4ms)\nBuild environment snapshot.\n[init] runtime receipt (14ms)\n[init] runtime ready (186ms)\n→ Preprocess: 1 files across 1 mode(s).\n[init] code index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-c... [full: --progress jsonl]\n📄  Scanning code ...\n[           Code | Stage 1]\n→ Reusing shared discovery results.\n→ Found 1 files.\nSkipping import scan for sparse stage.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 32, CPU: 1\n[stage1] admission parse=r0/p0/cap2/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n[tokenization] Worker pool unavailable; using main thread.\n→ Indexed 1 chunks, total tokens: 3\nEmbeddings disabled (stage1); skipping dense vector build.\n[chunk_meta] writing JSON\nWriting index files (24 artifacts)...\n[perf] adaptive artifact write concurrency 10 -> 11 (backlog, pending=24, mem=0.67, gc=0.00... [full: --progress jsonl]\nWriting index files 1/24 (4.2%) | field_tokens.parts\nWriting index files 24/24 (100.0%) | semantic-family\n\nWriting index files (26 artifacts)...\nWriting index files 26/26 (100.0%) | index_state.json\n\n📦  code : 1 chunks, 3 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (55 entries).\n[build] updated current.json\n[closeout] stage1.heartbeat.stop start\n[closeout] stage1.heartbeat.stop done (0ms)\n[closeout] stage1.build-state.flush start\n[closeout] stage1.build-state.flush done (1ms)\n[closeout] stage1.runtime.teardown start\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (1ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (1ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n[closeout] stage1.runtime.teardown done (6ms)\n[closeout] stage1.lock.release start\n[closeout] stage1.lock.release done (4ms)\n"
+          ],
+          "pid": 27196,
+          "stdout": "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage1-code-26484-1793880824539-j75oy9\\\\repo\",\"status\":\"index-published\",\"capabilities\":[{\"capability\":\"sparse-retrieval\",\"status\":\"completed\",\"modes\":[\"code\"],\"reason\":null}],\"requestedStages\":[\"stage1\"],\"stages\":[{\"stage\":\"stage1\",\"status\":\"completed\",\"modes\":[\"code\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"passed\",\"ok\":true,\"issueCount\":0,\"warningCount\":7,\"issues\":null},\"publication\":{\"status\":\"published\",\"buildId\":\"20261105T121348Z_56aaf3d3_noscm_58296ee1\",\"modes\":[\"code\"]},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[{\"stage\":\"stage1\",\"buildId\":\"20261105T121348Z_56aaf3d3_noscm_58296ee1\",\"buildRoot\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage1-code-26484-1793880824539-j75oy9\\\\cache\\\\repos\\\\repo-cd919f5b7dda\\\\builds\\\\20261105T121348Z_56aaf3d3_noscm_58296ee1\",\"attemptId\":\"4237e77c-84dd-4785-b756-dac50b98fe61\",\"modes\":[\"code\"],\"receiptPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage1-code-26484-1793880824539-j75oy9\\\\cache\\\\repos\\\\repo-cd919f5b7dda\\\\builds\\\\20261105T121348Z_56aaf3d3_noscm_58296ee1/build_state.json\"}],\"counts\":null,\"error\":null}\n",
+          "stderr": "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 12ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build... [full: --progress jsonl]\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (3ms)\n[init] startup calibration: io=3ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (1ms)\n[runtime] attempt 4237e77c-84dd-4785-b756-dac50b98fe61; receipt: C:\\Users\\sneak\\Development... [full: --progress jsonl]\n[init] build root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-cli-o... [full: --progress jsonl]\n[init] current index root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\bui... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (4ms)\n[init] dictionaries (33ms)\n[init] dictionaries (33ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage1 (sparse) overrides enabled.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=32, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nLint metadata disabled via indexing.lint.\nComplexity metadata disabled via indexing.complexity.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (4ms)\nBuild environment snapshot.\n[init] runtime receipt (14ms)\n[init] runtime ready (186ms)\n→ Preprocess: 1 files across 1 mode(s).\n[init] code index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-c... [full: --progress jsonl]\n📄  Scanning code ...\n[           Code | Stage 1]\n→ Reusing shared discovery results.\n→ Found 1 files.\nSkipping import scan for sparse stage.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 32, CPU: 1\n[stage1] admission parse=r0/p0/cap2/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n[tokenization] Worker pool unavailable; using main thread.\n→ Indexed 1 chunks, total tokens: 3\nEmbeddings disabled (stage1); skipping dense vector build.\n[chunk_meta] writing JSON\nWriting index files (24 artifacts)...\n[perf] adaptive artifact write concurrency 10 -> 11 (backlog, pending=24, mem=0.67, gc=0.00... [full: --progress jsonl]\nWriting index files 1/24 (4.2%) | field_tokens.parts\nWriting index files 24/24 (100.0%) | semantic-family\n\nWriting index files (26 artifacts)...\nWriting index files 26/26 (100.0%) | index_state.json\n\n📦  code : 1 chunks, 3 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (55 entries).\n[build] updated current.json\n[closeout] stage1.heartbeat.stop start\n[closeout] stage1.heartbeat.stop done (0ms)\n[closeout] stage1.build-state.flush start\n[closeout] stage1.build-state.flush done (1ms)\n[closeout] stage1.runtime.teardown start\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (1ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (1ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n[closeout] stage1.runtime.teardown done (6ms)\n[closeout] stage1.lock.release start\n[closeout] stage1.lock.release done (4ms)\n",
+          "error": null
+        }
+      },
+      {
+        "name": "build-cli-selected-outcome-stage2-prose-300.json",
+        "receipt": {
+          "status": 0,
+          "signal": null,
+          "output": [
+            null,
+            "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage2-prose-300-1793880831969-kggbfx\\\\repo\",\"status\":\"index-published\",\"capabilities\":[{\"capability\":\"semantic-enrichment\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null}],\"requestedStages\":[\"stage2\"],\"stages\":[{\"stage\":\"stage2\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"passed\",\"ok\":true,\"issueCount\":0,\"warningCount\":24,\"issues\":null},\"publication\":{\"status\":\"published\",\"buildId\":\"20261105T121355Z_2fa4aa6d_noscm_781b1395\",\"modes\":[\"prose\",\"extracted-prose\"]},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[{\"stage\":\"stage2\",\"buildId\":\"20261105T121355Z_2fa4aa6d_noscm_781b1395\",\"buildRoot\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage2-prose-300-1793880831969-kggbfx\\\\cache\\\\repos\\\\repo-dea415c027fc\\\\builds\\\\20261105T121355Z_2fa4aa6d_noscm_781b1395\",\"attemptId\":\"115d3488-d334-4110-ac2a-3384ea1dc487\",\"modes\":[\"prose\",\"extracted-prose\"],\"receiptPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage2-prose-300-1793880831969-kggbfx\\\\cache\\\\repos\\\\repo-dea415c027fc\\\\builds\\\\20261105T121355Z_2fa4aa6d_noscm_781b1395/build_state.json\"}],\"counts\":null,\"error\":null}\n",
+            "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 13ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build... [full: --progress jsonl]\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (3ms)\n[init] startup calibration: io=3ms (bytes=8192).\n[init] runtime envelope (0ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt 115d3488-d334-4110-ac2a-3384ea1dc487; receipt: C:\\Users\\sneak\\Development... [full: --progress jsonl]\n[init] build root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-cli-o... [full: --progress jsonl]\n[init] current index root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\bui... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (3ms)\n[init] dictionaries (33ms)\n[init] dictionaries (33ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=32, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (4ms)\nBuild environment snapshot.\n[init] runtime receipt (14ms)\n[init] runtime ready (188ms)\n→ Preprocess: 3 files across 2 mode(s).\n[stage2] fused prose/extracted-prose mode group active.\n[init] prose index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n📄  Scanning prose ...\n[          Prose | Stage 1]\n→ Reusing shared discovery results.\n→ Found 1 files.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 32, CPU: 1\n[stage1] admission parse=r0/p0/cap2/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n[tokenization] Worker pool unavailable; using main thread.\n→ Indexed 1 chunks, total tokens: 8\nEmbeddings disabled (stage2); skipping dense vector build.\n[chunk_meta] writing JSON\nWriting index files (17 artifacts)...\nWriting index files 1/17 (5.9%) | field_tokens.parts\nWriting index files 17/17 (100.0%) | token_postings.binary-columnar.bundle\n\nWriting index files (19 artifacts)...\nWriting index files 19/19 (100.0%) | index_state.json\n\n📦  prose: 1 chunks, 6 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (28 entries).\n[init] extracted-prose index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\ca... [full: --progress jsonl]\n📄  Scanning extracted-prose ...\n[Extracted Prose | Stage 1]\n→ Reusing shared discovery results.\n→ Found 2 files.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 32, CPU: 1\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n→ Indexed 0 chunks, total tokens: 0\n[chunk_meta] writing JSON\nWriting index files (13 artifacts)...\n[perf] adaptive artifact write concurrency 8 -> 9 (memory-headroom, pending=13, mem=0.59, g... [full: --progress jsonl]\nWriting index files 1/13 (7.7%) | field_tokens.parts\nWriting index files 13/13 (100.0%) | token_postings.binary-columnar.bundle\n\nWriting index files (15 artifacts)...\nWriting index files 15/15 (100.0%) | index_state.json\n\n📦  extracted-prose: 0 chunks, 0 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (17 entries).\n[build] updated current.json\n[closeout] stage2.heartbeat.stop start\n[closeout] stage2.heartbeat.stop done (1ms)\n[closeout] stage2.build-state.flush start\n[closeout] stage2.build-state.flush done (0ms)\n[closeout] stage2.runtime.teardown start\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (1ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (1ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (1ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n[closeout] stage2.runtime.teardown done (7ms)\n[closeout] stage2.lock.release start\n[closeout] stage2.lock.release done (3ms)\n"
+          ],
+          "pid": 19164,
+          "stdout": "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage2-prose-300-1793880831969-kggbfx\\\\repo\",\"status\":\"index-published\",\"capabilities\":[{\"capability\":\"semantic-enrichment\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null}],\"requestedStages\":[\"stage2\"],\"stages\":[{\"stage\":\"stage2\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"passed\",\"ok\":true,\"issueCount\":0,\"warningCount\":24,\"issues\":null},\"publication\":{\"status\":\"published\",\"buildId\":\"20261105T121355Z_2fa4aa6d_noscm_781b1395\",\"modes\":[\"prose\",\"extracted-prose\"]},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[{\"stage\":\"stage2\",\"buildId\":\"20261105T121355Z_2fa4aa6d_noscm_781b1395\",\"buildRoot\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage2-prose-300-1793880831969-kggbfx\\\\cache\\\\repos\\\\repo-dea415c027fc\\\\builds\\\\20261105T121355Z_2fa4aa6d_noscm_781b1395\",\"attemptId\":\"115d3488-d334-4110-ac2a-3384ea1dc487\",\"modes\":[\"prose\",\"extracted-prose\"],\"receiptPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage2-prose-300-1793880831969-kggbfx\\\\cache\\\\repos\\\\repo-dea415c027fc\\\\builds\\\\20261105T121355Z_2fa4aa6d_noscm_781b1395/build_state.json\"}],\"counts\":null,\"error\":null}\n",
+          "stderr": "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 13ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build... [full: --progress jsonl]\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (3ms)\n[init] startup calibration: io=3ms (bytes=8192).\n[init] runtime envelope (0ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt 115d3488-d334-4110-ac2a-3384ea1dc487; receipt: C:\\Users\\sneak\\Development... [full: --progress jsonl]\n[init] build root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-cli-o... [full: --progress jsonl]\n[init] current index root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\bui... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (3ms)\n[init] dictionaries (33ms)\n[init] dictionaries (33ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=32, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (4ms)\nBuild environment snapshot.\n[init] runtime receipt (14ms)\n[init] runtime ready (188ms)\n→ Preprocess: 3 files across 2 mode(s).\n[stage2] fused prose/extracted-prose mode group active.\n[init] prose index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n📄  Scanning prose ...\n[          Prose | Stage 1]\n→ Reusing shared discovery results.\n→ Found 1 files.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 32, CPU: 1\n[stage1] admission parse=r0/p0/cap2/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n[tokenization] Worker pool unavailable; using main thread.\n→ Indexed 1 chunks, total tokens: 8\nEmbeddings disabled (stage2); skipping dense vector build.\n[chunk_meta] writing JSON\nWriting index files (17 artifacts)...\nWriting index files 1/17 (5.9%) | field_tokens.parts\nWriting index files 17/17 (100.0%) | token_postings.binary-columnar.bundle\n\nWriting index files (19 artifacts)...\nWriting index files 19/19 (100.0%) | index_state.json\n\n📦  prose: 1 chunks, 6 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (28 entries).\n[init] extracted-prose index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\ca... [full: --progress jsonl]\n📄  Scanning extracted-prose ...\n[Extracted Prose | Stage 1]\n→ Reusing shared discovery results.\n→ Found 2 files.\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 32, CPU: 1\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage... [full: --progress jsonl]\n[watchdog] activity [full: --progress jsonl]\n→ Indexed 0 chunks, total tokens: 0\n[chunk_meta] writing JSON\nWriting index files (13 artifacts)...\n[perf] adaptive artifact write concurrency 8 -> 9 (memory-headroom, pending=13, mem=0.59, g... [full: --progress jsonl]\nWriting index files 1/13 (7.7%) | field_tokens.parts\nWriting index files 13/13 (100.0%) | token_postings.binary-columnar.bundle\n\nWriting index files (15 artifacts)...\nWriting index files 15/15 (100.0%) | index_state.json\n\n📦  extracted-prose: 0 chunks, 0 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (17 entries).\n[build] updated current.json\n[closeout] stage2.heartbeat.stop start\n[closeout] stage2.heartbeat.stop done (1ms)\n[closeout] stage2.build-state.flush start\n[closeout] stage2.build-state.flush done (0ms)\n[closeout] stage2.runtime.teardown start\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (1ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (1ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (1ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n[closeout] stage2.runtime.teardown done (7ms)\n[closeout] stage2.lock.release start\n[closeout] stage2.lock.release done (3ms)\n",
+          "error": null
+        }
+      },
+      {
+        "name": "build-cli-selected-outcome-stage3-disabled-13236.json",
+        "receipt": {
+          "status": 0,
+          "signal": null,
+          "output": [
+            null,
+            "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage3-disabled-13236-1793880842363-jf3ku9\\\\repo\",\"status\":\"skipped\",\"capabilities\":[{\"capability\":\"embeddings\",\"status\":\"skipped\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null}],\"requestedStages\":[\"stage3\"],\"stages\":[{\"stage\":\"stage3\",\"status\":\"skipped\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"unknown\"},\"publication\":{\"status\":\"unknown\"},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[],\"counts\":null,\"error\":null}\n",
+            "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 12ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\nEmbeddings disabled; skipping stage3.\n"
+          ],
+          "pid": 16996,
+          "stdout": "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage3-disabled-13236-1793880842363-jf3ku9\\\\repo\",\"status\":\"skipped\",\"capabilities\":[{\"capability\":\"embeddings\",\"status\":\"skipped\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null}],\"requestedStages\":[\"stage3\"],\"stages\":[{\"stage\":\"stage3\",\"status\":\"skipped\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"unknown\"},\"publication\":{\"status\":\"unknown\"},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[],\"counts\":null,\"error\":null}\n",
+          "stderr": "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 12ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\nEmbeddings disabled; skipping stage3.\n",
+          "error": null
+        }
+      },
+      {
+        "name": "build-cli-selected-outcome-stage4-sqlite-7712.json",
+        "receipt": {
+          "status": 0,
+          "signal": null,
+          "output": [
+            null,
+            "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\repo\",\"status\":\"index-published\",\"capabilities\":[{\"capability\":\"sqlite\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null}],\"requestedStages\":[\"stage4\"],\"stages\":[{\"stage\":\"stage4\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"passed\"},\"publication\":{\"status\":\"published\",\"modeBuildRoots\":{\"prose\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1\",\"extracted-prose\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1\"}},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[{\"stage\":\"stage4\",\"buildId\":\"20261105T121409Z_82ab6c7e_noscm_58296ee1\",\"buildRoot\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1\",\"attemptId\":\"283484ee-57c2-4a2b-87f0-cd4ce6cef411\",\"modes\":[\"prose\",\"extracted-prose\"],\"receiptPath\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1/build_state.json\"}],\"counts\":null,\"error\":null}\n",
+            "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 12ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (0ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build... [full: --progress jsonl]\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (3ms)\n[init] startup calibration: io=3ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt 283484ee-57c2-4a2b-87f0-cd4ce6cef411; receipt: c:\\users\\sneak\\development... [full: --progress jsonl]\n[init] build root: c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\build-cli-o... [full: --progress jsonl]\n[init] current index root: c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\bui... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (4ms)\n[init] dictionaries (33ms)\n[init] dictionaries (33ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nIndexing stage4 (sqlite/ann pass) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=32, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nLint metadata disabled via indexing.lint.\nComplexity metadata disabled via indexing.complexity.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (3ms)\nBuild environment snapshot.\n[init] runtime receipt (16ms)\n[init] runtime ready (184ms)\n[sqlite:prose] prose build start\n[sqlite:prose] prose index built (0 code, 1 prose, 0 extracted-prose).\n[sqlite:extracted-prose] extracted-prose build start\n[sqlite:extracted-prose] extracted-prose skipping sqlite rebuild (artifacts empty; zero-state).\n[build] updated current.json\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (1ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (1ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n"
+          ],
+          "pid": 28380,
+          "stdout": "{\"schemaVersion\":1,\"repo\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\repo\",\"status\":\"index-published\",\"capabilities\":[{\"capability\":\"sqlite\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null}],\"requestedStages\":[\"stage4\"],\"stages\":[{\"stage\":\"stage4\",\"status\":\"completed\",\"modes\":[\"prose\",\"extracted-prose\"],\"reason\":null,\"queueId\":null,\"validation\":{\"status\":\"passed\"},\"publication\":{\"status\":\"published\",\"modeBuildRoots\":{\"prose\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1\",\"extracted-prose\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1\"}},\"diagnosticEvidence\":null,\"admission\":{\"status\":\"not-reported\",\"requestedModeCount\":null,\"admittedModeCount\":null,\"rejectedModes\":[],\"jobs\":[]},\"perMode\":null}],\"generations\":[{\"stage\":\"stage4\",\"buildId\":\"20261105T121409Z_82ab6c7e_noscm_58296ee1\",\"buildRoot\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1\",\"attemptId\":\"283484ee-57c2-4a2b-87f0-cd4ce6cef411\",\"modes\":[\"prose\",\"extracted-prose\"],\"receiptPath\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\build-cli-outcome-stage4-sqlite-7712-1793880846095-j0r2c3\\\\cache\\\\repos\\\\repo-623f5ad801d3\\\\builds\\\\20261105t121409z_82ab6c7e_noscm_58296ee1/build_state.json\"}],\"counts\":null,\"error\":null}\n",
+          "stderr": "[init] auto policy scan: starting (maxFiles=250,000, maxBytes=5.00 GB, statConcurrency=32, dirConcurrency=8)\n[init] auto policy scan: 2 files, 57.0 B across 1 directories\n[init] auto policy scan: done in 12ms (files=2, bytes=57.0 B, truncated=no, huge=no)\n[init] auto policy resolved: quality=max (auto), repoHuge=no, files=2, bytes=57.0 B\n[init] load config (0ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build... [full: --progress jsonl]\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\build-... [full: --progress jsonl]\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (3ms)\n[init] startup calibration: io=3ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt 283484ee-57c2-4a2b-87f0-cd4ce6cef411; receipt: c:\\users\\sneak\\development... [full: --progress jsonl]\n[init] build root: c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\build-cli-o... [full: --progress jsonl]\n[init] current index root: c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\bui... [full: --progress jsonl]\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs... [full: --progress jsonl]\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (4ms)\n[init] dictionaries (33ms)\n[init] dictionaries (33ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nIndexing stage4 (sqlite/ann pass) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=32, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nLint metadata disabled via indexing.lint.\nComplexity metadata disabled via indexing.complexity.\nRisk analysis disabled via indexing.riskAnalysis.\n[init] worker pools (3ms)\nBuild environment snapshot.\n[init] runtime receipt (16ms)\n[init] runtime ready (184ms)\n[sqlite:prose] prose build start\n[sqlite:prose] prose index built (0 code, 1 prose, 0 extracted-prose).\n[sqlite:extracted-prose] extracted-prose build start\n[sqlite:extracted-prose] extracted-prose skipping sqlite rebuild (artifacts empty; zero-state).\n[build] updated current.json\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (1ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (1ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n",
+          "error": null
+        }
+      }
+    ],
+    "assertionTailSha256": "6ea870f70c663fdbfc909a4812a0ff618845613175edc918861ff994f80ca998"
+  },
+  "focused": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu",
+    "summary": {
+      "durationMs": 48792,
+      "failed": 0,
+      "passed": 6,
+      "skipped": 0,
+      "total": 6
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 7421,
+        "exitCode": 0,
+        "id": "indexing/runtime/build-cli-selected-outcome/stage1-code",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu\\indexing_runtime_build-cli-selected-outcome_stage1-code.attempt-1.log"
+        ],
+        "path": "indexing/runtime/build-cli-selected-outcome.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 10399,
+        "exitCode": 0,
+        "id": "indexing/runtime/build-cli-selected-outcome/stage2-prose",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu\\indexing_runtime_build-cli-selected-outcome_stage2-prose.attempt-1.log"
+        ],
+        "path": "indexing/runtime/build-cli-selected-outcome.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3736,
+        "exitCode": 0,
+        "id": "indexing/runtime/build-cli-selected-outcome/stage3-disabled",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu\\indexing_runtime_build-cli-selected-outcome_stage3-disabled.attempt-1.log"
+        ],
+        "path": "indexing/runtime/build-cli-selected-outcome.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 14684,
+        "exitCode": 0,
+        "id": "indexing/runtime/build-cli-selected-outcome/stage4-sqlite",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu\\indexing_runtime_build-cli-selected-outcome_stage4-sqlite.attempt-1.log"
+        ],
+        "path": "indexing/runtime/build-cli-selected-outcome.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration",
+          "sqlite"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 508,
+        "exitCode": 0,
+        "id": "lang/contracts/yaml-syntax-node-boundaries",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu\\lang_contracts_yaml-syntax-node-boundaries.attempt-1.log"
+        ],
+        "path": "lang/contracts/yaml-syntax-node-boundaries.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "lang",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 12034,
+        "exitCode": 0,
+        "id": "tooling/ci/run-suite-api-plan",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793880824319-u6ujgu\\tooling_ci_run-suite-api-plan.attempt-1.log"
+        ],
+        "path": "tooling/ci/run-suite-api-plan.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "publication": {
+    "status": "eight publication checks passed; a final diagnostic-only worker edit received format and affected-worker rechecks",
+    "gate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6",
+      "summary": {
+        "durationMs": 39312,
+        "failed": 0,
+        "passed": 43,
+        "skipped": 0,
+        "total": 43
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 80,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 72,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 84,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 70,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 71,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 68,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 176,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 72,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 81,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 159,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1711,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 248,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 220,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 300,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 281,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 271,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 287,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 278,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 291,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 535,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 263,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 701,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 847,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 832,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 796,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 711,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 562,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 890,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1210,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 74,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1394,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 959,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1163,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 704,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2486,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1269,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 355,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 542,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1483,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1425,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 246,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 155,
+          "exitCode": 0,
+          "id": "ci/gate-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\ci_gate-policy.attempt-1.log"
+          ],
+          "path": "ci/gate-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 14845,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881433298-x4h8i6\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "checks": [
+      {
+        "name": "format",
+        "exitCode": 0,
+        "log": "\r\n> pairofcleats@0.3.0 format\r\n> eslint . --fix\r\n\r\n"
+      },
+      {
+        "name": "budget",
+        "exitCode": 0,
+        "log": "\r\n> pairofcleats@0.3.0 config:budget\r\n> node tools/config/inventory.js --check\r\n\r\n"
+      },
+      {
+        "name": "env",
+        "exitCode": 0,
+        "log": "\r\n> pairofcleats@0.3.0 env:check\r\n> node tools/ci/check-env-usage.js\r\n\r\n"
+      },
+      {
+        "name": "freshness",
+        "exitCode": 0,
+        "log": "generated surfaces freshness check passed\r\n"
+      },
+      {
+        "name": "commands",
+        "exitCode": 0,
+        "log": "command surface audit passed (scripts=21, replacements=0, cli=93, capability=45)\r\n"
+      },
+      {
+        "name": "workflow",
+        "exitCode": 0,
+        "log": "workflow contract test passed (ci, ci-long, nightly, release)\r\n"
+      },
+      {
+        "name": "gate",
+        "exitCode": 0,
+        "log": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mgate\u001b[0m | \u001b[32mTests:\u001b[0m \u001b[37m  43\u001b[0m                                              \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [  80ms] indexing/policy/hotpath-membership-guard\r\nPASS [  72ms] indexing/policy/module-cache-boundedness-contract\r\nPASS [  84ms] indexing/policy/generated-matrix\r\nPASS [  70ms] indexing/contracts/artifact-surface-version\r\nPASS [  71ms] indexing/contracts/n-minus-one-adapter\r\nPASS [  68ms] indexing/contracts/public-artifact-surface-doc\r\nPASS [ 176ms] indexing/contracts/index-compatibility-key-generation\r\nPASS [  72ms] indexing/contracts/semver-policy-enforced\r\nPASS [  81ms] indexing/contracts/index-state-dense-sidecars-present\r\nPASS [ 159ms] contracts/manifest-max-bytes-validation\r\nPASS [ 1.71s] indexing/policy/repo-inventory\r\nPASS [ 248ms] indexing/policy/shared-module-cycle-guard\r\nPASS [ 220ms] indexing/contracts/loader-matrix-parity\r\nPASS [ 300ms] indexing/policy/analysis-schema\r\nPASS [ 281ms] indexing/contracts/snapshots\r\nPASS [ 271ms] indexing/contracts/builds-current-repo-head-schema\r\nPASS [ 287ms] indexing/contracts/call-sites-schema\r\nPASS [ 278ms] indexing/contracts/diffs\r\nPASS [ 291ms] indexing/contracts/additional-properties-policy\r\nPASS [ 535ms] indexing/contracts/index-compatibility-key-enforced-on-load\r\nPASS [ 263ms] indexing/contracts/schema-registry-single-source\r\nPASS [ 701ms] tooling/api-contracts/caps\r\nPASS [ 847ms] tooling/api-contracts/schema-validate\r\nPASS [ 832ms] tooling/api-contracts/fail-on-warn\r\nPASS [ 796ms] tooling/api-contracts/optional-params\r\nPASS [ 711ms] tooling/api-contracts/large-call-sites\r\nPASS [ 562ms] indexing/contracts/embedding-identity-gating-on-load\r\nPASS [ 890ms] ci/capability-gate.smoke\r\nPASS [ 1.21s] indexing/contracts/index-compatibility-key-federation-block\r\nPASS [  74ms] indexing/policy/stable-entrypoints\r\nPASS [ 1.39s] indexing/policy/optional-deps\r\nPASS [ 959ms] indexing/policy/analysis-gating\r\nPASS [ 1.16s] ci/tooling-doctor-gate.smoke\r\nPASS [ 704ms] tooling/api-contracts/basic\r\nPASS [ 2.49s] contracts/module-export-surface-compat\r\nPASS [ 1.27s] indexing/contracts/semantic-foundations\r\nPASS [ 355ms] indexing/contracts/semantic-handoff-contracts\r\nPASS [ 542ms] indexing/contracts/runtime-evidence\r\nPASS [ 1.48s] indexing/contracts/index-format-cutover\r\nPASS [ 1.43s] ci/windows-authority-cohort\r\nPASS [ 246ms] ci/ordered-lane-discovery\r\nPASS [ 155ms] ci/gate-policy\r\nPASS [ 14.8s] tooling/ci/run-suite-api-plan\r\n\r\nLOGS: ./.testLogs/run-1793881433298-x4h8i6\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      GATE Lane Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m43\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 39.3s\r\n                   Slowest : \u001b[97mtooling/ci/run-suite-api-plan\u001b[0m | \u001b[32mPASS\u001b[0m [ 14.8s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+      },
+      {
+        "name": "diff",
+        "exitCode": 0,
+        "log": ""
+      }
+    ]
+  },
+  "worker": {
+    "status": "original parallel POSIX hang unattributed",
+    "diagnostic": "Original parallel owner retained. Remove async-hooks from ordinary execution and use weak diagnostic pool references to avoid altering collection/timing conditions. A post-completion libuv/inventory receipt and25-second unrefed failing assertion remain.",
+    "focused": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881712496-3gpejy",
+      "summary": {
+        "durationMs": 1570,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1565,
+          "exitCode": 0,
+          "id": "indexing/workers/worker-fatal-runtime",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793881712496-3gpejy\\indexing_workers_worker-fatal-runtime.attempt-1.log"
+          ],
+          "path": "indexing/workers/worker-fatal-runtime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "finalFormat": "\r\n> pairofcleats@0.3.0 format\r\n> eslint . --fix\r\n\r\n"
+  },
+  "sourceBlobs": {
+    ".github/workflows/ci.yml": "fb256a1a3bc557eaab25a47eb12c809c565956ca",
+    "tools/ci/run-suite.js": "bd7994be2032c80841d693cfb26565f8af998efa",
+    "tests/tooling/ci/run-suite-api-plan.test.js": "c777f55b110830ccef2667bde14629dea2b4e4fb",
+    "tests/lang/contracts/yaml-syntax-node-boundaries.test.js": "33233bb1654794a0c3bb96f3d6086f5ededb0264",
+    "tests/indexing/runtime/build-cli-selected-outcome.test.js": "a61055fdaab93a88706cdede2a169027896ac1ac",
+    "tests/indexing/workers/worker-fatal-runtime.test.js": "1ce10add743411f678d377aa1c6c7f1ed5baf248"
+  }
+}

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { RUNTIME_EVIDENCE_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs/promises';
 import { once } from 'node:events';
 import { createCli } from '../../src/shared/cli.js';
@@ -9,11 +10,7 @@ import { assertRuntimeClaims } from '../../src/contracts/validators/runtime-clai
 import { runRuntimeCaptureComparison, runRuntimeDerivedClaimLookup } from '../../src/integrations/tooling/runtime-claims.js';
 
 export const runRuntimeEvidenceCli = async (argv = process.argv, { output = process.stdout } = {}) => {
-  const args = createCli({ argv, scriptName: 'pairofcleats runtime', options: {
-    operation: { type: 'string', choices: ['lookup', 'families', 'compare', 'claims'], demandOption: true },
-    request: { type: 'string', demandOption: true, description: 'Strict saved runtime request JSON file (at most 1 MiB).' },
-    all: { type: 'boolean', default: false, description: 'Stream bounded saved-evidence pages as JSONL.' }
-  } }).strictOptions().parse();
+  const args = createCli({ argv, scriptName: 'pairofcleats runtime', options: RUNTIME_EVIDENCE_OPTIONS }).strictOptions().parse();
   if ((await fs.stat(args.request)).size > 1048576) throw new TypeError('Runtime request file exceeds allowance.');
   const kind = args.operation === 'lookup' ? 'lookupRequest' : 'discoveryRequest';
   const value = JSON.parse(await fs.readFile(args.request, 'utf8'));

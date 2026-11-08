@@ -6,6 +6,7 @@ import { compareStrings } from '../../../shared/sort.js';
 import { compareWithAntisymmetryInvariant } from '../../../shared/invariants.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { writeJsonlRunFile } from '../../../shared/merge.js';
+import { removeMergeDiskDirectory } from '../../../shared/merge-disk.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 import {
   OFFSETS_COMPRESSION,
@@ -154,7 +155,8 @@ export const createRowSpillCollector = ({
   stats = createTrimStats(),
   mapRow = null,
   serialize = null,
-  scheduleIo = null
+  scheduleIo = null,
+  diskAccount = null
 } = {}) => {
   const buffer = [];
   let bufferBytes = 0;
@@ -185,7 +187,7 @@ export const createRowSpillCollector = ({
     const runPath = path.join(dir, runName);
     runIndex += 1;
     const spillBytes = bufferBytes;
-    await schedule(() => writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow }));
+    await schedule(() => writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow, diskAccount }));
     runs.push(runPath);
     if (stats) {
       stats.runsSpilled = (stats.runsSpilled || 0) + 1;
@@ -250,34 +252,33 @@ export const createRowSpillCollector = ({
     }
   };
 
+  // Cleanup must remain available after an append/serialization failure. Using
+  // finalize for teardown would retry the still-buffered failing spill write.
+  const cleanup = async () => {
+    if (runsDir) await schedule(() => removeMergeDiskDirectory(runsDir, diskAccount));
+  };
+
   const finalize = async () => {
     if (runs.length) {
       if (buffer.length) await spill();
       return {
         runs: runs.slice(),
         stats,
-        cleanup: async () => {
-          if (runsDir) {
-            await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
-          }
-        }
+        cleanup
       };
     }
     if (buffer.length) buffer.sort(compareRows);
     return {
       rows: buffer,
       stats,
-      cleanup: async () => {
-        if (runsDir) {
-          await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
-        }
-      }
+      cleanup
     };
   };
 
   return {
     append,
     finalize,
+    cleanup,
     stats
   };
 };
@@ -556,6 +557,8 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
     importGraph: {}
   };
   if (relations.caps !== undefined) basePayload.caps = relations.caps;
+  if (relations.upstreamCoverage !== undefined) basePayload.upstreamCoverage = relations.upstreamCoverage;
+  if (relations.extractionCoverage !== undefined) basePayload.extractionCoverage = relations.extractionCoverage;
   const baseBytes = Buffer.byteLength(JSON.stringify(basePayload), 'utf8');
   const totalJsonBytes = baseBytes
     + graphSizes.callGraph - 2
@@ -621,6 +624,8 @@ export const materializeGraphRelationsPayload = (relations) => {
     importGraph: buildGraph('importGraph')
   };
   if (relations.caps !== undefined) output.caps = relations.caps;
+  if (relations.upstreamCoverage !== undefined) output.upstreamCoverage = relations.upstreamCoverage;
+  if (relations.extractionCoverage !== undefined) output.extractionCoverage = relations.extractionCoverage;
   return output;
 };
 

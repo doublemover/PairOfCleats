@@ -1,6 +1,6 @@
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { collectAttributes, extractDocComment, sliceSignature } from '../shared.js';
-import { findCLikeBodyBounds } from '../clike.js';
+import { findTypeScriptBodyBounds } from './brace-bounds.js';
 import {
   extractTypeScriptInheritance,
   extractTypeScriptModifiers,
@@ -37,7 +37,7 @@ const buildFunctionLikeDecl = ({
 }) => {
   const start = lineIndex[lineNumber] + line.indexOf(match[0]);
   const { signature, endLine, hasBody } = readSignatureLines(lines, lineNumber);
-  const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+  const bounds = hasBody ? findTypeScriptBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
   const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
   const modifiers = extractTypeScriptModifiers(signature);
   const parsed = parseTypeScriptSignature(signature);
@@ -87,7 +87,7 @@ export function buildTypeScriptChunksHeuristic(text) {
       let end = lineIndex[i] + line.length;
       let signature = trimmed;
       if (kindKey !== 'type') {
-        const bounds = findCLikeBodyBounds(text, start);
+        const bounds = findTypeScriptBodyBounds(text, start);
         if (bounds.bodyStart !== -1) {
           end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
           signature = sliceSignature(text, start, bounds.bodyStart);
@@ -158,7 +158,7 @@ export function buildTypeScriptChunksHeuristic(text) {
   const methodRe = /^\s*(?:public|private|protected|static|abstract|async|readonly|override|declare\s+)*(?:get|set\s+)?([A-Za-z_$][A-Za-z0-9_$]*|constructor)\s*(?:<[^>]+>)?\s*\(/;
   for (const typeDecl of typeDecls) {
     if (!typeDecl || typeDecl.start == null || typeDecl.end == null) continue;
-    const bounds = findCLikeBodyBounds(text, typeDecl.start);
+    const bounds = findTypeScriptBodyBounds(text, typeDecl.start);
     if (bounds.bodyStart === -1 || bounds.bodyEnd === -1) continue;
     const startLine = offsetToLine(lineIndex, bounds.bodyStart + 1);
     const endLine = offsetToLine(lineIndex, bounds.bodyEnd);

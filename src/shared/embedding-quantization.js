@@ -46,10 +46,10 @@ export const quantizeEmbeddingVector = (vec, minVal = -1, maxVal = 1, levels = 2
     const q = Math.round(((f - min) * scale));
     if (q <= 0) {
       out[i] = 0;
-      clamped += 1;
+      if (f < min) clamped += 1;
     } else if (q >= maxQ) {
       out[i] = maxQ;
-      clamped += 1;
+      if (f > max) clamped += 1;
     } else {
       out[i] = q;
     }
@@ -66,7 +66,7 @@ export const quantizeEmbeddingVector = (vec, minVal = -1, maxVal = 1, levels = 2
  * @param {number} [levels=256]
  * @returns {Uint8Array}
  */
-export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, levels = 256) => {
+export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, levels = 256, { normalize = false } = {}) => {
   if (!vec || typeof vec !== 'object') return new Uint8Array(0);
   const length = Number.isFinite(vec.length) ? Math.max(0, Math.floor(vec.length)) : 0;
   if (!length) return new Uint8Array(0);
@@ -79,19 +79,29 @@ export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, level
   const out = new Uint8Array(length);
   if (!Number.isFinite(range) || range === 0) return out;
 
+  // Normalization historically rounds inputs and each quotient to Float32.
+  // Keep those numerical boundaries while avoiding an owned normalized copy.
+  const values = normalize && !(vec instanceof Float32Array) ? Float32Array.from(vec) : vec;
+  let norm = 0;
+  if (normalize) {
+    for (let i = 0; i < length; i++) norm += values[i] * values[i];
+    norm = Math.sqrt(norm);
+  }
+  const applyNorm = normalize && Number.isFinite(norm) && norm !== 0;
+
   const scale = (lvl - 1) / range;
   const maxQ = lvl - 1;
   let clamped = 0;
 
   for (let i = 0; i < length; i += 1) {
-    const f = vec[i];
+    const f = applyNorm ? Math.fround(values[i] / norm) : values[i];
     const q = Math.round((Number(f) - min) * scale);
     if (q <= 0) {
       out[i] = 0;
-      clamped += 1;
+      if (f < min) clamped += 1;
     } else if (q >= maxQ) {
       out[i] = maxQ;
-      clamped += 1;
+      if (f > max) clamped += 1;
     } else {
       out[i] = q;
     }

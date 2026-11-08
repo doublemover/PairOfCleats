@@ -11,11 +11,12 @@ import path from 'node:path';
 import { visitChatGptExport } from './archive.js';
 import { hashCanonicalJson } from './normalize.js';
 import { normalizeHistoryRecord } from './records.js';
+import { projectHistoryPublicIdentity } from './public-metadata.js';
 import { normalizeMemberLinks } from './member-links.js';
-import { READ_GUARDS, visibleNode, readVisibleContext, readHistoryReferences } from './reader.js';
+import { READ_GUARDS, createVisibleNodeReader, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore, openMemoryHistoryStore, openLocalArchiveStore } from './store.js';
 import { searchHybridHistory } from './hybrid.js';
-import { historyIndexState, advanceHistoryGeneration } from './generation.js';
+import { historyIndexState, advanceHistoryGeneration, assertHistoryExpectedGeneration } from './generation.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
 import { ADAPTER_VERSION, PROJECTION_VERSION, DEFAULT_LIMITS, digest, privateReference, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
 
@@ -96,9 +97,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         if(!memoryStores.has(partitionKey)){const memory=localIndexPath?await openLocalArchiveStore(localIndexPath,partitionKey,{lexical}):openMemoryHistoryStore(partitionKey,{lexical}),close=memory.close.bind(memory);memory.close=()=>{};memoryStores.set(partitionKey,{db:memory,close});}
         db=memoryStores.get(partitionKey).db;
       }else db = await openHistoryStore(vaultRoot, partitionKey, { create, verifyPrivateVault, lexical });
-      const initialIndex = historyIndexState(db);
-      if (request.expectedGeneration !== undefined && (!opaqueId(request.expectedGeneration)
-        || request.expectedGeneration !== initialIndex.generationRef)) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Index generation changed.');
+      const initialIndex = assertHistoryExpectedGeneration(db, request.expectedGeneration);
       const result = await operation(db, access, () => recheck(access, request));
       if(result && typeof result==='object') result.index=historyIndexState(db);
       await persistAudit(historyAuditEvent(request,access,'allowed',result));
@@ -196,30 +195,23 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
             db.prepare('UPDATE records SET latest_snapshot=? WHERE id=?').run(snapshotRef, recordRef);
             return;
           }
+          const readVisibleNode = createVisibleNodeReader(raw, normalized.evidenceKind);
+          const policy = historyPrivacy(db, recordRef);
           for (const node of normalized.nodes) {
             const nodeRevision = node.sourceRevision;
             const sourceRef = privateReference(referenceKey, JSON.stringify([recordRef, node.nodeId, nodeRevision, projectionFingerprint]));
-            const fullText = visibleNode(raw, normalized.evidenceKind, node.nodeId)?.text ?? '';
-            const policy=historyPrivacy(db,recordRef);
+            const fullText = readVisibleNode(node.nodeId)?.text ?? '';
             const projection = projectHistoryText(privacyText(fullText,policy), limits.maxTextChars);
             const metadata = {
               evidenceKind: normalized.evidenceKind,
-              sourceDetails: Object.fromEntries(Object.entries(node.sourceDetails || {})
-                .filter(([key, value]) => value === null || ['string', 'boolean'].includes(typeof value)
-                  || ['sanitizedStart', 'sanitizedEnd', 'totalChars'].includes(key) && Number.isSafeInteger(value) && value >= 0
-                  || key === 'transformation' && value && typeof value === 'object'
-                    && Object.keys(value).sort().join(',') === 'kind,original_end,original_start,sanitized_end,sanitized_start'
-                    && ['identity', 'redacted_coarse'].includes(value.kind)
-                    && ['original_start', 'original_end', 'sanitized_start', 'sanitized_end'].every(field => Number.isSafeInteger(value[field]) && value[field] >= 0))
-                .map(([key, value]) => [key, typeof value === 'string' ? redactHistoryText(value).slice(0, 512) : value])),
-              messageId: redactHistoryText(node.messageId).slice(0, 512), role: redactHistoryText(node.role).slice(0, 128),
+              ...projectHistoryPublicIdentity(node, normalized.evidenceKind, policy),
+              role: redactHistoryText(node.role).slice(0, 128),
               createdAt: { utc: node.createdAt.utc, state: node.createdAt.state },
               // Asset payloads and arbitrary metadata require original-read authority.
               assetCount: node.assets.length, partCount: node.parts.length,
               ownerRedacted:policy.redactions.length>0,
               nodeRevision, projectionVersion: PROJECTION_VERSION, projectionFingerprint, projection: projection.metadata
             };
-            if(policy.redactions.length){metadata.sourceDetails=normalized.evidenceKind==='recovered_artifact'?{projectionVersion:node.sourceDetails.projectionVersion}:{};metadata.messageId=null;}
             // Redact complete extracted parts before clipping; otherwise a
             // credential cut by the projection boundary could evade detection.
             const inserted = db.prepare('INSERT OR IGNORE INTO units VALUES (?, ?, ?, ?, ?)').run(
@@ -339,7 +331,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
   const ownerSetPrivacy=async request=>perform({...request,action:'owner_privacy'},true,async(db,_access,reauthorize)=>{
     db.exec('BEGIN IMMEDIATE');
     const {ownerIdentity:_ignored,...input}=request;
-    const result=updateHistoryPrivacy(db,input,visibleNode);
+    const result=updateHistoryPrivacy(db,input,createVisibleNodeReader);
     await reauthorize();
     if(result.changed)advanceHistoryGeneration(db);
     db.exec('COMMIT');

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["one-origin-many-paths", "same-text-independent-origins", "unknown-stale-and-invalid-traces", "paired-scope-and-ownership"]
+}

@@ -2,6 +2,7 @@ import { rankHnswIndex } from '../../../shared/hnsw.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
 
+/** @returns {import('../types.js').AnnProvider} */
 export function createHnswAnnProvider({ hnswAnnState, hnswAnnUsed }) {
   const resolveTopN = (topN, budget) => {
     const budgetTopN = Number(budget?.providerTopN?.[ANN_PROVIDER_IDS.HNSW]);
@@ -19,6 +20,8 @@ export function createHnswAnnProvider({ hnswAnnState, hnswAnnUsed }) {
 
   return {
     id: ANN_PROVIDER_IDS.HNSW,
+    capabilities: Object.freeze({ predicate: 'candidate-id-postfilter', exhaustiveStored: false,
+      progressiveEffort: true, cancellation: 'before-after-native-call', scoreSpace: 'index-declared-distance' }),
     isAvailable: ({ idx, mode, embedding }) => {
       const backendReady = Boolean(idx?.hnsw?.available || hnswAnnState?.[mode]?.available);
       return isAnnProviderAvailable({ embedding, backendReady });

@@ -1,0 +1,1126 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-26",
+  "sourceHead": "8bf742ec6689409b43d3d95a1a5ea98d1dff5117",
+  "sourceTree": "84daf2be08c9901895212f4646d83e7de3825240",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "dependencies": {
+    "preparedCheckout": true,
+    "dependencyOrPatchChanges": false,
+    "packageLockSha256": "f0e510a4d22802873b02dbb9d5cac1505db8efa137c1a5a605c871819cd94850",
+    "newNativeBackendQualification": false
+  },
+  "issues": [
+    {
+      "number": 1593,
+      "state": "closed",
+      "stateReason": "completed",
+      "implementationCommit": "be3905f570e479a9a617b7a7e437ac3249e3229c",
+      "qualifiedTests": [
+        "indexing/build-state/runtime-receipt",
+        "indexing/embeddings/runtime-stage3-receipt",
+        "services/queue/build-progress-bound-read-work",
+        "services/queue/build-progress-bounded-state",
+        "services/queue/build-progress-execution-identity",
+        "services/queue/build-progress-executor-binding",
+        "services/queue/build-progress-shared-discovery",
+        "services/queue/cleanup-retirement",
+        "services/queue/daemon-cleanup-retirement",
+        "tooling/logging/output-byte-accounting",
+        "tooling/logging/output-byte-accounting-buffer-chunks",
+        "tooling/service/indexer-job-executor-daemon-governance",
+        "tooling/service/indexer-job-executor-daemon-session-budget",
+        "tooling/service/indexer-job-executor-embedding-guards",
+        "tooling/service/subprocess-contract-matrix"
+      ]
+    },
+    {
+      "number": 1627,
+      "state": "open",
+      "disposition": "partial_or_followup",
+      "implementationCommit": "8bf742ec6689409b43d3d95a1a5ea98d1dff5117",
+      "qualifiedTests": [
+        "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+        "retrieval/backend/tantivy-selected-source-admission",
+        "retrieval/providers/tantivy-boolean-and-failure",
+        "retrieval/providers/tantivy-deep-filter-recall"
+      ],
+      "remaining": [
+        "Source manifest/mapping receipt and reader lease",
+        "Immutable staged publication/recovery and native completion validation",
+        "Writer coalescing and reader handle lifetime/cleanup",
+        "Source/activation failure and swapped-ID regressions",
+        "Supported optional-package native rebuild/readback qualification"
+      ]
+    }
+  ],
+  "currentCounts": {
+    "open": 738,
+    "qualificationPending": 477,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 738,
+    "newOrUnexpectedRemovedIssues": [],
+    "authorWorkspaceReceipt": ".tmp/tasks/service-progress-20261026/open-issues.json"
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "physicalSymlinks": false,
+    "elevation": false,
+    "wsl": false,
+    "subagents": false
+  },
+  "focused": {
+    "uniquePassing": 20,
+    "finalCases": [
+      {
+        "id": "indexing/build-state/runtime-receipt",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 619,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "indexing/embeddings/runtime-stage3-receipt",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1556,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 104,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "backend-controls"
+      },
+      {
+        "id": "retrieval/backend/tantivy-selected-source-admission",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1006,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "retrieval/providers/tantivy-boolean-and-failure",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 545,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "backend-controls"
+      },
+      {
+        "id": "retrieval/providers/tantivy-deep-filter-recall",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 156,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "backend-controls"
+      },
+      {
+        "id": "services/queue/build-progress-bound-read-work",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 554,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "lifecycle-final"
+      },
+      {
+        "id": "services/queue/build-progress-bounded-state",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 154,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "services/queue/build-progress-execution-identity",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 375,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "services/queue/build-progress-executor-binding",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 4197,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "descendant-final"
+      },
+      {
+        "id": "services/queue/build-progress-shared-discovery",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 984,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "lifecycle-final"
+      },
+      {
+        "id": "services/queue/cleanup-retirement",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 704,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "services/queue/daemon-cleanup-retirement",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 4058,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "tooling/ci/command-surface-audit",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 4422,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "command-fixture-task-launch"
+      },
+      {
+        "id": "tooling/logging/output-byte-accounting",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 227,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "tooling/logging/output-byte-accounting-buffer-chunks",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 118,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "tooling/service/indexer-job-executor-daemon-governance",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3305,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "tooling/service/indexer-job-executor-daemon-session-budget",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3298,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "tooling/service/indexer-job-executor-embedding-guards",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3437,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      },
+      {
+        "id": "tooling/service/subprocess-contract-matrix",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 6450,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "neighbors"
+      }
+    ],
+    "runs": [
+      {
+        "name": "focused",
+        "summary": {
+          "total": 8,
+          "passed": 7,
+          "failed": 1,
+          "skipped": 0,
+          "durationMs": 8482
+        },
+        "tests": [
+          {
+            "id": "indexing/build-state/runtime-receipt",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 619,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/embeddings/runtime-stage3-receipt",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 1556,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "retrieval/backend/tantivy-selected-source-admission",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 1006,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/build-progress-bound-read-work",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 523,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/build-progress-bounded-state",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 154,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/build-progress-execution-identity",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 375,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/build-progress-executor-binding",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 3269,
+            "exitCode": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/build-progress-shared-discovery",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 962,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "executor-fix",
+        "summary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 3781
+        },
+        "tests": [
+          {
+            "id": "services/queue/build-progress-executor-binding",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3775,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "lifecycle-final",
+        "summary": {
+          "total": 2,
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 1545
+        },
+        "tests": [
+          {
+            "id": "services/queue/build-progress-bound-read-work",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 554,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/build-progress-shared-discovery",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 984,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "descendant-final",
+        "summary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 4203
+        },
+        "tests": [
+          {
+            "id": "services/queue/build-progress-executor-binding",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 4197,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "neighbors",
+        "summary": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 21608
+        },
+        "tests": [
+          {
+            "id": "services/queue/cleanup-retirement",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 704,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/daemon-cleanup-retirement",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 4058,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/logging/output-byte-accounting",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 227,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/logging/output-byte-accounting-buffer-chunks",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 118,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/service/indexer-job-executor-daemon-governance",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3305,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/service/indexer-job-executor-daemon-session-budget",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3298,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/service/indexer-job-executor-embedding-guards",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3437,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/service/subprocess-contract-matrix",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 6450,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "backend-controls",
+        "summary": {
+          "total": 4,
+          "passed": 3,
+          "failed": 1,
+          "skipped": 0,
+          "durationMs": 2424
+        },
+        "tests": [
+          {
+            "id": "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 104,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "retrieval/providers/tantivy-boolean-and-failure",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 545,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "retrieval/providers/tantivy-deep-filter-recall",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 156,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/ci/command-surface-audit",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 1611,
+            "exitCode": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "command-fixture-task-launch",
+        "summary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 4427
+        },
+        "tests": [
+          {
+            "id": "tooling/ci/command-surface-audit",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 4422,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      }
+    ]
+  },
+  "gate": {
+    "summary": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 6776
+    },
+    "tests": [
+      {
+        "id": "indexing/policy/hotpath-membership-guard",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 357,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/module-cache-boundedness-contract",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 315,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/generated-matrix",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 273,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/artifact-surface-version",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 232,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/n-minus-one-adapter",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 189,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/public-artifact-surface-doc",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 149,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-compatibility-key-generation",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 315,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/semver-policy-enforced",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 222,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-state-dense-sidecars-present",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 194,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "contracts/manifest-max-bytes-validation",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 269,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/repo-inventory",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3217,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/shared-module-cycle-guard",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 434,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/loader-matrix-parity",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 355,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/analysis-schema",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 510,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/snapshots",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 523,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/builds-current-repo-head-schema",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 487,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/call-sites-schema",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 540,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/diffs",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 500,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/additional-properties-policy",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 539,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 857,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/schema-registry-single-source",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 469,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/caps",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1132,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/schema-validate",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1445,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/fail-on-warn",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1449,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/optional-params",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1409,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/large-call-sites",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1098,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/embedding-identity-gating-on-load",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 905,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/capability-gate.smoke",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1444,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-compatibility-key-federation-block",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2170,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/stable-entrypoints",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 321,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/optional-deps",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2445,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/analysis-gating",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1963,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/tooling-doctor-gate.smoke",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2159,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/basic",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1181,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "contracts/module-export-surface-compat",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 4039,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/semantic-foundations",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2271,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/semantic-handoff-contracts",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 832,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/runtime-evidence",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1097,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-format-cutover",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2039,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/windows-authority-cohort",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2123,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ],
+    "initialSteps": [
+      {
+        "exitCode": 0,
+        "name": "format",
+        "log": ".tmp\\tasks\\service-progress-20261026\\format.log",
+        "durationMs": 37773
+      },
+      {
+        "exitCode": 0,
+        "name": "config-budget",
+        "log": ".tmp\\tasks\\service-progress-20261026\\config-budget.log",
+        "durationMs": 3526
+      },
+      {
+        "exitCode": 0,
+        "name": "environment",
+        "log": ".tmp\\tasks\\service-progress-20261026\\environment.log",
+        "durationMs": 1982
+      },
+      {
+        "exitCode": 0,
+        "name": "generated",
+        "log": ".tmp\\tasks\\service-progress-20261026\\generated.log",
+        "durationMs": 14760
+      },
+      {
+        "exitCode": 1,
+        "name": "command-surface",
+        "log": ".tmp\\tasks\\service-progress-20261026\\command-surface.log",
+        "durationMs": 1618
+      }
+    ],
+    "taskLaunchSteps": [
+      {
+        "log": ".tmp\\tasks\\service-progress-20261026\\command-surface-task-launch.log",
+        "durationMs": 3414,
+        "exitCode": 0,
+        "name": "command-surface-task-launch"
+      },
+      {
+        "log": ".tmp\\tasks\\service-progress-20261026\\workflow.log",
+        "durationMs": 306,
+        "exitCode": 0,
+        "name": "workflow"
+      },
+      {
+        "log": ".tmp\\tasks\\service-progress-20261026\\gate-lane.log",
+        "durationMs": 9476,
+        "exitCode": 0,
+        "name": "gate-lane"
+      },
+      {
+        "log": ".tmp\\tasks\\service-progress-20261026\\diff.log",
+        "durationMs": 129,
+        "exitCode": 0,
+        "name": "diff"
+      }
+    ],
+    "launch": {
+      "reason": "Inherited trusted-config selector names a missing external file",
+      "globalEnvironmentChanged": false,
+      "inheritedPath": "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\config\\trusted.json",
+      "omittedFromTaskChildEnvironment": "PAIROFCLEATS_TRUSTED_CONFIG"
+    }
+  },
+  "measuredWork": {
+    "kind": "resource-work, not wall-time latency; real filesystem I/O and controlled discovery clock",
+    "measurements": [
+      {
+        "retained": 1,
+        "waitingMonitors": 4,
+        "cycles": 1,
+        "pages": 1,
+        "entries": 1,
+        "stateReads": 1,
+        "knownReadBytes": 474,
+        "jsonDecodes": 1,
+        "unknownReadAttempts": 0,
+        "coalesced": 3,
+        "backoffs": 1,
+        "statuses": {
+          "ok": 1,
+          "missing": 0,
+          "oversized": 0,
+          "corrupt": 0,
+          "unsafe": 0,
+          "transient": 0
+        },
+        "nextAt": 5001,
+        "retainedHints": 1,
+        "cursorOpen": false
+      },
+      {
+        "retained": 8,
+        "waitingMonitors": 4,
+        "cycles": 1,
+        "pages": 1,
+        "entries": 8,
+        "stateReads": 8,
+        "knownReadBytes": 3792,
+        "jsonDecodes": 8,
+        "unknownReadAttempts": 0,
+        "coalesced": 3,
+        "backoffs": 1,
+        "statuses": {
+          "ok": 8,
+          "missing": 0,
+          "oversized": 0,
+          "corrupt": 0,
+          "unsafe": 0,
+          "transient": 0
+        },
+        "nextAt": 5001,
+        "retainedHints": 8,
+        "cursorOpen": false
+      },
+      {
+        "retained": 32,
+        "waitingMonitors": 4,
+        "cycles": 1,
+        "pages": 1,
+        "entries": 32,
+        "stateReads": 32,
+        "knownReadBytes": 15342,
+        "jsonDecodes": 32,
+        "unknownReadAttempts": 0,
+        "coalesced": 3,
+        "backoffs": 1,
+        "statuses": {
+          "ok": 32,
+          "missing": 0,
+          "oversized": 0,
+          "corrupt": 0,
+          "unsafe": 0,
+          "transient": 0
+        },
+        "nextAt": 5001,
+        "retainedHints": 32,
+        "cursorOpen": false
+      },
+      {
+        "retained": 135,
+        "waitingMonitors": 4,
+        "cycles": 1,
+        "pages": 3,
+        "entries": 135,
+        "stateReads": 135,
+        "knownReadBytes": 65330,
+        "jsonDecodes": 135,
+        "unknownReadAttempts": 0,
+        "coalesced": 3,
+        "backoffs": 1,
+        "statuses": {
+          "ok": 135,
+          "missing": 0,
+          "oversized": 0,
+          "corrupt": 0,
+          "unsafe": 0,
+          "transient": 0
+        },
+        "nextAt": 15001,
+        "retainedHints": 7,
+        "cursorOpen": false
+      }
+    ],
+    "boundMonitors": 2,
+    "boundPollsPerMonitor": 3,
+    "stateReads": 6,
+    "retainedDirectoryEnumerations": 0,
+    "retainedStateStats": 0,
+    "pageLimit": 64
+  },
+  "retainedFailures": [
+    {
+      "run": "focused",
+      "cause": "New daemon fixture supplied unsupported index-root argv; corrected fixture without changing parser."
+    },
+    {
+      "run": "front-gate",
+      "cause": "Inherited trusted-config selector names a missing external file; correctly rejected."
+    },
+    {
+      "run": "backend-controls",
+      "cause": "Same stale launch selector inherited by command audit fixture; task-local omission rechecked only the affected case."
+    }
+  ],
+  "rawEvidence": {
+    "scope": "historical author workspace; not available in clean checkouts",
+    "directory": ".tmp/tasks/service-progress-20261026",
+    "logs": ".testLogs/"
+  },
+  "remainingQualifications": [
+    "Full Windows suite and other open issue acceptance",
+    "Installed optional Tantivy native rebuild/readback",
+    "Other optional backends/real models",
+    "Linux/macOS and release qualification",
+    "Default inherited launch still needs its stale trusted-config reference corrected by its owner"
+  ]
+}

@@ -12,31 +12,46 @@ import { toRealPathSync } from '../../workspace/identity.js';
 import { generateWorkspaceManifest } from '../../workspace/manifest.js';
 import { buildPerRepoArgsFromCli, buildPerRepoArgsFromRequest } from './args.js';
 import { selectFederationCohorts } from './cohorts.js';
-import { mergeFederatedResults } from './merge.js';
+import { mergeFederatedModeResults } from './merge.js';
 import {
   buildFederatedQueryCacheKey,
   buildFederatedQueryCacheKeyPayload,
   findFederatedQueryCacheEntry,
   loadFederatedQueryCache,
   persistFederatedQueryCache,
+  persistFederatedQueryCacheTouch,
   touchFederatedQueryCacheEntry,
   upsertFederatedQueryCacheEntry
 } from './query-cache.js';
+
 import { selectWorkspaceRepos } from './select.js';
+import { enumerateWorkspace, withoutCursor } from './enumeration.js';
+import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
+import { bindRelativeModificationArgs } from './time-filter.js';
+import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
+import { createFederatedAdmission } from './admission.js';
+import { verifyFederatedModeGeneration, buildPinnedFederatedModePlans,
+  bindFederatedBuildRef, bindFederatedModeRequest } from './generation.js';
+import { INTERNAL_ADMITTED_GENERATION } from '../../index/as-of.js';
+import { applyModeOverride } from './modes.js';
+import { resolveFederatedCursor } from './request.js';
+import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
+import { validateFederatedModeResult, isReusableFederatedCacheResult } from './results.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { INTERNAL_SEARCH_POLICY } from '../cli/effective-plan.js';
+import { createFederatedCacheRetirement } from './retirement.js';
+
+export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
+  (repos || []).flatMap(repo=>(requestedModes || [])
+    .filter(mode=>!eligibleModesByRepo.get(repo.repoId)?.has(mode)
+      && !toArray(cohortExcluded[mode]).some(excluded=>excluded.repoId === repo.repoId && excluded.reason === 'cohort-excluded'))
+    .map(mode=>({repoId:repo.repoId,mode,reason:'not-eligible-for-request'})));
 
 const MODE_PAYLOAD_KEYS = Object.freeze({
   code: 'code',
   prose: 'prose',
   'extracted-prose': 'extractedProse',
   records: 'records'
-});
-const MODE_FLAG_COVERAGE = Object.freeze({
-  code: ['code'],
-  prose: ['prose', 'extracted-prose'],
-  'extracted-prose': ['extracted-prose'],
-  records: ['records'],
-  both: ['code', 'prose', 'extracted-prose'],
-  all: ['code', 'prose', 'extracted-prose', 'records']
 });
 const MAX_FEDERATED_TOP = 500;
 const MAX_FEDERATED_PER_REPO_TOP = 1000;
@@ -105,88 +120,6 @@ const resolveRequestedModes = (modeValue) => {
   if (mode === 'extracted-prose') return ['extracted-prose'];
   if (mode === 'records') return ['records'];
   return ['code', 'prose', 'extracted-prose'];
-};
-
-const splitAtEndOfOptions = (args) => {
-  const markerIndex = args.findIndex((token) => String(token || '') === '--');
-  if (markerIndex < 0) {
-    return {
-      options: args.slice(),
-      positional: []
-    };
-  }
-  return {
-    options: args.slice(0, markerIndex),
-    positional: args.slice(markerIndex)
-  };
-};
-
-const removeModeFlag = (args) => {
-  const { options, positional } = splitAtEndOfOptions(args);
-  const output = [];
-  for (let i = 0; i < options.length; i += 1) {
-    const token = String(options[i] || '');
-    if (token === '--mode') {
-      if (i + 1 < options.length) i += 1;
-      continue;
-    }
-    if (token.startsWith('--mode=')) continue;
-    output.push(token);
-  }
-  return [...output, ...positional];
-};
-
-/**
- * Apply a per-repo mode override to prebuilt federated per-repo args.
- *
- * @param {string[]} args
- * @param {string|null} modeFlag
- * @returns {string[]}
- */
-const applyModeOverride = (args, modeFlag) => {
-  const withoutMode = removeModeFlag(args);
-  if (!modeFlag) return withoutMode;
-  const { options, positional } = splitAtEndOfOptions(withoutMode);
-  return [...options, '--mode', modeFlag, ...positional];
-};
-
-/**
- * Build one or more per-repo mode calls needed to satisfy a repo's eligible
- * mode set while avoiding known-unavailable modes.
- *
- * @param {string[]} eligibleModes
- * @returns {Array<{modeFlag:string,modesCovered:Set<string>}>}
- */
-const buildRepoModePlans = (eligibleModes = []) => {
-  const eligible = new Set(eligibleModes);
-  if (!eligible.size) return [];
-  const has = (mode) => eligible.has(mode);
-  if (has('code') && has('prose') && has('extracted-prose') && has('records')) {
-    return [{ modeFlag: 'all', modesCovered: new Set(MODE_FLAG_COVERAGE.all) }];
-  }
-  if (has('code') && has('prose') && has('extracted-prose') && !has('records')) {
-    return [{ modeFlag: 'both', modesCovered: new Set(MODE_FLAG_COVERAGE.both) }];
-  }
-  if (!has('code') && has('prose') && has('extracted-prose') && !has('records')) {
-    return [{ modeFlag: 'prose', modesCovered: new Set(MODE_FLAG_COVERAGE.prose) }];
-  }
-  const plans = [];
-  if (has('code')) {
-    plans.push({ modeFlag: 'code', modesCovered: new Set(MODE_FLAG_COVERAGE.code) });
-  }
-  if (has('prose') || has('extracted-prose')) {
-    if (has('prose') && has('extracted-prose')) {
-      plans.push({ modeFlag: 'prose', modesCovered: new Set(MODE_FLAG_COVERAGE.prose) });
-    } else if (has('extracted-prose')) {
-      plans.push({ modeFlag: 'extracted-prose', modesCovered: new Set(MODE_FLAG_COVERAGE['extracted-prose']) });
-    } else {
-      plans.push({ modeFlag: 'prose', modesCovered: new Set(['prose']) });
-    }
-  }
-  if (has('records')) {
-    plans.push({ modeFlag: 'records', modesCovered: new Set(MODE_FLAG_COVERAGE.records) });
-  }
-  return plans;
 };
 
 /**
@@ -389,7 +322,8 @@ export const mergeFederatedResultsByMode = ({
   selectedReposByMode = {},
   topN = 10,
   perRepoTop = 20,
-  rrfK = 60
+  rrfK = 60,
+  signal = null
 } = {}) => {
   const mergedByMode = {
     code: [],
@@ -408,13 +342,14 @@ export const mergeFederatedResultsByMode = ({
       continue;
     }
     const scopedPerRepoResults = perRepoResults.filter((entry) => selectedRepoIds.has(entry.repoId));
-    const scopedMerged = mergeFederatedResults({
+    mergedByMode[payloadKey] = mergeFederatedModeResults({
       perRepoResults: scopedPerRepoResults,
+      mode,
       topN,
       perRepoTop,
-      rrfK
+      rrfK,
+      signal
     });
-    mergedByMode[payloadKey] = scopedMerged[payloadKey] || [];
   }
   return mergedByMode;
 };
@@ -559,17 +494,46 @@ const resolveWorkspaceConfig = (request, context) => {
   return trustedWorkspaceConfig;
 };
 
+/**
+ * Ranked strict failures and external cancellation reject promptly and stop new
+ * repository/mode admissions. Already started reads drain with their original
+ * signal; request-owned caches retire only after every worker settles. Borrowed
+ * host caches keep their host ownership, including after the caller rejects.
+ */
 export const runFederatedSearch = async (request = {}, context = {}) => {
+  const checkAbort = () => {
+    if (context.signal?.aborted) throw createError(ERROR_CODES.CANCELLED, 'Federated search cancelled.');
+  };
+  checkAbort();
+  const timeAnchor = Date.now();
   const query = String(request.query || '').trim();
-  if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
+  const requestCursor = resolveFederatedCursor(request);
 
   const workspaceConfig = resolveWorkspaceConfig(request, context);
   if (request.workspaceId && request.workspaceId !== workspaceConfig.repoSetId) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'workspaceId does not match the provided workspacePath.');
   }
-
-  const manifestResult = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  const readManifest = async write => {
+    try { return await generateWorkspaceManifest(workspaceConfig, { write, signal: context.signal }); }
+    catch (error) {
+      observeStorageResource(error, { phase: 'federated-manifest' }).requireSettled();
+      if (context.signal?.aborted && isAbortError(error)) {
+        throw Object.assign(createError(ERROR_CODES.CANCELLED, 'Federated search cancelled.'), { cause: error });
+      }
+      throw error;
+    }
+  };
+  const manifestResult = await readManifest(true);
+  checkAbort();
   const manifest = manifestResult.manifest;
+  const verifyRankedGeneration = async () => {
+    checkAbort();
+    const current = await readManifest(false);
+    checkAbort();
+    if (current.manifest.manifestHash !== manifest.manifestHash) {
+      throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during ranked search. Retry against the current generation.');
+    }
+  };
   const requestedModes = resolveRequestedModes(request.search?.mode || request.mode);
   const selection = selectWorkspaceRepos({
     workspaceConfig,
@@ -623,17 +587,105 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const rrfK = coerceNumber(request.merge?.rrfK ?? request.rrfK, 60, 1);
   const includePaths = request.debug?.includePaths === true;
   const strictFailures = request.strict === true;
+  const unavailableRequestedModes=resolveFederatedUnavailableModes({repos:selection.selectedRepos,requestedModes,
+    eligibleModesByRepo:repoEligibleModesById,cohortExcluded:cohortResult.excluded});
+  if(strictFailures && unavailableRequestedModes.length) {
+    throw Object.assign(createError(ERROR_CODES.NO_INDEX,'Some requested repository modes are unavailable for workspace search.'),
+      {unavailable:unavailableRequestedModes});
+  }
 
-  const basePerRepoArgs = request.rawArgs
+  const basePerRepoArgs = bindRelativeModificationArgs(request.rawArgs
     ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop })
     : buildPerRepoArgsFromRequest({
       query,
       search: request.search || {},
       perRepoTop
-    });
+    }), timeAnchor);
   const perRepoQuery = request.rawArgs ? '' : query;
+  if (!query) {
+    const enumerationArgs = withoutCursor(request.rawArgs
+      ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop: Math.max(1, topN) })
+      : buildPerRepoArgsFromRequest({ query: '', search: { ...request.search, cursor: null }, perRepoTop: Math.max(1, topN) }));
+    if (!hasSearchFilterArgs(parseSearchArgs(enumerationArgs))) {
+      throw createError(ERROR_CODES.INVALID_REQUEST, 'Provide query text or at least one search filter.');
+    }
+    const tasks = activeRepoIds.flatMap((repoId) => {
+      const repo = selection.selectedRepos.find((entry) => entry.repoId === repoId);
+      return Array.from(repoEligibleModesById.get(repoId) || []).sort().map((mode) => ({ repo, mode }));
+    });
+    const result = await enumerateWorkspace({
+      tasks, args: enumerationArgs, cursor: requestCursor,
+      manifestHash: manifest.manifestHash, search: context.searchFn || coreSearch, signal: context.signal,
+      bindRequest: (task, args) => bindFederatedModeRequest(args,
+        manifest.repos.find(repo => repo.repoId === task.repo.repoId), task.mode),
+      verifyResult: (task, result) => verifyFederatedModeGeneration({ repoId: task.repo.repoId,
+        modes: [task.mode], result, manifestRepo: manifest.repos.find(repo => repo.repoId === task.repo.repoId) }),
+      verifyGeneration: async () => {
+        const current = await readManifest(false);
+        if (current.manifest.manifestHash !== manifest.manifestHash) {
+          throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during enumeration. Restart without --cursor.');
+        }
+      }
+    });
+    const unavailable = unavailableRequestedModes;
+    if (strictFailures && unavailable.length) {
+      throw createError(ERROR_CODES.NO_INDEX, 'Some requested repository modes are unavailable for workspace enumeration.');
+    }
+    result.status = unavailable.length ? 'partial' : 'ok';
+    result.partialSuccess = unavailable.length > 0;
+    result.warnings = [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)];
+    result.meta = { manifestHash: manifest.manifestHash, cohorts: cohortResult, selectedRepoIds: selection.selectedRepoIds,
+      completeness: { scope: 'eligible-indexed-metadata', unavailable, remainingPages: result.pagination.hasMore } };
+    return toStableResponse(result, includePaths);
+  }
   const cohortSelectors = request.cohort || request.cohorts?.cohort || [];
-  const cachePath = resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId);
+  const customSearch = typeof context.searchFn === 'function' && context.searchFn !== coreSearch;
+  const customPolicyId = typeof context.searchPolicyId === 'string' && context.searchPolicyId.trim()
+    && context.searchPolicyId.length <= 256 ? context.searchPolicyId : null;
+  let policyQualified = !customSearch || customPolicyId !== null;
+  const manifestRepoMap = new Map(
+    toArray(manifest.repos).map((entry) => [entry?.repoId, entry])
+  );
+  const selectedRepoMap = new Map(selection.selectedRepos.map(repo => [repo.repoId, repo]));
+  const capturedModePlans = new Map();
+  const policyIdentities = [];
+  const { loadFederatedSearchPolicy, captureFederatedSearchPolicy } = policyQualified
+    ? await import('./effective-plan.js') : {};
+  // This uses the same bounded repository concurrency as execution. Load config
+  // and auto-policy once per repo, then normalize all its pinned mode calls.
+  let policyCursor = 0;
+  const policyWorkers = await Promise.allSettled(Array.from({ length: Math.min(concurrency, activeRepoIds.length) }, async () => {
+    while (policyCursor < activeRepoIds.length) {
+      checkAbort();
+      const repoId = activeRepoIds[policyCursor++];
+      const repo = selectedRepoMap.get(repoId);
+      const pinned = buildPinnedFederatedModePlans({ modes: Array.from(repoEligibleModesById.get(repoId) || []),
+        manifestRepo: manifestRepoMap.get(repoId), args: basePerRepoArgs });
+      const plans = (pinned.length ? pinned : [{ modeFlag: null, modesCovered: new Set(requestedModes) }])
+        .map(plan => ({ ...plan, args: bindFederatedBuildRef(applyModeOverride(basePerRepoArgs, plan.modeFlag), plan.indexRef) }));
+      capturedModePlans.set(repoId, plans);
+      if (!loadFederatedSearchPolicy) continue;
+      try {
+        const inputs = await loadFederatedSearchPolicy(repo.repoRootCanonical, context.signal);
+        for (const plan of plans) {
+          const exactMode = plan.modesCovered.size === 1 ? [...plan.modesCovered][0] : null;
+          plan.policy = captureFederatedSearchPolicy(inputs, { args: plan.args, query: perRepoQuery, exactMode });
+          policyIdentities.push({ repoId, modes: [...plan.modesCovered].sort(), identity: plan.policy.identity });
+        }
+      } catch (error) {
+        observeStorageResource(error, { phase: 'federated-search-policy' }).requireSettled();
+        if (isFederatedAbortError(error, context.signal)) throw error;
+        policyQualified = false;
+        for (const plan of plans) plan.policyError = error;
+      }
+    }
+  }));
+  const failedPolicyWorker = policyWorkers.find(outcome => outcome.status === 'rejected');
+  if (failedPolicyWorker) throw failedPolicyWorker.reason;
+  policyIdentities.sort((left, right) => {
+    const a = stableStringify(left), b = stableStringify(right); return a < b ? -1 : a > b ? 1 : 0;
+  });
+  const cachePath = policyQualified ? resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId) : null;
   const cachePolicy = {
     ...context.federatedCachePolicy
   };
@@ -673,6 +725,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       concurrency
     },
     runtime: {
+      effectivePlans: policyIdentities,
+      searchPolicyId: customPolicyId,
       perRepoArgs: basePerRepoArgs,
       requestedBackend: request.search?.backend || request.backend || null,
       requestedAnn: request.search?.ann ?? request.ann ?? null,
@@ -681,35 +735,56 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     }
   });
   const cacheKeyInfo = buildFederatedQueryCacheKey(cacheKeyPayload);
+  const emitShadow = (pools, manifestRepos = null) => {
+    if (context.shadowRouting !== true || typeof context.onShadowRouting !== 'function') return;
+    try {
+      publishFederatedShadow(context, captureFederatedShadow({ query, queryAst: context.queryAst || null,
+        manifest, selectedByMode, requestedModes, perRepoResults: pools, manifestRepos,
+        queryKey: cacheKeyInfo.keyHash, budget: topN, signal: context.signal }));
+    } catch { publishFederatedShadow(context, { authoritative: false, complete: false, reason: 'shadow-failed', metrics: null }); }
+  };
   let cacheData = await loadFederatedQueryCache({
     cachePath,
     repoSetId: workspaceConfig.repoSetId
   });
-  const cachedEntry = findFederatedQueryCacheEntry(cacheData, {
+  checkAbort();
+  const cachedEntry = policyQualified ? findFederatedQueryCacheEntry(cacheData, {
     keyHash: cacheKeyInfo.keyHash,
-    manifestHash: manifest.manifestHash
-  });
-  if (cachedEntry?.result) {
-    touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash);
+    manifestHash: manifest.manifestHash,
+    policy: cachePolicy,
+    now: timeAnchor
+  }) : null;
+  if (isReusableFederatedCacheResult(cachedEntry?.result, { manifestHash: manifest.manifestHash,
+    repoSetId: workspaceConfig.repoSetId, selectedRepoIds: selection.selectedRepoIds,
+    selectedReposByMode: selectedByMode, topN, strictFailures })) {
+    await verifyRankedGeneration();
+    emitShadow(null);
+    touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash, new Date(timeAnchor).toISOString());
     try {
-      await persistFederatedQueryCache({ cachePath, cache: cacheData });
-    } catch {}
-    return JSON.parse(stableStringify(cachedEntry.result));
+      const touched = await persistFederatedQueryCacheTouch({ cachePath, cache: cacheData,
+        keyHash: cacheKeyInfo.keyHash, maxEntries: cachePolicy.maxEntries });
+      if (!touched) await persistFederatedQueryCache({ cachePath, cache: cacheData });
+    } catch (error) { observeStorageResource(error, { phase: 'federated-cache-touch' }).requireSettled(); }
+    checkAbort();
+    return structuredClone(cachedEntry.result);
   }
   const persistCachedResult = async (result) => {
+    if (!policyQualified) return;
+    checkAbort();
     try {
       upsertFederatedQueryCacheEntry(cacheData, {
         keyHash: cacheKeyInfo.keyHash,
         keyPayloadHash: cacheKeyInfo.keyPayloadHash,
         manifestHash: manifest.manifestHash,
         result,
+        now: new Date(timeAnchor).toISOString(),
         policy: cachePolicy
       });
       await persistFederatedQueryCache({
         cachePath,
         cache: cacheData
       });
-    } catch {}
+    } catch (error) { observeStorageResource(error, { phase: 'federated-cache-checkpoint' }).requireSettled(); }
   };
 
   /**
@@ -722,31 +797,23 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     ? context.resolveRepoCaches
     : null;
   let sharedCaches = null;
+  const retirement = createFederatedCacheRetirement();
   const getSharedCaches = () => {
     if (sharedCaches) return sharedCaches;
     sharedCaches = {
       indexCache: context.indexCache || createIndexCache(),
       sqliteCache: context.sqliteCache || createSqliteDbCache()
     };
+    retirement.register({ repoRoot: workspaceConfig.repoSetId,
+      indexCache: context.indexCache ? null : sharedCaches.indexCache,
+      sqliteCache: context.sqliteCache ? null : sharedCaches.sqliteCache });
     return sharedCaches;
-  };
-  const disposeOwnedCaches = () => {
-    if (!sharedCaches) return;
-    if (!context.indexCache) {
-      try { sharedCaches.indexCache.clear(); } catch {}
-    }
-    if (!context.sqliteCache) {
-      try { sharedCaches.sqliteCache.dispose(); } catch {}
-    }
   };
   const searchFn = typeof context.searchFn === 'function' ? context.searchFn : coreSearch;
   const perRepoResults = [];
   const perRepoErrors = [];
   const repoMap = new Map(workspaceConfig.repos.map((repo) => [repo.repoId, repo]));
   const repoOutcomes = new Map();
-  const manifestRepoMap = new Map(
-    toArray(manifest.repos).map((entry) => [entry?.repoId, entry])
-  );
 
   const recordRepoOutcome = (repoId, patch) => {
     const existing = repoOutcomes.get(repoId) || { repoId };
@@ -761,8 +828,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const outcome = repoOutcomes.get(repo.repoId) || null;
     const eligibleModes = sortModes(repoEligibleModesById.get(repo.repoId) || []);
     const fulfilledModes = sortModes(outcome?.fulfilledModes || []);
-    const unavailableModes = requestedModes
-      .filter((mode) => !eligibleModes.includes(mode))
+    const unavailableModes = unavailableRequestedModes.filter(entry => entry.repoId === repo.repoId)
+      .map(entry => entry.mode)
       .map((mode) => ({
         mode,
         availabilityReason: manifestRepo?.indexes?.[mode]?.availabilityReason || 'not-eligible-for-request'
@@ -819,13 +886,17 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
     });
     const stable = toStableResponse(emptyResponse, includePaths);
+    await verifyRankedGeneration();
     await persistCachedResult(stable);
+    checkAbort();
+    emitShadow([]);
     return stable;
   }
 
+  const admission = createFederatedAdmission(context.signal);
   let cursor = 0;
   const workers = Array.from({ length: Math.max(1, concurrency) }, async () => {
-    while (true) {
+    while (admission.accepting()) {
       const current = cursor;
       if (current >= activeRepoIds.length) return;
       cursor += 1;
@@ -847,7 +918,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
               error
             });
             if (strictFailures || aborted) {
-              throw error;
+              throw admission.stop(error);
             }
             recordRepoOutcome(repo.repoId, {
               status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
@@ -867,14 +938,19 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             continue;
           }
         }
+        if (!admission.accepting()) return;
         const fallbackCaches = getSharedCaches();
+        const admittedBuild = manifestRepoMap.get(repo.repoId)?.build || null;
+        const resolvedGeneration = buildRepoGenerationContext(repoCaches);
+        if (resolvedGeneration && admittedBuild && (
+          (resolvedGeneration.buildGenerationKey && resolvedGeneration.buildGenerationKey !== admittedBuild.generationKey)
+          || (resolvedGeneration.buildId && resolvedGeneration.buildId !== admittedBuild.buildId)
+          || (resolvedGeneration.activeBuildRoot && resolvedGeneration.activeBuildRoot !== admittedBuild.activeRoot)
+        )) {
+          throw createError(ERROR_CODES.INVALID_REQUEST, `Repository ${repo.repoId} generation changed after workspace admission. Retry the search.`);
+        }
         let callSucceeded = false;
-        const repoModePlan = buildRepoModePlans(
-          Array.from(repoEligibleModesById.get(repo.repoId) || [])
-        );
-        const modePlans = repoModePlan.length
-          ? repoModePlan
-          : [{ modeFlag: null, modesCovered: new Set(requestedModes) }];
+        const modePlans = capturedModePlans.get(repo.repoId);
         const combined = {
           backend: 'federated',
           code: [],
@@ -886,24 +962,40 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         const fulfilledModes = new Set();
         const executionFailures = [];
         for (const plan of modePlans) {
-          const repoArgs = applyModeOverride(basePerRepoArgs, plan.modeFlag);
+          if (!admission.accepting()) return;
+          const repoArgs = plan.args;
           try {
+            if (plan.policyError) throw plan.policyError;
             const result = await searchFn(repo.repoRootCanonical, {
+              [INTERNAL_SEARCH_POLICY]: plan.policy,
+              [INTERNAL_ADMITTED_GENERATION]: plan.admittedGeneration,
               args: repoArgs,
+              argsMode: 'complete',
               query: perRepoQuery,
               emitOutput: false,
               exitOnError: false,
               indexCache: repoCaches?.indexCache || fallbackCaches.indexCache,
               sqliteCache: repoCaches?.sqliteCache || fallbackCaches.sqliteCache,
               signal: context.signal || null,
-              generationContext: buildRepoGenerationContext(repoCaches)
+              generationContext: admittedBuild ? {
+                buildId: admittedBuild.buildId || null,
+                buildRoot: admittedBuild.buildRoot || null,
+                activeBuildRoot: admittedBuild.activeRoot || null,
+                buildGenerationKey: admittedBuild.generationKey || null
+              } : resolvedGeneration,
+              ...(plan.modesCovered.size === 1 ? { [INTERNAL_EXACT_SEARCH_MODE]: [...plan.modesCovered][0] } : {})
             });
+            validateFederatedModeResult(result, plan.modesCovered);
+            verifyFederatedModeGeneration({ repoId: repo.repoId, modes: plan.modesCovered, result,
+              manifestRepo: manifestRepoMap.get(repo.repoId) });
             if (result?.backend) combined.backend = result.backend;
             for (const mode of plan.modesCovered) {
               const key = MODE_PAYLOAD_KEYS[mode];
               if (!key) continue;
               const hits = Array.isArray(result?.[key]) ? result[key] : [];
-              if (hits.length) combined[key].push(...hits);
+              for (let hitIndex = 0; hitIndex < Math.min(hits.length, perRepoTop); hitIndex += 1) {
+                combined[key].push(hits[hitIndex]);
+              }
               fulfilledModes.add(mode);
             }
             callSucceeded = true;
@@ -915,7 +1007,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             });
             if (!firstRepoError) firstRepoError = error;
             if (strictFailures || aborted) {
-              throw error;
+              throw admission.stop(error);
             }
             executionFailures.push({
               modes: Array.from(plan.modesCovered).sort(),
@@ -967,7 +1059,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           }
         });
       } catch (error) {
-        throw error;
+        throw admission.stop(error);
       }
     }
   });
@@ -975,20 +1067,31 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   // Strict failure remains fail-fast, but sibling workers may still be running.
   // Keep request-local caches alive until every worker settles, then retire
   // only caches created here. Host-provided caches keep their host ownership.
-  void Promise.allSettled(workers).then(disposeOwnedCaches).catch(() => {});
+  retirement.start(workers, admission.dispose);
   try {
-    await Promise.all(workers);
+    await Promise.race([Promise.all(workers), admission.whenStopped]);
   } catch (error) {
-    if (isFederatedAbortError(error, context.signal)) {
-      throw error;
+    const original = observeStorageResource(error, { phase: 'federation-request' });
+    let aborted, message, code;
+    try {
+      aborted = isFederatedAbortError(error);
+      message = typeof error?.message === 'string' ? error.message : typeof error === 'string' ? error : 'Unknown execution failure';
+      code = typeof error?.code === 'string' ? error.code : ERROR_CODES.INTERNAL;
+    } catch (inspection) {
+      throw retirement.attach(original.retain(inspection, { inspectionPresent: true }), original);
+    }
+    if (aborted) {
+      throw retirement.attach(error, original);
     }
     const strictError = createError(
       ERROR_CODES.INTERNAL,
-      `Federated search failed in strict mode: ${error?.message || error}`
+      `Federated search failed in strict mode: ${message.slice(0, 4096)}`
     );
-    strictError.code = error?.code || ERROR_CODES.INTERNAL;
-    throw strictError;
+    strictError.code = code;
+    strictError.cause = error;
+    throw retirement.attach(strictError, original, { ownedError: true });
   }
+  await retirement.drain();
 
   if (!perRepoResults.length) {
     const firstNonNoIndex = perRepoErrors.find((entry) => entry?.error?.code !== ERROR_CODES.NO_INDEX);
@@ -1010,8 +1113,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     selectedReposByMode: selectedByMode,
     topN,
     perRepoTop,
-    rrfK
+    rrfK,
+    signal: context.signal
   });
+  await verifyRankedGeneration();
 
   const response = buildFederatedResponse({
     workspaceConfig,
@@ -1031,9 +1136,15 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   });
 
   const stable = toStableResponse(response, includePaths);
+  if(strictFailures && toArray(response.repos).some(repo=>activeRepoIds.includes(repo.repoId)
+    && toArray(repo.modes?.eligible).some(mode=>!toArray(repo.modes?.fulfilled).includes(mode)))) {
+    throw createError(ERROR_CODES.NO_INDEX,'Federated search did not fulfill every admitted requested mode.');
+  }
   // Avoid pinning degraded non-strict responses when any repo failed during fanout.
   if (!perRepoErrors.length) {
     await persistCachedResult(stable);
   }
+  emitShadow(perRepoResults, manifestRepoMap);
+  checkAbort();
   return stable;
 };

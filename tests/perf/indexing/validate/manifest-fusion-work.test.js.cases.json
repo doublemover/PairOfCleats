@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "small-fused-1",
+    "small-fused-2",
+    "small-fused-3",
+    "small-eager-1",
+    "small-eager-2",
+    "small-eager-3",
+    "jsonl-fused-1",
+    "jsonl-fused-2",
+    "jsonl-fused-3",
+    "jsonl-eager-1",
+    "jsonl-eager-2",
+    "jsonl-eager-3",
+    "multipart-fused-1",
+    "multipart-fused-2",
+    "multipart-fused-3",
+    "multipart-eager-1",
+    "multipart-eager-2",
+    "multipart-eager-3",
+    "warm-fused-1",
+    "warm-fused-2",
+    "warm-fused-3",
+    "warm-eager-1",
+    "warm-eager-2",
+    "warm-eager-3"
+  ]
+}

@@ -1,6 +1,8 @@
+import { chooseMeasuredWarmLaneCount } from '../warm-lane-profile.js';
 import os from 'node:os';
 import { planWeightedBatches } from '../../../../shared/concurrency/weighted-batches.js';
 import { toArray } from '../../../../shared/iterables.js';
+import { readEffectiveMemory } from '../../../../shared/effective-memory.js';
 
 const DEFAULT_WARM_POOL_MIN_KEYS_FOR_SPLIT = 8;
 const DEFAULT_EXEC_CONCURRENCY_AUTO_CAP = 16;
@@ -17,7 +19,21 @@ const MAX_SCHEDULER_TASK_TIMEOUT_MS = 30 * 60 * 1000;
  * @param {{schedulerConfig?:object,grammarCount:number}} input
  * @returns {number}
  */
-export const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
+export const resolveParserExecutionBudget = runtime => {
+  if (!runtime) return null;
+  const cpu = Math.max(1, Math.floor(Number(runtime.cpuConcurrency
+    ?? runtime.envelope?.concurrency?.cpuConcurrency?.value) || 1));
+  const fd = Math.max(1, Math.floor(Number(runtime.workerPoolConfig?.fdPressure?.cap) || cpu));
+  const perChildMb = Math.max(128, Number(runtime.workerPoolConfig?.heapTargetMb
+    ?? runtime.memoryPolicy?.workerHeapPolicy?.targetPerWorkerMb) || 1024);
+  const memory = readEffectiveMemory({ configuredLimitBytes: runtime.envelope?.concurrency?.totalMemBytes });
+  const memoryCap = Math.max(1, Math.floor(memory.freeBytes / (perChildMb * 1024 * 1024)));
+  const effective = Math.min(cpu, fd, memoryCap);
+  return { cpu, fd, memory: memoryCap, perChildMb, availableMemoryBytes: memory.freeBytes, effective,
+    limitingReason: effective === cpu ? 'cpu-envelope' : effective === fd ? 'fd-budget' : 'retained-memory-budget' };
+};
+
+export const resolveExecConcurrency = ({ schedulerConfig, grammarCount, executionBudget = null }) => {
   if (!Number.isFinite(grammarCount) || grammarCount <= 1) return 1;
   const configured = Number(
     schedulerConfig?.execConcurrency
@@ -25,13 +41,13 @@ export const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
       ?? schedulerConfig?.concurrency
   );
   if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.min(grammarCount, Math.floor(configured)));
+    return Math.max(1, Math.min(grammarCount, Math.floor(configured), executionBudget?.effective ?? Number.MAX_SAFE_INTEGER));
   }
   const available = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : 4;
   const auto = Math.max(1, Math.min(DEFAULT_EXEC_CONCURRENCY_AUTO_CAP, Math.floor((available || 1) / 2)));
-  return Math.max(1, Math.min(grammarCount, auto));
+  return Math.max(1, Math.min(grammarCount, auto, executionBudget?.effective ?? Number.MAX_SAFE_INTEGER));
 };
 
 /**
@@ -75,7 +91,8 @@ const resolveWarmPoolLaneCount = ({
   schedulerConfig,
   baseGrammarKey,
   keyCount,
-  execConcurrency
+  execConcurrency,
+  measured = null
 }) => {
   if (!Number.isFinite(keyCount) || keyCount <= 1) return 1;
   const perGrammarRaw = Number(
@@ -84,8 +101,9 @@ const resolveWarmPoolLaneCount = ({
       ?? schedulerConfig?.warmPools?.[baseGrammarKey]
   );
   if (Number.isFinite(perGrammarRaw) && perGrammarRaw > 0) {
-    return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw)));
+    return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw), execConcurrency || 1));
   }
+  if (measured) return measured.laneCount;
   const configuredMinKeysRaw = Number(
     schedulerConfig?.warmPoolMinKeysForSplit
       ?? schedulerConfig?.warmPoolSplitMinKeys
@@ -210,7 +228,11 @@ export const buildWarmPoolTasks = ({
   executionOrder,
   groupMetaByGrammarKey,
   schedulerConfig,
-  execConcurrency
+  execConcurrency,
+  executionBudget = null,
+  warmLaneHistory = {},
+  warmLaneProfileIdentity = null,
+  nowMs = Date.now()
 }) => {
   const byBaseGrammar = new Map();
   const order = toArray(executionOrder);
@@ -226,11 +248,20 @@ export const buildWarmPoolTasks = ({
   }
   const tasks = [];
   for (const [baseGrammarKey, keyed] of byBaseGrammar.entries()) {
+    const configuredLanes = Number(schedulerConfig?.warmPoolPerGrammar
+      ?? schedulerConfig?.parserWarmPoolPerGrammar ?? schedulerConfig?.warmPools?.[baseGrammarKey]);
+    const explicit = Number.isFinite(configuredLanes) && configuredLanes > 0;
+    const measured = chooseMeasuredWarmLaneCount({
+      costs: keyed.map(({ grammarKey }) => groupMetaByGrammarKey?.[grammarKey]?.estimatedParseCost),
+      history: warmLaneHistory[baseGrammarKey], identity: warmLaneProfileIdentity,
+      execConcurrency, executionBudget, nowMs
+    });
     const laneCount = resolveWarmPoolLaneCount({
       schedulerConfig,
       baseGrammarKey,
       keyCount: keyed.length,
-      execConcurrency
+      execConcurrency,
+      measured
     });
     // Planner costs already include file size, token density and adaptive
     // history. Preserve that information at the warm-pool handoff instead of
@@ -258,6 +289,9 @@ export const buildWarmPoolTasks = ({
         baseGrammarKey,
         laneIndex: laneIndex + 1,
         laneCount,
+        laneDecision: explicit ? { reason: 'explicit-override', selectedLanes: laneCount }
+          : measured ? { ...measured, selectedLanes: laneCount }
+            : { reason: 'legacy-no-qualified-history', selectedLanes: laneCount },
         grammarKeys: lane.map((entry) => entry.grammarKey),
         estimatedParseCost: hasCompleteCosts
           ? lane.reduce((sum, entry) => sum + Number(groupMetaByGrammarKey[entry.grammarKey].estimatedParseCost), 0)

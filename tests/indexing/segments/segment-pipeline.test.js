@@ -29,6 +29,11 @@ assert(fencedSegments.some((seg) => String(seg.meta.fenceInfo).includes('js')), 
 assert(fencedSegments.some((seg) => String(seg.meta.fenceInfo).includes('json')), 'Expected markdown JSON fenced segment.');
 const inlineSegments = mdSegments.filter((seg) => seg.meta?.inlineCode);
 assert(inlineSegments.length === 2, `Expected 2 inline code segments, got ${inlineSegments.length}.`);
+const hostProse = mdSegments.filter((seg) => seg.type === 'prose' && seg.meta?.host);
+assert(hostProse.some((seg) => mdText.slice(seg.start, seg.end).includes('# Segment Guide')),
+  'Expected Markdown heading in host prose before fenced code.');
+assert(hostProse.some((seg) => mdText.slice(seg.start, seg.end).includes('More prose here.')),
+  'Expected Markdown host prose after fenced code.');
 
 const mdChunks = chunkSegments({
   text: mdText,
@@ -46,6 +51,8 @@ for (const chunk of mdChunks) {
   assert(chunk.start >= lastStart, 'Markdown chunks are out of order.');
   lastStart = chunk.start;
 }
+assert(mdChunks.some((chunk) => chunk.kind === 'Section' && chunk.name === 'Segment Guide'),
+  'Expected the Markdown heading to remain indexable with fenced code.');
 
 const vuePath = path.join(fixtureRoot, 'src', 'component.vue');
 const vueText = fs.readFileSync(vuePath, 'utf8');

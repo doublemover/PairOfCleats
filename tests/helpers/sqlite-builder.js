@@ -1,4 +1,4 @@
-import { buildSqliteIndex } from '../../src/integrations/core/index.js';
+import { buildSqliteIndex } from '../../src/integrations/core/build-index/sqlite.js';
 import {
   getCurrentBuildInfo,
   loadUserConfig,

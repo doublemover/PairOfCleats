@@ -52,8 +52,11 @@ versions, flags, kinds, extra declaration fields, malformed declarations, and
 duplicate keys visible in the prefix fail open. Every visible token must follow
 strict JSON grammar; a capped input may end only at a genuinely extendable tail.
 The shared iterative validator rejects excessive nesting beyond 256 containers.
-Short complete inputs must also be complete JSON objects. A capped prefix cannot
-validate an unseen suffix of a large file.
+Complete observations, including EOF exactly at 8 KiB, must be complete JSON
+objects. A capped prefix cannot validate an unseen suffix of a large file.
+The shared prefix observation carries descriptor size/EOF; callers with a full
+source Buffer preserve its extent before slicing. Partial readers must supply
+that explicit observation rather than infer truncation from byte count alone.
 The classifier does not follow payload paths, decompress data, hash members, or
 make filesystem access decisions. Its caller remains responsible for contained
 reads and for deciding how the returned policy applies to source discovery.

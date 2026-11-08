@@ -50,7 +50,8 @@ export const buildEdges = () => {
     fileColorByPath,
     memberAnchors,
     fileAnchors,
-    useMemberAnchors
+    useMemberAnchors,
+    sourceIndex:state.sourceIndex
   });
 
   const obstacles = [];

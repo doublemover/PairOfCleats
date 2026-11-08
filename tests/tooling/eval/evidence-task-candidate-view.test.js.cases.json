@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["oracle-blind-baselines", "candidate-view-retirement", "prefix-budgets-and-authority"]
+}

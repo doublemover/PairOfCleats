@@ -1,11 +1,13 @@
 import { canonicalSemanticJson } from './identity.js';
 import { compilerRuntimeParameters } from './compiler-invocation.js';
 import { compilerClassDefinitions, compilerReturnExpressions } from './compiler-object-model.js';
-import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
+import { compilerAliasSymbol, compilerPropertyKeys, propertyKeySetsOverlap, unwrapCompilerExpression } from './compiler-property-paths.js';
 export const collectCompilerAliasAssignments = (ts, checker, nodes) => {
   const assignments = new Map();
-  for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left)) {
-    const symbol = checker.getSymbolAtLocation(node.left);
+  for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    const left = unwrapCompilerExpression(ts, node.left);
+    if (!ts.isIdentifier(left) && !ts.isPropertyAccessExpression(left) && !ts.isElementAccessExpression(left)) continue;
+    const symbol = compilerAliasSymbol(ts, checker, left);
     if (symbol) { if (!assignments.has(symbol)) assignments.set(symbol, []); const values = assignments.get(symbol); if (values.length < 32) values.push(node.right); else values.truncated = true; }
   }
   return assignments;
@@ -14,7 +16,7 @@ export const collectCompilerAliasAssignments = (ts, checker, nodes) => {
  * an unknown binding root; no assignment-order or unique-alias claim is made. */
 export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assignments = new Map(), expressionFor, declarationFor, depthLimit, reasons }) => {
   const aliases = new Map(), accesses = new Map();
-  const unwrap = node => { while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node))) node = node.expression; return node; };
+  const unwrap = node => unwrapCompilerExpression(ts, node);
   const unique = values => {
     const result = [...new Map(values.filter(Boolean).map(value => [canonicalSemanticJson({root:value.root,path:value.path}), value])).values()];
     if (result.length > 32) reasons.add('field_alias_candidate_budget');
@@ -99,6 +101,7 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
   };
   const initial = location => {
     let budget = 256;
+    const classWork = { remaining: 256 };
     const limit = values => {
       if (values.length > 32) reasons.add('field_initial_candidate_budget');
       return values.slice(0,32);
@@ -132,7 +135,7 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
           else reasons.add('field_initial_accessor_or_method_unresolved');
         }
       } else if (ts.isNewExpression(node)) {
-        const classes=compilerClassDefinitions({ts,checker,node:node.expression,reasons}),visited=new Set();
+        const classes=compilerClassDefinitions({ts,checker,node:node.expression,reasons,assignments,work:classWork}),visited=new Set();
         while(classes.length) {
           const definition=classes.pop();if(visited.has(definition))continue;visited.add(definition);
           if(visited.size>16){reasons.add('field_initial_heritage_budget');break;}
@@ -142,7 +145,7 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
             if(ts.isPropertyDeclaration(member)&&member.initializer)next.push(...read(member.initializer,remaining,seen));
             else if(ts.isGetAccessorDeclaration(member))for(const value of compilerReturnExpressions({ts,owner:member,reasons}))next.push(...read(value,remaining,seen));
           }
-          for(const clause of definition.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)classes.push(...compilerClassDefinitions({ts,checker,node:type.expression,reasons}));
+          for(const clause of definition.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)classes.push(...compilerClassDefinitions({ts,checker,node:type.expression,reasons,assignments,work:classWork}));
         }
         reasons.add('constructor_return_override_initializer_order_and_escape_conservative');
       } else if (ts.isArrayLiteralExpression(node)) {

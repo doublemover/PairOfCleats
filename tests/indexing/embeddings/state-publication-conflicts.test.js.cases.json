@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["merge-native", "merge-extensions", "conflicting-embeddings", "conflicting-extension", "idempotent", "deletion", "identity-change", "caller-identity-change", "copied-state", "wrong-path", "initial-claim-race", "stale-ready", "stale-terminal", "terminal-generation-replaced", "capture-before-wait", "retained-caller-change", "repeated-native", "extension-prototype", "invalid-extensions"]
+}

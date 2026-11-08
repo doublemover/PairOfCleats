@@ -1,4 +1,5 @@
 import json
+import copy
 import os
 from urllib.parse import urlparse
 
@@ -10,21 +11,38 @@ SETTINGS_FILE = 'PairOfCleats.sublime-settings'
 
 
 def _load_editor_config_contract():
-    contract_path = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            '..',
-            '..',
-            'src',
-            'contracts',
-            'editor-config-contract.json'
-        )
-    )
-    with open(contract_path, 'r', encoding='utf-8') as handle:
-        loaded = json.load(handle)
-    if not isinstance(loaded, dict):
-        raise ValueError('editor-config-contract.json must contain an object')
+    resource_loader = getattr(sublime, 'load_resource', None)
+    try:
+        if callable(resource_loader):
+            text = resource_loader('Packages/PairOfCleats/editor-config-contract.json')
+        else:
+            # Standalone tools use the same package-local authority.
+            contract_path = os.path.join(os.path.dirname(__file__), '..', 'editor-config-contract.json')
+            with open(contract_path, 'r', encoding='utf-8') as handle:
+                text = handle.read(65537)
+        if not isinstance(text, str) or len(text) > 65536 or len(text.encode('utf-8')) > 65536:
+            raise ValueError('bundled contract exceeds its 64 KiB bound')
+        loaded = json.loads(text)
+        if (not isinstance(loaded, dict) or type(loaded.get('schemaVersion')) is not int
+                or loaded['schemaVersion'] != 1):
+            raise ValueError('bundled contract has an unsupported schema version')
+        search = loaded.get('search')
+        settings = loaded.get('settings')
+        sublime_settings = settings.get('sublime') if isinstance(settings, dict) else None
+        if not isinstance(search, dict) or not isinstance(sublime_settings, dict):
+            raise ValueError('bundled contract is missing its search or Sublime settings surface')
+        for key in ('modes', 'backends', 'apiBackends'):
+            values = search.get(key)
+            if (not isinstance(values, list) or not values or any(not isinstance(value, str) or not value for value in values)
+                    or len(set(values)) != len(values)):
+                raise ValueError('bundled contract has invalid search ' + key)
+        for key in ('cliPathKey', 'nodePathKey', 'apiServerUrlKey', 'apiTimeoutKey', 'apiExecutionModeKey', 'envKey'):
+            if not isinstance(sublime_settings.get(key), str) or not sublime_settings[key]:
+                raise ValueError('bundled contract is missing setting ' + key)
+    except Exception as error:
+        raise RuntimeError('PairOfCleats cannot load its bundled runtime contract. Reinstall the complete '
+            'Packages/PairOfCleats directory or Installed Packages/PairOfCleats.sublime-package; '
+            'remove stale nested/shadowing revisions. Cause: {0}'.format(error)) from error
     return loaded
 
 
@@ -163,8 +181,8 @@ SETTING_GROUPS = (
     )),
 )
 
-VALID_INDEX_MODES = {'code', 'prose', 'both'}
-VALID_BACKENDS = {'memory', 'sqlite', 'sqlite-fts', 'lmdb'}
+VALID_INDEX_MODES = set(_contract_get(['search', 'modes'], ['code', 'prose', 'both', 'records', 'extracted-prose', 'all']))
+VALID_BACKENDS = set(_contract_get(['search', 'backends'], ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb', 'tantivy']))
 VALID_OPEN_TARGETS = {'quick_panel', 'new_tab', 'output_panel'}
 VALID_API_EXECUTION_MODES = {'cli', 'prefer', 'require'}
 VALID_WATCH_SCOPES = {'repo', 'folder'}
@@ -213,6 +231,13 @@ VALID_SEARCH_ADVANCED_BOOL_KEYS = {'case', 'case_file', 'case_tokens', 'lint', '
 VALID_SEARCH_ADVANCED_INT_KEYS = {'modified_since'}
 WORKFLOW_TRANSPORTS = {
     'search': {'label': 'search', 'supports_cli': True, 'supports_api': True},
+    'navigation': {'label': 'indexed navigation', 'supports_cli': True, 'supports_api': False},
+    'context-collection': {'label': 'selected context collection', 'supports_cli': True, 'supports_api': True},
+    'semantic-enrichment': {'label': 'semantic enrichment planning', 'supports_cli': True, 'supports_api': True},
+    'semantic-find': {'label': 'semantic find', 'supports_cli': True, 'supports_api': True},
+    'semantic-detail': {'label': 'semantic detail', 'supports_cli': True, 'supports_api': True},
+    'semantic-trace': {'label': 'semantic trace', 'supports_cli': True, 'supports_api': True},
+    'semantic-explain': {'label': 'semantic explain', 'supports_cli': True, 'supports_api': True},
     'search-explain': {'label': 'search explain', 'supports_cli': True, 'supports_api': False},
     'search-symbol': {'label': 'search symbol lookup', 'supports_cli': True, 'supports_api': True},
     'map': {'label': 'map', 'supports_cli': True, 'supports_api': False},
@@ -250,7 +275,37 @@ def get_setting_groups():
 def get_settings(window=None):
     base = _load_base_settings()
     overrides = filter_project_settings(extract_project_settings(window))
-    return merge_settings(base, overrides)
+    # Sublime returns live nested values. A pending picker/request owns the
+    # values observed here, including lists and environment dictionaries.
+    return copy.deepcopy(merge_settings(base, overrides))
+
+
+def _api_origin(value):
+    try:
+        parsed = urlparse(str(value or '').strip())
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            return None
+        if parsed.username is not None or parsed.password is not None:
+            return None
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == 'https' else 80)
+        return (parsed.scheme, parsed.hostname.lower(), port)
+    except (ValueError, TypeError):
+        return None
+
+
+def build_destination_bound_api_headers(destination):
+    # Read only package/User Settings. Merged/caller/project settings cannot
+    # approve an origin or select credentials, including editor-environment ones.
+    user = _load_base_settings()
+    origin = _api_origin(user.get('api_server_url'))
+    if origin is None or origin != _api_origin(destination):
+        return {}
+    user_env = _get_env_settings(user)
+    user_token = user_env.get('PAIROFCLEATS_API_TOKEN') if isinstance(user_env, dict) else None
+    token = str(user_token or os.environ.get('PAIROFCLEATS_API_TOKEN') or '').strip()
+    if '\r' in token or '\n' in token:
+        raise RuntimeError('PAIROFCLEATS_API_TOKEN must be a single-line value.')
+    return {'Authorization': 'Bearer ' + token} if token else {}
 
 
 def filter_project_settings(overrides):
@@ -321,13 +376,13 @@ def validate_settings(settings, repo_root=None, workflow=None):
     mode = settings.get('index_mode_default')
     if mode and mode not in VALID_INDEX_MODES:
         errors.append(
-            'index_mode_default must be one of: code, prose, both.'
+            'index_mode_default must be one of: {0}.'.format(', '.join(sorted(VALID_INDEX_MODES)))
         )
 
     backend = settings.get('search_backend_default')
     if backend and backend not in VALID_BACKENDS:
         errors.append(
-            'search_backend_default must be one of: memory, sqlite, sqlite-fts, lmdb.'
+            'search_backend_default must be one of: {0}.'.format(', '.join(sorted(VALID_BACKENDS)))
         )
 
     ann_default = settings.get('search_ann_default')
@@ -515,7 +570,9 @@ def get_workflow_transport(workflow):
 def resolve_execution_mode(settings, workflow, requested_mode=None):
     mode = str((settings or {}).get('api_execution_mode') or 'cli').strip().lower()
     if mode not in VALID_API_EXECUTION_MODES:
-        mode = 'cli'
+        return {'mode': None, 'allow_fallback': False,
+                'base_url': str((settings or {}).get('api_server_url') or '').strip(),
+                'error': 'PairOfCleats: api_execution_mode must be cli, prefer, or require. Correct User Settings.'}
     base_url = str((settings or {}).get('api_server_url') or '').strip()
     transport = get_workflow_transport(workflow)
     workflow_label = transport['label']
@@ -651,9 +708,11 @@ def _validate_nullable_bool_setting(errors, settings, key):
 def _is_valid_base_url(value):
     try:
         parsed = urlparse(str(value).strip())
+        return (parsed.scheme in ('http', 'https') and bool(parsed.hostname) and parsed.port != 0
+                and parsed.username is None and parsed.password is None and not parsed.query and not parsed.fragment
+                and not any(ord(char) < 32 or ord(char) == 127 for char in str(value)))
     except Exception:
         return False
-    return parsed.scheme in ('http', 'https') and bool(parsed.netloc)
 
 
 def _is_env_key(key):

@@ -6,12 +6,16 @@ import { writeJsonFile } from '../../src/shared/json-file.js';
 import { createJsonGateHarness } from '../helpers/json-gate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const inheritedPolicy = process.env.PAIROFCLEATS_TRUSTED_CONFIG;
+process.env.PAIROFCLEATS_TRUSTED_CONFIG = path.join(ROOT, '.tmp', 'missing-author-policy.json');
 const harness = await createJsonGateHarness({
   rootDir: ROOT,
   scriptRelativePath: path.join('tools', 'ci', 'tooling-doctor-gate.js'),
   tempPrefix: 'pairofcleats-tooling-doctor-gate-',
   jsonFileName: 'tooling-doctor-gate.json'
 });
+if (inheritedPolicy === undefined) delete process.env.PAIROFCLEATS_TRUSTED_CONFIG;
+else process.env.PAIROFCLEATS_TRUSTED_CONFIG = inheritedPolicy;
 const { tempRoot } = harness;
 const repoRoot = path.join(tempRoot, 'repo');
 await fsPromises.mkdir(repoRoot, { recursive: true });

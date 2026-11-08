@@ -1,3 +1,4 @@
+import { crossFileCoverageSchema } from '../relation-coverage.js';
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
@@ -317,6 +318,7 @@ const riskInterproceduralStats = {
       },
       additionalProperties: false
     },
+    inputCoverage: { type: 'object', properties: { upstreamCoverage: crossFileCoverageSchema }, additionalProperties: true },
     counts: { type: 'object', additionalProperties: true },
     callSiteSampling: { type: 'object', additionalProperties: true },
     capsHit: { type: 'array', items: { type: 'string' } },

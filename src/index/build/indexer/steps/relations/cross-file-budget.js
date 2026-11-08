@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../../../../cross-file-fidelity.js';
 import {
   applyFileUsageInferenceBudget,
   applyRelationInferenceBudget,
@@ -5,7 +6,7 @@ import {
   normalizeRelationSignalToken
 } from '../../../file-processor/relations.js';
 
-const CROSS_FILE_BUDGET_SCHEMA_VERSION = 1;
+const CROSS_FILE_BUDGET_SCHEMA_VERSION = 2;
 const CROSS_FILE_SCALE_PROFILES = Object.freeze([
   Object.freeze({
     id: 'tiny',
@@ -246,8 +247,10 @@ const collectUsageSignalTokens = (usages, maxTokens) => {
 export const buildCrossFileInferenceBudgetPlan = ({
   chunks,
   fileRelations,
-  inferenceLiteEnabled = false
+  inferenceLiteEnabled = false,
+  fidelity = resolveCrossFileFidelity()
 } = {}) => {
+  inferenceLiteEnabled = fidelity.mode !== 'comprehensive' && inferenceLiteEnabled;
   const chunkList = Array.isArray(chunks) ? chunks : [];
   const chunkFiles = new Set();
   const fileLanguageByFile = new Map();
@@ -321,18 +324,19 @@ export const buildCrossFileInferenceBudgetPlan = ({
 
   for (let order = 0; order < chunkDescriptors.length; order += 1) {
     const descriptor = chunkDescriptors[order];
+    if (fidelity.mode === 'comprehensive') continue;
     const flattened = flattenTriggeredAt != null;
     const languageFactor = resolveLanguageBudgetFactor(descriptor.languageId);
     const liteFactor = inferenceLiteEnabled ? 0.85 : 1;
     const flattenFactor = flattened ? CROSS_FILE_FLATTEN_FACTOR : 1;
     const factor = languageFactor * liteFactor * flattenFactor;
-    chunkBudgetsByIndex.set(descriptor.index, {
+    if (fidelity.mode !== 'comprehensive') chunkBudgetsByIndex.set(descriptor.index, {
       maxCalls: resolveBudgetLimit(scaleProfile.callPerChunk, factor, 4),
       maxCallDetails: resolveBudgetLimit(scaleProfile.callDetailsPerChunk, factor, 6),
       maxUsages: resolveBudgetLimit(scaleProfile.usagePerChunk, factor, 6),
       languageId: descriptor.languageId
     });
-    if (descriptor.file && !fileUsageBudgets.has(descriptor.file)) {
+    if (fidelity.mode !== 'comprehensive' && descriptor.file && !fileUsageBudgets.has(descriptor.file)) {
       fileUsageBudgets.set(
         descriptor.file,
         resolveBudgetLimit(scaleProfile.usagePerFile, factor, 8)
@@ -387,7 +391,7 @@ export const buildCrossFileInferenceBudgetPlan = ({
 
   const defaultFactor = (inferenceLiteEnabled ? 0.85 : 1) * (flattenTriggeredAt != null ? CROSS_FILE_FLATTEN_FACTOR : 1);
   for (const [file] of fileEntries) {
-    if (!file || fileUsageBudgets.has(file)) continue;
+    if (fidelity.mode === 'comprehensive' || !file || fileUsageBudgets.has(file)) continue;
     const languageId = fileLanguageByFile.get(file) || 'unknown';
     const languageFactor = resolveLanguageBudgetFactor(languageId);
     fileUsageBudgets.set(
@@ -402,6 +406,7 @@ export const buildCrossFileInferenceBudgetPlan = ({
 
   return {
     schemaVersion: CROSS_FILE_BUDGET_SCHEMA_VERSION,
+    fidelity,
     scaleProfile,
     repo: {
       chunks: chunkList.length,
@@ -456,6 +461,7 @@ export const applyCrossFileInferenceBudgetPlan = ({
   let droppedCallSignals = 0;
   let droppedCallDetailSignals = 0;
   let droppedChunkUsageSignals = 0;
+  const affectedChunks = [];
   for (let index = 0; index < chunkList.length; index += 1) {
     const limits = plan.chunkBudgetsByIndex?.get
       ? plan.chunkBudgetsByIndex.get(index)
@@ -472,9 +478,15 @@ export const applyCrossFileInferenceBudgetPlan = ({
     droppedCallSignals += trimmed.calls.dropped;
     droppedCallDetailSignals += trimmed.callDetails.dropped;
     droppedChunkUsageSignals += trimmed.usages.dropped;
+    if (affectedChunks.length < 32 && trimmed.calls.dropped + trimmed.callDetails.dropped + trimmed.usages.dropped > 0) {
+      affectedChunks.push({ file: chunkList[index]?.file || null,
+        chunkUid: chunkList[index]?.chunkUid || chunkList[index]?.metaV2?.chunkUid || null,
+        calls: trimmed.calls.dropped, callDetails: trimmed.callDetails.dropped, usages: trimmed.usages.dropped });
+    }
   }
 
   let droppedFileUsageSignals = 0;
+  const affectedFiles = [];
   let tunedFileRelations = fileRelations;
   let mutableFileRelations = null;
   if (plan.fileUsageBudgets?.entries) {
@@ -490,6 +502,7 @@ export const applyCrossFileInferenceBudgetPlan = ({
         maxUsages
       });
       droppedFileUsageSignals += usageTrim.dropped;
+      if (usageTrim.dropped > 0 && affectedFiles.length < 32) affectedFiles.push({ file, usages: usageTrim.dropped });
       if (usageTrim.dropped <= 0) continue;
       if (!mutableFileRelations) {
         mutableFileRelations = isMapLike(fileRelations)
@@ -526,6 +539,9 @@ export const applyCrossFileInferenceBudgetPlan = ({
     fileRelations: tunedFileRelations,
     budgetStats: {
       schemaVersion: plan.schemaVersion || CROSS_FILE_BUDGET_SCHEMA_VERSION,
+      policy: plan.fidelity || resolveCrossFileFidelity(),
+      affectedChunks,
+      affectedFiles,
       scaleProfile: plan.scaleProfile || null,
       repo: plan.repo || { chunks: 0, files: 0 },
       inferenceLiteEnabled: plan.inferenceLiteEnabled === true,
@@ -572,6 +588,10 @@ export const buildCrossFileInferenceRoiMetrics = ({
   return {
     schemaVersion: CROSS_FILE_BUDGET_SCHEMA_VERSION,
     durationMs: Number.isFinite(Number(durationMs)) ? Math.max(0, Math.floor(Number(durationMs))) : 0,
+    propagationAdmission: crossFileStats?.admission || null,
+    droppedCallLinks: crossFileStats?.droppedCallLinks ?? null,
+    droppedCallSummaries: crossFileStats?.droppedCallSummaries ?? null,
+    droppedUsageLinks: crossFileStats?.droppedUsageLinks ?? null,
     linkAdditions,
     retainedLinksAfterFiltering,
     contributionSignal,

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["large-json-and-help-byte-parity", "original-full-text-scope-and-provider", "closed-stdout-cli-failure"]
+}

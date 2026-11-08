@@ -15,6 +15,7 @@ export const parseArgs = () => {
     .option('exclude-tag', { type: 'string', array: true, default: [] })
     .option('match', { type: 'string', array: true, default: [] })
     .option('exclude', { type: 'string', array: true, default: [] })
+    .option('test-id-file', { type: 'string', default: '', describe: 'Bounded exact-ID selection within the selected lane and filters.' })
     .option('list', { type: 'boolean', default: false })
     .option('list-lanes', { type: 'boolean', default: false })
     .option('list-tags', { type: 'boolean', default: false })

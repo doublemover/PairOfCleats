@@ -1,5 +1,6 @@
 import { listOptionalFtsTables } from '../fts-variants.js';
 import { chunkArray } from '../utils.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 const deleteStatementCache = new WeakMap();
 const TEMP_DELETE_THRESHOLD = 2000;
@@ -19,7 +20,18 @@ const getDeleteStatement = (db, key, sql) => {
 };
 
 export function deleteDocIds(db, mode, docIds, extraTables = []) {
-  if (!docIds.length) return;
+  return deleteDocIdGroups(db, mode, [docIds], extraTables);
+}
+
+/** Coalesce already captured stale-file ID groups without copying their IDs.
+ * The original update transaction still owns all deletions and insertions.
+ * Native targets without a document-leading index are visited once for a large
+ * update, rather than once per file. Transformed optional targets retain their
+ * original chunked binding path. */
+export function deleteDocIdGroups(db, mode, groups, extraTables = []) {
+  const activeGroups = groups.filter(ids => ids.length);
+  const count = activeGroups.reduce((total, ids) => total + ids.length, 0);
+  if (!count) return;
   const deleteTargets = [
     { table: 'chunks', column: 'id' },
     { table: 'chunks_fts', column: 'rowid', withMode: false },
@@ -37,16 +49,17 @@ export function deleteDocIds(db, mode, docIds, extraTables = []) {
     if (extra?.table && extra?.column) deleteTargets.push(extra);
   }
   const hasTransforms = deleteTargets.some((target) => typeof target.transform === 'function');
-  if (!hasTransforms && docIds.length >= TEMP_DELETE_THRESHOLD) {
+  if (!hasTransforms && count >= TEMP_DELETE_THRESHOLD) {
     const tempTable = 'temp_doc_ids';
+    let failed = false, primary;
     try {
       db.exec(`DROP TABLE IF EXISTS ${tempTable}`);
       db.exec(`CREATE TEMP TABLE ${tempTable} (id INTEGER PRIMARY KEY)`);
       const insertStmt = db.prepare(`INSERT OR REPLACE INTO ${tempTable} (id) VALUES (?)`);
-      const insertTx = db.transaction((values) => {
-        for (const value of values) insertStmt.run(value);
+      const insertTx = db.transaction((groups) => {
+        for (const values of groups) for (const value of values) insertStmt.run(value);
       });
-      insertTx(docIds);
+      insertTx(activeGroups);
       for (const target of deleteTargets) {
         const withMode = target.withMode !== false;
         const where = withMode
@@ -61,11 +74,16 @@ export function deleteDocIds(db, mode, docIds, extraTables = []) {
         }
       }
       return;
-    } finally {
-      try { db.exec(`DROP TABLE IF EXISTS ${tempTable}`); } catch {}
+    } catch (error) { failed = true; primary = error; throw error; }
+    finally {
+      try { db.exec(`DROP TABLE IF EXISTS ${tempTable}`); }
+      catch (cleanup) {
+        if (failed) throw addStorageFailureContext(primary, {}, cleanup, { secondaryPresent: true });
+        throw cleanup;
+      }
     }
   }
-  for (const chunk of chunkArray(docIds)) {
+  for (const docIds of activeGroups) for (const chunk of chunkArray(docIds)) {
     const placeholders = chunk.map(() => '?').join(',');
     for (const target of deleteTargets) {
       const withMode = target.withMode !== false;

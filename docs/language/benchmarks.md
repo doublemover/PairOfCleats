@@ -77,3 +77,31 @@ The matrix runner is `node tools/bench/language-matrix.js`.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.
 - Use `--verbose` to emit shard plan diagnostics (top shard sizes and split summaries) during builds.
 - Shard planning uses line counts: subdirs with <3 files merge unless a file is at least half the size of the 10th largest shard (by lines), and oversized shards are split by line totals for balance.
+
+
+### Environment receipts and credentials
+
+Benchmark metadata and canary metadata use the shared versioned diagnostic
+environment projection. Only explicitly approved scalar settings are recorded;
+unknown prefixed variables, API tokens, config JSON, cache paths and opaque Node/
+Gradle option strings are excluded. Narrow numeric heap and daemon options remain
+observable. The SHA256 performance fingerprint covers the safe projection and
+runtime identity; rotating a credential does not change it. Child execution keeps
+its independently authorized environment unchanged.
+
+Historical benchmark JSON/JSONL, run ledgers, summaries and canary receipts made
+before this repair may contain inherited prefixed values. Review those local
+artifacts under your existing retention/sharing policy; this change neither scans
+nor deletes historical evidence and does not attest that it was sanitized.
+
+
+### Cache cleanup admission
+
+A repository attempt denied index-lock admission never owns cleanup. Finalization
+reports a typed `cacheCleanup` outcome separately from the workload/skip result.
+Admitted cleanup uses the existing reader exclusion, rechecks builder locks, and
+requires the category's producer/retention proof. Live or unknown readers, pending
+resources, saved evidence, current builds and unqualified categories are retained.
+Cleanup does not force-remove those owners or recursively erase a shared cache.
+A parent that still retains readers reports protection; a real owner drain/handoff
+is required before those readers can be replaced by exclusive cleanup authority.

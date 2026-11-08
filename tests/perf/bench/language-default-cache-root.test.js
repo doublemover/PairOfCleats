@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { BENCH_REPO_TIMEOUT_DEFAULT_MS, parseBenchLanguageArgs } from '../../../tools/bench/language/cli.js';
 import { getCacheRoot } from '../../../tools/shared/dict-utils.js';
@@ -79,12 +80,12 @@ delete launchEnv.PAIROFCLEATS_EMBEDDINGS;
 const probe = "process.on('exit',()=>console.log('ENV_PROBE:'+JSON.stringify({cacheRoot:process.env.PAIROFCLEATS_CACHE_ROOT,modelsDir:process.env.PAIROFCLEATS_MODELS_DIR,threads:process.env.PAIROFCLEATS_THREADS,testing:process.env.PAIROFCLEATS_TESTING,testConfig:process.env.PAIROFCLEATS_TEST_CONFIG})));";
 const probeImport = `data:text/javascript,${encodeURIComponent(probe)}`;
 const runLaunchProbe = (script, args) => {
-  const result = spawnSync(process.execPath, ['--import', probeImport, script, ...args], {
+  const result = runNodeFixture(['--import', probeImport, script, ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
     cwd: process.cwd(),
     env: launchEnv,
     encoding: 'utf8',
     timeout: 20000
-  });
+  } });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const line = result.stdout.split(/\r?\n/).find((entry) => entry.startsWith('ENV_PROBE:'));
   assert.ok(line, 'launch environment probe must finish');

@@ -1,49 +1,89 @@
 # PairOfCleats for VS Code
 
-PairOfCleats brings local repository search and operational workflows into VS Code.
+PairOfCleats searches an indexed repository and exposes bounded, source-linked evidence through native VS Code commands. The CLI installation and the repository you search can be different directories.
 
-## Core commands
+## Install from a source checkout
 
-- `PairOfCleats: Search`
-- `PairOfCleats: Search Selection`
-- `PairOfCleats: Search Symbol Under Cursor`
-- `PairOfCleats: Repeat Last Search`
-- `PairOfCleats: Explain Search`
-- `PairOfCleats: Index Build`
-- `PairOfCleats: Start Index Watch`
-- `PairOfCleats: Index Validate`
-- `PairOfCleats: Start Service API`
-- `PairOfCleats: Start Service Indexer`
-- `PairOfCleats: Tooling Doctor`
-- `PairOfCleats: Config Dump`
-- `PairOfCleats: Index Health`
+1. In the **PairOfCleats application checkout**, install the external Node version pinned in `.nvmrc` (currently **26.12.1**, supported range `>=26.12.1 <27`). Native dependencies also need Python 3 and a C/C++ toolchain. Open a terminal in that checkout and run:
 
-## Results explorer
+   ```text
+   node --version
+   npm run bootstrap:ci
+   node tools/package-vscode.js
+   ```
 
-Saved searches populate the `PairOfCleats Results` explorer view. From there you can:
+   The existing packaging owner writes `dist/vscode/pairofcleats.vsix`. A successful dependency install alone is not bootstrap readiness; resolve any bootstrap failure before packaging or indexing.
+2. In VS Code, run **Extensions: Install from VSIX...**, select that VSIX, then reload when prompted. If `code` is on PATH, `code --install-extension ./dist/vscode/pairofcleats.vsix` from the application checkout is an alternative.
+3. Open **Preferences: Open User Settings (JSON)**. Set absolute paths to the application CLI and external Node executable. For example, in Windows User Settings:
 
-- reopen previous searches
-- rerun saved result sets
-- open individual hits
-- reveal hit files in the explorer
-- copy hit paths
+   ```json
+   {
+     "pairofcleats.cliPath": "C:/tools/PairOfCleats/bin/pairofcleats.js",
+     "pairofcleats.nodePath": "C:/Program Files/nodejs/node.exe",
+     "pairofcleats.apiExecutionMode": "cli"
+   }
+   ```
 
-## Operational workflows
+   On POSIX hosts, use host-local absolute paths such as `/home/me/PairOfCleats/bin/pairofcleats.js` and `/usr/local/bin/node`. This source recipe requires no globally linked `pairofcleats` command. An empty `cliPath` uses the extension host's PATH; an empty `nodePath` searches that host's PATH and verifies Node identity. VS Code's embedded runtime does not establish CLI runtime compatibility. Restart VS Code after changing the process PATH.
+4. Open and trust the **target repository** you want to search. It need not contain PairOfCleats application files. In a multi-root window, run **PairOfCleats: Select Repository**. **Show Effective Settings** shows the chosen root, execution host, transport policy and value sources, with credentials/environment/arguments redacted. Its native **Inspect Installation / Transport Evidence** action makes bounded read-only CLI-version and service-capability observations; unavailable identities remain unobserved. Query and presentation settings are scoped to that resource; executable, environment and destination authority belong in User Settings.
+5. Run **PairOfCleats: Index Build**, then **Index Validate** for that target. This is a deliberate build; displaying search errors never starts indexing. **Inspect Tasks** shows the exact repository/operation, stages, counters, elapsed/idle time and selected stop actions. **Tooling Doctor**, **Config Dump** and **Index Health** provide diagnostics in the **PairOfCleats** Output channel.
+6. Run **PairOfCleats: Search**, enter a term known to exist in that target, and select a result to open its source. Defaults remain `both` modes and 25 results. Saved sets appear in **PairOfCleats Results**. **Reopen Last Results** and **Search History** reopen captured evidence locally; **Repeat Last Search** and **Rerun Result Set** deliberately contact the selected consumer again.
+7. Stop an owned watch/service through **Inspect Tasks** or its matching Stop command before closing the window. A service remains starting until readiness is observed for its exact repository; an unconfirmed stop is not reported as success. **Inspect Logs** shows only the selected operation's bounded tail (up to 128 lines and 64 KiB); older raw log lines may be omitted. The eight most recent completed observations retain those logs without process/PID authority. Failed builds retain the existing publication/recovery owner's last good generation. A completed failure offers a deliberate saved-workflow retry and registered diagnostics/settings for its target; displaying the failure does not retry it. Unconfirmed process-tree cleanup blocks a replacement of that owned workflow and offers inspection instead of retry.
 
-Long-running workflows stream into the `PairOfCleats` output channel.
+**Setup** and **Bootstrap** pass `--skip-install` through the configured installation, preserving the target repository's dependencies. **Index Health** presents the canonical selected modes/backend states; optional or unselected inventory is not automatically a rebuild requirement, and missing health evidence stays unknown. **Show Effective Settings** validates the effective search option combination without opening a search backend or saving configuration. The extension does not implement the native TUI's settings draft/save-token workflow.
 
-- `Setup`, `Bootstrap`, `Tooling Doctor`, `Config Dump`, and `Index Health` emit structured summaries with explicit next actions.
-- `Index Build` runs an indexed build against the active repo context.
-- `Start Index Watch` starts watch mode and leaves it running until `Stop Index Watch`.
-- `Start Service API` and `Start Service Indexer` launch the local service commands and keep session status visible in the extension workflow status surface.
+## Search, navigation and evidence
 
-## Configuration
+**Browse Indexed Matches** accepts an effective filter without a text query. **Load More Indexed Matches** reuses the captured filters, modes, backend, time reference and producer cursor. It displays indexed-metadata coverage and rejects changed generations; start a new browse when the cursor expires. The editor view is bounded to 2,000 hits. Ranked text searches remain top-k. Invalid mode/backend/time combinations fail with a correction rather than silently switching scope.
 
-The extension honors the `pairofcleats.*` VS Code settings documented in:
+Search replay retains the original semantic query/options and repository, then resolves the currently configured CLI or the same admitted service mapping. Changes to ordinary filters do not retarget an existing continuation or replay. Changed transport policy, service endpoint or configured extra arguments require a deliberate new search. Historical executable paths/arguments are diagnostic evidence; older history without a semantic request remains reopenable and cannot be executed. Explain Search retains the returned component and routing/trust facts with its captured result; unavailable fields stay unknown.
 
-- `docs/guides/editor-integration.md`
+Definition/reference commands send the saved document's SHA-256 byte hash, version and one-based UTF-16 cursor position to the shared navigation consumer. Dirty, changed, external/generated or unsupported source facts remain explicit. Ambiguous bindings expose candidate evidence without pooling references. **Inspect Indexed Definitions/References** provides an explicit native route; **Search Symbol Under Cursor** is a related, approximate search. Built-in language intelligence is not replaced with spelling-only locations.
 
-For the CLI contract and packaging behavior, see:
+Native **Outline / Go to Symbol** additionally requires a matching retained semantic source hash and generation. Ranges come from canonical declarations and structural containers, with a separate identifier selection range when retained; the original requested document is verified again before publication. Saved changes, unsaved edits, missing ranges and unavailable generated-source mappings produce no stale native positions. **Inspect Indexed Document Symbols** preserves the approximate chunk labels and lines as explicitly labeled evidence, with save/build guidance. No unavailable location is replaced with line one.
 
-- `docs/tooling/editor-config-contract.json`
-- `docs/specs/editor-packaging-determinism.md`
+**Semantic Evidence (Experimental)** resolves the first-use saved cursor through canonical indexed navigation in local CLI mode. You can use its exact target/generation or choose a source-path, structural operation, exact declared/compiler type or scalar-literal selector. The generation picker can discover the published generation through the canonical selected-source context section in CLI/API mode, or accept an explicit immutable `baseBuildId`. Missing semantic sections stay unknown; Git revisions, index paths and runtime receipts never substitute for generation identity. Scalar types are string (including empty), boolean, null, finite number and bigint; numeric input is the exact recorded decimal representation, with no bigint `n` suffix. Candidate detail/trace/explain retains generation and record refs, separate extraction/analysis/response coverage, frontier reasons and warnings. Limits remain 128 records, 512 edges, 64 KiB and 250 ms where the typed operation admits them; trace depth/slot/kinds are deliberate choices. API menus offer advertised operations. More requires a persistent API cursor; CLI cursors expire with their process. Enrichment starts with **Plan**, and an empty partial response never establishes absence of flow.
+
+The original selected hit/current-source path is captured before asynchronous pickers. Repeated or cyclic semantic continuation cursors retain the prior evidence view and require a deliberate return/restart; one workflow retains at most 256 page identities. Exact source opening requires one unambiguous source mapping for the chosen record. Enrichment plan responses keep their own task contract.
+
+Exact source opening consumes the canonical record/source mapping and verifies the original disk bytes inside the selected repository. Native definition/reference locations also open the target document without revealing it, compare its actual versioned buffer, then map only observed BOM removal and CR/LF/CRLF newline projections. Source lines follow protocol line boundaries, including bare CR; CRLF interiors and surrogate splits never become native positions. A provider request opens at most 25 distinct source/hash documents. Changed text, dirty/version-changed targets, byte sources and unavailable generated mappings fail visibly; one failed target does not publish a falsely complete subset of references.
+
+The internal qualified-document result retains a frozen metadata-only original UTF-8 byte witness alongside actual buffer offsets. Its contained relative path, source SHA-256 and byte length can support an explicit task-span adapter. Opening a hidden target document does not itself record exploration, delivery or use, and this witness supplies no index-generation or task identity. That live instrumentation remains separate. New newline/byte-witness source assertions are unvalidated.
+
+Exact native source actions also require the requested and actually opened document URIs to identify that same local file. Identical text in another file or a virtual document supplies no file binding. Closed targets remain unavailable, and URI/file identity is checked again before publication. The per-request cache includes the selected repository root. These added source/URI assertions are authored and unrun; supported VS Code host qualification remains separate.
+
+Saved-source capture and target verification share the 4 MiB byte reader. Exact opening rechecks the bytes after editor awaits, including a deliberate selection from the indexed-navigation picker. A changed disk file cannot borrow an unchanged loaded buffer's authority. Failed detail, trace, continuation or source actions return to the prior native evidence view; retry requires another deliberate action.
+
+Native requests retain their original document version/URI and cursor before repository lookup. Definition/reference publication rechecks that source after target documents open; stale completion/document-symbol responses are discarded. Explicit indexed pickers keep the original request and item membership through source admission, opening and display; a newer picker revokes its predecessor. Exact ranges require the editor returned by display to contain the qualified opened document. Semantic evidence pickers also retain original items, captured generation/capabilities and immutable response views, including nested detail and continuation. See [native request limits](../../docs/contracts/editor-native-request-lifetime.md) and [semantic picker lifetime](../../docs/contracts/editor-semantic-picker-lifetime.md). This source behavior and its authored controls remain unvalidated in a VS Code host.
+
+The seed is rechecked against the same cursor, document version and source bytes before Find. Ambiguous/partial bindings never become a unique target; unavailable first-use bindings retain the explicit source/selector route. Generation discovery is a bounded, read-only context operation (8 KiB primary budget, no graph/risk expansion, canonical semantic section at its own bounded limits), and subsequent requests stay pinned to its returned generation.
+
+**Open Captured Evidence** inspects context/risk nodes and call-site witnesses. Exact ranges require source qualification; otherwise it opens the current file with freshness marked unknown. Its original publication, repository, source rows and picker choices persist through prompts and source opening; a newer publication or opener revokes pending actions, including nested context review. See [captured-evidence lifetime and host limits](../../docs/contracts/editor-captured-evidence-lifetime.md). **Copy / Export Selected Context** collects up to eight selected seeds through the canonical context owner (24 KiB per packet), previews them as inert text, allows exclusions, then copies or saves JSON/Markdown to a chosen destination. The aggregate export bound is 256 KiB; exact bytes are shown and no token estimate is invented. JSON is an array of unchanged canonical packets; purpose/omission notes are in Markdown. Source hashes, citations, provenance, confidence, truncation and incomplete-frontier warnings remain producer evidence. Collection is a deliberate current-index operation and does not certify an older search generation. Original picker membership, captured repository/seeds and immutable packet snapshots persist through review; export requires the exact unchanged final preview. See [collection lifetime and host limits](../../docs/contracts/editor-evidence-collection-lifetime.md). Nothing is transmitted to an external agent.
+
+Risk Explain resolves direct chunk and file/symbol seeds through the canonical context-pack root selection. It retains that repository, code index, opaque generation identity and chunk; the selected manifest bytes are checked again before dispatch and publication. Missing/replaced generations or a different returned chunk require a deliberate current-generation request. Repo-local `index-code` artifacts never substitute for the selected generation.
+
+## Execution host and service repositories
+
+The extension declares **workspace** host placement. A normal local checkout runs CLI/Node on the local extension host. For SSH, WSL or a container, install the extension and compatible CLI/Node on that workspace host and configure paths valid there. Do not use a UI-machine executable path for a remote workspace host. Remote host qualification is platform-specific; installation is never automatic. Web, virtual/read-only URI workspaces and arbitrary non-file CLI roots are unsupported.
+
+API policy remains **cli / prefer / require**. Prefer may report an allowed CLI fallback; require reports unsupported operations or service failures without a CLI fallback. **Select Service Repository** separately chooses the service-host root and the editor URI. The server must admit the root through `/status`, and its source Git revision must match the editor checkout; missing/different identity or a dirty service source is rejected. Editor working-tree freshness remains explicitly unverified. Service absolute result paths are mapped to contained relative paths before opening in the editor's original URI authority. Non-Git source identities currently require local CLI mode or another source-qualified workflow. Reconnection is bounded and cancellable and does not replay mutations.
+
+Mapping identity is checked again after status/consent/query waits and service responses. Search and semantic results cannot publish against an editor revision replaced while the request was pending. Saved API continuation requires the same admitted service root and current editor revision; a changed mapping retains the previous results and asks for an explicit restart.
+
+Service status must echo the admitted repository and matching clean source revision. API Index Health rechecks those facts and the editor mapping on its final response, and its progress Cancel action aborts the owned HTTP request. POSIX service root identity remains case-sensitive; Windows drive/UNC roots use their own path semantics.
+
+Search, operator and managed commands capture their target before asynchronous capability admission. Requalified mapping revisions are saved through the existing serialized state owner, merging the current map so concurrent commands for different roots do not erase each other's qualification.
+
+A connection display or readiness observation does not authorize different binds, remote installation, credentials from workspace files or setup mutation. Success/error HTTP bodies and CLI capture have a 20 MiB byte limit; HTTP previews retain at most 4,096 characters. Narrow oversized requests before retrying. Owned task raw-log display is bounded separately; structured progress stays indeterminate when the producer has no authoritative stage/readiness fact.
+
+Index watch consumes the canonical typed lifecycle. **idle-watch** requires watcher admission and quiescence with no queued/replay work. **degraded** shows the producer's reason/code and keeps the last publication witness separately. A committed publication and its build ID qualify that observed promotion only; search/backend readiness remains unknown. Nested build logs cannot clear a typed degraded watcher. Terminal teardown failure or pending ownership remains failure through cancellation/zero exit and prevents replacement; its observation never grants permission to signal a saved PID.
+
+Workflow pickers capture the displayed session and repository through selection. Selecting another foreground repository preserves explicitly started background work; removing its workspace folder revokes that folder's requests and owned processes. Pending native prompts receive cancellation, inline publication/edit/configuration/close changes revoke pending hover/signal work, and extension teardown awaits bounded owned process/request settlement. These source controls and registered-consumer regressions do not establish real Windows child/grandchild, reload, disable or uninstall qualification; those host checks remain separate.
+
+Configuration changes revoke pending foreground requests before an old runtime/transport snapshot can dispatch or publish. Already-started background indexing/services retain their admitted snapshot until deliberately stopped or their repository/host is removed. A child error alone does not establish close; its exact task remains excluded from replacement while close is pending. Failed producer envelopes and incomplete presentation/export cannot become successful workflow state through parsed JSON or a plain-text fallback. Native numeric/scalar validators keep invalid input editable; indexed name completions remain approximate suggestions and require the original buffer to remain unchanged through response publication.
+
+API body cancellation/reader-lock failures retain their original response owner and prevent automatic transport fallback. Semantic CLI request files retire through their exact extension-storage owner; a failed file/directory retirement prevents successful evidence publication. These failures remain explicit in host shutdown observations. Releasing a reader lock, closing a child, or showing fallback text does not establish that every independent resource settled.
+
+## References
+
+The installed package includes the [settings/runtime contract](editor-config-contract.json), [first-search walkthrough](walkthroughs/first-search.md) and [operations walkthrough](walkthroughs/operations.md). The [PairOfCleats repository](https://github.com/doublemover/PairOfCleats) contains the canonical CLI, configuration, packaging and search-diagnostics contracts under `docs/`; the README and walkthrough above remain usable without those repository files installed.

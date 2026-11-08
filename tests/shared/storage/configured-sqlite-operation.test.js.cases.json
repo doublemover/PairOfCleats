@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["namespace", "batch-order", "exclusion", "changed-selection", "nested-selection", "ignored-child", "metadata-failure", "unregistered", "same-namespace"]
+}

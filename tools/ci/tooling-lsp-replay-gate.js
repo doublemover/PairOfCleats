@@ -51,7 +51,7 @@ const loadBaselineSummary = async (baselinePath) => {
 
 const main = async () => {
   const argv = parseArgs();
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-tooling-lsp-replay-'));
+  const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-tooling-lsp-replay-')));
   const tracePath = argv.json
     ? path.join(path.dirname(path.resolve(argv.json)), `tooling-lsp-replay-${String(argv.mode || 'signature-help')}.trace.jsonl`)
     : path.join(tempRoot, 'lsp-rpc-trace.jsonl');

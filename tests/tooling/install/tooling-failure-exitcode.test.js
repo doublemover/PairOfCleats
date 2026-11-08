@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { runToolingInstallWithEmptyPath } from './tooling-install-test-helper.js';
+import assert from 'node:assert/strict';
 
-const { result, payload } = runToolingInstallWithEmptyPath('pyright');
+const { result, payload, installerCalled } = runToolingInstallWithEmptyPath('pyright', { failInstaller: true });
+assert.equal(installerCalled, true, 'the recognized fixture manager must reach its deliberately failing installer');
 
 if (result.status === 0) {
   console.error('tooling-install failure exit code test failed: expected non-zero status on failed install');

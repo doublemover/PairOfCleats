@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { classifyQuery } from '../../../src/retrieval/query-intent.js';
 import { applyGraphRanking } from '../../../src/retrieval/pipeline/graph-ranking.js';
 import { buildResultBundles } from '../../../src/retrieval/output/format.js';
+import { RESULT_BUNDLE_SCHEMA_VERSION } from '../../../src/retrieval/output/format/bundle.js';
 
 const buildSmokeSnapshot = () => {
   const intentPath = classifyQuery({
@@ -124,9 +125,10 @@ assert.deepEqual(
       order: ['a', 'b', 'c', 'g', 'i', 'h']
     },
     bundles: {
-      schemaVersion: 1,
-      order: ['src/a.js', 'src/b.js', 'src/z.js'],
-      topBundleModes: ['code', 'prose']
+      schemaVersion: RESULT_BUNDLE_SCHEMA_VERSION,
+      // Bundle schema 2 uses reciprocal native rank, including within a file.
+      order: ['src/a.js', 'src/z.js', 'src/b.js'],
+      topBundleModes: ['prose', 'code']
     }
   },
   'IQ regression smoke snapshot drift detected'

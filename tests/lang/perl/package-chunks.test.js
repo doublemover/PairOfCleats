@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { buildPerlChunks, buildPerlRelations } from '../../../src/lang/perl.js';
+import { buildPerlRelations } from '../../../src/lang/perl.js';
+import { buildLanguageContext } from '../../../src/index/language-registry.js';
 
 applyTestEnv();
 
@@ -18,7 +19,9 @@ const perlText = [
   '1;'
 ].join('\n');
 
-const chunks = buildPerlChunks(perlText) || [];
+const { context } = await buildLanguageContext({ ext: '.pl', relPath: 'worker.pl', mode: 'code', text: perlText,
+  options: { treeSitter: { enabled: true, strict: true, chunkCache: false, adaptive: false } } });
+const chunks = context.perlChunks || [];
 assert.equal(
   chunks.some((chunk) => chunk.kind === 'PackageDeclaration' && chunk.name === 'App::Worker'),
   true,
@@ -35,7 +38,7 @@ assert.equal(relations.imports.includes('strict'), true, 'expected use import re
 assert.equal(relations.imports.includes('Foo::Bar'), true, 'expected require import relation');
 assert.equal(relations.exports.includes('run'), true, 'expected function export relation');
 assert.equal(
-  relations.calls.some(([caller, callee]) => caller === 'run' && (callee === 'Foo::Bar::execute' || callee === 'execute')),
+  relations.calls.some(([caller, callee]) => caller === 'run' && callee === 'Foo.Bar.execute'),
   true,
   'expected relation call for required module invocation'
 );

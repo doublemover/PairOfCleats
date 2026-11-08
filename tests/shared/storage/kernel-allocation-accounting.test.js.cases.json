@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact-block-domain", "unique-observed-allocation", "conflicting-alias-allocation", "reviewed-probe-unlink-estimate", "sparse-or-compressed-allocation"]
+}

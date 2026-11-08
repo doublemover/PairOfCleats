@@ -12,7 +12,7 @@ import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-util
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-search-finally-'));
+const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-search-finally-')));
 applyTestEnv({ cacheRoot: path.join(temp, 'cache') });
 const { runSearchCli } = await import('../../../src/retrieval/cli/run-search/plan-runner.js');
 const repo = path.join(temp, 'repo');

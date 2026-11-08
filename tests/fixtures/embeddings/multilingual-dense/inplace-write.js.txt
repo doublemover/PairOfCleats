@@ -1,0 +1,4 @@
+import fs from 'node:fs/promises';
+export async function overwriteConfiguration(target, bytes) {
+  await fs.writeFile(target, bytes);
+}

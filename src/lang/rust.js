@@ -311,20 +311,27 @@ export function collectRustImports(text) {
 export function buildRustChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'rust', options });
   if (treeChunks && treeChunks.length) {
-    const lines = text.split('\n');
+    let lines = null;
     return treeChunks.map((chunk) => {
       const meta = chunk.meta || {};
       const signature = meta.signature || '';
+      const headerRange = meta.rustDeclarationHeaderRange;
+      const parameterRange = meta.rustParametersRange;
+      const needsHeader = !Array.isArray(meta.rustParameters) || !Object.hasOwn(meta, 'rustReturnType') || !Array.isArray(meta.rustModifiers);
+      const declarationHeader = needsHeader ? (headerRange ? text.slice(headerRange.start, headerRange.end) : signature) : '';
+      const parameters = !Array.isArray(meta.rustParameters) && parameterRange
+        ? text.slice(parameterRange.start, parameterRange.end) : declarationHeader;
       const startLine = Number.isFinite(meta.startLine) ? meta.startLine : 1;
       return {
         ...chunk,
         meta: {
           ...meta,
           signature,
-          params: extractRustParams(signature),
-          returns: extractRustReturns(signature),
-          modifiers: extractRustModifiers(signature),
-          attributes: collectRustAttributes(lines, startLine - 1, signature)
+          params: Array.isArray(meta.rustParameters) ? meta.rustParameters : extractRustParams(parameters),
+          returns: Object.hasOwn(meta, 'rustReturnType') ? meta.rustReturnType : extractRustReturns(declarationHeader),
+          modifiers: Array.isArray(meta.rustModifiers) ? meta.rustModifiers : extractRustModifiers(declarationHeader),
+          attributes: Array.isArray(meta.rustAttributes) ? meta.rustAttributes
+            : collectRustAttributes(lines || (lines = text.split('\n')), startLine - 1, signature)
         }
       };
     });
@@ -349,7 +356,7 @@ export function buildRustChunks(text, options = {}) {
     const match = trimmed.match(macroRulesRe) || trimmed.match(macroRe);
     if (!match) return;
     const start = lineIndex[lineNumber] + line.indexOf(match[0]);
-    const bounds = findCLikeBodyBounds(text, start);
+    const bounds = findCLikeBodyBounds(text, start, { rustLifetimes: true });
     const entry = buildRustDeclarationEntry({
       text,
       line,
@@ -370,7 +377,7 @@ export function buildRustChunks(text, options = {}) {
     if (!match) return;
     const start = lineIndex[lineNumber] + line.indexOf(match[0]);
     if (isInsideBlock(start, macroBlocks)) return;
-    const bounds = findCLikeBodyBounds(text, start);
+    const bounds = findCLikeBodyBounds(text, start, { rustLifetimes: true });
     const kindMap = {
       struct: 'StructDeclaration',
       enum: 'EnumDeclaration',
@@ -397,7 +404,7 @@ export function buildRustChunks(text, options = {}) {
     if (!implRe.test(trimmed)) return;
     const start = lineIndex[lineNumber] + line.indexOf(trimmed);
     if (isInsideBlock(start, macroBlocks)) return;
-    const bounds = findCLikeBodyBounds(text, start);
+    const bounds = findCLikeBodyBounds(text, start, { rustLifetimes: true });
     if (bounds.bodyStart === -1) return;
     const { end, meta } = buildRustDeclarationMeta({
       text,
@@ -429,12 +436,12 @@ export function buildRustChunks(text, options = {}) {
   forEachRustCandidateLine(lines, ({ line, trimmed, lineNumber }) => {
     const fnMatch = trimmed.match(fnRe);
     if (!fnMatch) return;
-    const { signature, endLine, hasBody } = readSignatureLines(lines, lineNumber);
+    const { signature, endLine, hasBody } = readSignatureLines(lines, lineNumber, { rustLifetimes: true });
     const start = lineIndex[lineNumber] + line.indexOf(trimmed);
     if (isInsideBlock(start, macroBlocks)) {
       return endLine;
     }
-    const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+    const bounds = hasBody ? findCLikeBodyBounds(text, start, { rustLifetimes: true }) : { bodyStart: -1, bodyEnd: -1 };
     const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
     const parent = findParent(start);
     let name = fnMatch[1];
@@ -493,7 +500,9 @@ export function extractRustDocMeta(chunk) {
   return buildDefaultDocMeta(chunk, {
     decoratorsFrom: 'attributes',
     includeModifiers: true,
-    includeImplFor: true
+    includeImplFor: true,
+    extraFields: chunk?.meta?.attachedDocumentation
+      ? { attachedDocumentation: structuredClone(chunk.meta.attachedDocumentation) } : null
   });
 }
 

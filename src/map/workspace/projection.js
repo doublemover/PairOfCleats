@@ -1,6 +1,16 @@
 /** Bounded, renderer-independent projections. Original envelopes remain the evidence owner. */
 export const PROJECTION_VERSION = 1;
 export const VIEW_LIMITS = Object.freeze({ nodes: 200, edges: 400, bytes: 2 * 1024 * 1024, sourceBytes: 262144 });
+/** One replaceable admitted page; preserve Array.find's first strict match. */
+export function createPageIdentityLookup(projection) {
+  if (!Array.isArray(projection?.nodes) || projection.nodes.length > VIEW_LIMITS.nodes) throw new TypeError('Expected one bounded admitted projection page.');
+  const byId = new Map();
+  for (const node of projection.nodes) {
+    const id = node.id;
+    if (id === id && !byId.has(id)) byId.set(id, node);
+  }
+  return Object.freeze({ get: id => byId.get(id), has: id => byId.has(id), size: byId.size });
+}
 export const array = value => Array.isArray(value) ? value : [];
 export const refKey = ref => {
   if (!ref || typeof ref !== 'object') return null;
@@ -34,27 +44,40 @@ export const detectFamily = input => {
 };
 
 /** Projection is one replaceable page, never an accumulating expanded-path cache. */
-export function projectOutput(envelope, { page = 0, relation = '', family = detectFamily(envelope) } = {}) {
+export function projectOutput(envelope, { page = 0, relation = '', family = detectFamily(envelope), onEntity = null, metadataOnly = false } = {}) {
   const data = unwrapOutput(envelope);
   if (!data || typeof data !== 'object') throw new TypeError('Expected a JSON output object.');
   if (!Number.isSafeInteger(page) || page < 0) throw new RangeError('Invalid projection page.');
-  const nodes = [], edges = [], sections = [], byId = new Map();
+  const nodes = [], edges = [], sections = [], byId = new Map(), relationKinds = new Set();
   const start = page * VIEW_LIMITS.nodes;
   let seen = 0, edgeCount = 0;
-  const add = (id, label, kind, detail, ref = null, parentId = null) => {
+  const add = (id, label, kind, detail, ref = null, parentId = null, searchHint = null) => {
     const ordinal = seen++;
+    if (onEntity) {
+      const value = typeof detail === 'function' ? null : detail;
+      onEntity({ id, label: String(label ?? id), kind, ordinal, parentId,
+        file: searchHint?.file ?? value?.file ?? value?.path ?? value?.source?.path ?? ref?.path
+          ?? (typeof parentId === 'string' && parentId.startsWith('file:') ? parentId.slice(5) : null),
+        mode: searchHint?.mode ?? value?.mode ?? null, originalRank: searchHint?.originalRank ?? value?.originalRank ?? null });
+    }
+    if (metadataOnly) return;
     if (ordinal < start || nodes.length >= VIEW_LIMITS.nodes) return;
     if (byId.has(id)) return;
-    const node = { id, label: String(label ?? id), kind, ref, parentId, detail, ordinal };
+    const node = { id, label: String(label ?? id), kind, ref, parentId,
+      detail: typeof detail === 'function' ? detail() : detail, ordinal };
     nodes.push(node); byId.set(id, node);
   };
   const edge = (from, to, kind, detail) => {
+    if (metadataOnly) return;
+    kind = kind || 'relation';
+    relationKinds.add(kind);
     if (relation && kind !== relation) return;
     edgeCount++;
     if (!from || !to || !byId.has(from) || !byId.has(to) || edges.length >= VIEW_LIMITS.edges) return;
     edges.push({ id: `edge:${edges.length}`, from, to, kind: kind || 'relation', detail });
   };
   const section = (title, value, presentation = 'records') => {
+    if (metadataOnly) return;
     if (value != null) sections.push({ title, value, presentation });
   };
   const graph = pack => {
@@ -72,14 +95,19 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
       if (!entry?.graph) continue;
       for (const row of array(entry.graph.nodes)) add(`word:${entry.graphId}:${row.id}`,
         row.kind === 'Literal' ? String(row.value).slice(0, 80) : 'Ordered concatenation', row.kind,
-        { ...row, graphId: entry.graphId, root: array(entry.graph.rootIds).includes(row.id), location: 'response-inline' });
+        () => ({ ...row, graphId: entry.graphId, root: array(entry.graph.rootIds).includes(row.id), location: 'response-inline' }));
       for (const row of array(entry.graph.nodes)) array(row.children).forEach((child, ordinal) =>
         edge(`word:${entry.graphId}:${row.id}`, `word:${entry.graphId}:${child}`, `child:${ordinal}`, { parent: row.id, child, ordinal, graphId: entry.graphId }));
     }
     section('Interpretation', { meaning: 'Compressed word DAG; literal/ordered-concat structure only. No unbounded string expansion.', backend: 'classify-compressed requires the separately unpublished symbolic backend.' });
   } else if (family === 'artifacts') {
     const rows = data.artifacts ?? data.rows ?? [];
-    for (const row of array(rows)) add(`artifact:${row.name ?? seen}`, row.name ?? row.path ?? row.id ?? `Row ${(data.ordinal || 0) + seen}`, row.family ?? data.mode ?? 'artifact', row);
+    array(rows).forEach((row, ordinal) => {
+      const absoluteOrdinal = (data.ordinal || 0) + ordinal;
+      const id = data.kind === 'artifact-catalog' ? `artifact:${row.name}`
+        : `artifact-row:${JSON.stringify([data.name ?? '', data.generation ?? null, absoluteOrdinal])}`;
+      add(id, row.name ?? row.path ?? row.id ?? `Row ${absoluteOrdinal}`, row.family ?? data.mode ?? 'artifact', row);
+    });
     section('Logical artifact inventory', data.artifacts, 'manifest');
     section('Artifact values', data.value ?? data.rows, 'records');
     section('Storage provenance', data.provenance, 'manifest');
@@ -118,7 +146,8 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     for (const mode of ['code', 'prose', 'extractedProse', 'records', 'hits', 'results']) {
       const rows = array(data[mode]);
       section(`${mode} · original ranking`, rows, 'ranked');
-      rows.forEach((row, rank) => add(`hit:${mode}:${rank}`, `${rank + 1}. ${row.name ?? row.file ?? row.path ?? row.id ?? 'hit'}`, mode, { ...row, originalRank: rank + 1, mode }, row.ref || (row.chunkUid ? { type: 'chunk', chunkUid: row.chunkUid } : null)));
+      rows.forEach((row, rank) => add(`hit:${mode}:${rank}`, `${rank + 1}. ${row.name ?? row.file ?? row.path ?? row.id ?? 'hit'}`, mode, () => ({ ...row, originalRank: rank + 1, mode }), row.ref || (row.chunkUid ? { type: 'chunk', chunkUid: row.chunkUid } : null), null,
+        { file: row.file ?? row.path ?? null, mode, originalRank: rank + 1 }));
     }
     section('Query and ranking metadata', data.stats ?? data.meta ?? data.query);
   } else if (family === 'enrichment') {
@@ -165,8 +194,10 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
   for (const key of ['provenance', 'coverage', 'frontier', 'truncation', 'warnings']) section(key, data[key], 'coverage');
   section('Complete original output', data, 'records');
   return { version: PROJECTION_VERSION, family, generation: data.generation ?? data.provenance?.indexSignature ?? null,
-    nodes, edges, sections, page, hasNext: seen > start + VIEW_LIMITS.nodes,
-    cursor: data.cursor ?? data.nextCursor ?? null,
+    graphCapability: data.graphCapability ?? null,
+    nodes, edges, sections, page, relationKinds: [...relationKinds].sort(), hasNext: seen > start + VIEW_LIMITS.nodes,
+    cursor: family === 'search' ? (data.pagination?.nextCursor ?? null) : (data.cursor ?? data.nextCursor ?? null),
+    continuation: family === 'search' ? (data.pagination || null) : null,
     coverage: { source: data.coverage ?? data.summary ?? null, sourceTotal: null,
       responseEntities: seen, admittedEntities: nodes.length, responseRelations: edgeCount,
       admittedRelations: edges.length, omittedEntities: Math.max(0, seen - nodes.length),

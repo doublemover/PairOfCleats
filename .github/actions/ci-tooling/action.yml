@@ -1,0 +1,362 @@
+name: Qualify platform tooling
+description: Provision and qualify the original platform-specific SDKs and language servers for tooling only.
+runs:
+  using: composite
+  steps:
+    - name: Setup qualified PHP runtime
+      uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+      with:
+        php-version: 8.5.12
+        extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
+        coverage: none
+        tools: none
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Verify selected PHP runtime
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { createHash } from "node:crypto";
+        import { runCommand } from "./tools/shared/cli-utils.js";
+        const code = "echo json_encode([\"version\"=>PHP_VERSION,\"binary\"=>PHP_BINARY,\"extensions\"=>get_loaded_extensions()]);";
+        const result = runCommand("php", ["-r", code], { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+        assert.equal(result.status, 0, JSON.stringify(result));
+        assert.equal(result.stderr, "");
+        const sdk = JSON.parse(result.stdout);
+        assert.equal(sdk.version, "8.5.12");
+        assert.ok(path.isAbsolute(sdk.binary));
+        const extensions = sdk.extensions.map(name => name.toLowerCase());
+        for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
+        const command = fs.realpathSync(sdk.binary);
+        const receipt = { ...sdk, command, source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/php-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify(receipt));
+        '
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Provision pinned PHPactor for CI
+      env:
+        PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
+      run: node tools/ci/provision-phpactor.js
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Setup qualified .NET SDK
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+      env:
+        DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+      with:
+        dotnet-version: 10.0.403
+    - name: Verify selected .NET SDK
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { createHash } from "node:crypto";
+        import { runCommand } from "./tools/shared/cli-utils.js";
+        const root = process.env.DOTNET_ROOT;
+        assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+        const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+        const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+        const version = runCommand(command, ["--version"], options);
+        const selected = runCommand("dotnet", ["--version"], options);
+        const runtimes = runCommand(command, ["--list-runtimes"], options);
+        for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+        assert.equal(version.stdout.trim(), "10.0.403");
+        assert.equal(selected.stdout.trim(), "10.0.403");
+        assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.14 \[/m);
+        const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+        fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+        const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify(receipt));
+        '
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Verify selected .NET SDK
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { createHash } from "node:crypto";
+        import { runCommand } from "./tools/shared/cli-utils.js";
+        const root = process.env.DOTNET_ROOT;
+        assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+        const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+        const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+        const version = runCommand(command, ["--version"], options);
+        const selected = runCommand("dotnet", ["--version"], options);
+        const runtimes = runCommand(command, ["--list-runtimes"], options);
+        for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+        assert.equal(version.stdout.trim(), "10.0.403");
+        assert.equal(selected.stdout.trim(), "10.0.403");
+        assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.14 \[/m);
+        const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+        fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+        const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify(receipt));
+        '
+      shell: pwsh
+      if: runner.os == 'Windows'
+    - name: Setup qualified Go SDK
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version: 1.27.3
+        cache: false
+    - name: Verify selected Go SDK
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { runCommand } from "./tools/shared/cli-utils.js";
+        const env = { ...process.env, GOTOOLCHAIN: "local" };
+        delete env.GOROOT;
+        const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+        assert.equal(result.status, 0, JSON.stringify(result));
+        assert.equal(result.stderr, "");
+        const sdk = JSON.parse(result.stdout);
+        assert.equal(sdk.GOVERSION, "go1.27.3");
+        assert.ok(path.isAbsolute(sdk.GOROOT));
+        assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+        fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+        console.log(JSON.stringify(sdk));
+        '
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Verify selected Go SDK
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { runCommand } from "./tools/shared/cli-utils.js";
+        const env = { ...process.env, GOTOOLCHAIN: "local" };
+        delete env.GOROOT;
+        const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+        assert.equal(result.status, 0, JSON.stringify(result));
+        assert.equal(result.stderr, "");
+        const sdk = JSON.parse(result.stdout);
+        assert.equal(sdk.GOVERSION, "go1.27.3");
+        assert.ok(path.isAbsolute(sdk.GOROOT));
+        assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+        fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+        console.log(JSON.stringify(sdk));
+        '
+      shell: pwsh
+      if: runner.os == 'Windows'
+    - name: Provision pinned Go language server for CI
+      run: node tools/ci/provision-gopls.js
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Provision pinned Go language server for CI
+      run: node tools/ci/provision-gopls.js
+      shell: pwsh
+      if: runner.os == 'Windows'
+    - name: Provision pinned Csharp language server for CI
+      run: node tools/ci/provision-csharp-ls.js
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Provision pinned Csharp language server for CI
+      run: node tools/ci/provision-csharp-ls.js
+      shell: pwsh
+      if: runner.os == 'Windows'
+    - name: Provision required standalone clangd
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { requireBootstrap } from "./src/shared/bootstrap-readiness.js";
+        import { ensureManagedClangd } from "./tools/tooling/install-clangd.js";
+        import { CLANGD_RELEASE_INDEX_URL } from "./src/shared/managed-clangd.js";
+        import { createGitHubReleaseMetadataDownload } from "./tools/tooling/official-release-download.js";
+        await requireBootstrap();
+        assert.equal(process.env.CI, "true");
+        const token = process.env.GITHUB_TOKEN;
+        delete process.env.GITHUB_TOKEN;
+        const download = createGitHubReleaseMetadataDownload({ metadataUrl: CLANGD_RELEASE_INDEX_URL, token });
+        const runnerRoot = fs.realpathSync.native(process.env.RUNNER_TEMP);
+        const pathFile = process.env.GITHUB_PATH;
+        assert.ok(path.isAbsolute(pathFile) && !/[\r\n]/u.test(pathFile));
+        const relative = path.relative(runnerRoot, fs.realpathSync.native(path.dirname(pathFile)));
+        assert.ok(!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(".." + path.sep));
+        const entry = fs.lstatSync(pathFile);
+        assert.ok(entry.isFile() && !entry.isSymbolicLink() && entry.nlink === 1);
+        const work = fs.realpathSync.native(fs.mkdtempSync(path.join(runnerRoot, "poc-ci-clangd-")));
+        const installed = await ensureManagedClangd({ toolingRoot: path.join(work, "tooling"), cwd: process.cwd(), dependencies: { download } });
+        assert.equal(installed.reused, false, "required SDK qualification starts from a fresh private installation");
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/clangd-provisioning.json", JSON.stringify({ ...installed,
+          source: process.env.GITHUB_SHA, qualification: "official-release-sha256-binary-target-and-executable-version",
+          runtimeHandshakeQualified: false, cleanupOwner: "GitHub Actions RUNNER_TEMP job lifetime" }, null, 2) + "\n");
+        fs.appendFileSync(pathFile, installed.binDir + "\n");
+        console.log(JSON.stringify({ version: installed.version, command: installed.command, binarySha256: installed.binarySha256 }));
+        '
+    - name: Install optional LSP tools (best effort)
+      shell: bash
+      env:
+        PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
+      run: |
+        set +e
+        node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,solargraph --json
+        status=$?
+        if [ $status -ne 0 ]; then
+          echo "optional tooling install had non-fatal failures (continuing)."
+        fi
+        exit 0
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Install optional LSP tools (best effort)
+      shell: pwsh
+      run: |
+        node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,solargraph --json
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host 'optional tooling install had non-fatal failures (continuing).'
+        }
+        exit 0
+      if: runner.os == 'Windows'
+    - name: Qualify real Go language server startup
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { getToolingConfig } from "./tools/shared/dict-utils.js";
+        import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+        const provision = JSON.parse(fs.readFileSync(".diagnostics/gopls-provisioning.json", "utf8"));
+        const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
+        const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+        fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+        assert.equal(result.ok, true, JSON.stringify(receipt));
+        assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+        assert.equal(receipt.binarySha256, provision.binarySha256);
+        assert.equal(receipt.result.capabilities.documentSymbol, true);
+        assert.equal(receipt.result.capabilities.definition, true);
+        '
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Qualify real Go language server startup
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { getToolingConfig } from "./tools/shared/dict-utils.js";
+        import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+        const provision = JSON.parse(fs.readFileSync(".diagnostics/gopls-provisioning.json", "utf8"));
+        const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
+        const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+        fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+        assert.equal(result.ok, true, JSON.stringify(receipt));
+        assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+        assert.equal(receipt.binarySha256, provision.binarySha256);
+        assert.equal(receipt.result.capabilities.documentSymbol, true);
+        assert.equal(receipt.result.capabilities.definition, true);
+        '
+      shell: pwsh
+      if: runner.os == 'Windows'
+    - name: Qualify real Csharp language server startup
+      env:
+        PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { getToolingConfig } from "./tools/shared/dict-utils.js";
+        import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+        const provision = JSON.parse(fs.readFileSync(".diagnostics/csharp-ls-provisioning.json", "utf8"));
+        const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
+        const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+        fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+        assert.equal(result.ok, true, JSON.stringify(receipt));
+        assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+        assert.equal(receipt.binarySha256, provision.binarySha256);
+        assert.equal(receipt.result.capabilities.documentSymbol, true);
+        assert.equal(receipt.result.capabilities.definition, true);
+        '
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Qualify real Csharp language server startup
+      env:
+        PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { getToolingConfig } from "./tools/shared/dict-utils.js";
+        import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+        const provision = JSON.parse(fs.readFileSync(".diagnostics/csharp-ls-provisioning.json", "utf8"));
+        const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
+        const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+        fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+        assert.equal(result.ok, true, JSON.stringify(receipt));
+        assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+        assert.equal(receipt.binarySha256, provision.binarySha256);
+        assert.equal(receipt.result.capabilities.documentSymbol, true);
+        assert.equal(receipt.result.capabilities.definition, true);
+        '
+      shell: pwsh
+      if: runner.os == 'Windows'
+    - name: Qualify real PHPactor startup
+      env:
+        PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/phpactor', github.workspace))) }}
+        XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
+        XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
+        XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { getToolingConfig } from "./tools/shared/dict-utils.js";
+        import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+        const provision = JSON.parse(fs.readFileSync(".diagnostics/phpactor-provisioning.json", "utf8"));
+        const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
+        const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+        fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+        assert.equal(result.ok, true, JSON.stringify(receipt));
+        assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+        assert.equal(receipt.binarySha256, provision.binarySha256);
+        assert.equal(receipt.result.capabilities.documentSymbol, true);
+        assert.equal(receipt.result.capabilities.definition, true);
+        '
+      shell: bash
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+    - name: Record PHPactor native platform limitation
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import { getToolingConfig } from "./tools/shared/dict-utils.js";
+        import { getToolingRegistry } from "./tools/tooling/utils.js";
+        const root = process.cwd();
+        const support = getToolingRegistry(getToolingConfig(root).dir, root).find(tool => tool.id === "phpactor").install;
+        assert.equal(support.platforms.includes(process.platform), false);
+        const receipt = { source: process.env.GITHUB_SHA, platform: process.platform, status: "unsupported", reason: "unsupported_platform", requirement: support.platformRequirement, coverageOwner: "tooling/install/phpactor-platform-contract" };
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/phpactor-platform.json", JSON.stringify(receipt, null, 2) + "\n");
+        console.log(JSON.stringify(receipt));
+        '
+      shell: pwsh
+      if: runner.os == 'Windows'

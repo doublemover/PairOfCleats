@@ -39,7 +39,9 @@ export const resolveInvalidLockReclaimGraceMs = ({
   pollMs,
   overrideMs = null
 } = {}) => {
-  const override = Number(overrideMs);
+  // The omitted/null default means derive a publication grace, not an explicit
+  // zero. A contender may observe CREATE_NEW before the owner writes its PID.
+  const override = overrideMs == null ? NaN : Number(overrideMs);
   if (Number.isFinite(override) && override >= 0) {
     return Math.min(INVALID_LOCK_RECLAIM_GRACE_MS_MAX, Math.floor(override));
   }

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
-import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from '../../runner.js';
+import { parseCountSummary, parseExtensionPath, runNodeAsync, runToolWithProgress } from '../../runner.js';
 import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 import { parseNameUrlSources } from '../../../shared/input-parsers.js';
 import { isMcpNativeLoadEnabled } from '../../../../src/shared/env/runtime.js';
@@ -108,9 +108,9 @@ export async function downloadExtensions(args = {}, context = {}) {
 /**
  * Handle the MCP verify_extensions tool call.
  * @param {object} [args]
- * @returns {object}
+ * @returns {Promise<object>}
  */
-export function verifyExtensions(args = {}) {
+export async function verifyExtensions(args = {}, context = {}) {
   for (const key of ['path', 'dir', 'provider', 'platform', 'arch']) {
     if (args[key] != null) throw new Error('MCP native verification uses the launching user’s configured artifact only.');
   }
@@ -131,7 +131,7 @@ export function verifyExtensions(args = {}) {
   if (args.options) scriptArgs.push('--options', String(args.options));
   if (args.annMode) scriptArgs.push('--ann-mode', String(args.annMode));
   scriptArgs.push(args.load === true ? '--load' : '--no-load');
-  const stdout = runNodeSync(repoPath, scriptArgs, { env: runtimeEnv });
+  const { stdout } = await runNodeAsync(repoPath, scriptArgs, { env: runtimeEnv, signal: context.signal });
   try {
     return JSON.parse(stdout || '{}');
   } catch {

@@ -15,6 +15,15 @@ import { resolveJsonlRequiredKeys } from '../jsonl.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 import { readJsonFileCached, ensureOffsetsValid } from './shared.js';
 import { loadJsonArrayArtifact } from './core.js';
+import { getContainedFileSession } from '../../contained-file-resource.js';
+import { observeStorageResource } from '../../storage/failure-observation.js';
+
+// Ordinary invalid/unavailable indexes retain their existing fallback. An exact
+// retained descriptor or independent original work cannot admit a second reader.
+const requireFallbackReadSettled = error => {
+  if (getContainedFileSession(error)) throw error;
+  observeStorageResource(error, { phase: 'per-file-index-fallback' }).requireSettled();
+};
 
 /**
  * Resolve by-file metadata artifact path for a symbol artifact.
@@ -155,7 +164,7 @@ const loadSymbolRowsForFile = async (
           if (Number.isFinite(resolvedFileId) && resolvedFilePath) break;
         }
       }
-    } catch {}
+    } catch (error) { requireFallbackReadSettled(error); }
   }
   if (!Number.isFinite(resolvedFileId)) {
     return [];
@@ -216,7 +225,8 @@ const loadSymbolRowsForFile = async (
     if (end < start) return loadFullRows();
     if (end === start) return [];
     rowIndexes = await readVarintDeltasAt(resolvedDataPath, start, end);
-  } catch {
+  } catch (error) {
+    requireFallbackReadSettled(error);
     return loadFullRows();
   }
   if (!rowIndexes.length) {
@@ -235,7 +245,8 @@ const loadSymbolRowsForFile = async (
       try {
         await ensureOffsetsValid(partPath, partOffsets);
         validatedParts.add(resolved.partIndex);
-      } catch {
+      } catch (error) {
+        requireFallbackReadSettled(error);
         return loadFullRows();
       }
     }

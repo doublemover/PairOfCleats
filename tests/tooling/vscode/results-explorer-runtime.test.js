@@ -76,15 +76,10 @@ await harness.runCommand('pairofcleats.copyResultPath', traversalNode);
 await harness.runCommand('pairofcleats.revealResultHit', traversalNode);
 assert.ok(harness.errorMessages.slice(errorCountBeforeTraversal).some((message) => /outside the repo/i.test(message)));
 
-harness.queuedResults.push({
-  code: 0,
-  stdout: JSON.stringify({
-    code: [{ file: 'src/app.ts', score: 1, startLine: 1 }]
-  })
-});
 harness.quickPickQueue.push((items) => items[0]);
 await harness.runCommand('pairofcleats.showSearchHistory');
-assert.deepEqual(harness.spawnCalls[1].args, harness.spawnCalls[0].args);
+assert.equal(harness.spawnCalls.length, 1, 'reopening history does not dispatch a search');
+assert.equal(harness.workspaceStateStore.get('pairofcleats.searchHistory').length, 1);
 
 await harness.runCommand('pairofcleats.reopenLastResults');
 assert.ok(harness.infoMessages.some((message) => /reopened results/i.test(message)));
@@ -96,7 +91,7 @@ harness.queuedResults.push({
   })
 });
 await harness.runCommand('pairofcleats.rerunResultSet', history[0]);
-assert.deepEqual(harness.spawnCalls[2].args, harness.spawnCalls[0].args);
+assert.deepEqual(harness.spawnCalls[1].args, harness.spawnCalls[0].args);
 assert.equal(harness.errorMessages.length, errorCountBeforeTraversal + 2, `unexpected errors: ${harness.errorMessages.join('; ')}`);
 
 harness.restoreGlobals();

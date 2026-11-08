@@ -1,0 +1,628 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+  "sourceTree": "c446ac230972df6b418b2b718e4f22a9a7f0bef4",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 1050,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T05:46:45Z",
+      "qualificationOnly": true,
+      "qualifiedTests": [
+        "indexing/piece-assembly/complete-uid-remapping",
+        "indexing/piece-assembly/core",
+        "indexing/piece-assembly/minhash-identity",
+        "indexing/piece-assembly/strict-input-preservation"
+      ]
+    },
+    {
+      "number": 1072,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T05:46:49Z",
+      "qualificationOnly": false,
+      "qualifiedTests": [
+        "indexing/imports/unresolved-cache-budget-correctness",
+        "indexing/imports/cache-file-set-diff-preserves-cache-key",
+        "indexing/imports/import-cache-contract-matrix",
+        "indexing/imports/import-cache-neighborhood-invalidation"
+      ]
+    },
+    {
+      "number": 1073,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T05:46:51Z",
+      "qualificationOnly": false,
+      "qualifiedTests": [
+        "indexing/runtime/initialization-resource-unwind",
+        "indexing/runtime/failure-receipt-category-settlement",
+        "indexing/runtime/runtime-attempt-lifecycle",
+        "indexing/runtime/category-session-teardown"
+      ]
+    },
+    {
+      "number": 1074,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T05:46:54Z",
+      "qualificationOnly": false,
+      "qualifiedTests": [
+        "indexing/guardrails/stage1-timeout-ownership",
+        "indexing/stage1/process-files-cleanup-timeout",
+        "indexing/stage1/file-watchdog-hard-timeout",
+        "indexing/runtime/shared-resource-scope-isolation/cancelled-shared-workspace",
+        "indexing/runtime/shared-resource-scope-isolation/distinct-workspaces",
+        "indexing/runtime/shared-resource-scope-isolation/shared-workspace",
+        "indexing/runtime/shared-resource-scope-isolation/host-cache",
+        "indexing/runtime/run-resource-drain-timeout",
+        "shared/lifecycle/run-resource-scope",
+        "lang/python/pool-retirement-ownership",
+        "tooling/lsp/session-pool-lifecycle-matrix",
+        "tooling/lsp/preflight-cancellation-ownership",
+        "tooling/lsp/provider-preflight-signal-handoff",
+        "tooling/lsp/runtime-cleanup-reaps-tracked-subprocesses"
+      ]
+    },
+    {
+      "number": 1106,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T05:46:57Z",
+      "qualificationOnly": true,
+      "qualifiedTests": [
+        "indexing/build/promotion-unreadable-pointer",
+        "indexing/build/stage4-mixed-mode-generations",
+        "indexing/watch/promotion/safety",
+        "indexing/artifacts/completed-stage-recovery"
+      ]
+    },
+    {
+      "number": 1107,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T05:47:00Z",
+      "qualificationOnly": true,
+      "qualifiedTests": [
+        "shared/indexing/build-pointer",
+        "indexing/build/stage4-repo-root-pointer-prefers-active-root",
+        "retrieval/cli/published-root-fallback-authority",
+        "tooling/dict-utils/paths-builds-root"
+      ]
+    }
+  ],
+  "currentCounts": {
+    "open": 730,
+    "qualificationPending": 469,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 730,
+    "checkedAt": "2026-10-27T05:48:07.500Z",
+    "newOrUnexpectedRemovedIssues": [],
+    "authorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/open-after.json"
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Task child omits only the inherited selector for missing trusted.json. User/global configuration unchanged."
+  },
+  "dependencies": {
+    "nodePin": "26.12.1",
+    "changed": false,
+    "verification": "Previously recorded required native/patch verification clean; readiness and actual Python/native operations pass in this batch."
+  },
+  "qualification": {
+    "uniqueAffectedFixtures": 37,
+    "gate": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 29058
+    },
+    "finalObservations": [
+      {
+        "id": "lang/python/pool-retirement-ownership",
+        "status": "passed",
+        "durationMs": 81,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/ownership-unit-02.json"
+      },
+      {
+        "id": "shared/lifecycle/run-resource-scope",
+        "status": "passed",
+        "durationMs": 72,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/ownership-unit-02.json"
+      },
+      {
+        "id": "indexing/runtime/initialization-resource-unwind",
+        "status": "passed",
+        "durationMs": 3001,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/scope-integration-02.json"
+      },
+      {
+        "id": "indexing/runtime/shared-resource-scope-isolation/distinct-workspaces",
+        "status": "passed",
+        "durationMs": 1982,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/runtime/shared-resource-scope-isolation/host-cache",
+        "status": "passed",
+        "durationMs": 1711,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/runtime/shared-resource-scope-isolation/shared-workspace",
+        "status": "passed",
+        "durationMs": 1620,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/runtime/shared-resource-scope-isolation/cancelled-shared-workspace",
+        "status": "passed",
+        "durationMs": 1534,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/guardrails/stage1-timeout-ownership",
+        "status": "passed",
+        "durationMs": 1592,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "indexing/runtime/category-session-teardown",
+        "status": "passed",
+        "durationMs": 843,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/runtime/failure-receipt-category-settlement",
+        "status": "passed",
+        "durationMs": 1740,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "indexing/runtime/runtime-attempt-lifecycle",
+        "status": "passed",
+        "durationMs": 2226,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
+        "status": "passed",
+        "durationMs": 180,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/stage1/file-watchdog-hard-timeout",
+        "status": "passed",
+        "durationMs": 2593,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "indexing/stage1/process-files-cleanup-timeout",
+        "status": "passed",
+        "durationMs": 3080,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "lang/python/ast-worker",
+        "status": "passed",
+        "durationMs": 708,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "tooling/lsp/preflight-cancellation-ownership",
+        "status": "passed",
+        "durationMs": 476,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "tooling/lsp/provider-preflight-signal-handoff",
+        "status": "passed",
+        "durationMs": 1074,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "tooling/lsp/session-pool-lifecycle-matrix",
+        "status": "passed",
+        "durationMs": 13061,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/related-01.json"
+      },
+      {
+        "id": "indexing/runtime/run-resource-drain-timeout",
+        "status": "passed",
+        "durationMs": 315,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/final-runtime.json"
+      },
+      {
+        "id": "indexing/runtime/teardown-original-failure-observations",
+        "status": "passed",
+        "durationMs": 299,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/drain-01.json"
+      },
+      {
+        "id": "tooling/lsp/runtime-cleanup-reaps-tracked-subprocesses",
+        "status": "passed",
+        "durationMs": 2610,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/drain-01.json"
+      },
+      {
+        "id": "indexing/artifacts/completed-stage-recovery",
+        "status": "passed",
+        "durationMs": 3757,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/build/promotion-unreadable-pointer",
+        "status": "passed",
+        "durationMs": 1215,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/build/stage4-mixed-mode-generations",
+        "status": "passed",
+        "durationMs": 21598,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/build/stage4-repo-root-pointer-prefers-active-root",
+        "status": "passed",
+        "durationMs": 11530,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/imports/cache-file-set-diff-preserves-cache-key",
+        "status": "passed",
+        "durationMs": 152,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/imports/import-cache-contract-matrix",
+        "status": "passed",
+        "durationMs": 1201,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/import-cache-02.json"
+      },
+      {
+        "id": "indexing/imports/import-cache-neighborhood-invalidation",
+        "status": "passed",
+        "durationMs": 1368,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/imports/unresolved-cache-budget-correctness",
+        "status": "passed",
+        "durationMs": 1425,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/piece-assembly/complete-uid-remapping",
+        "status": "passed",
+        "durationMs": 287,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/piece-assembly/core",
+        "status": "passed",
+        "durationMs": 10998,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/piece-assembly/minhash-identity",
+        "status": "passed",
+        "durationMs": 1982,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/piece-assembly/strict-input-preservation",
+        "status": "passed",
+        "durationMs": 1400,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "indexing/watch/promotion/safety",
+        "status": "passed",
+        "durationMs": 1347,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "retrieval/cli/published-root-fallback-authority",
+        "status": "passed",
+        "durationMs": 481,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "shared/indexing/build-pointer",
+        "status": "passed",
+        "durationMs": 98,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      },
+      {
+        "id": "tooling/dict-utils/paths-builds-root",
+        "status": "passed",
+        "durationMs": 355,
+        "attempts": 1,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json"
+      }
+    ],
+    "frontGate": [
+      {
+        "durationMs": 2068,
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget",
+        "exitCode": 0,
+        "executable": "npm.cmd"
+      },
+      {
+        "durationMs": 1301,
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment",
+        "exitCode": 0,
+        "executable": "npm.cmd"
+      },
+      {
+        "durationMs": 12712,
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "durationMs": 3004,
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "durationMs": 247,
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "durationMs": 29990,
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "name": "gate-lane",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "durationMs": 105,
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff",
+        "exitCode": 0,
+        "executable": "git"
+      }
+    ],
+    "formatting": {
+      "command": "npm run format -- --cache --cache-location .tmp/tasks/p1-closeout-20261027/eslint.cache",
+      "exitCode": 0
+    }
+  },
+  "counterexample": {
+    "baselineHead": "567b36acdbda68f3f2b033964b658a7885f5f149",
+    "baselineBlob": "cd6b8e04e7238e94808170e5034fea925c025c03",
+    "replacedModuleOnly": "src/integrations/core/build-index/runtime.js",
+    "fixture": "indexing/runtime/shared-resource-scope-isolation/distinct-workspaces",
+    "expectedResult": "Ordinary assertion failure; old teardown closes B admission and cancels its live preflight.",
+    "observed": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 2743
+    },
+    "historicalAuthorWorkspaceReceipt": ".tmp/tasks/p1-closeout-20261027/scope-before-final.json"
+  },
+  "preservedInitialObservations": [
+    {
+      "receipt": ".tmp/tasks/p1-closeout-20261027/scope-distinct-01.json",
+      "cause": "Fixture used ctx.log instead of ctx.logger for expected cancellation logging; corrected while keeping all ownership assertions."
+    },
+    {
+      "receipt": ".tmp/tasks/p1-closeout-20261027/pointer-import-01.json",
+      "cause": "15 pass, one stale fixture fails: fingerprint-only import bundle lacks required extraction authority. Real scanner receipt restores positive coverage and missing receipt remains a negative."
+    },
+    {
+      "receipt": ".tmp/tasks/p1-closeout-20261027/ownership-unit-01.stderr",
+      "cause": "Comma-separated selector produced no discovery. Repeated --match arguments selected the intended cases."
+    }
+  ],
+  "remaining": [
+    "730 open issues remain in the owner queue.",
+    "1397 still needs full stage-closeout integration with actual delayed scoped child completion.",
+    "1574 custom backend storage registration/read-writer adoption and 1627 Tantivy immutable publication remain open.",
+    "Full Windows suite, representative performance, optional backends/models, non-Windows and release qualification are not claimed."
+  ],
+  "evidenceScope": "Raw .tmp/ and .testLogs files are historical author-workspace evidence, absent in clean checkouts. Structured outcomes and source identities are retained here."
+}

@@ -1,11 +1,16 @@
 import fsPromises from 'node:fs/promises';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../shared/embedding-output-admission.js';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { loadBoundedJsonFile } from '../../shared/cache/json-file.js';
+import { randomUUID } from 'node:crypto';
+import { withFileLock } from '../../shared/locks/file-lock.js';
+import { loadQueryCacheTouches, persistQueryCacheTouch, clearQueryCacheTouchesUnlocked,
+  awaitQueryCacheTouchPublication, requireQueryCacheTouchSettlement } from '../query-cache-touches.js';
 
-export const FEDERATED_QUERY_CACHE_SCHEMA_VERSION = 1;
+export const FEDERATED_QUERY_CACHE_SCHEMA_VERSION = 2;
 
 export const FEDERATED_QUERY_CACHE_DEFAULTS = Object.freeze({
   maxEntries: 200,
@@ -14,6 +19,48 @@ export const FEDERATED_QUERY_CACHE_DEFAULTS = Object.freeze({
 });
 const FEDERATED_QUERY_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
 const FEDERATED_QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
+const cachePolicies = new WeakMap();
+// Every loaded snapshot owns mutable entry metadata. Its original payload ids
+// distinguish explicit replacements from stale recency-only writes.
+const cacheEntryOrigins = new WeakMap();
+const rememberEntryOrigins = cache => {
+  cacheEntryOrigins.set(cache, new Map(Object.entries(cache.entries).map(([key, entry]) => [key, entry.payloadId])));
+  return cache;
+};
+const parsedCaches = new Map();
+let parsedCacheBytes = 0;
+const MAX_PARSED_CACHE_BYTES = 16 * 1024 * 1024;
+const payloadByteSizes = new WeakMap();
+const freezePayload = value => {
+  const pending = [value];
+  while (pending.length) {
+    const next = pending.pop();
+    if (!next || typeof next !== 'object' || Object.isFrozen(next)) continue;
+    for (const child of Object.values(next)) pending.push(child);
+    Object.freeze(next);
+  }
+  return value;
+};
+const cacheFileSignature = async cachePath => {
+  try {
+    const stat = await fsPromises.stat(cachePath, { bigint: true });
+    return { signature: [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(':'), bytes: Number(stat.size) };
+  } catch { return null; }
+};
+const forkCache = cache => rememberEntryOrigins({ ...cache,
+  entries: Object.fromEntries(Object.entries(cache.entries).map(([key, entry]) => [key, { ...entry }])) });
+const rememberParsedCache = (key, record) => {
+  const previous = parsedCaches.get(key);
+  if (previous) parsedCacheBytes -= previous.bytes;
+  parsedCaches.delete(key);
+  if (record.bytes <= MAX_PARSED_CACHE_BYTES) {
+    parsedCaches.set(key, record); parsedCacheBytes += record.bytes;
+  }
+  while (parsedCaches.size > 8 || parsedCacheBytes > MAX_PARSED_CACHE_BYTES) {
+    const oldest = parsedCaches.keys().next().value;
+    parsedCacheBytes -= parsedCaches.get(oldest).bytes; parsedCaches.delete(oldest);
+  }
+};
 
 const normalizeStringList = (value) => {
   const list = Array.isArray(value) ? value : (value == null ? [] : [value]);
@@ -120,7 +167,9 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  v: 1,
+  // Child authority, ranking and captured effective query policy per repo/mode.
+  v: 10,
+  queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),
@@ -152,7 +201,7 @@ export const buildFederatedQueryCacheKey = (payload) => {
   };
 };
 
-const createEmptyCache = (repoSetId) => ({
+const createEmptyCache = (repoSetId) => rememberEntryOrigins({
   schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
   repoSetId: repoSetId || null,
   updatedAt: null,
@@ -187,19 +236,20 @@ const normalizeCachePayload = (parsed, repoSetId) => {
     if (!entry || typeof entry !== 'object') continue;
     if (typeof entry.manifestHash !== 'string' || !entry.manifestHash) continue;
     entries[key] = {
+      payloadId: typeof entry.payloadId === 'string' ? entry.payloadId : null,
       createdAt: toIsoString(entry.createdAt, new Date(0).toISOString()),
       lastUsedAt: toIsoString(entry.lastUsedAt, new Date(0).toISOString()),
       manifestHash: entry.manifestHash,
       keyPayloadHash: typeof entry.keyPayloadHash === 'string' ? entry.keyPayloadHash : null,
-      result: entry.result
+      result: freezePayload(entry.result)
     };
   }
-  return {
+  return rememberEntryOrigins({
     schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
     repoSetId: parsed.repoSetId || repoSetId || null,
     updatedAt: toIsoString(parsed.updatedAt, null),
     entries
-  };
+  });
 };
 
 const bumpCacheHealthCounter = (health, key) => {
@@ -241,6 +291,14 @@ export const loadFederatedQueryCache = async ({
   health = null
 } = {}) => {
   if (!cachePath) return createEmptyCache(repoSetId);
+  const parsedKey = JSON.stringify([path.resolve(cachePath), repoSetId || null]);
+  const before = await cacheFileSignature(cachePath);
+  const remembered = parsedCaches.get(parsedKey);
+  if (remembered && before?.signature === remembered.signature) {
+    parsedCaches.delete(parsedKey); parsedCaches.set(parsedKey, remembered);
+    const cache = forkCache(remembered.cache); foldFederatedTouches(cache, cachePath); return cache;
+  }
+  if (remembered) { parsedCacheBytes -= remembered.bytes; parsedCaches.delete(parsedKey); }
   const {
     data: parsedPayload,
     error: readError,
@@ -274,7 +332,19 @@ export const loadFederatedQueryCache = async ({
     }
     return createEmptyCache(repoSetId);
   }
-  return normalizeCachePayload(parsedPayload, repoSetId);
+  const cache = normalizeCachePayload(parsedPayload, repoSetId);
+  const after = await cacheFileSignature(cachePath);
+  if (before && after?.signature === before.signature) rememberParsedCache(parsedKey, { ...after, cache: forkCache(cache) });
+  foldFederatedTouches(cache, cachePath);
+  return cache;
+};
+
+const foldFederatedTouches = (cache, cachePath) => {
+  for (const touch of loadQueryCacheTouches(cachePath)) {
+    const entry = cache.entries[touch.key];
+    if (entry?.manifestHash === touch.signature && entry.payloadId === touch.payloadId)
+      entry.lastUsedAt = new Date(Math.max(toMs(entry.lastUsedAt), touch.ts)).toISOString();
+  }
 };
 
 const listEvictionCandidates = (cache) => (
@@ -287,9 +357,14 @@ const listEvictionCandidates = (cache) => (
     ))
 );
 
-const estimateFederatedCacheEntryBytes = (key, entry) => (
-  Buffer.byteLength(stableStringify({ [key]: entry }), 'utf8')
-);
+const estimateFederatedCacheEntryBytes = (key, entry) => {
+  const result = entry.result;
+  if (!result || typeof result !== 'object' || !Object.isFrozen(result))
+    return Buffer.byteLength(stableStringify({ [key]: entry }), 'utf8');
+  let bytes = payloadByteSizes.get(result);
+  if (bytes == null) { bytes = Buffer.byteLength(stableStringify(result), 'utf8'); payloadByteSizes.set(result, bytes); }
+  return Buffer.byteLength(stableStringify({ [key]: { ...entry, result: null } }), 'utf8') - 4 + bytes;
+};
 
 const estimateFederatedCacheHeaderBytes = (cache) => {
   const envelope = {
@@ -301,17 +376,22 @@ const estimateFederatedCacheHeaderBytes = (cache) => {
   return Buffer.byteLength(stableStringify(envelope), 'utf8');
 };
 
+const resolveAgeCutoff = (policy, now) => {
+  const maxAgeDays = Number.isFinite(Number(policy.maxAgeDays))
+    ? Math.max(0, Number(policy.maxAgeDays))
+    : FEDERATED_QUERY_CACHE_DEFAULTS.maxAgeDays;
+  return now - (maxAgeDays * 24 * 60 * 60 * 1000);
+};
+
 export const pruneFederatedQueryCache = (cache, policy = {}) => {
+  cachePolicies.set(cache, policy);
   const maxEntries = Number.isFinite(Number(policy.maxEntries))
     ? Math.max(1, Math.floor(Number(policy.maxEntries)))
     : FEDERATED_QUERY_CACHE_DEFAULTS.maxEntries;
   const maxBytes = Number.isFinite(Number(policy.maxBytes))
-    ? Math.max(1, Math.floor(Number(policy.maxBytes)))
+    ? Math.min(FEDERATED_QUERY_CACHE_MAX_READ_BYTES, Math.max(1, Math.floor(Number(policy.maxBytes))))
     : FEDERATED_QUERY_CACHE_DEFAULTS.maxBytes;
-  const maxAgeDays = Number.isFinite(Number(policy.maxAgeDays))
-    ? Math.max(0, Number(policy.maxAgeDays))
-    : FEDERATED_QUERY_CACHE_DEFAULTS.maxAgeDays;
-  const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+  const cutoff = resolveAgeCutoff(policy, Date.now());
 
   for (const [key, entry] of Object.entries(cache.entries || {})) {
     if (toMs(entry.lastUsedAt) < cutoff) {
@@ -356,12 +436,15 @@ export const pruneFederatedQueryCache = (cache, policy = {}) => {
 
 export const findFederatedQueryCacheEntry = (cache, {
   keyHash,
-  manifestHash
+  manifestHash,
+  policy = {},
+  now = Date.now()
 } = {}) => {
   if (!cache || !cache.entries || !keyHash || !manifestHash) return null;
   const entry = cache.entries[keyHash];
   if (!entry) return null;
   if (entry.manifestHash !== manifestHash) return null;
+  if (toMs(entry.lastUsedAt) < resolveAgeCutoff(policy, now)) return null;
   return entry;
 };
 
@@ -376,11 +459,12 @@ export const upsertFederatedQueryCacheEntry = (cache, {
   if (!cache || !cache.entries || !keyHash || !manifestHash) return;
   const existing = cache.entries[keyHash];
   cache.entries[keyHash] = {
+    payloadId: randomUUID(),
     createdAt: existing?.createdAt || now,
     lastUsedAt: now,
     manifestHash,
     keyPayloadHash: keyPayloadHash || null,
-    result: JSON.parse(stableStringify(result))
+    result: freezePayload(JSON.parse(stableStringify(result)))
   };
   cache.updatedAt = now;
   pruneFederatedQueryCache(cache, policy);
@@ -394,16 +478,51 @@ export const touchFederatedQueryCacheEntry = (cache, keyHash, now = new Date().t
   cache.updatedAt = now;
 };
 
+export const persistFederatedQueryCacheTouch = ({ cachePath, cache, keyHash, maxEntries }) => {
+  const entry = cache.entries[keyHash];
+  return persistQueryCacheTouch({ cachePath, key: keyHash, signature: entry.manifestHash,
+    payloadId: entry.payloadId, ts: toMs(entry.lastUsedAt), maxEntries });
+};
+
 export const persistFederatedQueryCache = async ({
   cachePath,
   cache
 } = {}) => {
   if (!cachePath || !cache) return;
-  const normalized = {
-    schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
-    repoSetId: cache.repoSetId || null,
-    updatedAt: cache.updatedAt || null,
-    entries: sortObjectDeep(cache.entries || {})
-  };
-  await atomicWriteText(path.resolve(cachePath), stableStringify(normalized), { newline: true });
+  const submitted = Object.fromEntries(Object.entries(cache.entries || {}).map(([key, entry]) => [key, { ...entry }]));
+  const origins = new Map(cacheEntryOrigins.get(cache) || []);
+  const policy = cachePolicies.get(cache) || {};
+  await awaitQueryCacheTouchPublication(cachePath);
+  await withFileLock({ lockPath: `${cachePath}.lock`, waitMs: 5000, timeoutBehavior: 'throw' }, async () => {
+    const disk = await loadFederatedQueryCache({ cachePath, repoSetId: cache.repoSetId });
+    requireQueryCacheTouchSettlement(cachePath);
+    const merged = { ...disk.entries };
+    for (const [key, entry] of Object.entries(submitted)) {
+      const replaced = !origins.has(key) || entry.payloadId !== origins.get(key);
+      if (replaced) {
+        merged[key] = entry;
+      } else if (merged[key]?.payloadId === entry.payloadId && merged[key].manifestHash === entry.manifestHash) {
+        // A touch can only extend the exact payload it observed. It cannot
+        // resurrect an evicted entry or overwrite a newer generation/result.
+        merged[key] = { ...merged[key], lastUsedAt: new Date(Math.max(toMs(merged[key].lastUsedAt), toMs(entry.lastUsedAt))).toISOString() };
+      }
+    }
+    for (const entry of Object.values(merged)) entry.payloadId ||= randomUUID();
+    const normalized = {
+      schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
+      repoSetId: cache.repoSetId || null,
+      updatedAt: cache.updatedAt || null,
+      // Preserve frozen payload identities so byte accounting never needs a
+      // second serialization of every retained payload during checkpointing.
+      entries: Object.fromEntries(Object.keys(merged).sort((a, b) => a.localeCompare(b)).map(key => [key, merged[key]]))
+    };
+    pruneFederatedQueryCache(normalized, policy);
+    await atomicWriteText(path.resolve(cachePath), stableStringify(normalized), { newline: true });
+    await clearQueryCacheTouchesUnlocked(cachePath);
+    const currentOrigins = cacheEntryOrigins.get(cache) || new Map();
+    for (const [key, entry] of Object.entries(submitted)) {
+      if (cache.entries?.[key]?.payloadId === entry.payloadId) currentOrigins.set(key, entry.payloadId);
+    }
+    cacheEntryOrigins.set(cache, currentOrigins);
+  });
 };

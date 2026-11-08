@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["spine4", "spine20", "branch4", "branch20", "diamond", "cycle", "multiple-roots",
+    "tainted", "untainted", "spread", "terminate", "weaken", "timeout-frontier", "cap-matrix", "escaping-order"]
+}

@@ -1,6 +1,6 @@
 import { INDEX_PROFILE_DEFAULT, INDEX_PROFILE_VECTOR_ONLY } from '../../contracts/index-profile.js';
 import { resolveSparseRequiredTables } from '../sparse/requirements.js';
-import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
+import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-meta.js';
 
 const PROFILE_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
 

@@ -4,12 +4,14 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createBuildRuntime } from '../../../src/index/build/runtime/runtime.js';
+import { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import { teardownRuntime } from '../../../src/integrations/core/build-index/runtime.js';
 import { initBuildState } from '../../../src/index/build/build-state.js';
 import { initializeRuntimeReceipt, refreshRuntimeReceipt } from '../../../src/index/build/runtime/receipt.js';
 import { __setAdapterFactoryForTests } from '../../../src/shared/embedding-adapter.js';
 import { resolveEmbeddingRuntime } from '../../../src/index/build/runtime/embeddings.js';
 import { withTemporaryEnv, applyTestEnv } from '../../helpers/test-env.js';
+import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-lifecycle-'));
 try {
   const repo = path.join(dir, 'repo');
@@ -19,20 +21,36 @@ try {
     indexing: { scm: { provider: 'none' }, workerPool: { enabled: false }, embeddings: { enabled: false, mode: 'off' }, platformPresets: { startupCalibration: false } },
     tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
   }));
-  const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'off' });
+  const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'off',
+    extraEnv: { PAIROFCLEATS_HOME: path.join(dir, 'home') } });
   await withTemporaryEnv(env, async () => {
-    const runtime = await createBuildRuntime({ root: repo, argv: { stage: 'stage1', threads: 1 }, rawArgv: [] });
+    const embeddingSelection = preflightEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: repo, modes: ['code'],
+      argv: { model: 'fixture/future-stage3', dims: 8 }, rawEnv: env,
+      intent: { embeddingEnabled: true, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' } }));
+    const runtime = await createBuildRuntime({ root: repo, argv: { stage: 'stage1', threads: 1 }, rawArgv: [], embeddingSelection });
+    const coordinationRoot = path.join(dir, 'home', 'state', 'storage-access');
+    assert.equal((await inspectStorageAccess(path.join(dir, 'cache'), { coordinationRoot })).protected, true,
+      'runtime initialization retains category ownership before any indexing lock exists');
     try {
       const statePath = path.join(runtime.buildRoot, 'build_state.json');
       const state = JSON.parse(await fs.readFile(statePath));
       const record = state.runtime.attempts[0];
       assert.equal(record.lifecycle, 'running');
+      assert.equal(record.embeddings.selection.planDigest, embeddingSelection.plan.digest);
+      assert.equal(record.embeddings.selection.selectedAt, embeddingSelection.plan.selectedAt);
+      assert.equal(record.embeddings.selection.requested.modelId, 'fixture/future-stage3');
+      assert.equal(record.embeddings.selection.requested.stub, true);
+      assert.equal(record.embeddings.selection.preflight.status, 'inactive');
+      assert.equal(record.embeddings.selection.preflight.runtime, 'unverified');
+      assert.equal(record.embeddings.selection.environment, undefined);
       assert.equal(record.inputs.configSources.files[0].source, 'repository');
-      assert.equal(record.runtime.workers.tokenizationExecution, 'inline');
+      assert.equal(record.runtime.workers.tokenizationExecution, 'not-yet-observed',
+        'initialization alone cannot claim an observed tokenization route');
       assert.equal(record.embeddings.observation.state, 'not-started');
       await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
       assert.equal(JSON.parse(await fs.readFile(statePath)).runtime.attempts[0].lifecycle, 'succeeded');
     } finally { await teardownRuntime(runtime); }
+    assert.equal((await inspectStorageAccess(path.join(dir, 'cache'), { coordinationRoot })).protected, false);
   });
   const pinnedRoot = path.join(dir, 'pinned');
   await initBuildState({ buildRoot: pinnedRoot, buildId: 'persisted-generation', repoRoot: repo, modes: ['code'], stage: 'stage2' });
@@ -72,9 +90,14 @@ try {
   await assert.rejects(failing.getChunkEmbedding('blocked result'), { code: 'ENOSPC' });
   assert.equal(failing.getEmbeddingObservation().state, 'failed');
   let observedDims = 7;
+  const modelRoot = path.join(dir, 'models/fixture/recording');
+  await fs.mkdir(path.join(modelRoot, 'onnx'), { recursive: true });
+  await fs.writeFile(path.join(modelRoot, 'onnx/model_quantized.onnx'), 'recording graph bytes');
+  await fs.writeFile(path.join(modelRoot, 'tokenizer.json'), '{}');
+  const recordingConfig = { models: { id: 'fixture/recording', dir: path.join(dir, 'models') } };
   __setAdapterFactoryForTests(() => ({ provider: 'xenova', embedOne: async () => new Float32Array(observedDims), embedderPromise: null }));
   try {
-    const unknownDims = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: {}, indexingConfig: { embeddings: { provider: 'xenova', mode: 'inline' } }, envConfig: {}, argv: {}, cpuConcurrency: 1 });
+    const unknownDims = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: recordingConfig, indexingConfig: { embeddings: { provider: 'xenova', mode: 'inline' } }, envConfig: {}, argv: {}, cpuConcurrency: 1 });
     const selectedKey = unknownDims.embeddingIdentityKey;
     assert.equal(unknownDims.embeddingIdentity.dims, null);
     assert.equal((await unknownDims.getChunkEmbedding('undeclared dimensions')).length, 7);
@@ -93,7 +116,7 @@ try {
   }));
   try {
     const failures = [];
-    const fallback = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: {}, indexingConfig: { embeddings: { provider: 'onnx', mode: 'inline' } }, envConfig: {}, argv: { dims: 8 }, cpuConcurrency: 1,
+    const fallback = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: recordingConfig, indexingConfig: { embeddings: { provider: 'onnx', mode: 'inline' } }, envConfig: {}, argv: { dims: 8 }, cpuConcurrency: 1,
       onEmbeddingObservation: async (record) => failures.push(structuredClone(record)) });
     const signatureIdentityBeforeInference = fallback.embeddingIdentityKey;
     let published = 0;

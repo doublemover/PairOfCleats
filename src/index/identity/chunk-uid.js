@@ -31,11 +31,12 @@ export const buildIdentityVirtualPath = ({ fileRelPath, segmentUid }) => {
   return `${base}#seg:${segmentUid}`;
 };
 
-export const computeSegmentUid = async ({ segmentText, segmentType, languageId }) => {
+export const computeSegmentUid = async ({ segmentText, segmentType, languageId, extractionPolicy = null }) => {
   if (!segmentText) return null;
   const normalized = normalizeForUid(segmentText);
   if (!normalized) return null;
-  const segKey = `seg\0${segmentType || ''}\0${languageId || ''}\0${normalized}`;
+  const segKey = `seg\0${segmentType || ''}\0${languageId || ''}\0${normalized}`
+    + (extractionPolicy ? `\0extraction-policy:${extractionPolicy}` : '');
   const hash = await checksumString(segKey);
   const value = normalizeHash(hash?.value);
   return value ? `segu:v1:${value}` : null;

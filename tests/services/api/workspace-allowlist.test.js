@@ -6,9 +6,15 @@ import path from 'node:path';
 import { createWorkspaceAllowlist } from '../../../tools/api/router/workspace-allowlist.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
+import { resolveFederationCacheRoot } from '../../../src/workspace/manifest.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('api-workspace-allowlist');
+// The runner's shared cache is deliberately admitted by workspace policy. Give
+// this fixture its own implicit-cache sibling so its outside path is outside.
+applyTestEnv({ cacheRoot: path.join(tempRoot, 'implicit-cache') });
+const implicitCacheRoot = resolveFederationCacheRoot(null);
 const allowedRoot = path.join(tempRoot, 'allowed');
 const outsideRoot = path.join(tempRoot, 'outside');
 const repoRoot = path.join(allowedRoot, 'repo-a');
@@ -43,6 +49,10 @@ const allowlist = createWorkspaceAllowlist({
 });
 
 try {
+  assert.equal(allowlist.isAllowedWorkspacePath(outsideCacheRoot), false,
+    'the forbidden fixture cache is outside every configured and implicit policy root');
+  assert.equal(allowlist.isAllowedWorkspacePath(path.join(implicitCacheRoot, 'workspace')), true,
+    'the actual versioned implicit cache remains an intended admission root');
   await writeWorkspace();
   const workspaceConfig = await allowlist.ensureWorkspaceAllowlist({ workspacePath });
   assert.equal(
@@ -61,6 +71,12 @@ try {
     /workspaceId does not match/i,
     'expected workspaceId mismatch to be rejected'
   );
+
+  const implicitWorkspaceCache = path.join(implicitCacheRoot, 'workspace-positive');
+  await writeWorkspace({ cacheRoot: implicitWorkspaceCache });
+  const implicitWorkspaceConfig = await allowlist.ensureWorkspaceAllowlist({ workspacePath });
+  assert.equal(resolveFederationCacheRoot(implicitWorkspaceConfig), normalizeIdentityPath(implicitWorkspaceCache),
+    'workspace configs may select a descendant of the actual implicit cache root');
 
   await writeWorkspace({ cacheRoot: outsideCacheRoot });
   await assert.rejects(

@@ -1,37 +1,72 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { spawnSync } from 'node:child_process';
+
 import { parse } from 'yaml';
 
 const root = process.cwd();
 const require = createRequire(import.meta.url);
 const workflowDir = path.join(root, '.github/workflows');
-let installJobs = 0;
+const main = parse(await fs.readFile(path.join(workflowDir, 'ci.yml'), 'utf8'));
+const installJobs = [];
 for (const name of await fs.readdir(workflowDir)) {
   if (!/\.ya?ml$/.test(name)) continue;
   const workflow = parse(await fs.readFile(path.join(workflowDir, name), 'utf8'));
   for (const [id, job] of Object.entries(workflow.jobs || {})) {
-    for (const step of job.steps || []) {
-      if (!/npm (?:run bootstrap:ci|ci|install)|rebuild-native\.js/.test(step.run || '')) continue;
-      const env = { ...workflow.env, ...job.env, ...step.env };
-      assert.equal(env.ONNXRUNTIME_NODE_INSTALL, 'skip', `${name}:${id} must skip unneeded GPU downloads`);
-      const runners = job['runs-on'] === '${{ matrix.os }}'
-        ? job.strategy.matrix.os || job.strategy.matrix.include.map(entry => entry.os)
-        : [job['runs-on']];
-      assert.ok(runners.every(runner => ['ubuntu-latest', 'windows-latest', 'macos-latest'].includes(runner)),
-        `${name}:${id} needs an explicit GPU installation policy if the runner changes`);
-      installJobs += 1;
+    for (const outer of job.steps || []) {
+      const steps = outer.uses?.startsWith('./.github/actions/')
+        ? parse(await fs.readFile(path.join(root, outer.uses, 'action.yml'), 'utf8')).runs.steps : [outer];
+      for (const step of steps) {
+        if (!/npm (?:run bootstrap:ci|ci|install)|rebuild-native\.js/.test(step.run || '')) continue;
+        const env = { ...workflow.env, ...job.env, ...outer.env, ...step.env };
+        assert.equal(env.ONNXRUNTIME_NODE_INSTALL, 'skip', `${name}:${id} must skip unneeded GPU downloads`);
+        const runners = job['runs-on'] === '${{ inputs.runner }}'
+          ? Object.values(main.jobs).filter(caller => caller.uses === `./.github/workflows/${name}`).map(caller => caller.with.runner)
+          : job['runs-on'] === '${{ matrix.os }}'
+            ? job.strategy.matrix.os || job.strategy.matrix.include.map(entry => entry.os)
+            : [job['runs-on']];
+        assert.ok(runners.length > 0, `${name}:${id} needs actual caller runner assignments`);
+        if (job['runs-on'] === '${{ inputs.runner }}') assert.deepEqual([...runners].sort(),
+          ['macos-latest', 'ubuntu-latest', 'windows-latest'], 'shared installation must qualify every actual OS caller');
+        assert.ok(runners.every(runner => ['ubuntu-latest', 'windows-latest', 'macos-latest'].includes(runner)),
+          `${name}:${id} needs an explicit GPU installation policy if the runner changes`);
+        installJobs.push(`${name}:${id}:${step.name}`);
+      }
     }
   }
 }
-assert.equal(installJobs, 16, 'cover main CI, CI-long, nightly, adaptive maintenance and all release bootstrap jobs');
+assert.deepEqual(installJobs.sort(), [
+  'ci-long.yml:ci-long:Install deps and report versions',
+  'ci.yml:gate:Install deps',
+  'ci.yml:native-inspection:Locked bootstrap',
+  'ci.yml:native-inspection:Native and patch verification',
+  'ci.yml:native-index-workflows-windows:Locked bootstrap',
+  'ci.yml:native-index-workflows-windows:Native and patch verification',
+  'ci.yml:windows-authority:Prepare and verify required dependencies',
+  ...['prepare', 'correctness', 'serial', 'tooling', 'aggregate']
+    .map(job => `ci-platform.yml:${job}:Locked bootstrap or fresh verification`),
+  'maintenance-full.yml:nightly:Install deps and report versions',
+  'nightly.yml:nightly:Install deps and report versions',
+  'release.yml:prepare:Install deps',
+  'release.yml:build-node-packages:Install deps',
+  'release.yml:verify-runtime-surfaces:Install deps',
+  'release.yml:verify-node-packages:Install deps',
+  'release.yml:build-tui:Install deps',
+  'release.yml:verify-tui:Install deps',
+  'release.yml:release-bundle:Install deps',
+  'release.yml:trust-materials:Install deps',
+  'release.yml:readiness-gate:Install deps'
+].sort(), 'every bootstrap/verification step retains the CPU installation policy, including both native-inspection steps');
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
 assert.ok(manifest.dependencies['onnxruntime-node']);
-assert.match(manifest.scripts['bootstrap:ci'], /tools\/setup\/rebuild-native\.js/);
+assert.equal(manifest.scripts['bootstrap:ci'], 'node tools/setup/checkout-bootstrap.js locked');
+const checkoutBootstrap = await fs.readFile(path.join(root, 'tools/setup/checkout-bootstrap.js'), 'utf8');
+assert.match(checkoutBootstrap, /tools\/setup\/rebuild-native\.js/,
+  'the canonical entry retains the required native verifier');
 const rebuild = await fs.readFile(path.join(root, 'tools/setup/rebuild-native.js'), 'utf8');
 assert.match(rebuild, /const REQUIRED_NATIVE_PACKAGES = \[[\s\S]*?'onnxruntime-node'/,
   'CPU ONNX remains a required native dependency');
@@ -44,8 +79,7 @@ try {
   const forbidNetwork = path.join(temp, 'forbid-network.cjs');
   await fs.writeFile(forbidNetwork, "require('node:net').Socket.prototype.connect = function () { throw new Error('Unexpected ONNX installer network access'); };\n");
   const env = { ...process.env, ONNXRUNTIME_NODE_INSTALL: 'skip' };
-  const install = spawnSync(process.execPath, ['--require', forbidNetwork, path.join(packageRoot, 'script/install.js')],
-    { cwd: temp, env, encoding: 'utf8', timeout: 5000 });
+  const install = runNodeFixture(['--require', forbidNetwork, path.join(packageRoot, 'script/install.js')], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { cwd: temp, env, encoding: 'utf8', timeout: 5000 } });
   assert.equal(install.error, undefined, install.error?.message);
   assert.equal(install.status, 0, install.stderr);
   assert.doesNotMatch(`${install.stdout}${install.stderr}`, /Downloading|Unexpected ONNX installer network access/);
@@ -69,5 +103,5 @@ try {
     const result = await session.run({ x: new ort.Tensor('float32', Float32Array.of(7), [1]) });
     assert.deepEqual(Array.from(result.y.data), [7]);
   } finally { await session.release(); }
-  console.log(`ONNX CPU installation policy covers ${installJobs} jobs; vendor skip makes no network request and native CPU inference succeeds.`);
+  console.log(`ONNX CPU installation policy covers ${installJobs.length} steps; vendor skip makes no network request and native CPU inference succeeds.`);
 } finally { await fs.rm(temp, { recursive: true, force: true }); }

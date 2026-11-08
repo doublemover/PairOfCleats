@@ -6,6 +6,7 @@ import {
   normalizeOptionalNonNegativeInt,
   normalizeNonNegativeInt,
   normalizePositiveNumber,
+  normalizeNonNegativeNumber,
   normalizePositiveInt,
   normalizeCap,
   normalizeDepth,
@@ -29,6 +30,13 @@ assert.equal(normalizeNonNegativeInt('nope', 5), 5);
 
 assert.equal(normalizePositiveNumber(0, 7), 7);
 assert.equal(normalizePositiveNumber(2.5, 7), 2.5);
+for (const value of [0, '0', 0.25, '0.25']) {
+  assert.equal(normalizeNonNegativeNumber(value, 7), Number(value));
+}
+for (const value of [-1, '-1', null, undefined, false, true, [], [0], {}, '', ' ', NaN, Infinity]) {
+  assert.equal(normalizeNonNegativeNumber(value, 7), 7);
+  assert.equal(normalizeNonNegativeNumber(value), null);
+}
 
 assert.equal(normalizePositiveInt(0, 9), 9);
 assert.equal(normalizePositiveInt(3.9, 9), 3);

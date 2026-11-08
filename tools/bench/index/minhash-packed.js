@@ -1,3 +1,5 @@
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,7 +19,7 @@ const seed = Number(args.seed) || 2024;
 const mode = resolveCompareMode(args.mode);
 const benchRoot = args.root
   ? path.resolve(String(args.root))
-  : path.join(process.cwd(), '.benchCache', 'minhash-packed');
+  : resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'minhash-packed');
 
 const buildSignatures = () => {
   const rng = createSeededRng(seed);
@@ -72,7 +74,7 @@ const runBaseline = async (runRoot, signatures) => {
   await fs.rm(runRoot, { recursive: true, force: true });
   await fs.mkdir(runRoot, { recursive: true });
   const jsonPath = path.join(runRoot, 'minhash_signatures.json');
-  await writeJsonObjectFile(jsonPath, { arrays: { signatures } });
+  await writeJsonObjectFile(jsonPath, { fields: { hashIdentity: MINHASH_HASH_IDENTITY }, arrays: { signatures } });
   await writePiecesManifest(runRoot, [
     { name: 'minhash_signatures', path: 'minhash_signatures.json', format: 'json' }
   ]);
@@ -95,7 +97,7 @@ const runCurrent = async (runRoot, signatures) => {
   await fs.writeFile(packedPath, packed);
   await writeJsonObjectFile(packedMetaPath, {
     fields: {
-      format: 'u32',
+      hashIdentity: MINHASH_HASH_IDENTITY, format: 'u32',
       endian: 'le',
       dims,
       count

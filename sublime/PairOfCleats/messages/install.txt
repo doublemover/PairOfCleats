@@ -1,7 +1,9 @@
 PairOfCleats Sublime Text
 
 Install requirements:
-- Node.js 18+ available on PATH (or set node_path in settings)
-- PairOfCleats CLI available via npm or a local repo checkout
+- Node.js 26.x available on PATH (or set node_path in settings)
+- PairOfCleats source checkout prepared with npm run bootstrap:ci
+
+Set pairofcleats_path to the checkout's absolute bin/pairofcleats.js path.
 
 Open the settings command palette entry: "PairOfCleats: Open Settings" to configure the CLI path and environment overrides.

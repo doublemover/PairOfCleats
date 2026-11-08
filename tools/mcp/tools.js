@@ -1,9 +1,12 @@
 import { runSemanticTraceTool } from './tools/handlers/semantic-trace.js';
 import { runSemanticFindTool } from './tools/handlers/semantic-find.js';
+import { runRepositoryQueryTool } from './tools/handlers/repository-query.js';
+import { runRepositoryAnswerTool } from './tools/handlers/repository-answer.js';
 import { runSemanticExplainTool } from './tools/handlers/semantic-explain.js';
 import { runSemanticEnrichmentTool } from './tools/handlers/semantic-enrichment.js';
 import { runRuntimeEvidenceTool, runRuntimeFamiliesTool, runRuntimeCompareTool, runRuntimeClaimsTool } from './tools/handlers/runtime-evidence.js';
 import { runSemanticDetailTool } from './tools/handlers/semantic.js';
+import { runGraphEvidenceTool } from './tools/handlers/graph-evidence.js';
 import { configStatus, indexStatus } from './repo.js';
 import { cacheGc, cleanArtifacts, reportArtifacts } from './tools/handlers/artifacts.js';
 import { runContextPack, runRiskDelta, runRiskExplain } from './tools/handlers/analysis.js';
@@ -82,8 +85,11 @@ export const TOOL_HANDLERS = new Map([
   ['search', runSearch],
   ['context_pack', runContextPack],
   ['semantic_detail', runSemanticDetailTool],
+  ['graph_evidence', runGraphEvidenceTool],
   ['semantic_trace', runSemanticTraceTool],
   ['semantic_find', runSemanticFindTool],
+  ['repository_query', runRepositoryQueryTool],
+  ['repository_answer', runRepositoryAnswerTool],
   ['semantic_explain', runSemanticExplainTool],
   ['semantic_enrichment', runSemanticEnrichmentTool],
   ['runtime_evidence', runRuntimeEvidenceTool],

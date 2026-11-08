@@ -43,7 +43,9 @@ Include additional fields when applicable:
 
 At minimum record wall‑time timing stats (mean/p50/p95/p99). When feasible, add:
 - CPU time (if available)
-- peak RSS/heap (use `process.memoryUsage()` before/after)
+- observed RSS/heap boundary samples (`process.memoryUsage()` before/after);
+  these samples cannot establish a transient peak. Use a scoped fresh-process
+  high-water mechanism for actual peak RSS qualification.
 - IO bytes written/read (if a bench reads/writes files)
 - file count
 
@@ -75,3 +77,20 @@ When running in CI or constrained environments:
 - `io-batching.js`
 - `partial-lsp-open.js`
 - `cold-start-cache.js`
+
+`cold-start-cache` version 2 has three distinct scenarios: fresh materialization,
+fresh-process persisted-cache admission/reuse, and steady verified in-process hits.
+Each cold repetition owns a new fixture below `.tmp/dev/benchmarks/vfs-cold` and
+each scenario runs in a fresh serial Node child. Cache-load, access, flush and
+warmup phases, actual bytes and observed hit sources are retained separately.
+Cold and warm totals include equivalent persistence; hot access excludes its
+explicit warmup and has no persistence obligation. OS cache state is uncontrolled.
+Only qualified phases receive `stats` and `docsPerSec`; unqualified observations
+keep raw evidence and reasons. See [the phase contract](../../../docs/contracts/vfs-benchmark-phases.md).
+
+The synchronous lookup sampler uses the same integral-work admission as the
+hash/regex/compression sampler. Requested bucket counts above iterations reduce
+to a reported effective count without adding operations. Raw bucket durations and
+operation sizes are retained; their percentiles describe bucket time, not
+per-operation tail latency. Asynchronous operations need an awaited owner and are
+rejected by the synchronous sampler.

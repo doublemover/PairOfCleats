@@ -9,7 +9,7 @@ import { runNode } from '../../helpers/run-node.js';
 import { writePersistentCommandProbeCache, readPersistentCommandProbeCache } from '../../../src/index/tooling/command-probe-persistent-cache.js';
 
 const root = process.cwd();
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-object-cache-isolation-'));
+const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-object-cache-isolation-')));
 const repo = path.join(temp, 'repo');
 const cache = path.join(repo, 'custom-cache');
 await fs.mkdir(cache, { recursive: true });

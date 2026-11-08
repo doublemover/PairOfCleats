@@ -1,0 +1,6 @@
+export function resolveBinding(scope, name) {
+  for (let current = scope; current; current = current.parent) {
+    if (current.bindings.has(name)) return current.bindings.get(name);
+  }
+  return null;
+}

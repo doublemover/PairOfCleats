@@ -60,6 +60,13 @@ assert.equal(diff.metrics?.chunksPerSec?.regressions?.length >= 1, true, 'expect
 assert.equal(diff.metrics?.filesPerSec?.regressions?.length >= 1, true, 'expected files/s regressions');
 assert.equal(diff.metrics?.bytesPerSec?.regressions?.length >= 1, true, 'expected bytes/s regressions');
 assert.equal(diff.metrics?.durationMs?.regressions?.length >= 1, true, 'expected duration regressions');
+assert.equal(diff.metrics.chunksPerSec.regressions[0].baselineMedian, 105);
+assert.equal(diff.metrics.chunksPerSec.regressions[0].deltaRate, -25);
+assert.ok(Math.abs(diff.metrics.chunksPerSec.regressions[0].deltaPct - (-0.23809523809523808)) < 1e-12);
+const durationTotal = diff.metrics.durationMs.regressions.find(entry => entry.stage === 'total');
+assert.equal(durationTotal.baselineMedian, 950);
+assert.equal(durationTotal.deltaRate, 550);
+assert.ok(Math.abs(durationTotal.deltaPct - 0.5789473684210527) < 1e-12);
 assert.equal(
   diff.metrics?.durationMs?.regressions?.[0]?.metricKind,
   'duration',

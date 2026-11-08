@@ -1,27 +1,11 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { normalizePathForRepo } from '../../../src/shared/path-normalize.js';
 import { toPosix } from '../../../src/shared/file-paths.js';
 import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
-
-const normalizeCoveragePath = (urlOrPath, root) => {
-  if (!urlOrPath) return null;
-  const raw = String(urlOrPath);
-  if (raw.startsWith('node:')) return null;
-  if (raw.startsWith('internal/')) return null;
-  if (raw.startsWith('file://')) {
-    try {
-      const filePath = fileURLToPath(raw);
-      return normalizePathForRepo(filePath, root, { stripDot: true });
-    } catch {
-      return null;
-    }
-  }
-  return normalizePathForRepo(raw, root, { stripDot: true });
-};
+import { normalizeCoverageSourcePath, assertCoverageSourceIdentity, COVERAGE_SOURCE_IDENTITY_VERSION } from './source-identity.js';
+import { buildCoverageRanges } from './ranges.js';
 
 const toRounded = (value) => {
   const numeric = Number(value);
@@ -70,7 +54,7 @@ const readCoverageJsonSafe = async (filePath) => {
  * @param {{root:string,coverageDir:string|null|undefined}} input
  * @returns {Promise<Array<{path:string,coveredRanges:number,totalRanges:number}>>}
  */
-export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
+export const collectV8CoverageEntries = async ({ root, coverageDir, onRanges = null }) => {
   if (!coverageDir || !fs.existsSync(coverageDir)) return [];
   const files = (await fsPromises.readdir(coverageDir))
     .filter((name) => name.endsWith('.json'))
@@ -83,7 +67,7 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
     if (!payload) continue;
     const rows = Array.isArray(payload?.result) ? payload.result : [];
     for (const row of rows) {
-      const normalizedPath = normalizeCoveragePath(row?.url, root);
+      const normalizedPath = normalizeCoverageSourcePath(row?.url, root);
       if (!normalizedPath) continue;
       const existing = byPath.get(normalizedPath) || new Map();
       for (const range of iterFunctionRanges(row?.functions)) {
@@ -94,6 +78,7 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
     }
   }
 
+  if (onRanges) await onRanges(buildCoverageRanges(byPath));
   return Array.from(byPath.entries())
     .map(([entryPath, rangeMap]) => {
       const totalRanges = rangeMap.size;
@@ -102,7 +87,7 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
         if (covered === true) coveredRanges += 1;
       }
       return {
-        path: toPosix(entryPath),
+        path: entryPath,
         coveredRanges: toRounded(coveredRanges),
         totalRanges: toRounded(totalRanges)
       };
@@ -123,9 +108,10 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
 export const mergeCoverageEntries = (coverageArtifacts) => {
   const byPath = new Map();
   for (const artifact of Array.isArray(coverageArtifacts) ? coverageArtifacts : []) {
+    assertCoverageSourceIdentity(artifact);
     const entries = Array.isArray(artifact?.entries) ? artifact.entries : [];
     for (const entry of entries) {
-      const key = toPosix(entry?.path || '');
+      const key = typeof entry?.path === 'string' ? entry.path : '';
       if (!key) continue;
       const existing = byPath.get(key) || { coveredRanges: 0, totalRanges: 0 };
       const totalRanges = Math.max(0, Number(entry?.totalRanges || 0));
@@ -181,11 +167,11 @@ export const loadCoverageArtifactsFromPath = async (inputPath) => {
  * @returns {Array<{path:string,coveredRanges:number,totalRanges:number}>}
  */
 export const filterCoverageEntriesToChanged = ({ entries, root }) => {
-  const diff = spawnSync('git', ['diff', '--name-only', 'HEAD'], {
+  const diff = spawnSync('git', ['diff', '--name-only', '-z', 'HEAD'], {
     cwd: root,
     encoding: 'utf8'
   });
-  const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], {
+  const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
     cwd: root,
     encoding: 'utf8'
   });
@@ -193,14 +179,13 @@ export const filterCoverageEntriesToChanged = ({ entries, root }) => {
     return Array.isArray(entries) ? entries : [];
   }
   const changed = new Set(
-    `${String(diff.stdout || '')}\n${String(untracked.stdout || '')}`
-      .split(/\r?\n/)
-      .map((line) => toPosix(line.trim()))
+    `${String(diff.stdout || '')}\0${String(untracked.stdout || '')}`
+      .split('\0')
       .filter(Boolean)
   );
   if (!changed.size) return [];
   return (Array.isArray(entries) ? entries : [])
-    .filter((entry) => changed.has(toPosix(entry.path)));
+    .filter((entry) => changed.has(process.platform === 'win32' ? toPosix(entry.path) : entry.path));
 };
 
 /**
@@ -224,6 +209,8 @@ export const buildCoverageArtifact = ({ runId, entries }) => {
     generatedAt: new Date().toISOString(),
     runId,
     pathPolicy: 'repo-relative-posix',
+    sourceIdentityVersion: COVERAGE_SOURCE_IDENTITY_VERSION,
+    sourcePlatform: process.platform,
     kind: 'v8-range-summary',
     summary,
     entries: sortedEntries

@@ -55,7 +55,17 @@ export const setupStreamedTokenPostingsFixture = async ({ tempLabel }) => {
   };
 };
 
-export const loadStreamedTokenPostingsIndexPieces = async (indexDir) => loadIndexPieces(indexDir, null);
+export const loadStreamedTokenPostingsIndexPieces = async (indexDir) => {
+  // Sidecars are created by each caller after the shared chunk fixture.
+  await writeSqliteArtifactManifest(indexDir, [
+    { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
+    ...(await fs.readdir(indexDir)).includes('token_postings.packed.bin') ? [
+      { name: 'token_postings', path: 'token_postings.packed.bin', format: 'packed' },
+      { name: 'token_postings_meta', path: 'token_postings.packed.meta.json', format: 'json' }
+    ] : []
+  ]);
+  return loadIndexPieces(indexDir, null);
+};
 
 export const setupTokenPostingsArtifactFixture = async ({
   tempLabel,

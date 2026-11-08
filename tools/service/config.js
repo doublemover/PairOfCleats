@@ -3,6 +3,7 @@ import path from 'node:path';
 import { getCacheRoot } from '../shared/dict-utils.js';
 import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { QUEUE_RETENTION_DEFAULTS } from './retention-policy.js';
+import { SERVICE_SYNC_POLICIES, normalizeServiceSyncPolicy } from './sync-policy.js';
 
 export const DEFAULT_SERVICE_CONFIG = Object.freeze({
   repos: [],
@@ -51,8 +52,6 @@ const cloneDefaultServiceConfig = () => JSON.parse(JSON.stringify(DEFAULT_SERVIC
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const SERVICE_SYNC_POLICIES = new Set(['pull', 'fetch', 'none']);
-
 const coerceIntegerIfFinite = (value) => {
   if (value == null || value === '') return value;
   const parsed = Number(value);
@@ -60,38 +59,30 @@ const coerceIntegerIfFinite = (value) => {
   return Math.floor(parsed);
 };
 
-const normalizeRetentionConfig = (retention) => {
-  if (!isPlainObject(retention)) return retention;
-  return {
-    ...retention,
-    doneJobs: coerceIntegerIfFinite(retention.doneJobs),
-    failedJobs: coerceIntegerIfFinite(retention.failedJobs),
-    quarantinedJobs: coerceIntegerIfFinite(retention.quarantinedJobs),
-    retriedQuarantinedJobs: coerceIntegerIfFinite(retention.retriedQuarantinedJobs)
-  };
+const normalizeSuppliedFields = (source, transforms) => {
+  if (!isPlainObject(source)) return source;
+  const normalized = { ...source };
+  for (const [key, normalize] of Object.entries(transforms)) {
+    if (Object.hasOwn(source, key)) normalized[key] = normalize(source[key]);
+  }
+  return normalized;
 };
 
+const normalizeIntegerFields = (source, keys) => normalizeSuppliedFields(source,
+  Object.fromEntries(keys.map(key => [key, coerceIntegerIfFinite])));
+
+const normalizeRetentionConfig = retention => normalizeIntegerFields(retention,
+  ['doneJobs', 'failedJobs', 'quarantinedJobs', 'retriedQuarantinedJobs']);
+
 const normalizeQueueConfig = (queueConfig) => {
-  if (!isPlainObject(queueConfig)) return queueConfig;
-  return {
-    ...queueConfig,
-    maxQueued: coerceIntegerIfFinite(queueConfig.maxQueued),
-    maxRetries: coerceIntegerIfFinite(queueConfig.maxRetries),
-    maxRunning: coerceIntegerIfFinite(queueConfig.maxRunning),
-    maxTotal: coerceIntegerIfFinite(queueConfig.maxTotal),
-    resourceBudgetUnits: coerceIntegerIfFinite(queueConfig.resourceBudgetUnits),
-    retention: normalizeRetentionConfig(queueConfig.retention)
-  };
+  const numeric = normalizeIntegerFields(queueConfig,
+    ['maxQueued', 'maxRetries', 'maxRunning', 'maxTotal', 'resourceBudgetUnits']);
+  return normalizeSuppliedFields(numeric, { retention: normalizeRetentionConfig });
 };
 
 const normalizeWorkerConfig = (workerConfig) => {
   if (!isPlainObject(workerConfig)) return workerConfig;
-  const normalized = {
-    ...workerConfig,
-    concurrency: coerceIntegerIfFinite(workerConfig.concurrency),
-    shutdownTimeoutMs: coerceIntegerIfFinite(workerConfig.shutdownTimeoutMs),
-    maxMemoryMb: coerceIntegerIfFinite(workerConfig.maxMemoryMb)
-  };
+  const normalized = normalizeIntegerFields(workerConfig, ['concurrency', 'shutdownTimeoutMs', 'maxMemoryMb']);
   if (isPlainObject(workerConfig.daemon)) {
     normalized.daemon = {
       ...workerConfig.daemon
@@ -101,34 +92,21 @@ const normalizeWorkerConfig = (workerConfig) => {
 };
 
 const normalizeRepoEntry = (entry) => {
-  if (!isPlainObject(entry)) return entry;
-  return {
-    ...entry,
-    cloneDepth: coerceIntegerIfFinite(entry.cloneDepth)
-  };
+  return normalizeSuppliedFields(normalizeIntegerFields(entry, ['cloneDepth']), { syncPolicy: normalizeServiceSyncPolicy });
 };
 
 const normalizeServiceConfigPayload = (payload) => {
-  if (!isPlainObject(payload)) return payload;
-  return {
-    ...payload,
-    repos: Array.isArray(payload.repos) ? payload.repos.map((entry) => normalizeRepoEntry(entry)) : payload.repos,
-    queue: normalizeQueueConfig(payload.queue),
-    worker: normalizeWorkerConfig(payload.worker),
-    embeddings: isPlainObject(payload.embeddings)
-      ? {
-        ...payload.embeddings,
-        queue: normalizeQueueConfig(payload.embeddings.queue),
-        worker: normalizeWorkerConfig(payload.embeddings.worker)
-      }
-      : payload.embeddings,
-    sync: isPlainObject(payload.sync)
-      ? {
-        ...payload.sync,
-        intervalMs: coerceIntegerIfFinite(payload.sync.intervalMs)
-      }
-      : payload.sync
-  };
+  const normalized = normalizeSuppliedFields(payload, {
+    repos: entries => Array.isArray(entries) ? entries.map(normalizeRepoEntry) : entries,
+    queue: normalizeQueueConfig,
+    worker: normalizeWorkerConfig,
+    embeddings: value => normalizeSuppliedFields(value, { queue: normalizeQueueConfig, worker: normalizeWorkerConfig }),
+    sync: value => normalizeSuppliedFields(normalizeIntegerFields(value, ['intervalMs']), { policy: normalizeServiceSyncPolicy })
+  });
+  // Selecting a registry file intentionally replaces the default inline list;
+  // an explicitly supplied inline array (including []) keeps precedence.
+  if (normalized?.reposFile && !Object.hasOwn(payload, 'repos')) normalized.repos = undefined;
+  return normalized;
 };
 
 const createServiceConfigError = (message, {
@@ -361,5 +339,7 @@ export function resolveRepoRegistry(config, configPath) {
   const resolved = isAbsolutePathNative(repoFile) ? repoFile : path.join(baseDir, repoFile);
   if (!fs.existsSync(resolved)) return [];
   const payload = JSON.parse(fs.readFileSync(resolved, 'utf8'));
-  return Array.isArray(payload?.repos) ? payload.repos : [];
+  const repos = Array.isArray(payload?.repos) ? payload.repos.map(normalizeRepoEntry) : [];
+  validateServiceConfig({ repos }, resolved);
+  return repos;
 }

@@ -5,17 +5,16 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { killProcessTree } from '../../helpers/kill-tree.js';
+import { skip } from '../../helpers/skip.js';
+
+if (process.platform === 'win32') {
+  skip('POSIX invalid-signal cleanup leak injection; Windows tracked shutdown has a separate owner.');
+}
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testLogs', `tracked-leak-fails-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
-
-if (process.platform === 'win32') {
-  console.log('skipping tracked leak fail-on-cleanup test on Windows');
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  process.exit(0);
-}
 
 const pidFile = path.join(tempRoot, 'leaked-child.pid');
 const scriptPath = path.join(tempRoot, 'spawn-leak.mjs');

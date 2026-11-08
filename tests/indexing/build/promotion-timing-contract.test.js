@@ -8,7 +8,7 @@ import { seedPublishedArtifacts } from '../../helpers/artifact-publication.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-timing-'));
+const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-timing-')));
 applyTestEnv({ cacheRoot: tempRoot });
 
 const repoRoot = path.join(tempRoot, 'repo');

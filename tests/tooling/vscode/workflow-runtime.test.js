@@ -25,9 +25,11 @@ fs.writeFileSync(workspacePath, '{"name":"Workspace","repos":[]}\n');
 const harness = createVsCodeRuntimeHarness({
   repoRoot,
   activeFile: path.join(srcDir, 'app.ts'),
+  globalConfigValues: {
+    cliPath: path.join(repoRoot, 'bin', 'pairofcleats.js'),
+    cliArgs: ['--trace']
+  },
   configValues: {
-    cliPath: './bin/pairofcleats.js',
-    cliArgs: ['--trace'],
     searchMode: 'code'
   }
 });

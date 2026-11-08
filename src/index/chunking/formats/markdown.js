@@ -1,6 +1,12 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../../deferred-language-functions.js';
 import { buildChunksFromMatches } from '../helpers.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
+const require = createRequire(import.meta.url);
+const { buildTreeSitterChunks } = deferLanguageFunctions(
+  () => require('../../../lang/tree-sitter.js'),
+  ['buildTreeSitterChunks']
+);
 
 export function chunkMarkdown(text, ext, context) {
   if (context?.treeSitter?.configChunking === true) {

@@ -49,6 +49,11 @@
 ## Retrieval helper bounds
 - `rankSqliteFts` applies weighting before final top-N truncation.
 - Stable tie-break is `idx` ascending when weighted scores are equal.
-- Overfetch bounds are fixed defaults:
+- Overfetch policy defaults (existing configuration may override them):
   - `overfetchRowCap = max(5000, 10 * topN)`
   - `overfetchTimeBudgetMs = 150`
+- Time is a cooperative dispatch allowance, not interruption of synchronous
+  SQLite. Effective chunk size controls real metadata/eligibility batches.
+  Receipts distinguish completion, row cap and deadline, including observed
+  overrun and cleanup. Deadline outcomes remain partial and uncacheable. See
+  [SQLite FTS work qualification](../contracts/sqlite-fts-work.md).

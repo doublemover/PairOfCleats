@@ -34,12 +34,13 @@ export const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume
     if (!drainResolvers.length) return;
     if (maxBuffer && buffer.length >= maxBuffer) return;
     const resolvers = drainResolvers.splice(0, drainResolvers.length);
-    if (backpressured) {
-      backpressured = false;
-      if (typeof onResume === 'function') onResume(buffer.length);
-    }
-    for (const resolve of resolvers) {
-      resolve();
+    try {
+      if (backpressured) {
+        backpressured = false;
+        if (typeof onResume === 'function') onResume(buffer.length);
+      }
+    } finally {
+      for (const resolve of resolvers) resolve();
     }
   };
 
@@ -52,13 +53,14 @@ export const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume
     }
     buffer.push(value);
     if (maxBuffer && buffer.length >= maxBuffer) {
+      // Install the gate before a synchronous observer can cancel/finish the
+      // queue. Otherwise cancellation resolves no gate and push waits forever.
+      const draining = new Promise(resolve => drainResolvers.push(resolve));
       if (!backpressured && typeof onBackpressure === 'function') {
         backpressured = true;
         onBackpressure(buffer.length);
       }
-      await new Promise((resolve) => {
-        drainResolvers.push(resolve);
-      });
+      await draining;
     }
   };
 

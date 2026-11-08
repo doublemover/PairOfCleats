@@ -57,7 +57,7 @@ const python = pythonInfo?.python || process.env.PYTHON || 'python';
 const result = spawnSync(
   python,
   ['-m', 'py_compile', ...pyFiles],
-  { encoding: 'utf8' }
+  { windowsHide: true, encoding: 'utf8' }
 );
 
 if (result.status !== 0) {

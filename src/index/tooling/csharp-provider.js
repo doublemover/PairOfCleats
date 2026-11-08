@@ -2,9 +2,10 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
+import { parseDotnetApplicationLaunch } from './dotnet-launch.js';
 
 const CSHARP_EXTS = ['.cs'];
-const DOTNET_COMMAND_TOKENS = new Set(['dotnet', 'dotnet.exe']);
+const DOTNET_COMMAND_TOKENS = new Set(['dotnet', 'dotnet.exe', 'dotnet.cmd', 'dotnet.bat']);
 
 const getWorkspaceRootFileSamples = (repoRoot, extension) => {
   try {
@@ -63,15 +64,6 @@ const resolveCsharpWorkspaceBootstrapPreflight = ({ ctx }) => {
 
 const resolveLaunchToken = (value) => path.basename(String(value || '').trim()).toLowerCase();
 
-const resolveDotnetLaunchAssemblyArg = (args) => {
-  const normalized = Array.isArray(args) ? args.map((entry) => String(entry || '').trim()).filter(Boolean) : [];
-  for (const value of normalized) {
-    if (value.startsWith('-')) continue;
-    return value;
-  }
-  return '';
-};
-
 const resolveLaunchAssemblyPath = (repoRoot, value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -93,8 +85,8 @@ const resolveCsharpLaunchBootstrapPreflight = ({
   const launchArgs = Array.isArray(commandProfile?.resolved?.args)
     ? commandProfile.resolved.args
     : (Array.isArray(requestedCommand?.args) ? requestedCommand.args : []);
-  const assemblyArg = resolveDotnetLaunchAssemblyArg(launchArgs);
-  if (!assemblyArg) {
+  const parsed = parseDotnetApplicationLaunch(launchArgs);
+  if (parsed.error) {
     return {
       state: 'blocked',
       reasonCode: 'csharp_launch_contract_invalid',
@@ -102,24 +94,15 @@ const resolveCsharpLaunchBootstrapPreflight = ({
       check: {
         name: 'csharp_launch_contract_invalid',
         status: 'warn',
-        message: 'csharp-ls launch command uses dotnet but no launcher assembly path was provided.'
+        message: `csharp-ls dotnet launch contract is invalid: ${parsed.error}`
       }
     };
   }
-  if (!assemblyArg.toLowerCase().endsWith('.dll')) {
-    return {
-      state: 'blocked',
-      reasonCode: 'csharp_launch_contract_invalid',
-      blockProvider: true,
-      check: {
-        name: 'csharp_launch_contract_invalid',
-        status: 'warn',
-        message: `csharp-ls dotnet launch assembly must be a .dll path (received "${assemblyArg}").`
-      }
-    };
-  }
+  const { assemblyArg } = parsed;
   const assemblyPath = resolveLaunchAssemblyPath(repoRoot, assemblyArg);
-  if (!assemblyPath || !fsSync.existsSync(assemblyPath)) {
+  let regular = false;
+  try { regular = fsSync.statSync(assemblyPath).isFile(); } catch { /* Missing launch state stays explicit. */ }
+  if (!regular) {
     return {
       state: 'blocked',
       reasonCode: 'csharp_launch_bootstrap_missing',
@@ -127,7 +110,7 @@ const resolveCsharpLaunchBootstrapPreflight = ({
       check: {
         name: 'csharp_launch_bootstrap_missing',
         status: 'warn',
-        message: `csharp-ls dotnet launch assembly not found: ${assemblyArg}`
+        message: `csharp-ls dotnet launch assembly is unavailable or is not a regular file: ${assemblyArg}`
       }
     };
   }
@@ -136,6 +119,8 @@ const resolveCsharpLaunchBootstrapPreflight = ({
 
 export const createCsharpProvider = () => createDedicatedLspProvider({
   id: 'csharp-ls',
+  version: '1.1.0',
+  requiresWorkspaceExecution: true,
   label: 'csharp-ls (dedicated)',
   priority: 83,
   languages: ['csharp'],

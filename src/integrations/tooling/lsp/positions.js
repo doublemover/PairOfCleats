@@ -1,5 +1,30 @@
 import { lineColToOffset } from '../../../shared/lines.js';
 
+/** Protocol lines use LF, CRLF and lone CR; U+2028/U+2029 remain characters. */
+export const buildLspLineIndex = text => {
+  const source=String(text ?? ''), starts=[0];
+  for(let index=0;index<source.length;index++) {
+    if(source[index] === '\r') {if(source[index+1] === '\n')index++;starts.push(index+1);}
+    else if(source[index] === '\n')starts.push(index+1);
+  }
+  return starts;
+};
+const protocolIndexes=new WeakMap();
+export const getLspLineIndex = (text,owner=null) => {
+  if(!owner || typeof owner !== 'object')return buildLspLineIndex(text);
+  const cached=protocolIndexes.get(owner);
+  if(cached?.text === text)return cached.starts;
+  const starts=buildLspLineIndex(text);protocolIndexes.set(owner,{text,starts});return starts;
+};
+export const offsetToLspPosition = (lineIndex,text,offset,encoding='utf-16') => {
+  if(!Number.isSafeInteger(offset) || offset<0 || offset>text.length)throw new RangeError('Invalid LSP source offset.');
+  let low=0,high=lineIndex.length;
+  while(low+1<high) {const mid=(low+high)>>>1;if(lineIndex[mid]<=offset)low=mid;else high=mid;}
+  const window=resolveLineWindow(lineIndex,text,low), prefix=text.slice(window.start,Math.min(offset,window.end));
+  const normalized=normalizePositionEncoding(encoding);
+  return {line:low,character:normalized==='utf-8' ? Buffer.byteLength(prefix,'utf8') : normalized==='utf-32' ? [...prefix].length : prefix.length};
+};
+
 const recognizePositionEncoding = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return null;
@@ -97,6 +122,24 @@ export function rangeToOffsets(lineIndex, range, options = {}) {
     end: positionToOffset(lineIndex, range.end, options)
   };
 }
+
+export const exactRangeToOffsets = (lineIndex,range,options={}) => {
+  const text=options.text;
+  if(typeof text !== 'string' || !range)return null;
+  for(const key of ['start','end']) if(!Number.isSafeInteger(range[key]?.line) || range[key].line<0
+    || range[key].line>=lineIndex.length || !Number.isSafeInteger(range[key]?.character) || range[key].character<0)return null;
+  const offsets=rangeToOffsets(lineIndex,range,options);
+  if(offsets.end<offsets.start)return null;
+  for(const key of ['start','end']) {
+    const offset=offsets[key];
+    if(offset>0 && offset<text.length && text.charCodeAt(offset-1)>=0xd800
+      && text.charCodeAt(offset-1)<=0xdbff && text.charCodeAt(offset)>=0xdc00
+      && text.charCodeAt(offset)<=0xdfff)return null;
+    const back=offsetToLspPosition(lineIndex,text,offsets[key],options.positionEncoding);
+    if(back.line!==range[key].line || back.character!==range[key].character)return null;
+  }
+  return offsets;
+};
 
 const recognizePositionEncodings = (value) => {
   if (Array.isArray(value)) {

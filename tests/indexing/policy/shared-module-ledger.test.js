@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { buildSharedModuleLedger } from '../../../tools/docs/shared-module-ledger.js';
+import { buildSharedModuleLedger, sharedModuleScanCoverageErrors } from '../../../tools/docs/shared-module-ledger.js';
 import { repoRoot } from '../../helpers/root.js';
 
 const root = repoRoot();
@@ -40,6 +40,8 @@ expectArray(payload.gaps.emptyH32Scopes, 'gaps.emptyH32Scopes');
 if (payload.gaps.unownedSharedFiles.length) {
   fail(`unowned shared files remain: ${payload.gaps.unownedSharedFiles.join(', ')}`);
 }
+const independentCoverageErrors = sharedModuleScanCoverageErrors(payload);
+if (independentCoverageErrors.length) fail(independentCoverageErrors.slice(0, 10).join('; '));
 if (payload.gaps.unscannedH31Files.length) {
   fail(`unscanned H31 files remain: ${payload.gaps.unscannedH31Files.slice(0, 10).join(', ')}`);
 }

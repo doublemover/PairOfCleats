@@ -2,7 +2,8 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
+import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
 
 /**
  * Resolve runtime prerequisite checks as a preflight classification.
@@ -15,7 +16,9 @@ export const resolveRuntimeRequirementsPreflight = ({
   providerId,
   requirements
 }) => {
-  const executionAuthority = resolveWorkspaceExecutionAuthority({
+  const signal = composeAbortSignals(ctx?.signal, ctx?.abortSignal);
+  throwIfAborted(signal);
+  const executionAuthority = resolveProviderWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId
   });
   if (executionAuthority) return { ...executionAuthority, checks: [executionAuthority.check] };
@@ -38,12 +41,21 @@ export const resolveRuntimeRequirementsPreflight = ({
       cmd: requirementCmd,
       args: requirementArgs,
       repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
+      toolingConfig: ctx?.toolingConfig || {},
+      signal
     });
     profiles.push({ id: requirementId, commandProfile });
+    const validationReason = commandProfile?.probe?.validationFailure?.reasonCode;
+    const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
+    if ((commandProfile?.resolved?.mode === 'blocked' && !definitelyMissing) || commandProfile?.probe?.cacheOwnershipPending === true) {
+      const reasonCode = commandProfile?.resolved?.mode === 'blocked'
+        ? 'preflight_runtime_requirement_denied' : 'preflight_runtime_requirement_settlement_pending';
+      const message = `${requirementLabel} cannot be admitted for ${providerId} (${validationReason || reasonCode}); provider launch is blocked.`;
+      return { state: 'blocked', blockProvider: true, reasonCode, message,
+        checks: [...checks, { name: `${providerId}_runtime_${requirementId}_blocked`, status: 'warn', message }], profiles };
+    }
     const probeOk = commandProfile?.probe?.ok === true;
     if (probeOk) continue;
-    const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
     checks.push({
       name: `${providerId}_runtime_${requirementId}_${definitelyMissing ? 'missing' : 'probe_inconclusive'}`,
       status: 'warn',

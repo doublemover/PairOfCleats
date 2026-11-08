@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["realized-descendant-replay", "no-change-and-execution-cost", "held-fixed-admissibility", "hypothesis-revision-handoff", "profile-contract-and-cancellation"]
+}

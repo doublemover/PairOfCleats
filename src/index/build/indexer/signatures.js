@@ -1,3 +1,6 @@
+import { IMPORT_EXTRACTION_VERSION, importExtractionRuntimeVersions } from '../../../shared/import-extraction.js';
+import { sqlRelationParserVersion } from '../../../lang/sql/version.js';
+import { resolveCrossFileFidelity } from '../../cross-file-fidelity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { SCORING_ANALYZER_VERSION } from '../../../shared/tokenize-identifiers.js';
 import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
@@ -11,10 +14,21 @@ import {
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
+import { MODULE_EXPORTS_VERSION } from '../../../lang/js-ts-exports.js';
+import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
+import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
+import { DOCX_STRUCTURAL_EXTRACTION_VERSION, PDF_TEXT_EXTRACTION_VERSION } from '../../extractors/common.js';
+import { getRiskRulesPolicyReceipt } from '../../risk-rule-receipt.js';
+import { lintPolicyDependency } from '../../lint-policy.js';
+import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact-observation.js';
+import { COMMENT_CLASSIFICATION_VERSION } from '../../comments-policy.js';
+import { JSON_REFERENCE_POLICY_VERSION } from '../../../shared/json-reference-policy.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-export const SIGNATURE_VERSION = 4;
+// v14 binds capped discovery to its deterministic accepted-source ordering.
+export const SIGNATURE_VERSION = 14;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -91,6 +105,10 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   return {
     signatureVersion: SIGNATURE_VERSION,
     literalAnalyzer: TEXT_ANALYZER_VERSION,
+    moduleExportsProducer: MODULE_EXPORTS_VERSION,
+    nativeChunkProducer: TREE_SITTER_CHUNK_VERSION,
+    discoverySelectionProducer: SEMANTIC_ANALYSIS_VERSIONS.discoverySelection,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
@@ -100,13 +118,17 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       astDataflowEnabled: runtime.astDataflowEnabled,
       controlFlowEnabled: runtime.controlFlowEnabled,
       lintEnabled: runtime.lintEnabled,
+      ...(runtime.lintEnabled !== false ? { lintProjectionProducer: SEMANTIC_ANALYSIS_VERSIONS.lintProjection,
+        lintPolicy: lintPolicyDependency(runtime.root, runtime.lintPolicy) } : {}),
       complexityEnabled: runtime.complexityEnabled,
+      complexityAnalyzer: '2',
       riskAnalysisEnabled,
       riskAnalysisCrossFileEnabled,
       riskInterproceduralEnabled: modeRiskInterproceduralEnabled,
       riskInterproceduralSummaryOnly: modeRiskInterproceduralSummaryOnly,
       typeInferenceEnabled,
       typeInferenceCrossFileEnabled,
+      crossFileFidelity: resolveCrossFileFidelity(indexingConfig.crossFileFidelity),
       gitBlameEnabled
     },
     riskInterproceduralConfig: runtime.riskInterproceduralConfig
@@ -117,6 +139,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       }
       : null,
     riskRules: indexingConfig.riskRules || null,
+    riskRegex: indexingConfig.riskRegex || null,
+    riskPolicyReceipt: getRiskRulesPolicyReceipt(runtime.riskConfig?.rules),
     riskCaps: indexingConfig.riskCaps || null,
     parsers: {
       javascript: languageOptions.javascript?.parser || null,
@@ -171,7 +195,9 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       formats: indexingConfig.artifacts || null,
       byteBudgets: indexingConfig.byteBudgets || indexingConfig.byteBudget || null,
       indexer: indexingConfig.indexer || null
-    }
+    },
+    ...(mode === 'extracted-prose' ? { documentExtraction: runtime.documentExtractionAdmission
+      || { enabled: indexingConfig.documentExtraction?.enabled === true, qualified: false } } : {})
   };
 };
 
@@ -189,6 +215,8 @@ export const buildTokenizationKey = (runtime, mode) => {
   const payload = {
     signatureVersion: SIGNATURE_VERSION,
     scoringAnalyzer: SCORING_ANALYZER_VERSION,
+    lexicalAnalyzer: SEMANTIC_ANALYSIS_VERSIONS.lexicalAnalyzer,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     dictConfig: dictConfigPayload,
     postingsConfig: runtime.postingsConfig || {},
@@ -196,6 +224,7 @@ export const buildTokenizationKey = (runtime, mode) => {
     segmentsConfig: runtime.segmentsConfig || {},
     commentsConfig: {
       ...commentsConfig,
+      classificationVersion: COMMENT_CLASSIFICATION_VERSION,
       licensePattern: normalizeRegex(commentsConfig.licensePattern),
       generatedPattern: normalizeRegex(commentsConfig.generatedPattern),
       linterPattern: normalizeRegex(commentsConfig.linterPattern)
@@ -225,23 +254,39 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
+    ...(mode === 'prose' || mode === 'extracted-prose' ? { sourceOutlineProducer: SEMANTIC_ANALYSIS_VERSIONS.sourceOutline } : {}),
+    moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
+    sourceChunkingProducer: SEMANTIC_ANALYSIS_VERSIONS.sourceChunking,
+    jsonReferencePolicyProducer: JSON_REFERENCE_POLICY_VERSION,
+    ...(mode === 'code' ? { javascriptRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.javascriptRelations, flowMetadataProducer: SEMANTIC_ANALYSIS_VERSIONS.flowMetadata, importExtractionProducer: IMPORT_EXTRACTION_VERSION, importExtractionRuntime: importExtractionRuntimeVersions(),
+      sqlRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.sqlRelations, sqlRelationsParser: sqlRelationParserVersion() } : {}),
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
+    ...(mode === 'extracted-prose' ? { docxStructuralExtractionVersion: DOCX_STRUCTURAL_EXTRACTION_VERSION,
+      pdfTextExtractionVersion: PDF_TEXT_EXTRACTION_VERSION } : {}),
+    ...(mode === 'records' ? { recordsProducer: SEMANTIC_ANALYSIS_VERSIONS.recordsProducer } : {}),
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,
-    segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}
+    segments: runtime.segmentsConfig || {}, comments: { classificationVersion: COMMENT_CLASSIFICATION_VERSION,
+      config: runtime.commentsConfig || {} }
   };
   const lexical = { mode, tokenizationKey, literalAnalyzer: payload.literalAnalyzer, lexicon: payload.lexicon, profile: payload.profile };
   const enrichment = {
+    ...(payload.scm && payload.scm.provider !== 'none' ? { scmMetadataProducer: SEMANTIC_ANALYSIS_VERSIONS.scmMetadata } : {}),
     features: payload.features, riskInterproceduralConfig: payload.riskInterproceduralConfig,
-    riskRules: payload.riskRules, riskCaps: payload.riskCaps, importScan: payload.importScan,
+    riskRules: payload.riskRules, riskRegex: payload.riskRegex, riskPolicyReceipt: payload.riskPolicyReceipt,
+    riskCaps: payload.riskCaps, importScan: payload.importScan,
     scm: payload.features.gitBlameEnabled ? payload.scm : payload.scm ? {provider: payload.scm.provider} : null
   };
   const { batchSize: _batchSize, ...embeddings } = payload.embeddings;
   const artifacts = {
+    discoverySelectionProducer: payload.discoverySelectionProducer,
+    pieceAssemblyProducer: SEMANTIC_ANALYSIS_VERSIONS.pieceAssembly,
     artifactSchemaHash: payload.artifactSchemaHash, artifacts: payload.artifacts,
     incrementalBundleFormat: payload.incrementalBundleFormat, profile: payload.profile
   };
   return {
     parse: hash(parse), lexical: hash(lexical), enrichment: hash(enrichment),
-    embeddings: hash(embeddings), artifacts: hash(artifacts)
+    embeddings: hash(embeddings), artifacts: hash(artifacts),
+    ...(mode !== 'records' ? { sourceAdmission: hash({ generatedArtifactPolicy: GENERATED_ARTIFACT_POLICY_VERSION }) } : {}),
+    ...(mode === 'extracted-prose' ? { documentExtraction: hash(payload.documentExtraction) } : {})
   };
 };

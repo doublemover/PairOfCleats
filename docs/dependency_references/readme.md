@@ -2,6 +2,12 @@
 
 Summaries generated from the dependency references list.
 
+These are background research and dated upstream summaries, not declarations of
+installed dependencies, current recommended versions or shipped product support.
+Use `package.json`, the lockfile, runtime consumers and their exact qualification
+receipts for those decisions. Keep original source/date/provenance when updating
+a sheet; do not relabel old research as current acceptance.
+
 - Coverage list: `dependency-coverage.md`
 - Zoekt: `zoekt.md`
 - Zoekt query syntax: `zoekt-query-syntax.md`

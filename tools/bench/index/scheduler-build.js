@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -20,7 +21,7 @@ const repoRoot = args.repo
   : path.join(process.cwd(), 'tests', 'fixtures', 'medium');
 const benchRoot = args.root
   ? path.resolve(String(args.root))
-  : path.join(process.cwd(), '.benchCache', 'scheduler-build');
+  : resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'scheduler-build');
 
 const runOnce = async (label, schedulerEnabled) => {
   const runRoot = path.join(benchRoot, label);

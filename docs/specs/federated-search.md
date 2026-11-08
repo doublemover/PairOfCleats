@@ -7,6 +7,10 @@
 
 This spec defines the orchestration layer (selection → fanout → merge → response) and is designed to reuse existing single-repo search functionality (`src/integrations/core/index.js` → `runSearchCli`).
 
+For operational response interpretation and current route limits, see
+[Read a federated search result](../guides/federated-search-limits.md) and
+[Search two repositories](../guides/workspaces.md).
+
 ---
 
 ## 1. Goals and constraints
@@ -51,7 +55,7 @@ This spec defines the orchestration layer (selection → fanout → merge → re
 Federated search MUST be exposed consistently through:
 
 1. **CLI**: `pairofcleats search --workspace <path> "<query>" ...`
-2. **API server**: a dedicated endpoint (recommended) returning JSON payload.
+2. **API server**: `POST /search/federated`, returning a JSON payload.
 3. **MCP**: a dedicated tool (`search_workspace`) returning JSON payload.
 
 All three MUST use the same coordinator implementation.
@@ -102,13 +106,17 @@ If `--workspace` is present:
 - In federated mode, JSON output is the canonical contract.
 - If the user does not pass `--json`, the CLI MAY still print a human-readable merged view; however, correctness testing and API/MCP should always use JSON.
 
+Filter-only enumeration schedules one exact eligible repository/mode task per
+page. A prose task cannot implicitly load extracted prose; that mode has its own
+eligibility and continuation. Missing requested modes remain explicit partial
+results or strict failures. Ordinary single-repository prose search retains its
+comment expansion and index-compatibility requirements.
+
 ---
 
 ## 5. API server contract
 
 ### 5.1 Endpoint
-
-Recommended: add a dedicated endpoint to avoid breaking single-repo search contract.
 
 - `POST /search/federated`
 
@@ -123,9 +131,7 @@ Recommended: add a dedicated endpoint to avoid breaking single-repo search contr
     "mode": "all",
     "top": 10,
     "backend": "auto",
-    "filter": null,
-    "compact": true,
-    "stats": false
+    "output": "compact"
   },
   "select": {
     "repos": ["poc", "svc-a"],
@@ -147,6 +153,14 @@ Rules:
   - `select.tags` or `select.tag`
   - `select.repoFilter` or `select["repo-filter"]`
 - The response is always JSON.
+- Omit `query`, or pass an empty string, with at least one effective search
+  filter to enumerate indexed matches. A mode, backend or page size alone is not
+  a filter. Nested search fields use the ordinary structured search contract;
+  unknown fields and invalid value types reject before workspace access.
+- Supply the returned workspace cursor as `cursor` or `search.cursor`, with the
+  same filters and selection. If both are supplied they must match. Workspace
+  cursors accept at most 16,384 base64url characters; they wrap a bounded local
+  cursor and are never forwarded as a repository cursor.
 
 ---
 
@@ -277,6 +291,41 @@ Coordinator returns a single federated payload:
    - Include `repos[]` diagnostics.
    - Include meta fields required for debugging/caching.
 9. Return.
+
+Strict execution (`strict:true` or `--federated-strict`) requires every selected,
+requested mode that belongs to the chosen cohort. Missing requested indexes
+reject before cache reuse or child execution. Disabled members omitted by
+selection and intentionally excluded cohorts are outside that admitted scope;
+explicitly selecting a disabled member brings it into scope. Cohort policy
+`strict` separately rejects incompatible cohort choices. Successful empty results
+from a present index are complete work, while an absent mode payload or failed
+child envelope is an execution failure.
+
+The first terminal child failure stops new repository and mode admissions.
+The caller rejects promptly, while already started work drains with its original
+signal. Request-owned caches retire after that drain; host caches remain owned
+by the host. Non-strict repository failures remain partial diagnostics and are
+not persisted as successful outer cache entries. External cancellation is
+terminal in either mode, including for warm cache requests.
+
+Each core child mode's actual index signature must match the manifest used for
+cohort admission before its hits enter the merge. The final manifest fence also
+rejects live generation changes. Latest child calls use the admitted retained
+build reference; modes with different roots use separate calls, and an admitted
+root that cannot be represented by the existing build resolver rejects.
+Historical selectors are not a separate
+workspace snapshot: selected historical mode signatures must match the admitted
+workspace manifest or the request rejects. Custom programmatic search producers
+that omit retrieval metadata remain trusted producers of these bound requests.
+
+The coordinator retains at most `perRepoTop` admitted rows per repository and
+mode, and merges each chosen mode once. RRF merge compares lightweight ranked
+heads when numeric contributions and the full tie comparator prove local order.
+Rounded, unordered streams use a bounded top-N descriptor heap. Only retained
+rows receive merged payload/provenance objects, with the same tie ordering and
+source scores as the full-sort contract. This bounds merge work and temporary
+storage; it does not reduce work already performed by child search engines, and
+no end-to-end timing improvement is implied.
 
 ### 7.4 Per-repo forwarded args and coordinator overrides (critical)
 

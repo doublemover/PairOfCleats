@@ -26,7 +26,8 @@ export const buildDocHashCacheKey = ({
   languageId,
   effectiveExt,
   segmentStart,
-  segmentEnd
+  segmentEnd,
+  contentIdentity = null
 }) => {
   if (!fileHash) return null;
   const algo = fileHashAlgo || 'sha1';
@@ -40,7 +41,7 @@ export const buildDocHashCacheKey = ({
     schemaVersion: VFS_DOC_HASH_CACHE_SCHEMA_VERSION,
     featureFlags: [`lang:${lang}`, `ext:${ext}`],
     pathPolicy: 'posix',
-    extra: { range }
+    extra: { range, ...(contentIdentity ? { contentIdentity } : {}) }
   }).key;
 };
 

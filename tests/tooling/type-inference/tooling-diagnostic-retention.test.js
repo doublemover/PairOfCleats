@@ -40,7 +40,8 @@ try {
   const logDir = await withTemporaryEnv({ PAIROFCLEATS_TOOLING_LOG_DIR: benchmarkLogs.dir }, () => getToolingConfig(tempRoot, {}).logDir);
   const result = await run(logDir, (line) => logs.push(line));
   assert.ok(result.toolingProvidersExecuted > 0);
-  assert.ok(logs.some((line) => line.includes('fixture_workspace_model: Fixture workspace has no module marker.')));
+  assert.ok(logs.some((line) => line.includes('fixture_workspace_model: Fixture workspace has no module marker.')),
+    `expected live diagnostic warning, received ${JSON.stringify(logs)}`);
   const retained = (await fs.readFile(path.join(logDir, 'tooling.log'), 'utf8')).split('\n')
     .filter((line) => line.includes('[tooling-diagnostic] '))
     .map((line) => JSON.parse(line.split('[tooling-diagnostic] ')[1]));

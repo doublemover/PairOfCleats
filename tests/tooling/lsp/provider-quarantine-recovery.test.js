@@ -68,7 +68,7 @@ const runCollect = async () => collectLspTypes({
 });
 
 try {
-  __testLspSessionPool.setQuarantineDurations({ shortMs: 250, extendedMs: 800 });
+  __testLspSessionPool.setQuarantineDurations({ shortMs: 5000, extendedMs: 8000 });
 
   await fs.writeFile(modePath, 'malformed-initialize', 'utf8');
   const failed = await runCollect();
@@ -93,12 +93,17 @@ try {
   );
 
   await fs.writeFile(modePath, 'cpp', 'utf8');
-  await sleep(300);
+  const remainingMs = quarantined.runtime?.lifecycle?.quarantine?.remainingMs;
+  assert.ok(Number.isFinite(remainingMs) && remainingMs > 0,
+    'expected an active bounded quarantine before testing cooldown recovery');
+  await sleep(remainingMs + 100);
   const recovered = await runCollect();
   assert.equal(
     Object.keys(recovered.byChunkUid).length >= 1,
     true,
-    'expected provider to recover after quarantine cooldown'
+    `expected provider to recover after quarantine cooldown: ${JSON.stringify({
+      checks: recovered.checks, quarantine: recovered.runtime?.lifecycle?.quarantine
+    })}`
   );
   assert.equal(
     recovered.checks.some((check) => check?.name === 'tooling_provider_quarantined'),

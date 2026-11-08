@@ -104,7 +104,7 @@ assert.deepEqual(options, {
   filter: 'lang:typescript',
   author: 'Jane Doe',
   modifiedAfter: '2025-01-01',
-  modifiedSince: '14',
+  modifiedSince: 14,
   churn: '25',
   caseSensitive: true,
   extraArgs: ['--risk', 'high']

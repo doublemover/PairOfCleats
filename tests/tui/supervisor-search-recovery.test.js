@@ -7,7 +7,7 @@ import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture
 import { createSupervisorSession } from '../helpers/supervisor-session.js';
 const repo = await fs.mkdtemp(path.join(os.tmpdir(),'poc-supervised-search-'));
 applyTestEnv({cacheRoot:path.join(repo,'cache')});
-const index = await createCompatibilityIndex(repo,{compatibilityKey:'supervised-search',profileId:'default'});
+const index = await createCompatibilityIndex(repo,{compatibilityKey:'supervised-search',profileId:'default',published:true});
 await fs.writeFile(path.join(index,'chunk_meta.json'),JSON.stringify([{id:0,file:'src/item.js',kind:'FunctionDeclaration',name:'item',start:0,end:1,chunkUid:'uid:item'}]));
 const session = createSupervisorSession({timeoutMs:8000});
 try {

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { schedulerWorkloadInput } from '../../helpers/scheduler-workload.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { learnedAutoProfileInternals } from '../../../src/index/build/runtime/learned-auto-profile.js';
 import { loadSchedulerAutoTuneProfile, writeSchedulerAutoTuneProfile } from '../../../src/index/build/runtime/scheduler-autotune-profile.js';
@@ -15,14 +16,14 @@ import { classifyGeneratedArtifactCachePrefix, withoutGeneratedCacheMetadata } f
 const root = resolveTestCachePath(process.cwd(), 'runtime-cache-metadata-roundtrip');
 await fs.rm(root, { recursive: true, force: true });
 await fs.mkdir(root, { recursive: true });
-const verifyLegacyParity = async (file, artifact, read) => {
+const verifyMetadataParity = async (file, artifact, read) => {
   const prefix = await fs.readFile(file, 'utf8');
   const payload = JSON.parse(prefix);
   assert.equal(Object.keys(payload)[0], '__poc_generated');
   assert.equal(classifyGeneratedArtifactCachePrefix({ prefix })?.artifact, artifact);
   const marked = await read();
   await fs.writeFile(file, JSON.stringify(withoutGeneratedCacheMetadata(payload)));
-  assert.deepEqual(await read(), marked, `${artifact} legacy read parity`);
+  assert.deepEqual(await read(), marked, `${artifact} metadata-independent current payload parity`);
   return marked;
 };
 
@@ -31,26 +32,26 @@ try {
   assert.equal(await learnedAutoProfileInternals.saveAutoProfileState({
     statePath: learnedPath, state: { profiles: { fixture: { profileId: 'balanced', confidence: 0.8, features: { files: 12 } } } }
   }), true);
-  const learned = await verifyLegacyParity(learnedPath, 'learned-auto-profile', () => learnedAutoProfileInternals.loadAutoProfileState(root));
+  const learned = await verifyMetadataParity(learnedPath, 'learned-auto-profile', () => learnedAutoProfileInternals.loadAutoProfileState(root));
   assert.deepEqual(Object.keys(learned.state.profiles), ['fixture']);
 
-  const schedulerWritten = await writeSchedulerAutoTuneProfile({ repoCacheRoot: root, schedulerStats: { tokens: { cpu: { total: 2 } } }, schedulerConfig: {}, buildId: 'fixture' });
+  const schedulerWritten = await writeSchedulerAutoTuneProfile({ repoCacheRoot: root, ...schedulerWorkloadInput({ config: { resourceIdentity: 'fixture-policy', cpuTokens: 2, maxCpuTokens: 4, maxIoTokens: 4, maxMemoryTokens: 4 } }) });
   assert.equal(schedulerWritten.__poc_generated, undefined);
-  await verifyLegacyParity(path.join(root, 'metrics/scheduler-autotune.json'), 'scheduler-autotune', () => loadSchedulerAutoTuneProfile({ repoCacheRoot: root }));
+  await verifyMetadataParity(path.join(root, 'metrics/scheduler-autotune.json'), 'scheduler-autotune', () => loadSchedulerAutoTuneProfile({ repoCacheRoot: root }));
 
   const adaptivePath = path.join(root, 'tree-sitter-scheduler/adaptive-rows-per-sec.json');
   await saveTreeSitterSchedulerAdaptiveProfile({ profilePath: adaptivePath, entriesByGrammarKey: new Map([['javascript', { rowsPerSec: 25, samples: 3 }]]) });
-  const adaptive = await verifyLegacyParity(adaptivePath, 'tree-sitter-adaptive-profile', () => loadTreeSitterSchedulerAdaptiveProfile({ runtime: { repoCacheRoot: root } }));
+  const adaptive = await verifyMetadataParity(adaptivePath, 'tree-sitter-adaptive-profile', () => loadTreeSitterSchedulerAdaptiveProfile({ runtime: { repoCacheRoot: root } }));
   assert.equal(adaptive.entriesByGrammarKey.get('javascript').rowsPerSec, 25);
   assert.equal(adaptive.entriesByGrammarKey.size, 1);
 
   const embeddingsArgs = { repoCacheRoot: root, provider: 'fixture', modelId: 'fixture', recommended: { batchSize: 8 }, now: '2026-10-06T00:00:00Z' };
   await writeEmbeddingsAutoTuneRecommendation(embeddingsArgs);
-  await verifyLegacyParity(path.join(root, 'metrics/embeddings-autotune.json'), 'embeddings-autotune', () => loadEmbeddingsAutoTuneRecommendation(embeddingsArgs));
+  await verifyMetadataParity(path.join(root, 'metrics/embeddings-autotune.json'), 'embeddings-autotune', () => loadEmbeddingsAutoTuneRecommendation(embeddingsArgs));
 
   const plannerArgs = { repoRoot: root, cacheRoot: root, workspaceRootRel: '.' };
   const plannerPath = await persistPyrightPlannerHealth({ ...plannerArgs, runtime: { requests: { byMethod: { 'textDocument/hover': { timedOut: 3 } } } } });
-  await verifyLegacyParity(plannerPath, 'pyright-planner-health', () => resolvePyrightRequestPlan({ ...plannerArgs, documents: [], targets: [] }));
+  await verifyMetadataParity(plannerPath, 'pyright-planner-health', () => resolvePyrightRequestPlan({ ...plannerArgs, documents: [], targets: [] }));
 
   const now = Date.parse('2026-10-06T00:00:00Z');
   const runtimeArgs = { ...plannerArgs, selectedDocumentSummaries: [], now };
@@ -58,7 +59,7 @@ try {
   const healthPath = await persistPyrightRuntimeHealth({ ...plannerArgs, record: {
     schemaVersion: 1, state: 'degraded_hard', fingerprint, cooldownUntil: now + 60000, reasonCode: 'fixture', timeoutStormCount: 2
   } });
-  const health = await verifyLegacyParity(healthPath, 'pyright-runtime-health', () => resolvePyrightRuntimeHealth(runtimeArgs));
+  const health = await verifyMetadataParity(healthPath, 'pyright-runtime-health', () => resolvePyrightRuntimeHealth(runtimeArgs));
   assert.equal(health.shouldShortCircuit, true);
   assert.equal(health.cooldownRemainingMs, 60000);
 
@@ -75,7 +76,7 @@ try {
   const legacyUpdate = await updateEnrichmentState(root, { completed: true });
   assert.deepEqual({ ...legacyUpdate, updatedAt: null }, { ...second, updatedAt: null });
   assert.equal(JSON.parse(await fs.readFile(stateFile, 'utf8')).__poc_generated.artifact, 'enrichment-state');
-  console.log('runtime-cache metadata preserves legacy profile, health and state behavior');
+  console.log('runtime-cache metadata preserves current profile, health and state behavior');
 } finally {
   await fs.rm(root, { recursive: true, force: true });
 }

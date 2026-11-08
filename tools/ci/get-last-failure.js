@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { readExactAt } from '../../src/shared/io/read-exact.js';
 
 const root = process.cwd();
 const candidates = [];
@@ -22,8 +23,8 @@ const readPrefix = async (filePath, maxBytes) => {
       const { size } = await handle.stat();
       const readBytes = Math.min(size, maxBytes);
       const buffer = Buffer.alloc(readBytes);
-      await handle.read(buffer, 0, readBytes, 0);
-      return buffer.toString('utf8');
+      const { bytesRead } = await readExactAt(handle, buffer, 0, readBytes, 0);
+      return buffer.subarray(0, bytesRead).toString('utf8');
     } finally {
       await handle.close();
     }
@@ -40,8 +41,9 @@ const readSuffix = async (filePath, maxBytes) => {
       const readBytes = Math.min(size, maxBytes);
       const buffer = Buffer.alloc(readBytes);
       const start = Math.max(0, size - readBytes);
-      await handle.read(buffer, 0, readBytes, start);
-      return buffer.toString('utf8');
+      const { bytesRead } = await readExactAt(handle, buffer, 0, readBytes, start);
+      let first = 0; while (first < bytesRead && (buffer[first] & 0xc0) === 0x80) first += 1;
+      return buffer.subarray(first, bytesRead).toString('utf8');
     } finally {
       await handle.close();
     }

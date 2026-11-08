@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 import { parseQueryInput, annotateQueryAst } from '../../../src/retrieval/query.js';
 import { createQueryAstHelpers } from '../../../src/retrieval/pipeline/query-ast.js';
 import { runRankStage } from '../../../src/retrieval/pipeline/rank-stage.js';
@@ -56,7 +57,7 @@ assert.equal(rank('cache', { allowedIdx: new Set() }).hits.length, 0, 'ANN never
 const index = {
   chunkMeta: [chunk, { ...chunk, id: 1, file: 'private.ts', ext: '.ts' }],
   tokenIndex: { vocab: ['cache', 'refresh'], postings: [[[0, 1], [1, 1]], [[0, 1], [1, 1]]], docLengths: [2, 2], totalDocs: 2, avgDocLen: 2 },
-  denseVec: { vectors: [[0.1, 0.2], [0.2, 0.3]] },
+  denseVec: { vectors: [[0.1, 0.2], [0.2, 0.3]].map(vector => quantizeEmbeddingVector(vector)) },
   minhash: { signatures: [] }
 };
 index.filterIndex = buildFilterIndex(index.chunkMeta);

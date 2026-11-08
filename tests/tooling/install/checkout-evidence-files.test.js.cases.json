@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-closed-file", "held-descriptor-retains-root", "original-path-and-link-admission",
+    "unknown-open-retains-root", "changed-parent-closes-original-descriptor"]
+}

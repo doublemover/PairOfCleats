@@ -1,8 +1,7 @@
 import fs from 'node:fs';
-import { distanceToSimilarity } from '../shared/ann-similarity.js';
+import { distanceToSimilarity, withAnnScoreSpace } from '../shared/ann-similarity.js';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
-import { createWarnOnce } from '../shared/logging/warn-once.js';
 import { normalizePositiveInt } from '../shared/limits.js';
 import {
   candidateSetHas,
@@ -10,49 +9,78 @@ import {
   normalizeCandidateSetIds
 } from './ann/candidate-set.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
+import { createTopKReducer } from './pipeline/topk.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { setImmediate as yieldImmediate } from 'node:timers/promises';
+import { createLanceDbResourceOwner, lanceDbCloseFailure, withLanceDbCleanupFailure } from './ann/lancedb-lifetime.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
 const CONNECTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const CONNECTION_CACHE_MAX_ENTRIES = 8;
 
 let cachedModule = null;
-const warnOnce = createWarnOnce();
+const unavailable = (message, cause) => Object.assign(new Error(message, cause === undefined ? undefined : { cause }), {
+  code: 'ERR_LANCEDB_UNAVAILABLE'
+});
 
 const loadLanceDb = async () => {
   if (cachedModule) return cachedModule;
   const result = await tryImport('@lancedb/lancedb');
   if (!result.ok) {
-    warnOnce('lancedb-missing', '[ann] LanceDB unavailable; falling back to other ANN backends.');
-    return null;
+    if (result.reason === 'error') throw result.error;
+    throw unavailable('LanceDB optional dependency is ' + result.reason + '.', result.error);
   }
   cachedModule = result.mod?.default || result.mod;
   return cachedModule;
 };
 
 const connectionCache = new Map();
-
-const closeMaybe = async (resource) => {
-  if (!resource) return;
-  const close = resource.close || resource.closeSync;
-  if (typeof close !== 'function') return;
-  try {
-    const result = close.call(resource);
-    if (result && typeof result.then === 'function') {
-      await result;
-    }
-  } catch {}
-};
+// Retirement removes lookup ownership. Failed or actively leased resources stay
+// in this same cache owner's retirement set until their exact close succeeds.
+const retiredConnections = new Set();
 
 const closeConnectionEntry = async (entry) => {
   if (!entry || typeof entry !== 'object') return;
-  const tables = entry.tables instanceof Map ? Array.from(entry.tables.values()) : [];
-  for (const table of tables) {
-    await closeMaybe(table);
+  entry.retired = true;
+  retiredConnections.add(entry);
+  if (entry.refs > 0) return Object.freeze({ settled: false, pending: true });
+  if (!entry.closing) entry.closing = (async () => {
+    // A failed admission may retire an entry while its connect is still in
+    // flight. Await it before considering any native handle settled.
+    try { await entry.pending; } catch {}
+    entry.pending = null;
+    const errors = [];
+    for (const [name, owner] of entry.tableOwners) {
+      try { await owner.close(); entry.tableOwners.delete(name); entry.tables.delete(name); }
+      catch (error) { errors.push(error); }
+    }
+    // A connection cannot be released while one of its tables remains owned.
+    if (entry.tableOwners.size === 0 && entry.dbOwner) {
+      try { await entry.dbOwner.close(); entry.dbOwner = null; entry.db = null; }
+      catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw lanceDbCloseFailure({ owner: entry.owner, cleanupErrors: errors });
+    retiredConnections.delete(entry);
+    return Object.freeze({ settled: true, pending: false });
+  })().finally(() => { entry.closing = null; });
+  return await entry.closing;
+};
+
+const closeConnectionEntries = async entries => {
+  const failed = [], errors = [];
+  for (const entry of entries) {
+    try { await closeConnectionEntry(entry); }
+    catch (error) { failed.push(entry); errors.push(error); }
   }
-  await closeMaybe(entry.db);
-  entry.tables = new Map();
-  entry.db = null;
-  entry.pending = null;
+  if (errors.length === 1) throw errors[0];
+  if (errors.length) {
+    const owner = Object.freeze({ kind: 'lancedb-retired-connections',
+      get pending() { return failed.some(entry => entry.owner.pending); },
+      close: () => closeConnectionEntries(failed) });
+    throw lanceDbCloseFailure({ owner, cleanupErrors: errors });
+  }
+  const pending = [...entries].some(entry => entry?.owner?.pending === true);
+  return Object.freeze({ settled: !pending, pending });
 };
 
 const touchConnectionEntry = (entry, now = Date.now()) => {
@@ -92,96 +120,96 @@ const pruneConnectionCache = async ({ now = Date.now() } = {}) => {
 };
 
 export const clearLanceDbConnectionCache = async () => {
-  const entries = Array.from(connectionCache.values());
+  const entries = new Set([...retiredConnections, ...connectionCache.values()]);
   connectionCache.clear();
-  for (const entry of entries) {
-    await closeConnectionEntry(entry);
-  }
+  await closeConnectionEntries(entries);
 };
 
 const getConnection = async (dir) => {
   if (!dir) return null;
   const now = Date.now();
   await pruneConnectionCache({ now });
-  const cached = connectionCache.get(dir);
-  if (cached && cached.pending) {
-    touchConnectionEntry(cached, now);
-    try {
-      const db = await cached.pending;
-      cached.pending = null;
-      if (!cached.db && db) {
-        cached.db = db;
-      }
-      if (cached.db) {
-        touchConnectionEntry(cached);
-        return cached;
-      }
-      connectionCache.delete(dir);
-      await closeConnectionEntry(cached);
-      return null;
-    } catch {
-      connectionCache.delete(dir);
-      await closeConnectionEntry(cached);
-      return null;
-    }
+  let entry = connectionCache.get(dir);
+  if (!entry) {
+    entry = { db: null, dbOwner: null, tables: new Map(), tableOwners: new Map(), openingTables: new Map(), refs: 0,
+      retired: false, pending: null, lastAccessMs: now, expiresAtMs: now + CONNECTION_CACHE_TTL_MS };
+    const ownedEntry = entry;
+    entry.owner = Object.freeze({ kind: 'lancedb-connection-entry',
+      get pending() { return ownedEntry.refs > 0 || Boolean(ownedEntry.pending)
+        || Boolean(ownedEntry.dbOwner?.pending) || ownedEntry.tableOwners.size > 0; },
+      close: () => closeConnectionEntry(ownedEntry) });
+    entry.pending = (async () => {
+      const lancedb = await loadLanceDb();
+      const connect = lancedb?.connect || lancedb?.default?.connect;
+      if (typeof connect !== 'function') throw unavailable('LanceDB module has no supported connect method.');
+      const db = await connect(dir);
+      ownedEntry.db = db;
+      if (db) ownedEntry.dbOwner = createLanceDbResourceOwner(db, 'lancedb-connection');
+      return db;
+    })();
+    entry.pending.catch(() => {});
+    connectionCache.set(dir, entry);
   }
-  if (cached && cached.db) {
-    touchConnectionEntry(cached, now);
-    return cached;
-  }
-
-  const entry = {
-    db: null,
-    tables: new Map(),
-    pending: null,
-    lastAccessMs: now,
-    expiresAtMs: now + CONNECTION_CACHE_TTL_MS
+  // Pin before yielding to connect, openTable or cache eviction. Retirement
+  // removes lookup ownership; the last query lease owns eventual native close.
+  entry.refs++;
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    entry.refs--;
+    if (entry.retired) await closeConnectionEntry(entry);
   };
-  const pending = (async () => {
-    const lancedb = await loadLanceDb();
-    const connect = lancedb?.connect || lancedb?.default?.connect;
-    if (!connect) return null;
-    return connect(dir);
-  })();
-  entry.pending = pending;
-  connectionCache.set(dir, entry);
-  await pruneConnectionCache({ now });
+  touchConnectionEntry(entry, now);
   try {
-    const db = await pending;
+    await pruneConnectionCache({ now });
+    await entry.pending;
+    if (!entry.db) throw unavailable('LanceDB connect returned no connection.');
     entry.pending = null;
-    if (!db) {
-      connectionCache.delete(dir);
-      await closeConnectionEntry(entry);
-      return null;
-    }
-    entry.db = db;
     touchConnectionEntry(entry);
-    return entry;
-  } catch {
-    connectionCache.delete(dir);
-    await closeConnectionEntry(entry);
-    return null;
+    return { entry, release };
+  } catch (error) {
+    if (connectionCache.get(dir) === entry) connectionCache.delete(dir);
+    entry.retired = true; retiredConnections.add(entry);
+    try { await release(); }
+    catch (cleanupError) { throw withLanceDbCleanupFailure(error, cleanupError); }
+    throw error;
   }
 };
 
 const getTable = async (dir, tableName) => {
-  const connection = await getConnection(dir);
-  if (!connection || !tableName) return null;
-  touchConnectionEntry(connection);
-  if (connection.tables.has(tableName)) return connection.tables.get(tableName);
-  const openTable = connection.db?.openTable;
-  if (typeof openTable !== 'function') return null;
-  const table = await openTable.call(connection.db, tableName);
-  connection.tables.set(tableName, table);
-  return table;
+  const lease = await getConnection(dir);
+  if (!lease) return null;
+  const connection = lease.entry;
+  try {
+    if (!tableName || typeof connection.db?.openTable !== 'function') {
+      throw unavailable('LanceDB connection has no supported table-open method or table name.');
+    }
+    if (!connection.tables.has(tableName)) {
+      if (!connection.openingTables.has(tableName)) {
+        const opening = Promise.resolve().then(() => connection.db.openTable(tableName)).then(table => {
+          connection.tables.set(tableName, table);
+          connection.tableOwners.set(tableName, createLanceDbResourceOwner(table, 'lancedb-table'));
+          return table;
+        }).finally(() => connection.openingTables.delete(tableName));
+        connection.openingTables.set(tableName, opening);
+      }
+      await connection.openingTables.get(tableName);
+    }
+    return { table: connection.tables.get(tableName), release: lease.release };
+  } catch (error) {
+    try { await lease.release(); }
+    catch (cleanupError) { throw withLanceDbCleanupFailure(error, cleanupError); }
+    throw error;
+  }
 };
 
 const toArray = async (query) => {
-  if (!query) return [];
+  if (!query) throw unavailable('LanceDB returned no query builder.');
   if (typeof query.toArray === 'function') return query.toArray();
   if (typeof query.execute === 'function') return query.execute();
   if (typeof query.collect === 'function') return query.collect();
-  return [];
+  throw unavailable('LanceDB query has no supported result materialization method.');
 };
 
 const readRowId = (row, idColumn) => {
@@ -201,27 +229,6 @@ const readRowScore = (row, metric) => {
   return Number.isFinite(score) ? score : null;
 };
 
-const rowsToHits = (rows, idColumn, metric) => {
-  const hits = [];
-  for (const row of rows || []) {
-    const idx = readRowId(row, idColumn);
-    if (idx == null) continue;
-    const sim = readRowScore(row, metric);
-    if (sim == null) continue;
-    hits.push({ idx, sim });
-  }
-  return hits;
-};
-
-const filterSortLimitHits = ({ hits, candidateCount, canPushdown, candidateSet, limitBase }) => {
-  const filtered = !candidateCount || canPushdown
-    ? hits
-    : hits.filter((hit) => candidateSetHas(candidateSet, hit.idx));
-  return filtered
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, limitBase);
-};
-
 const isSafeIdColumn = (value) => (
   typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
 );
@@ -231,8 +238,12 @@ export async function rankLanceDb({
   queryEmbedding,
   topN,
   candidateSet,
-  config
+  config,
+  signal = null
 }) {
+  throwIfAborted(signal);
+  const candidateCount = getCandidateSetSize(candidateSet);
+  if (candidateSet != null && candidateCount === 0) return [];
   if (!lancedbInfo?.available) return [];
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return [];
@@ -246,111 +257,120 @@ export async function rankLanceDb({
   const normalized = normalizeEmbeddingDims(queryEmbedding, dims);
   if (!normalized.embedding) return [];
   const embeddingArray = normalized.embedding;
-  if (normalized.adjusted && normalized.expectedDims) {
-    warnOnce(
-      'lancedb-query-dims',
-      `[ann] LanceDB query dims mismatch (query=${normalized.queryDims}, index=${normalized.expectedDims}); ` +
-      'clipping/padding query vector to index dims.'
-    );
-  }
 
   const dir = lancedbInfo.dir;
-  if (!dir || !fs.existsSync(dir)) return [];
+  if (!dir || !fs.existsSync(dir)) throw unavailable('Declared LanceDB directory is unavailable.');
 
-  let table;
+  let tableLease;
   try {
-    table = await getTable(dir, tableName);
+    tableLease = await getTable(dir, tableName);
   } catch (err) {
-    warnOnce(
-      'lancedb-table-load',
-      `[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`
-    );
-    return [];
+    if (err?.cacheOwnershipPending) throw err;
+    throwIfAborted(signal);
+    throw err;
   }
-  if (!table || typeof table.search !== 'function') return [];
+  const table = tableLease?.table;
+  if (!tableLease) { throwIfAborted(signal); throw unavailable('LanceDB table lease is unavailable.'); }
 
-  const limitBase = normalizePositiveInt(topN, 1) || 1;
-  const candidateCount = getCandidateSetSize(candidateSet);
-  const initialLimit = candidateCount
-    ? Math.min(Math.max(limitBase * 4, limitBase + 10), candidateCount)
-    : limitBase;
-  const maxLimit = candidateCount
-    ? Math.min(candidateCount, Math.max(initialLimit, limitBase * 32))
-    : initialLimit;
+  let primaryError, hasPrimary = false;
+  try {
+    throwIfAborted(signal);
+    if (!table || typeof table.search !== 'function') throw unavailable('LanceDB table has no supported search method.');
+    const limitBase = normalizePositiveInt(topN, 1) || 1;
+    const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
+      ? normalizeCandidateSetIds(candidateSet)
+      : [];
 
-  const candidateIds = (candidateCount && candidateCount <= CANDIDATE_PUSH_LIMIT && isSafeIdColumn(idColumn))
-    ? normalizeCandidateSetIds(candidateSet)
-    : [];
+    const createBaseQuery = () => {
+      let query = table.search(embeddingArray);
+      if (typeof query?.column !== 'function') throw new Error('LanceDB query builder cannot select the declared vector column.');
+      query = query.column(embeddingColumn);
+      if (typeof query?.metricType === 'function') {
+        query = query.metricType(metric);
+      } else if (typeof query?.metric === 'function') {
+        query = query.metric(metric);
+      } else if (typeof query?.distanceType === 'function') {
+        query = query.distanceType(metric);
+      }
+      return query;
+    };
 
-  const createBaseQuery = () => {
-    let query;
-    if (embeddingColumn !== 'vector' && table.search.length > 1) {
-      query = table.search(embeddingArray, { vectorColumn: embeddingColumn });
-    } else {
-      query = table.search(embeddingArray);
-    }
-    if (typeof query?.metricType === 'function') {
-      query = query.metricType(metric);
-    } else if (typeof query?.metric === 'function') {
-      query = query.metric(metric);
-    } else if (typeof query?.distanceType === 'function') {
-      query = query.distanceType(metric);
-    }
-    return query;
-  };
+    let firstQuery = null, canPushdown = false;
 
-  const supportsWhere = Boolean(candidateIds.length) && typeof createBaseQuery()?.where === 'function';
-  const canPushdown = Boolean(candidateIds.length && supportsWhere);
+    const buildQuery = (limit, ids = candidateIds) => {
+      let query = firstQuery || createBaseQuery(); firstQuery = null;
+      if (canPushdown) {
+        if (typeof query?.where !== 'function') throw new Error('LanceDB query builder lost candidate predicate support.');
+        query = query.where(`${idColumn} IN (${ids.join(',')})`);
+      }
+      if (typeof query?.limit === 'function') {
+        query = query.limit(limit);
+      }
+      if (typeof query?.select === 'function') {
+        const columns = [idColumn, '_distance'];
+        query = query.select(columns.filter(Boolean));
+      }
+      return query;
+    };
 
-  const buildQuery = (limit) => {
-    let query = createBaseQuery();
-    if (canPushdown && typeof query?.where === 'function') {
-      query = query.where(`${idColumn} IN (${candidateIds.join(',')})`);
-    }
-    if (typeof query?.limit === 'function') {
-      query = query.limit(limit);
-    }
-    if (typeof query?.select === 'function') {
-      const columns = [idColumn, '_distance'];
-      query = query.select(columns.filter(Boolean));
-    }
-    return query;
-  };
+    const reducer = createTopKReducer({ k: limitBase, score: hit => hit.sim, id: hit => hit.idx });
+    let visited = 0;
+    const admitRows = async rows => {
+      for (const row of rows || []) {
+        if (++visited % 512 === 0) { await yieldImmediate(); throwIfAborted(signal); }
+        const idx = readRowId(row, idColumn);
+        if (idx == null || (candidateCount && !candidateSetHas(candidateSet, idx))) continue;
+        const sim = readRowScore(row, metric);
+        if (sim == null) continue;
+        reducer.push(withAnnScoreSpace({ idx, sim }, { metric, kind: metric === 'cosine' ? 'cosine' : 'negative-distance',
+          backend: 'lancedb', distance: row?._distance ?? row?.distance ?? null }));
+      }
+    };
 
-  let rows = [];
-  let limit = initialLimit;
-  const maxIterations = candidateCount && !canPushdown ? 4 : 1;
-  for (let attempt = 0; attempt < maxIterations; attempt += 1) {
     try {
-      rows = await toArray(buildQuery(limit));
+      firstQuery = createBaseQuery();
+      canPushdown = Boolean(candidateIds.length && typeof firstQuery?.where === 'function');
+      if (canPushdown) {
+      // Preserve every candidate partition's native head, then retain the best
+      // observed eligible hits. This does not certify native ANN recall.
+        for (let start = 0; start < candidateIds.length; start += CANDIDATE_PUSH_LIMIT) {
+          if (start && start % (CANDIDATE_PUSH_LIMIT * 16) === 0) await yieldImmediate();
+          throwIfAborted(signal);
+          const rows = await toArray(buildQuery(limitBase, candidateIds.slice(start, start + CANDIDATE_PUSH_LIMIT)));
+          throwIfAborted(signal);
+          await admitRows(rows);
+        }
+      } else {
+      // Without backend filtering, a complete scan is required. A multiplier
+      // based on candidate count cannot bound the nearest allowed row's rank.
+        const limit = candidateCount ? Number(await table.countRows?.()) : limitBase;
+        throwIfAborted(signal);
+        if (!Number.isSafeInteger(limit) || limit < 0) throw unavailable('LanceDB query cannot determine its required exhaustive candidate extent.');
+        if (limit === 0) return [];
+        const rows = await toArray(buildQuery(limit));
+        throwIfAborted(signal);
+        await admitRows(rows);
+      }
+      throwIfAborted(signal);
+      return reducer.finish({ limit: limitBase });
     } catch (err) {
-      warnOnce(
-        'lancedb-query',
-        `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`
-      );
-      return [];
+      if (err?.cacheOwnershipPending) throw err;
+      throwIfAborted(signal);
+      throw err;
     }
-    const limitedHits = filterSortLimitHits({
-      hits: rowsToHits(rows, idColumn, metric),
-      candidateCount,
-      canPushdown,
-      candidateSet,
-      limitBase
-    });
-    if (limitedHits.length >= limitBase) {
-      return limitedHits;
+  } catch (error) {
+    primaryError = error; hasPrimary = true;
+    throw error;
+  } finally {
+    try { await tableLease.release(); }
+    catch (cleanupError) {
+      if (!hasPrimary && signal?.aborted) {
+        try { throwIfAborted(signal); }
+        catch (error) { primaryError = error; hasPrimary = true; }
+      }
+      if (hasPrimary) throw withLanceDbCleanupFailure(primaryError, cleanupError);
+      throw cleanupError;
     }
-    if (!rows || rows.length < limit) break;
-    const nextLimit = Math.min(maxLimit, limit * 2);
-    if (nextLimit <= limit) break;
-    limit = nextLimit;
+    throwIfAborted(signal);
   }
-
-  return filterSortLimitHits({
-    hits: rowsToHits(rows, idColumn, metric),
-    candidateCount,
-    canPushdown,
-    candidateSet,
-    limitBase
-  });
 }

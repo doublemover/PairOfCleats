@@ -13,7 +13,7 @@ if (!source.includes('const LOG_RING_LIMIT: usize')) {
   console.error('list virtualization determinism test failed: missing ring-buffer retention constants');
   process.exit(1);
 }
-if (!source.includes('fn list_window(') || !source.includes('fn tail_window(')) {
+if (!source.includes('fn tail_window_slice<') || !source.includes('fn tail_window_ranges_are_bounded_and_deterministic()')) {
   console.error('list virtualization determinism test failed: missing viewport window helpers');
   process.exit(1);
 }

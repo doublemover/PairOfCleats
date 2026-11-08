@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["equivalent", "mixed-snapshot", "failure-drain"]
+}

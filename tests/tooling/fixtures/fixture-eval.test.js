@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -22,7 +23,16 @@ const argv = createCli({
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');
-const searchPath = path.join(root, 'search.js');
+const evalPath = path.join(root, 'tools', 'eval', 'run.js');
+const showcaseSources = [
+  'src/retrieval/cli-args.js',
+  'src/integrations/tooling/providers/lsp/session-pool.js',
+  'src/integrations/tooling/providers/lsp.js',
+  'tools/testing/search-debug-capture.js',
+  'docs/api/server.md',
+  'docs/guides/search.md',
+  'docs/api/core-api.md'
+];
 
 function resolveFixtures() {
   const entries = fs.readdirSync(fixturesRoot, { withFileTypes: true });
@@ -52,20 +62,12 @@ function loadCases(filePath) {
   }
 }
 
-function matchExpected(hit, expected) {
-  if (!hit) return false;
-  if (expected.file && hit.file !== expected.file) return false;
-  if (expected.name) {
-    const hitName = hit.name ? String(hit.name).toLowerCase() : '';
-    if (!hitName.includes(String(expected.name).toLowerCase())) return false;
-  }
-  if (expected.kind) {
-    if (!hit.kind || String(hit.kind).toLowerCase() !== String(expected.kind).toLowerCase()) return false;
-  }
-  return true;
-}
-
-const fixtures = resolveFixtures();
+const runnerFixture = {
+  'tooling/fixtures/fixture-eval': 'sample',
+  'tooling/fixtures/fixture-eval-mixed': 'mixed',
+  'tooling/fixtures/fixture-eval-showcase': 'pairofcleats-search-showcase'
+}[process.env.PAIROFCLEATS_TEST_ID];
+const fixtures = runnerFixture ? [runnerFixture] : resolveFixtures();
 if (!fixtures.length) {
   console.error('No fixtures found.');
   process.exit(1);
@@ -78,75 +80,83 @@ const needsSqlite = backend !== 'memory';
 const results = [];
 for (const fixtureName of fixtures) {
   const fixtureRoot = path.join(fixturesRoot, fixtureName);
-  const evalPath = path.join(fixtureRoot, 'eval.json');
-  if (!fs.existsSync(evalPath)) continue;
+  const datasetPath = path.join(fixtureRoot, 'eval.json');
+  if (!fs.existsSync(datasetPath)) continue;
 
   const cacheRoot = resolveTestCachePath(root, `eval-${fixtureName}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
-
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-
-  console.log(`\nFixture eval: ${fixtureName}`);
-  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], `build index (${fixtureName})`, fixtureRoot, env, true);
-  if (needsSqlite) {
-    await runSqliteBuild(fixtureRoot);
+  const repoRoot = fixtureName === 'pairofcleats-search-showcase'
+    ? path.join(cacheRoot, 'repo')
+    : fixtureRoot;
+  if (repoRoot !== fixtureRoot) {
+    for (const relativePath of showcaseSources) {
+      const destination = path.join(repoRoot, relativePath);
+      await fsPromises.mkdir(path.dirname(destination), { recursive: true });
+      await fsPromises.copyFile(path.join(root, relativePath), destination);
+    }
   }
 
-  const cases = loadCases(evalPath);
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: {
+      ...(repoRoot !== fixtureRoot
+        ? { extraIgnore: ['!tools/testing/search-debug-capture.js'] }
+        : {}),
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
+    },
+    syncProcess: false
+  });
+
+  console.log(`\nFixture eval: ${fixtureName}`);
+  run([path.join(root, 'build_index.js'), '--stage', 'stage1', '--stub-embeddings', '--repo', repoRoot], `build index (${fixtureName})`, repoRoot, env, true);
+  if (needsSqlite) {
+    await runSqliteBuild(repoRoot, { env });
+  }
+
+  const cases = loadCases(datasetPath);
   if (!cases.length) {
-    console.warn(`No eval cases found at ${evalPath}`);
+    console.warn(`No eval cases found at ${datasetPath}`);
     continue;
+  }
+
+  const stdout = run([
+    evalPath,
+    '--repo', repoRoot,
+    '--dataset', datasetPath,
+    '--backend', backend,
+    '--no-ann',
+    '--top', String(topN),
+    '--quiet'
+  ], `eval search (${fixtureName})`, repoRoot, env, false);
+  const payload = JSON.parse(stdout || '{}');
+  const eligibleCases = cases.filter((entry) => String(entry.query || '').trim());
+  if (!Array.isArray(payload.results) || payload.results.length !== eligibleCases.length) {
+    throw new Error(`Eval runner returned an incomplete result set for ${fixtureName}`);
   }
 
   let passed = 0;
   let mrrSum = 0;
   const caseResults = [];
 
-  for (const entry of cases) {
+  for (const [index, entry] of eligibleCases.entries()) {
     const query = String(entry.query || '').trim();
-    if (!query) continue;
     const mode = entry.mode || 'both';
     const expected = Array.isArray(entry.expect) ? entry.expect : [];
-
-    const args = [
-      searchPath,
-      query,
-      '--json',
-      '--backend',
-      backend,
-      '--no-ann',
-      '-n',
-      String(topN),
-      '--repo',
-      fixtureRoot
-    ];
-    if (mode && mode !== 'both') {
-      args.push('--mode', mode);
+    const result = payload.results[index];
+    if (result.query !== query || result.mode !== mode || result.totals?.relevant !== expected.length) {
+      throw new Error(`Eval runner result identity mismatch for ${fixtureName}:${query}`);
     }
-
-    const stdout = run(args, `search (${fixtureName}:${query})`, fixtureRoot, env, false);
-    const payload = JSON.parse(stdout || '{}');
-    const hits = mode === 'code'
-      ? (payload.code || [])
-      : mode === 'prose'
-        ? (payload.prose || [])
-        : [...(payload.code || []), ...(payload.prose || [])];
-
-    let rank = null;
-    for (let i = 0; i < hits.length; i++) {
-      const hit = hits[i];
-      if (expected.some((exp) => matchExpected(hit, exp))) {
-        rank = i + 1;
-        break;
-      }
-    }
+    const queryMrr = result.metrics?.mrr || 0;
+    const rank = queryMrr > 0 ? Math.round(1 / queryMrr) : null;
 
     const ok = rank !== null;
     if (ok) {
@@ -210,5 +220,10 @@ if (argv['write-report']) {
 if (!argv.json) {
   console.log(`\nTotal passed: ${summary.passed}/${summary.total}`);
   console.log(`MRR avg: ${summary.mrrAvg.toFixed(3)}`);
+}
+
+if (summary.passed !== summary.total) {
+  console.error(`Fixture eval missed ${summary.total - summary.passed} expected queries`);
+  process.exitCode = 1;
 }
 

@@ -1,3 +1,4 @@
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
@@ -50,7 +51,7 @@ const packedMetaPath = path.join(testRoot, 'minhash_signatures.packed.meta.json'
 await fs.writeFile(packedPath, packSignatures(signatures, dims));
 await writeJsonObjectFile(packedMetaPath, {
   fields: {
-    format: 'u32',
+    hashIdentity: MINHASH_HASH_IDENTITY, format: 'u32',
     endian: 'le',
     dims,
     count

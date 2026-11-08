@@ -4,6 +4,7 @@ import { resolveIndexDir } from '../cli-index.js';
 import { createLmdbHelpers } from '../lmdb-helpers.js';
 import { createSqliteHelpers } from '../sqlite-helpers.js';
 import { createBackendDisposer } from './backend-disposal.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 /**
  * Build backend context for retrieval by wiring SQLite/LMDB handles, helper
@@ -50,6 +51,7 @@ export const createBackendContext = async ({
 }) => {
   const disposers = new Set();
   const dispose = createBackendDisposer(disposers);
+  const storageContext = root && userConfig ? { repoRoot: root, userConfig } : null;
   try {
     const lmdbBackend = await createLmdbBackend({
       useLmdb: useLmdbInput,
@@ -58,7 +60,8 @@ export const createBackendContext = async ({
       lmdbCodePath,
       lmdbProsePath,
       backendForcedLmdb,
-      lmdbStates
+      lmdbStates,
+      storageContext
     });
     disposers.add(() => lmdbBackend.dispose());
     let useLmdb = lmdbBackend.useLmdb;
@@ -79,7 +82,8 @@ export const createBackendContext = async ({
       sqliteReadPragmas,
       dbCache,
       sqliteStates,
-      generationContext
+      generationContext,
+      storageContext
     });
     disposers.add(() => sqliteBackend.dispose());
     let useSqlite = sqliteBackend.useSqlite;
@@ -166,7 +170,8 @@ export const createBackendContext = async ({
       dispose
     };
   } catch (error) {
-    try { await dispose(); } catch {}
+    try { await dispose(); }
+    catch (cleanupError) { throw addStorageFailureContext(error, {}, cleanupError, { secondaryPresent: true }); }
     throw error;
   }
 };

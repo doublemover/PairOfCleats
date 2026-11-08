@@ -1,0 +1,934 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-focused-failure-repairs",
+  "date": "2026-10-28",
+  "sourceHead": "f8dc966bb7e57db82308872be8eb92b49ad74ee4",
+  "tree": "567a8d1d39dd00dbf6c59626f6e4a191caf641b0",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "runtime": {
+    "node": "v26.12.1",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "fullSuiteRerun": false
+  },
+  "commits": [
+    "9e4d0a1bd8ee8dd54595d7e507c930b88032daf5",
+    "98ee8225a50c380917fad4d0dc350dfa670e31c5",
+    "f8dc966bb7e57db82308872be8eb92b49ad74ee4"
+  ],
+  "changedFiles": [
+    {
+      "path": "src/index/segments.js",
+      "sha256": "7117e7a39a572d8a33b875b2d57bf52d534d9aee11c6a4715db199af97729309"
+    },
+    {
+      "path": "src/index/segments/astro-offsets.js",
+      "sha256": "2a4a15c7294318fff9872138e13d4c20dd999239ec58b803b3c90bea91e6f5f9"
+    },
+    {
+      "path": "src/index/segments/vue.js",
+      "sha256": "3335e82069f820449fcb69eb835a2e0c99d6d3c70afdd91b1b2f8c952f32ec0e"
+    },
+    {
+      "path": "src/index/semantic/analysis-versions.js",
+      "sha256": "e8e1d39d53080c544d2cd72bb52abeff60b75caa495d4d34d7d58925909be6b2"
+    },
+    {
+      "path": "tests/indexing/embeddings/vector-spool-original-lifetime.test.js",
+      "sha256": "b74d0fc95f216d99b4b6c69cdc2a2c4d5aefa9f91c01122ee6821a368264bbb5"
+    },
+    {
+      "path": "tests/indexing/file-processor/scheduler-degradation-scope.test.js",
+      "sha256": "852be98b8466719d9a50025493343fa28f024f606855597a5c78109a4c8e3b97"
+    },
+    {
+      "path": "tests/indexing/file-processor/segmented-local-relations.test.js",
+      "sha256": "0300d322f2ce8ca1ee03dc761ffc56aed1700346e2b3c6ca6d5ba09b816af646"
+    },
+    {
+      "path": "tests/indexing/incremental/stage-checkpoint-refresh.test.js",
+      "sha256": "43d88ca55143293b91f347bf9170cd78efb232f647e7c65160b2dbdd07794081"
+    },
+    {
+      "path": "tests/indexing/runtime/dictionary-content-qualified-reuse.test.js",
+      "sha256": "78fdfbaf8487a25bc587a43a02102305d06fe215f940b731fbc5e4596c46d492"
+    },
+    {
+      "path": "tests/indexing/semantic/astro-frontmatter-dialect.test.js",
+      "sha256": "3980d8426d89b8a455d555e2f207d29754c644ed474f3bc170767cb14b2fa356"
+    },
+    {
+      "path": "tests/indexing/semantic/drain-publication-authority.test.js",
+      "sha256": "f25a38365efb6b62a83795d5df6930e9f262c12d2f655a29d03bfe4bdf557f19"
+    },
+    {
+      "path": "tests/indexing/semantic/provider-merge-batch-work.test.js",
+      "sha256": "3ac2bc2326e661a0991e0df3fc425f127045d184a4759c06e9a414f83372d32e"
+    },
+    {
+      "path": "tests/indexing/stage1/comment-policy-extras-cache.test.js",
+      "sha256": "af5bac305e6c9dadb6bc9dde60e8d551ebe1f476b2d13abfa5cd5461b1cb1f9a"
+    },
+    {
+      "path": "tests/lang/contracts/literal-dialect-evidence.test.js",
+      "sha256": "ad8b1fac0d73b525f82474b44f22a747601d417066c6c817ca546e6e0d1db6cd"
+    }
+  ],
+  "focused": {
+    "report": {
+      "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused.json",
+      "sha256": "acfc7594dedeb2a55e9cf83538c9c2eb726d67ce0be67ff42915a2878d3e51cc"
+    },
+    "summary": {
+      "durationMs": 25192,
+      "failed": 0,
+      "passed": 26,
+      "skipped": 0,
+      "total": 26
+    },
+    "tests": [
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/close-pending",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 165,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_close-pending.attempt-1.log",
+            "sha256": "8716aa5513e9bb80f5d4150f8ee1898c49e817848c87ab5bf6bd351b6d34eee7"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/close-recovery",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 162,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_close-recovery.attempt-1.log",
+            "sha256": "da9429ab2db6b1b52fd7fc43dead18d5eb5a35e0fdaf07fea08fe0f176a14634"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/construction",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 172,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_construction.attempt-1.log",
+            "sha256": "baff8825c5ec0ad8c5f268351c93747184ba7ea80548a721221b326296eb0716"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/deferred-inspection",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 161,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_deferred-inspection.attempt-1.log",
+            "sha256": "d5f928d777a36ffbd5eab2e54d6f94039ec5ba514309bb4164eec68c102db239"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/deferred-original",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 160,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_deferred-original.attempt-1.log",
+            "sha256": "99f5575740392063529db4d8332e60b860ac83d9ead27fb0401f4af244006d48"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/falsey-write",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 163,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_falsey-write.attempt-1.log",
+            "sha256": "236361acab54fc16bb39138db0791e15b7056d3f21f5171824318be25ea4eb5b"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/frozen-write",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 152,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_frozen-write.attempt-1.log",
+            "sha256": "d5071643a33546d4862fbb3645e74210c6d2c377153efa1c59a17a12152a20b7"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/healthy",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 163,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_healthy.attempt-1.log",
+            "sha256": "978751b6c82afb39d8b0d8af78b6154c5166224dd6fbaeadc473c7680e3fcfa4"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/observer-retention",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 160,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_observer-retention.attempt-1.log",
+            "sha256": "d0e29a0911cc6b0be858379eff8bf2048779e2070c61700ea8085eb4c437b844"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/pending-write",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 154,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_pending-write.attempt-1.log",
+            "sha256": "d01a3d3a4f8ca0ff378259d5be6b226beedc384ff76831b9beb3b779d6609548"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/replaced-directory",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 153,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_replaced-directory.attempt-1.log",
+            "sha256": "5de1c0575cf9d2fb50ffa1a89d67d8d0e68438611a2f70391f8e0150b425b5c7"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/replaced-file",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 160,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_replaced-file.attempt-1.log",
+            "sha256": "7f304ad932f55bf3b0da5a42b03a258508aeae67975f04936374e53afe8efbf9"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/unknown-child",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 166,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_unknown-child.attempt-1.log",
+            "sha256": "554421fb03a51b193feb29e13df7f57e69de8d04a0b125cb749594054c345ac8"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/unlink-recovery",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 158,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_unlink-recovery.attempt-1.log",
+            "sha256": "fd5d26c1e198152ad44be9858779b19c6acc1e5a3704f4c7b6274e9cb1bbf709"
+          }
+        ]
+      },
+      {
+        "id": "indexing/embeddings/vector-spool-original-lifetime/unobserved-directory",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 150,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_embeddings_vector-spool-original-lifetime_unobserved-directory.attempt-1.log",
+            "sha256": "3a06901a29d38d07993dba18f45224aebb494c63571c585655b02949c15d430e"
+          }
+        ]
+      },
+      {
+        "id": "indexing/file-processor/scheduler-degradation-scope",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 778,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_file-processor_scheduler-degradation-scope.attempt-1.log",
+            "sha256": "e17eac3b42d8ef4915a046b3181c087698a97535d763db202c81dd393961c084"
+          }
+        ]
+      },
+      {
+        "id": "indexing/file-processor/segmented-local-relations",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1720,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_file-processor_segmented-local-relations.attempt-1.log",
+            "sha256": "d131d08c2ce666e3fd482bce575a9eea37b19902e5e56dcb0bf204a7d7b8fc0d"
+          }
+        ]
+      },
+      {
+        "id": "indexing/incremental/stage-checkpoint-refresh",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 884,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_incremental_stage-checkpoint-refresh.attempt-1.log",
+            "sha256": "10ce4da1b8d491406729eadf6be6ce32bfcdaa11078d1676be0a49405ee9a13b"
+          }
+        ]
+      },
+      {
+        "id": "indexing/runtime/dictionary-content-qualified-reuse",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 658,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_runtime_dictionary-content-qualified-reuse.attempt-1.log",
+            "sha256": "758d9a2830a7e4bf5da867e30b2f5ab256fdeaa6286bbe561bf34ce48eabee39"
+          }
+        ]
+      },
+      {
+        "id": "indexing/segments/framework-segment-determinism",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 719,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_segments_framework-segment-determinism.attempt-1.log",
+            "sha256": "f505ad501dce1cf48b16ed3f0449ce6d4e5df73ea2d3d4740a5921f853404f64"
+          }
+        ]
+      },
+      {
+        "id": "indexing/segments/segment-pipeline",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1008,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_segments_segment-pipeline.attempt-1.log",
+            "sha256": "ec5cc7aab44dfd7014f794c6cbca8bfb4985ed088826e63a16cbfb638b8060e5"
+          }
+        ]
+      },
+      {
+        "id": "indexing/semantic/astro-frontmatter-dialect",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1137,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_semantic_astro-frontmatter-dialect.attempt-1.log",
+            "sha256": "e5636a641b41de6a26b95afbf36e75c7797e8e7d322e43460836e8a533a2af70"
+          }
+        ]
+      },
+      {
+        "id": "indexing/semantic/drain-publication-authority",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 12750,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_semantic_drain-publication-authority.attempt-1.log",
+            "sha256": "ac2718ae2cc6da4292f64c79ef2c159ca520fb43a9cfb9e9f31160e5c771ec6d"
+          }
+        ]
+      },
+      {
+        "id": "indexing/semantic/provider-merge-batch-work",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1378,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_semantic_provider-merge-batch-work.attempt-1.log",
+            "sha256": "97ccfcdb00275297df0768ff9bfed1326426e1fb3357e5a9c1b0425dd56327f1"
+          }
+        ]
+      },
+      {
+        "id": "indexing/stage1/comment-policy-extras-cache",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 949,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\indexing_stage1_comment-policy-extras-cache.attempt-1.log",
+            "sha256": "4de9e19c1146e42c0a85d03fc4ac1c45a6d01790196d35ec158e68e1f964dd50"
+          }
+        ]
+      },
+      {
+        "id": "lang/contracts/literal-dialect-evidence",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 785,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\final-focused-logs\\run-1793241160821-iwuqw2\\lang_contracts_literal-dialect-evidence.attempt-1.log",
+            "sha256": "161511931a0fef5891788c990d4628d9674f045ed97f34f2c337cf1eab7a61c8"
+          }
+        ]
+      }
+    ]
+  },
+  "repairedOriginalFailures": [
+    {
+      "id": "indexing/embeddings/vector-spool-original-lifetime/replaced-directory",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793237959209-18xww4\\indexing_embeddings_vector-spool-original-lifetime_replaced-directory.attempt-1.log",
+          "sha256": "ed8f973dfe75b3547d6f39302e466b2e73500f8c843120e4aa797e88873e62f1"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793237959209-18xww4\\indexing_embeddings_vector-spool-original-lifetime_replaced-directory.attempt-1.failure.json",
+          "sha256": "fb0ae6e7fb140ad48537c352d20c9409960500bd8d8773a65c04de770f2fb172"
+        }
+      ]
+    },
+    {
+      "id": "indexing/file-processor/scheduler-degradation-scope",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238254223-i9bpj6\\indexing_file-processor_scheduler-degradation-scope.attempt-1.log",
+          "sha256": "52535339549f0188f0178d2d30a733519add23f539b313a11da08ce26c987434"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238254223-i9bpj6\\indexing_file-processor_scheduler-degradation-scope.attempt-1.failure.json",
+          "sha256": "e2b4cb95e21a40e17636d23d0965a7ec6c9ac838c57fc6237f305f20e138fddd"
+        }
+      ]
+    },
+    {
+      "id": "indexing/file-processor/segmented-local-relations",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238286801-rdd344\\indexing_file-processor_segmented-local-relations.attempt-1.log",
+          "sha256": "8528af132a796c0efa11bc1a10a45c60ae06dc7e95bb20aa0633aa22f36b947c"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238286801-rdd344\\indexing_file-processor_segmented-local-relations.attempt-1.failure.json",
+          "sha256": "defacf4a8b4e46c34a1777de76f62daeeba92cf0327a34a6dcbe1a317a51de71"
+        }
+      ]
+    },
+    {
+      "id": "indexing/incremental/stage-checkpoint-refresh",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238343913-2bikf0\\indexing_incremental_stage-checkpoint-refresh.attempt-1.log",
+          "sha256": "a87626340a302c0949912182011f7cdc816581ee563746a2ecf6345fb1dfb854"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238343913-2bikf0\\indexing_incremental_stage-checkpoint-refresh.attempt-1.failure.json",
+          "sha256": "2cf32d18337fb51b1d2f0e94eb4393c40f2199a7377667b6f82aba4cdad234ba"
+        }
+      ]
+    },
+    {
+      "id": "indexing/runtime/dictionary-content-qualified-reuse",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238463349-iqkanw\\indexing_runtime_dictionary-content-qualified-reuse.attempt-1.log",
+          "sha256": "28f4369611dbbb32716e3f5df33d098291fdde78ef20db3c6e95e27498827b17"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238463349-iqkanw\\indexing_runtime_dictionary-content-qualified-reuse.attempt-1.failure.json",
+          "sha256": "07b5b6e4a4853ab71aa40d4dd1e6df8e65bb9d51f26155bdd5d51e720427f2f5"
+        }
+      ]
+    },
+    {
+      "id": "indexing/semantic/drain-publication-authority",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238669600-9hgfwa\\indexing_semantic_drain-publication-authority.attempt-1.log",
+          "sha256": "676fb09e0a7c681d987452c71d369b4f037a1eb928c4161ed125905514124d70"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238669600-9hgfwa\\indexing_semantic_drain-publication-authority.attempt-1.failure.json",
+          "sha256": "c92ca90e1c9b98127ec2d9dd462026e395bc2fa349f4ec07355f6f6e9449d233"
+        }
+      ]
+    },
+    {
+      "id": "indexing/semantic/provider-merge-batch-work",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238785103-46v4ig\\indexing_semantic_provider-merge-batch-work.attempt-1.log",
+          "sha256": "a459157b760a7e56bbd6dd6f28339dcbb6e99cadf4e24b4302438c7023b47fc3"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238785103-46v4ig\\indexing_semantic_provider-merge-batch-work.attempt-1.failure.json",
+          "sha256": "f95f1921233a9938544b2facbe252bee01c87a2734f334f687d194779f6323db"
+        }
+      ]
+    },
+    {
+      "id": "indexing/stage1/comment-policy-extras-cache",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238999162-58ncuj\\indexing_stage1_comment-policy-extras-cache.attempt-1.log",
+          "sha256": "67a1163bdee670653b177b1dace236cd862194afd3643431c148521ef53d6761"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238999162-58ncuj\\indexing_stage1_comment-policy-extras-cache.attempt-1.failure.json",
+          "sha256": "8617be94ed3ec765664d0c26e2cb55ddb6978b0de27a8d020c2e5e7a56b35b7d"
+        }
+      ]
+    },
+    {
+      "id": "lang/contracts/literal-dialect-evidence",
+      "originalStatus": "failed",
+      "originalTimedOut": false,
+      "originalExitCode": 1,
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239639778-pf2k14\\lang_contracts_literal-dialect-evidence.attempt-1.log",
+          "sha256": "3e39e7cbc90d3af89a260acf3932f918941a5d72291aded81bc0c6d6230e8030"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239639778-pf2k14\\lang_contracts_literal-dialect-evidence.attempt-1.failure.json",
+          "sha256": "cffda4eafcd8b0b0cb877acb7510da9d000307e77fcb7ebbf6ac88095af14abd"
+        }
+      ]
+    }
+  ],
+  "originalCampaign": "windows-partial-validation-checkpoint-305-2026-10-28.json",
+  "remainingObservedFailures": [
+    "indexing/build/stage4-mixed-mode-generations",
+    "indexing/chunk-id/backend-parity",
+    "indexing/chunking/formats/format-fidelity",
+    "indexing/incremental/document-extraction-receipt",
+    "indexing/policy/shared-module-review-files",
+    "indexing/postings/vector-only-service-embeddings-pending-artifacts",
+    "indexing/registry-borrowed-lock-capability",
+    "indexing/risk/rules/external-policy-admission",
+    "indexing/segments/rust-comment-occurrences/raw-hash-budget",
+    "indexing/semantic/runtime-query-pagination",
+    "indexing/semantic/ssr-snapshot-witness-incremental",
+    "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+    "indexing/state/patch-queue-contract-matrix",
+    "indexing/tokenization/file-stream-punctuation-parity",
+    "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+    "indexing/semantic/native-flow-pull-writer",
+    "indexing/tree-sitter/scheduler-native-language-contract",
+    "indexing/tree-sitter/scheduler-native-smoke",
+    "indexing/workers/coarse-file-analysis-facade/worker",
+    "indexing/workers/process-pool-lifecycle",
+    "indexing/workers/quantize-cleanup-failure-admission",
+    "indexing/workers/worker-pool-gc-pressure-telemetry",
+    "integrations/core/embedding-plan-handoff",
+    "integrations/core/embedding-plan-late-binding/generation-scope",
+    "integrations/core/embedding-plan-late-binding/immutable",
+    "integrations/core/embedding-plan-late-binding/inactive",
+    "integrations/core/embedding-plan-late-binding/mode-scope",
+    "integrations/core/embedding-plan-late-binding/profile",
+    "integrations/core/embedding-plan-late-binding/selection",
+    "lang/contracts/html-prepared-source",
+    "lang/contracts/jsonc-structure-boundaries",
+    "lang/javascript/jsdoc-comment-ownership/byte-budget",
+    "perf/bench/artifact-report-admission/actual-report",
+    "perf/bench/embedding-bakeoff-phase-lifecycle",
+    "perf/bench/language-lock",
+    "perf/bench/language-query-capabilities",
+    "perf/bench/language-sqlite-zero-mode-status"
+  ],
+  "frontGate": {
+    "format": {
+      "command": "npm run format",
+      "exitCode": 0,
+      "log": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\format-final.log",
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+      }
+    },
+    "checks": [
+      {
+        "name": "config-budget",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\config-budget.log",
+          "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188"
+        },
+        "startedAt": "2026-10-29T02:33:45.0721731Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:33:48.8342181Z",
+        "command": "npm",
+        "arguments": [
+          "run",
+          "config:budget"
+        ]
+      },
+      {
+        "name": "env-check",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\env-check.log",
+          "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91"
+        },
+        "startedAt": "2026-10-29T02:33:48.8492442Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:33:50.3342913Z",
+        "command": "npm",
+        "arguments": [
+          "run",
+          "env:check"
+        ]
+      },
+      {
+        "name": "generated-freshness",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\generated-freshness.log",
+          "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6"
+        },
+        "startedAt": "2026-10-29T02:33:50.3384236Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:34:03.2030645Z",
+        "command": "node",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ]
+      },
+      {
+        "name": "command-surface",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\command-surface.log",
+          "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577"
+        },
+        "startedAt": "2026-10-29T02:34:03.2052814Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:34:05.9984591Z",
+        "command": "node",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ]
+      },
+      {
+        "name": "workflow-contract",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\workflow-contract.log",
+          "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f"
+        },
+        "startedAt": "2026-10-29T02:34:06.0005331Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:34:06.2500701Z",
+        "command": "node",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ]
+      },
+      {
+        "name": "gate",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\gate.log",
+          "sha256": "b335c5c910683ccf0a883fa0012e750ce64f4a945c7ce2a61e95d54f8f6fc738"
+        },
+        "startedAt": "2026-10-29T02:34:06.2520252Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:34:13.6718073Z",
+        "command": "node",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          ".tmp/tasks/windows-focused-repairs-306-20261028/gate.json",
+          "--log-dir",
+          ".tmp/tasks/windows-focused-repairs-306-20261028/gate-logs"
+        ]
+      },
+      {
+        "name": "diff-check",
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\diff-check.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "startedAt": "2026-10-29T02:34:13.6736251Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-29T02:34:13.7459703Z",
+        "command": "git",
+        "arguments": [
+          "diff",
+          "--check"
+        ]
+      }
+    ],
+    "gateReport": {
+      "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\gate.json",
+      "sha256": "53ab00fec79fbdbeae49bf8e006179085766d358f9b640165fcebbfb7aff17ba"
+    },
+    "gateSummary": {
+      "durationMs": 4605,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    },
+    "finalDiff": {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "log": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\final-diff-check.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "documentation": {
+    "report": {
+      "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\docs-recheck.json",
+      "sha256": "df560f042579c4d8843ad182d332b5432694e0eaa9ca45dc4cf9db446d0e1833"
+    },
+    "summary": {
+      "durationMs": 625,
+      "failed": 0,
+      "passed": 1,
+      "skipped": 0,
+      "total": 1
+    },
+    "tests": [
+      {
+        "id": "tooling/docs/contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 621,
+        "attempts": 1,
+        "logs": [
+          {
+            "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-repairs-306-20261028\\docs-recheck-logs\\run-1793241359611-w7eacl\\tooling_docs_contract-matrix.attempt-1.log",
+            "sha256": "96b79de8be108a59dd924f7a60377b612a41c4abbfe9c298639a078e2bcf7a02"
+          }
+        ]
+      }
+    ],
+    "originalSizeFailure": {
+      "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\docs-focused.json",
+      "sha256": "c496d779a022fdfefe5ab87f807b3212f477c972a3e65c590cc71676376cf49c"
+    },
+    "roadmapCRLFBytes": 19900
+  },
+  "earlierFocusedRuns": [
+    {
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\affected.json",
+        "sha256": "43bbacac6e76089f3138c68a9ebf48470e5e561213c476a0154be521ee3d1d33"
+      },
+      "summary": {
+        "durationMs": 21923,
+        "failed": 2,
+        "passed": 21,
+        "skipped": 0,
+        "total": 23
+      }
+    },
+    {
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\chunking-recheck.json",
+        "sha256": "94920a4406b548c7099c73692ba1fe5dd26d39fcb28216ef4b0fc3d1ff744d98"
+      },
+      "summary": {
+        "durationMs": 2554,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2
+      }
+    },
+    {
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\chunking-diagnostic.json",
+        "sha256": "c4592ba8fce84b04cbaad5ddea91ea9c35e4abf74163dcf491afdd3495b81740"
+      },
+      "summary": {
+        "durationMs": 2510,
+        "failed": 1,
+        "passed": 1,
+        "skipped": 0,
+        "total": 2
+      }
+    }
+  ],
+  "earlierAstroConsoleLog": {
+    "historicalPath": ".tmp\\tasks\\windows-focused-repairs-306-20261028\\astro-recheck.log",
+    "sha256": "599c066a98ba68dc3ef11a37261f82a2535d701a14101c014720e3d948dc750d"
+  },
+  "interpretation": [
+    "Nine original failures repaired, 17 direct regression controls; all 26 pass at the source head.",
+    "Documentation-only publication changes follow this source head; no full final-tree suite pass is claimed.",
+    "Windows directory replacement is stat fault injection through the real lifetime owner. POSIX actual rename coverage remains separate.",
+    "Original assertions, strict source-span/schema authority, thresholds and deadlines are retained.",
+    "Raw .tmp logs are historical author-workspace evidence, not files promised in clean checkouts."
+  ]
+}

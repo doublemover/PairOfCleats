@@ -164,18 +164,21 @@ function runMergeBench({ runs, samples, fn }) {
   const timings = [];
   let totalMs = 0;
   let checksum = 0;
+  let completedItems = 0;
   const items = runs.reduce((sum, run) => sum + run.length, 0);
   for (let i = 0; i < samples; i += 1) {
     const start = process.hrtime.bigint();
     const result = fn(runs);
+    completedItems += result.count;
     const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
     timings.push(elapsed);
     totalMs += elapsed;
     checksum = (checksum + (result?.checksum || 0)) % 1000000007;
   }
   const stats = summarizeDurations(timings);
-  const itemsPerSec = totalMs > 0 ? items / (totalMs / 1000) : 0;
-  return { totalMs, itemsPerSec, stats, checksum };
+  const itemsPerSec = totalMs > 0 ? completedItems / (totalMs / 1000) : 0;
+  return { schemaVersion: 2, totalMs, items, completedItems, completedSamples: timings.length,
+    rateScope: 'merged-items-across-all-repetitions', rawSampleDurationsMs: timings, itemsPerSec, stats, checksum };
 }
 
 function printBench(label, bench, items) {

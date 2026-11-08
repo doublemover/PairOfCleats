@@ -1,6 +1,9 @@
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { loadHnswIndex } from '../shared/hnsw.js';
 import { createVocabIndex } from './vocab-index.js';
+import path from 'node:path';
+import { embeddingBindingMismatches } from '../shared/embedding-generation.js';
+import { admitSortedPostings } from '../shared/posting-order.js';
 
 const CHUNK_FILE_META_FIELDS = Object.freeze([
   ['file', 'missing'],
@@ -40,14 +43,12 @@ export const hydrateChunksFromFileMeta = (
   chunkMeta,
   fileMetaById,
   {
-    churnAssignment = 'falsy-or-nullish',
-    skipWhenFileAndExt = false
+    churnAssignment = 'falsy-or-nullish'
   } = {}
 ) => {
   if (!fileMetaById) return;
   for (const chunk of Array.isArray(chunkMeta) ? chunkMeta : []) {
     if (!chunk) continue;
-    if (skipWhenFileAndExt && chunk.file && chunk.ext) continue;
     const meta = fileMetaById.get(chunk.fileId);
     if (!meta) continue;
     for (const [field, defaultMode] of CHUNK_FILE_META_FIELDS) {
@@ -77,6 +78,7 @@ export const hydrateSearchIndexPostProcessing = (
   if (idx?.fieldPostings?.fields) {
     for (const field of Object.keys(idx.fieldPostings.fields)) {
       ensureVocabIndex(idx.fieldPostings.fields[field]);
+      admitSortedPostings(idx.fieldPostings.fields[field]);
     }
   }
   idx.filterIndex = includeFilterIndex
@@ -91,10 +93,35 @@ export const loadSearchHnswIndex = ({
   indexPath,
   hnswConfig,
   hnswMeta,
+  embeddingsState = null,
+  strict = true,
   denseVec = null,
   denseVecDoc = null,
   denseVecCode = null
 }) => {
+  if (embeddingsState?.ready === false || embeddingsState?.pending === true) return { index: null, available: false };
+  const backendState = embeddingsState?.backends?.hnsw;
+  if (backendState?.enabled === false || (backendState?.available === false
+    && (!hnswMeta.variant || backendState.target === hnswMeta.variant))) return { index: null, available: false };
+  const mismatches = embeddingBindingMismatches(hnswMeta, embeddingsState);
+  for (const dense of [denseVec, denseVecDoc, denseVecCode]) {
+    if (dense && embeddingsState?.embeddingGeneration
+      && dense.embeddingGeneration !== embeddingsState.embeddingGeneration) mismatches.push('dense embeddingGeneration');
+  }
+  if (hnswMeta.backendGeneration) {
+    const expectedSuffix = hnswMeta.backendGeneration.split('/');
+    const actual = path.dirname(indexPath).split(path.sep);
+    if (actual.slice(-expectedSuffix.length).join('/') !== expectedSuffix.join('/')) mismatches.push('backendGeneration path');
+    const variant = hnswMeta.variant;
+    const expectedName = variant === 'merged' ? 'dense_vectors_hnsw.bin' : `dense_vectors_${variant}_hnsw.bin`;
+    if (!['merged', 'doc', 'code'].includes(variant) || path.basename(indexPath) !== expectedName) mismatches.push('backend variant path');
+  } else if (embeddingsState?.embeddingGeneration) {
+    mismatches.push('backendGeneration');
+  }
+  if (mismatches.length) {
+    if (strict) throw new Error(`Embedding identity mismatch detected before HNSW load: ${mismatches.join(', ')}`);
+    return { index: null, available: false };
+  }
   const mergedConfig = {
     ...hnswConfig,
     space: hnswMeta.space || hnswConfig.space,

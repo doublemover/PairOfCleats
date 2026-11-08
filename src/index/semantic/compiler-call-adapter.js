@@ -1,12 +1,10 @@
+import { unwrapCompilerExpression } from './compiler-property-paths.js';
 /** Source-backed Function.call/apply/bind adapters. These are may candidates:
  * method replacement, escaping bound values and runtime receiver coercion remain open. */
 export const compilerCallAdapter = ({ ts, checker, node, isDefaultLibrary }) => {
   if (!node || !ts.isCallExpression(node) || typeof isDefaultLibrary !== 'function') return null;
   const reasons = new Set();
-  const unwrap = value => {
-    while (value && (ts.isParenthesizedExpression(value) || ts.isAsExpression(value) || ts.isNonNullExpression(value))) value = value.expression;
-    return value;
-  };
+  const unwrap = value => unwrapCompilerExpression(ts, value);
   const intrinsic = (call, names) => {
     if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression) || !names.includes(call.expression.name.text)) return null;
     const declaration = checker.getResolvedSignature(call)?.declaration;

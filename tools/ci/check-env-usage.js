@@ -13,7 +13,7 @@ const envRegexes = [
   /\{\s*[^}]*PAIROFCLEATS_[A-Z0-9_]+[^}]*}\s*=\s*process\.env/g
 ];
 
-const excludedDirectories = new Set(['node_modules', '.git', 'tests', 'docs', 'worktrees', '.worktrees', 'temp', '.testLogs']);
+const excludedDirectories = new Set(['node_modules', '.git', 'tests', 'docs', 'worktrees', '.worktrees', 'temp', '.tmp', '.testLogs']);
 
 export const findEnvUsageViolations = async (root) => {
   const allowedFile = toPosix(path.join(root, 'src', 'shared', 'env.js'));

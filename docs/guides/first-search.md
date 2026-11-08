@@ -5,6 +5,10 @@ helps you choose a first build, validate its configuration and search the result
 Commands are run from the PairOfCleats checkout; replace
 `"path/to/your-project"` with your target repository.
 
+For an executable read-only profile/operation preview, use
+[setup planning](setup.md#review-a-first-search-plan). Existing installations use
+the [state-preserving upgrade runbook](upgrades.md).
+
 ## Choose what to index
 
 Build `code` first to search source files. Use `prose` for documentation,
@@ -14,14 +18,14 @@ You can add other modes later instead of starting with everything at once.
 ## A conservative first-run configuration
 
 Create or merge the following into `.pairofcleats.json` in the target repository.
-It keeps embedding execution and automatic tool installation off, uses modest
+It keeps embedding execution and automatic tool enablement off, uses modest
 concurrency and leaves richer type inference for a later choice.
 
+<!-- poc:recipe first-search-config kind=config effects=read-only expected=effective-sparse-config -->
 ```json
 {
   "threads": 1,
   "tooling": {
-    "autoInstallOnDetect": false,
     "autoEnableOnDetect": false
   },
   "indexing": {
@@ -56,9 +60,14 @@ The thread/scheduler controls limit concurrent work; they are not a fixed RAM ca
 for every repository or external process. This is a starting profile you can tune
 after your first useful search. Richer type information and language services can
 be enabled deliberately when you need them.
+Automatic tool installation is controlled by reviewed user-owned policy. An
+untrusted repository's `tooling.autoInstallOnDetect` setting is discarded;
+inspect the effective configuration instead of relying on a repository-local
+`false` value to override user policy.
 
 Check the config before building:
 
+<!-- poc:recipe first-search-validate-config shell=portable effects=read-only prerequisites=verified-bootstrap expected=raw-schema-accepted -->
 ```sh
 node bin/pairofcleats.js config validate --repo "path/to/your-project"
 ```
@@ -69,6 +78,7 @@ and [schema](../config/schema.json) describe supported keys.
 
 ## Build and check the code index
 
+<!-- poc:recipe first-search-build-code shell=portable effects=derived-build prerequisites=verified-bootstrap expected=code-generation-validated -->
 ```sh
 node bin/pairofcleats.js index build --repo "path/to/your-project" --mode code --threads 1 --no-sqlite
 node bin/pairofcleats.js index validate --repo "path/to/your-project" --mode code
@@ -81,18 +91,21 @@ first build does not need a SQLite search database.
 
 Find a word or symbol:
 
+<!-- poc:recipe first-search-query shell=portable effects=read-only prerequisites=verified-bootstrap,validated-code-index expected=target-attributed-results -->
 ```sh
 node bin/pairofcleats.js search --repo "path/to/your-project" --mode code --backend memory --top 5 -- "cache"
 ```
 
 Narrow to a directory:
 
+<!-- poc:recipe first-search-path-query shell=portable effects=read-only prerequisites=verified-bootstrap,validated-code-index expected=path-filtered-results -->
 ```sh
 node bin/pairofcleats.js search --repo "path/to/your-project" --mode code --backend memory --path src -- "cache"
 ```
 
 Get structured output for a tool:
 
+<!-- poc:recipe first-search-json-query shell=portable effects=read-only prerequisites=verified-bootstrap,validated-code-index expected=structured-search-result -->
 ```sh
 node bin/pairofcleats.js search --repo "path/to/your-project" --mode code --backend memory --json --compact -- "cache"
 ```
@@ -107,6 +120,7 @@ Add `--explain` when you want ranking details. See the
 
 ## Add documentation search
 
+<!-- poc:recipe first-search-prose shell=portable effects=derived-build prerequisites=verified-bootstrap expected=prose-search-result -->
 ```sh
 node bin/pairofcleats.js index build --repo "path/to/your-project" --mode prose --threads 1 --no-sqlite
 node bin/pairofcleats.js search --repo "path/to/your-project" --mode prose --backend memory --top 5 -- "installation"

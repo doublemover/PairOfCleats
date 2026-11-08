@@ -156,6 +156,7 @@ const resolveFormatChunkVersion = (chunk) => sha1(stableStringify({
   chunkUid: chunk?.chunkUid || chunk?.metaV2?.chunkUid || null,
   fileHash: chunk?.fileHash || chunk?.metaV2?.fileHash || null,
   fileHashAlgo: chunk?.fileHashAlgo || chunk?.metaV2?.fileHashAlgo || null,
+  recordSource: chunk?.recordSource || chunk?.metaV2?.recordSource || null,
   lastModified: chunk?.last_modified || null,
   name: chunk?.name || null,
   kind: chunk?.kind || null,

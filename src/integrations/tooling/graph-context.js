@@ -33,6 +33,7 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
     scriptName: 'graph-context',
     argv: ['node', 'graph-context', ...rawArgs],
     options: buildGraphCliOptions({
+      pathSemantics: { type: 'string', choices: ['graph-witness'] },
       seed: { type: 'string' },
       includePaths: { type: 'boolean', default: false }
     })
@@ -64,14 +65,17 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
     const graphInputs = await prepareGraphInputs({
       repoRoot,
       indexDir,
-      strict: true
+      strict: true,
+      includeChunkMeta: seed.type === 'chunk' && graphSelection?.includes('importGraph')
+        && !graphSelection.includes('callGraph') && !graphSelection.includes('usageGraph')
     });
     const { graphIndex } = await prepareGraphIndex({
       repoRoot,
       indexDir,
       selection: graphSelection,
       strict: true,
-      graphInputs
+      graphInputs,
+      chunkFileFact: graphInputs.chunkMeta?.find(row => row.chunkUid === seed.chunkUid) || null
     });
 
     const pack = buildGraphContextPack({
@@ -82,6 +86,7 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
       edgeFilters,
       caps,
       includePaths: argv.includePaths === true,
+      pathSemantics: argv.pathSemantics,
       indexCompatKey: graphInputs.indexCompatKey || null,
       indexSignature: graphInputs.indexSignature || null,
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),

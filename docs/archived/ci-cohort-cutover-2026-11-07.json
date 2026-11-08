@@ -1,0 +1,1662 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-07",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "implementationCommit": "b4ff222ec22253ebe43e9486b0896ce7441ce450",
+  "sourceParent": "8b78b66405b2afad019b7092952fa089f36b7004",
+  "scope": "Replace monolithic OS CI jobs with separate OS workflows, exact correctness shards and independently bounded serial owners.",
+  "evidenceScope": "Focused observations at repair checkpoints, including retained original failures and affected rechecks. No full-suite or final-head hosted pass is claimed.",
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "setup": {
+    "dependencyInputsChanged": false,
+    "existingReadinessExercisedByGuardedEntries": true,
+    "verificationOwner": "docs/archived/windows-issue-validation-2026-11-07.json",
+    "newBootstrapOrNativeRebuild": false
+  },
+  "architecture": {
+    "platforms": [
+      "ubuntu",
+      "windows",
+      "macos"
+    ],
+    "correctnessShardsPerOS": 4,
+    "correctnessJobs": 2,
+    "serialJobs": 1,
+    "indexingThreads": 1,
+    "fixtureTimeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "sdkOwner": "tooling",
+    "requiredStableChecks": [
+      "ubuntu",
+      "windows",
+      "macos"
+    ],
+    "windowsPlan": {
+      "source": "8b78b66405b2afad019b7092952fa089f36b7004",
+      "digest": "776cd7001cb3e0185e69c87786bba50d2aa6ad72efaed95f1d47fc2791213447",
+      "definitions": "d2d4e5ce1f5c3eee2ecc9dee16b2207d80d20d7f7639bf5cdff2bce7d104342c",
+      "groups": [
+        {
+          "key": "tooling",
+          "cases": 0,
+          "labels": [
+            "Capability gate",
+            "Tooling doctor gate",
+            "Tooling LSP SLO gate",
+            "Tooling LSP replay gate",
+            "Tooling LSP default-enable gate",
+            "Tooling LSP bench guardrail",
+            "Import resolution SLO gate"
+          ]
+        },
+        {
+          "key": "usr",
+          "cases": 0,
+          "labels": [
+            "USR guardrail (item 35: framework canonicalization)",
+            "USR guardrail (item 36: backward-compatibility matrix)",
+            "USR guardrail (item 37: governance drift)",
+            "USR guardrail (item 38: catalog contract)",
+            "USR guardrail (item 39: normalization linking identity)",
+            "USR guardrail (item 40: pipeline incremental transforms)"
+          ]
+        },
+        {
+          "key": "compiler",
+          "cases": 33,
+          "labels": [
+            "Serial compiler/build CLI contracts"
+          ]
+        },
+        {
+          "key": "runtime",
+          "cases": 195,
+          "labels": [
+            "Serial runtime budgets"
+          ]
+        },
+        {
+          "key": "correctness-1",
+          "cases": 735,
+          "labels": [
+            "CI test lane"
+          ]
+        },
+        {
+          "key": "correctness-2",
+          "cases": 735,
+          "labels": [
+            "CI test lane"
+          ]
+        },
+        {
+          "key": "correctness-3",
+          "cases": 735,
+          "labels": [
+            "CI test lane"
+          ]
+        },
+        {
+          "key": "correctness-4",
+          "cases": 735,
+          "labels": [
+            "CI test lane"
+          ]
+        },
+        {
+          "key": "ann",
+          "cases": 5,
+          "labels": [
+            "Serial ANN generation"
+          ]
+        },
+        {
+          "key": "native",
+          "cases": 58,
+          "labels": [
+            "Serial native lifecycle"
+          ]
+        },
+        {
+          "key": "api",
+          "cases": 10,
+          "labels": [
+            "API contract cohort"
+          ]
+        },
+        {
+          "key": "lsp-shutdown",
+          "cases": 8,
+          "labels": [
+            "Serial LSP shutdown ownership qualification"
+          ]
+        },
+        {
+          "key": "crash-log",
+          "cases": 10,
+          "labels": [
+            "Serial crash-log ownership and latency qualification"
+          ]
+        },
+        {
+          "key": "windows-ownership",
+          "cases": 5,
+          "labels": [
+            "Windows subprocess ownership"
+          ]
+        }
+      ],
+      "runtimeSkips": {
+        "smoke/tantivy": {
+          "reason": "optional Tantivy smoke requires PAIROFCLEATS_TEST_TANTIVY=1 and its installed backend",
+          "owner": "Deferred experimental native qualification: #1627"
+        },
+        "shared/subprocess/tracked-leak-fails-process": {
+          "reason": "POSIX invalid-signal cleanup leak injection; Windows tracked shutdown has a separate owner.",
+          "owner": "Windows windows-ownership cohort; POSIX correctness shards"
+        },
+        "cli/general/signal-cleanup": {
+          "reason": "POSIX parent-signal cleanup; Windows TerminateProcess requires native acceptance.",
+          "owner": "Windows native-inspection and native-index-workflows-windows jobs; POSIX correctness shards"
+        }
+      }
+    },
+    "planningScope": "Windows plan is an actual local CLI discovery. Linux/macOS plans are generated on their own hosted runners, not simulated locally.",
+    "evidence": "Exact source/runtime/plan identity, complete test and gate inventories, report hashes, single attempts, bounded outcomes and actual job conclusions. Exact V8 range union; original per-shard profiles, logs and failures remain separate.",
+    "releaseArtifactNamesPreserved": [
+      "ci-quality-artifacts-ubuntu",
+      "ci-quality-artifacts-windows",
+      "ci-quality-artifacts-macos"
+    ]
+  },
+  "migratedOwners": {
+    "originalSource": "8b78b66405b2afad019b7092952fa089f36b7004",
+    "proof": [
+      {
+        "platform": "ubuntu",
+        "preservedToolingSteps": 13,
+        "explicitSerialOwners": [
+          "Serial LSP shutdown ownership qualification",
+          "Serial crash-log ownership and latency qualification"
+        ],
+        "exactArgvPreserved": true
+      },
+      {
+        "platform": "windows",
+        "preservedToolingSteps": 10,
+        "explicitSerialOwners": [
+          "Serial LSP shutdown ownership qualification",
+          "Serial crash-log ownership and latency qualification",
+          "Windows subprocess ownership"
+        ],
+        "exactArgvPreserved": true
+      },
+      {
+        "platform": "macos",
+        "preservedToolingSteps": 13,
+        "explicitSerialOwners": [
+          "Serial LSP shutdown ownership qualification",
+          "Serial crash-log ownership and latency qualification"
+        ],
+        "exactArgvPreserved": true
+      }
+    ]
+  },
+  "repairs": [
+    {
+      "original": "retrieval/ann/generation-rebuild-failure",
+      "replacement": [
+        "memory-fallback",
+        "sqlite-fallback",
+        "automatic-admission"
+      ],
+      "proof": "Each fresh world retains native writer faults/counts, fixed model/dimensions with changed normalization, old byte retention, manifest exclusion, availability and its original positive query. Canonical Stage1 API prepares inputs; independent compiler/build CLI cases retain Stage1 entry coverage. All child commands/status/output now upload under .testLogs. Original whole-case30-second limit remains.",
+      "intermediateFailure": "An unnecessarily added10-second seed-setup limit aborted an intermediate run. That new limit was removed; the original whole-case30-second bound was never raised. Both failure receipts and final passing observations remain embedded."
+    },
+    {
+      "original": "tooling/ci/run-suite-api-plan",
+      "replacement": [
+        "ci",
+        "nightly"
+      ],
+      "proof": "Both actual suite dry-runs and every distinct original CLI list/ownership/exclusion assertion remain in independently bounded fresh processes. Both replacements retain gate membership."
+    },
+    {
+      "original": "ci/native-inspection-workflow",
+      "proof": "Failed before with40!=22. Current accounting preserves71 original cases (49/22), verifies all18 native search cases separately, and retains7 exact TypeScript vendor cases;20-minute jobs and30-second fixtures unchanged."
+    }
+  ],
+  "publicationGate": {
+    "initialAttempt": [
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-format.log",
+        "exitCode": 0,
+        "name": "format"
+      },
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-config-budget.log",
+        "exitCode": 0,
+        "name": "config-budget"
+      },
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-env-check.log",
+        "exitCode": 0,
+        "name": "env-check"
+      },
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-generated-freshness.log",
+        "exitCode": 0,
+        "name": "generated-freshness"
+      },
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-command-surface.log",
+        "exitCode": 0,
+        "name": "command-surface"
+      },
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-workflow-contract.log",
+        "exitCode": 0,
+        "name": "workflow-contract"
+      },
+      {
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-sharding-20261107\\front-gate-gate.log",
+        "exitCode": 1,
+        "name": "gate"
+      }
+    ],
+    "resolution": "Initial45-case gate:43 pass, stale job inventory fails, combined plan case times out. Updated job inventory and both split plan cases pass targeted rechecks. Original43 passing cases are not represented as a new whole-lane rerun.",
+    "finalGovernance": [
+      "format",
+      "config budget",
+      "env usage",
+      "generated freshness",
+      "command surface",
+      "workflow contracts",
+      "diff check"
+    ],
+    "actionlint": {
+      "version": "1.7.12",
+      "archiveSha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+      "checked": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/ci-platform.yml"
+      ],
+      "excludedExternalExecutables": [
+        "shellcheck",
+        "pyflakes"
+      ]
+    }
+  },
+  "observations": [
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/affected-report.json",
+      "sha256": "342e8e1fcdc4dbadcba409e8d76d1d05573801f6ffad63d1219fd60c57349ebd",
+      "summary": {
+        "durationMs": 68175,
+        "failed": 0,
+        "passed": 18,
+        "skipped": 0,
+        "total": 18
+      },
+      "tests": [
+        {
+          "id": "ci/platform-cohort-contract",
+          "status": "passed",
+          "durationMs": 249,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/workflow-contract",
+          "status": "passed",
+          "durationMs": 306,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/exact-id-file",
+          "status": "passed",
+          "durationMs": 4974,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-equals-form",
+          "status": "passed",
+          "durationMs": 3732,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-flags",
+          "status": "passed",
+          "durationMs": 1287,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-malformed-json-skip",
+          "status": "passed",
+          "durationMs": 133,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-merge",
+          "status": "passed",
+          "durationMs": 123,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-path-normalization",
+          "status": "passed",
+          "durationMs": 156,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-physical-source-identity/identity-adapter",
+          "status": "passed",
+          "durationMs": 129,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "runner/harness/coverage-physical-source-identity/physical-consumer",
+          "status": "passed",
+          "durationMs": 1782,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/cohort-artifact-aggregation",
+          "status": "passed",
+          "durationMs": 423,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/cohort-plan-and-acceptance",
+          "status": "passed",
+          "durationMs": 1507,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "passed",
+          "durationMs": 17807,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-output-sanitization",
+          "status": "passed",
+          "durationMs": 549,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-path-normalization",
+          "status": "passed",
+          "durationMs": 527,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-script-coverage-plan",
+          "status": "passed",
+          "durationMs": 25679,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-admission-core",
+          "status": "passed",
+          "durationMs": 6579,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/install/bootstrap-readiness/entry-denial-core",
+          "status": "passed",
+          "durationMs": 2205,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/acceptance-final-report.json",
+      "sha256": "cbd00815d53299d3e30f5f1cf73ece809b914a31de76eedd3bd75503fabf9b8a",
+      "summary": {
+        "durationMs": 971,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "id": "tooling/ci/cohort-artifact-aggregation",
+          "status": "passed",
+          "durationMs": 396,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/cohort-plan-and-acceptance",
+          "status": "passed",
+          "durationMs": 569,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/gate-report.json",
+      "sha256": "58fca73f855e6053a69d8ef307ca4e6f65da83305fc002789878b0dd467ff178",
+      "summary": {
+        "durationMs": 74595,
+        "failed": 2,
+        "passed": 43,
+        "skipped": 0,
+        "total": 45
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 97,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 98,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 112,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 90,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 96,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 98,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 425,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 109,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 118,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 209,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 2928,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 388,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 322,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 590,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 521,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 523,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 527,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 506,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 507,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 781,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 508,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 1003,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 1149,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 1152,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 1084,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 940,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 788,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 1249,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1766,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 102,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1960,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 1011,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1634,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 1129,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 7208,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 2501,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 762,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 961,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 2576,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 3039,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/ordered-lane-discovery",
+          "status": "passed",
+          "durationMs": 433,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/platform-cohort-contract",
+          "status": "passed",
+          "durationMs": 232,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/gate-policy",
+          "status": "failed",
+          "durationMs": 213,
+          "attempts": 1,
+          "exitCode": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan",
+          "status": "failed",
+          "durationMs": 31129,
+          "attempts": 1,
+          "exitCode": 1,
+          "timedOut": true
+        },
+        {
+          "id": "tui/operator-command-dispositions",
+          "status": "passed",
+          "durationMs": 943,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/gate-repairs-report.json",
+      "sha256": "c235e7474d0fcba710bb46dc6af9162e5e5b9a6b74c208e54445b61990670465",
+      "summary": {
+        "durationMs": 48272,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "id": "ci/gate-policy",
+          "status": "passed",
+          "durationMs": 182,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan/ci",
+          "status": "passed",
+          "durationMs": 11565,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-api-plan/nightly",
+          "status": "passed",
+          "durationMs": 11675,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/run-suite-script-coverage-plan",
+          "status": "passed",
+          "durationMs": 24840,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/native-contract-before.json",
+      "sha256": "fccab54bf04ad4bd13b45b0ff5485fb2ce3fa11e518c62d7fe6882cafd3f7d92",
+      "summary": {
+        "durationMs": 534,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "ci/native-inspection-workflow",
+          "status": "failed",
+          "durationMs": 525,
+          "attempts": 1,
+          "exitCode": 1,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/final-cohort-contracts.json",
+      "sha256": "53c6d92cdbff33c1a1987bb05f0e30d5182148e0bc14353ff63a09718c4e88d1",
+      "summary": {
+        "durationMs": 2260,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 3,
+        "total": 8
+      },
+      "tests": [
+        {
+          "id": "ci/native-inspection-workflow",
+          "status": "passed",
+          "durationMs": 645,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/platform-cohort-contract",
+          "status": "passed",
+          "durationMs": 182,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/workflow-contract",
+          "status": "passed",
+          "durationMs": 272,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "cli/general/signal-cleanup",
+          "status": "skipped",
+          "durationMs": 89,
+          "attempts": 1,
+          "exitCode": 77,
+          "timedOut": false,
+          "skipReason": "POSIX parent-signal cleanup; Windows TerminateProcess requires native acceptance."
+        },
+        {
+          "id": "shared/subprocess/tracked-leak-fails-process",
+          "status": "skipped",
+          "durationMs": 89,
+          "attempts": 1,
+          "exitCode": 77,
+          "timedOut": false,
+          "skipReason": "POSIX invalid-signal cleanup leak injection; Windows tracked shutdown has a separate owner."
+        },
+        {
+          "id": "smoke/tantivy",
+          "status": "skipped",
+          "durationMs": 89,
+          "attempts": 1,
+          "exitCode": 77,
+          "timedOut": false,
+          "skipReason": "optional Tantivy smoke requires PAIROFCLEATS_TEST_TANTIVY=1 and its installed backend"
+        },
+        {
+          "id": "tooling/ci/cohort-artifact-aggregation",
+          "status": "passed",
+          "durationMs": 357,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/cohort-plan-and-acceptance",
+          "status": "passed",
+          "durationMs": 521,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/ann-driver-report.json",
+      "sha256": "8d33c9e252b1edb190f453e9cee8c396198e3f1548a241a5aade5dbfe517a12a",
+      "summary": {
+        "durationMs": 52098,
+        "failed": 1,
+        "passed": 2,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "retrieval/ann/generation-lmdb",
+          "status": "passed",
+          "durationMs": 19231,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-publication",
+          "status": "passed",
+          "durationMs": 2345,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure",
+          "status": "failed",
+          "durationMs": 30508,
+          "attempts": 1,
+          "exitCode": 1,
+          "timedOut": true
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/ann-driver-repaired-report.json",
+      "sha256": "e88ad01f52250ae2a5b364e5c702e58b26bdda642063d1eca132bb12934f41f7",
+      "summary": {
+        "durationMs": 85675,
+        "failed": 1,
+        "passed": 4,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "id": "retrieval/ann/generation-lmdb",
+          "status": "passed",
+          "durationMs": 17940,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-publication",
+          "status": "passed",
+          "durationMs": 2242,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/automatic-admission",
+          "status": "passed",
+          "durationMs": 23052,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/memory-fallback",
+          "status": "passed",
+          "durationMs": 29010,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/sqlite-fallback",
+          "status": "failed",
+          "durationMs": 13386,
+          "attempts": 1,
+          "exitCode": 1,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/ann-driver-final-report.json",
+      "sha256": "c456f2008e73f923c82a159ded9ce6de1df72b8a31160db718098652ce9e69a8",
+      "summary": {
+        "durationMs": 95969,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "id": "retrieval/ann/generation-lmdb",
+          "status": "passed",
+          "durationMs": 22841,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-publication",
+          "status": "passed",
+          "durationMs": 1847,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/automatic-admission",
+          "status": "passed",
+          "durationMs": 24236,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/memory-fallback",
+          "status": "passed",
+          "durationMs": 23370,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/sqlite-fallback",
+          "status": "passed",
+          "durationMs": 23659,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/ann-retained-phases-report.json",
+      "sha256": "b9b55023e4c5fdb7f7888c00d8301148487bb130b80efcd1cf73e8f94d0e7282",
+      "summary": {
+        "durationMs": 73077,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/automatic-admission",
+          "status": "passed",
+          "durationMs": 23349,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/memory-fallback",
+          "status": "passed",
+          "durationMs": 27960,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "retrieval/ann/generation-rebuild-failure/sqlite-fallback",
+          "status": "passed",
+          "durationMs": 21758,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/api-driver-report.json",
+      "sha256": "797fb5336205d0ab40538c05b2bf0ac7cebd44a80140011313cd249b9c36561c",
+      "summary": {
+        "durationMs": 128573,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "id": "services/api/core",
+          "status": "passed",
+          "durationMs": 23194,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/federated-filter-enumeration",
+          "status": "passed",
+          "durationMs": 7434,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/federated-search-validation-matrix",
+          "status": "passed",
+          "durationMs": 5195,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/graph-evidence-pages",
+          "status": "passed",
+          "durationMs": 8294,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/repo-authorization",
+          "status": "passed",
+          "durationMs": 28124,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/router-contract-matrix",
+          "status": "passed",
+          "durationMs": 2033,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/runtime-evidence",
+          "status": "passed",
+          "durationMs": 13973,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/search-contract-matrix",
+          "status": "passed",
+          "durationMs": 15128,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/search-stream-outcomes",
+          "status": "passed",
+          "durationMs": 2847,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "services/api/server-stream",
+          "status": "passed",
+          "durationMs": 22331,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/publication-contracts.json",
+      "sha256": "2963a8034ca96738e4bbfe226f7099d855df50057c404137cfe5da289b3420d6",
+      "summary": {
+        "durationMs": 2314,
+        "failed": 0,
+        "passed": 6,
+        "skipped": 0,
+        "total": 6
+      },
+      "tests": [
+        {
+          "id": "ci/gate-policy",
+          "status": "passed",
+          "durationMs": 178,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/native-inspection-workflow",
+          "status": "passed",
+          "durationMs": 690,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/platform-cohort-contract",
+          "status": "passed",
+          "durationMs": 185,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "ci/workflow-contract",
+          "status": "passed",
+          "durationMs": 314,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/cohort-artifact-aggregation",
+          "status": "passed",
+          "durationMs": 382,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/ci/cohort-plan-and-acceptance",
+          "status": "passed",
+          "durationMs": 552,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ]
+    }
+  ],
+  "sourceBlobs": [
+    {
+      "file": ".github/actions/ci-dependencies/action.yml",
+      "blob": "4e5bd9e7bc7c2d923aea9f4834e4f075757cef8b"
+    },
+    {
+      "file": ".github/actions/ci-tooling/action.yml",
+      "blob": "5b72ad3918d5acfb4ebb0b0429fffba6fc1af26c"
+    },
+    {
+      "file": ".github/workflows/ci-platform.yml",
+      "blob": "73b92c386c75c4f49e75fcf0f97a4cb59c3a5e70"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "blob": "975bb34063252ee0535d85cf5eac137654e953eb"
+    },
+    {
+      "file": "docs/config/inventory.json",
+      "blob": "51a44f8f1c1cd70ee7d752f0f5c732c0b71a4a03"
+    },
+    {
+      "file": "docs/config/inventory.md",
+      "blob": "6563f0494a74c69ecf184529e3d66eb979ba9535"
+    },
+    {
+      "file": "docs/guides/ci-gate-policy.md",
+      "blob": "2bd094978300fe522d685d0c87b9c5065ad60514"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "blob": "d8806386ece6656ad146eccc88dbaed1605d60bc"
+    },
+    {
+      "file": "docs/testing/ci-capability-policy.md",
+      "blob": "b031efdbefe5f8f87f090ba3cad4e03b917e6361"
+    },
+    {
+      "file": "docs/testing/qualification-matrix.md",
+      "blob": "b790782df391c99153558be5a12d7d96d60c7bca"
+    },
+    {
+      "file": "docs/testing/test-runner-interface.md",
+      "blob": "4ab65c9dc4bcf138a401eb681aa5415a14087b9c"
+    },
+    {
+      "file": "tests/ci-lite/ci-lite.manifest.json",
+      "blob": "a2f19563dc94798794a5fd8a8d43a018047c2099"
+    },
+    {
+      "file": "tests/ci-lite/ci-lite.order.txt",
+      "blob": "98a745a42c0db92b1c72a74e6b0bf335edaaacea"
+    },
+    {
+      "file": "tests/ci/gate-policy.test.js",
+      "blob": "70982dd83427f165cc7b5d30f19d19a72bf3eb69"
+    },
+    {
+      "file": "tests/ci/native-inspection-workflow.test.js",
+      "blob": "db9b7cf3b46302606f6c35fbaba06c6c72350374"
+    },
+    {
+      "file": "tests/ci/platform-cohort-contract.test.js",
+      "blob": "8b82c486b5713af576ce619f05510862e9483b1f"
+    },
+    {
+      "file": "tests/ci/workflow-contract.test.js",
+      "blob": "459baa95311b5201639aaba90f46db156b227947"
+    },
+    {
+      "file": "tests/gate/gate.manifest.json",
+      "blob": "4828cc0853bb6f67b80af1b4b486c5e0f3223220"
+    },
+    {
+      "file": "tests/gate/gate.order.txt",
+      "blob": "4398637d700c5f7803ff883f9e4d6c7e06d9fd27"
+    },
+    {
+      "file": "tests/helpers/ci-platform-workflow.js",
+      "blob": "3c6fabff2029055f8b986b1836e83aca0085a681"
+    },
+    {
+      "file": "tests/retrieval/ann/generation-rebuild-failure.test.js",
+      "blob": "080681b1fe3208545ff3c60cdcac602c7a446061"
+    },
+    {
+      "file": "tests/retrieval/ann/generation-rebuild-failure.test.js.cases.json",
+      "blob": "10d037c5c61d52eb8cb5543c41d3dd6af150b7e5"
+    },
+    {
+      "file": "tests/run.js",
+      "blob": "0d2e3eb5def5a444d03dfd3b027040ed45737884"
+    },
+    {
+      "file": "tests/runner/exact-id-file.test.js",
+      "blob": "49251a0ce63fa862b773fe032002faba378d6763"
+    },
+    {
+      "file": "tests/runner/run-args.js",
+      "blob": "ecdcc2c9180cdd09b3939e7727bbfa8a0571d5e2"
+    },
+    {
+      "file": "tests/runner/test-id-selection.js",
+      "blob": "73459a4604cd70a60c28bbf8c7b67cc6fcfdb9e9"
+    },
+    {
+      "file": "tests/tooling/ci/cohort-artifact-aggregation.test.js",
+      "blob": "16a244bec2a4582a293abad189656479517f263e"
+    },
+    {
+      "file": "tests/tooling/ci/cohort-plan-and-acceptance.test.js",
+      "blob": "fdf65cea1de34e1ad0b7c3909414d493e6ff8021"
+    },
+    {
+      "file": "tests/tooling/ci/run-suite-api-plan.test.js",
+      "blob": "b5136caecb16a94f1fc7b2a02403ed80803fb413"
+    },
+    {
+      "file": "tests/tooling/ci/run-suite-api-plan.test.js.cases.json",
+      "blob": "b7e98340ceae2a03ce737b16b63cc3d4429b17b8"
+    },
+    {
+      "file": "tests/tooling/install/bootstrap-readiness.test.js",
+      "blob": "a1d64c5a4f88d7e968ab6a19a3fa5ae41b3e180e"
+    },
+    {
+      "file": "tools/ci/aggregate-cohorts.js",
+      "blob": "1893f24dd8126bf300a0088116083b3b8b12ca66"
+    },
+    {
+      "file": "tools/ci/aggregate-platform-cohorts.js",
+      "blob": "3835488ec4135d911600201d47eed9e554a623f8"
+    },
+    {
+      "file": "tools/ci/cohort-plan.js",
+      "blob": "6c6ff08a026031d62108129cc85d91962711d3dc"
+    },
+    {
+      "file": "tools/ci/prepare-platform-cohorts.js",
+      "blob": "756c6f4f29ee5edf8d16d42b2a778e2444ae68c5"
+    },
+    {
+      "file": "tools/ci/run-platform-cohort.js",
+      "blob": "39a732f131d630568e8ba6b53fb0478971f31ed1"
+    },
+    {
+      "file": "tools/ci/run-suite.js",
+      "blob": "cc379a4411473b446d71a6686055b309848acd05"
+    },
+    {
+      "file": "tools/ci/suite-cohorts.js",
+      "blob": "ea6afe5fb4d16653e4479e8267c0c3c5eae682fa"
+    },
+    {
+      "file": "tools/testing/coverage/index.js",
+      "blob": "f4589bfd520596b6d11f56584c18e89104711029"
+    },
+    {
+      "file": "tools/testing/coverage/ranges.js",
+      "blob": "c10391b4e654805737890f38d6c1ae4b405ede8e"
+    }
+  ],
+  "remaining": [
+    "First hosted execution of the new graph, provisioning and aggregation on all three OSes is pending.",
+    "Earlier Windows campaign retains16 local pipeline failures. CI2362 at8b78 passes native/authority/Rust/gate jobs; its general jobs fail. The common native-workflow accounting failure is fixed here; six additional Windows general failures are outside this scheduling cutover.",
+    "Measured hosted speedup depends on runner availability and the slowest serial cohort; no throughput multiplier is claimed.",
+    "Experimental Tantivy native qualification, editor work, optional sqlite-vec, real-model evaluation and release qualification retain their separate scope."
+  ],
+  "workspaceEvidence": {
+    "historical": true,
+    "availableInCleanCheckout": false,
+    "note": "Embedded outcomes/hashes and committed source identities are durable. Ignored raw logs and task receipts are author-workspace evidence; hosted cohort artifacts are retained separately."
+  },
+  "hostedBootstrapFollowup": {
+    "sourceBase": "43c4e6064b56170b4fb435c756aa48ffca37dbf6",
+    "candidateIdentity": "Containing commit plus the exact source blobs below; original implementation observations remain unchanged.",
+    "originalHostedFailure": {
+      "run": 2363,
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42430969896",
+      "job": 128579548295,
+      "cause": "Dependency-security contract searched for the removed inline Windows bootstrap block. ONNX CPU policy also still inventoried the three removed monolithic jobs.",
+      "outcome": "The failed front gate prevented all OS cohorts from starting; stable OS completion checks correctly failed."
+    },
+    "repair": "Security coverage executes five controlled cases through the actual shared PowerShell bootstrap/pipeline code, covering missing cache, verified cache, failed verification/rebootstrap and nonzero bootstrap propagation. ONNX policy inspects every shared-action invocation and all three real caller runners. Actual vendor no-network installation and native CPU inference remain unchanged.",
+    "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/hosted-bootstrap-contracts.json",
+    "sha256": "bff79c26c25a514d496a4d4a2ca95c490883feaf2c3806b387ba76dadfda3eb0",
+    "summary": {
+      "durationMs": 14852,
+      "failed": 0,
+      "passed": 7,
+      "skipped": 0,
+      "total": 7
+    },
+    "tests": [
+      {
+        "id": "ci/dependency-security-contract",
+        "status": "passed",
+        "durationMs": 2711,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/duplicate-scanner-contract",
+        "status": "passed",
+        "durationMs": 1037,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/onnx-cpu-install-policy",
+        "status": "passed",
+        "durationMs": 432,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/workflow-contract",
+        "status": "passed",
+        "durationMs": 263,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-patch-enforcement",
+        "status": "passed",
+        "durationMs": 6654,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-rebuild-native",
+        "status": "passed",
+        "durationMs": 3654,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-signal-exit",
+        "status": "passed",
+        "durationMs": 88,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ],
+    "sourceBlobs": [
+      {
+        "file": "tests/ci/dependency-security-contract.test.js",
+        "blob": "f8cc63539915f487df78d2fb87c5c0a4fb7a1549"
+      },
+      {
+        "file": "tests/ci/onnx-cpu-install-policy.test.js",
+        "blob": "76b0fda77ad92aede046b49e6b784339376022a2"
+      }
+    ],
+    "formatExitCode": 0,
+    "hostedQualification": "Next candidate pending; local passing controls do not qualify hosted provisioning or full cohort execution."
+  },
+  "hostedBootstrapSingleHost": {
+    "sourceBase": "b4b78967b6f65702ee9ef7bce60d85eaa5d0e555",
+    "originalHostedFailure": {
+      "run": 2364,
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42431356654",
+      "job": 128580746586,
+      "observation": "A newly added PowerShell control exceeded its five-second per-launch cap. This does not identify which PowerShell phase consumed that time."
+    },
+    "repair": "One PowerShell host replaces five launches. The call operator retains five separate actual script exit boundaries, with exact native statuses, dispatch counts and unreachable-tail assertions. The original30-second whole-case limit includes startup; no retry or skip is used.",
+    "intermediateLocalFailure": "The initial remaining-time calculation was fractional; spawnSync requires an integer. Flooring the remaining budget fixes the control without changing its bound.",
+    "sourceBlob": {
+      "file": "tests/ci/dependency-security-contract.test.js",
+      "blob": "006ed9f98e3e45e4b6cb5c4d2fc0add2f08a5c0e"
+    },
+    "formatExitCode": 0,
+    "observations": [
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/bootstrap-single-host-report.json",
+        "sha256": "effe663bb116421b5f0b9baac63b66bc9918f5608154b95a5e42e5519a86d568",
+        "summary": {
+          "durationMs": 415,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "ci/dependency-security-contract",
+            "status": "failed",
+            "durationMs": 408,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/bootstrap-single-host-final-report.json",
+        "sha256": "0c9d7d68862a72840d986a177e3df991ac2fd196d67138cb38f503a19df50fd9",
+        "summary": {
+          "durationMs": 928,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "ci/dependency-security-contract",
+            "status": "passed",
+            "durationMs": 920,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      }
+    ],
+    "hostedQualification": "Pending next candidate; no whole-suite pass is claimed."
+  }
+}

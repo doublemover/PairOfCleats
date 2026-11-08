@@ -1,0 +1,1267 @@
+{
+  "schemaVersion": 1,
+  "encoding": "sha256-shared-json-tables-v1",
+  "data": {
+    "schemaVersion": 1,
+    "date": "2026-11-05",
+    "baseline": "dcdbec34755db57c1e389f4d07b9378f3d8d8fb8",
+    "originalHosted": {
+      "runId": 41983475628,
+      "jobId": 127099532887,
+      "passed": 40,
+      "failed": 1,
+      "outerTimeouts": 0,
+      "skipped": 0,
+      "fixture": "tui/operator-settings-authority",
+      "childTimeoutMs": 10000,
+      "childStdoutBytes": 0,
+      "childStderrBytes": 0,
+      "artifact": {
+        "id": 13395425828,
+        "bytes": 211367,
+        "sha256": "789c4385c021e75203456976ce375793525897b61ce7f5c6bed4cd66d0f3a3c7"
+      },
+      "failure": [
+        {
+          "path": ".testLogs/windows-authority/run-1793861847785-1672mt/tui_operator-settings-authority.attempt-1.failure.json",
+          "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"tui/operator-settings-authority\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\hostedtoolcache\\\\windows\\\\node\\\\26.13.0\\\\x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\hostedtoolcache\\\\windows\\\\node\\\\26.13.0\\\\x64\\\\node.exe\",\n    \"arguments\": [\n      \"D:\\\\a\\\\PairOfCleats\\\\PairOfCleats\\\\tests\\\\tui\\\\operator-settings-authority.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"D:\\\\a\\\\PairOfCleats\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 9004,\n    \"childPid\": 5684,\n    \"startedAt\": \"2026-11-05T06:58:29.992Z\",\n    \"endedAt\": \"2026-11-05T06:58:40.758Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"D:\\\\a\\\\PairOfCleats\\\\PairOfCleats\\\\.testLogs\\\\windows-authority\\\\run-1793861847785-1672mt\\\\tui_operator-settings-authority.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 1505,\n      \"retainedStringUnits\": 1505,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+        },
+        {
+          "path": ".testLogs/windows-authority/run-1793861847785-1672mt/tui_operator-settings-authority.attempt-1.log",
+          "text": "id: tui/operator-settings-authority\npath: tui/operator-settings-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nfile:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:333\r\n        void terminateAndReject((result) => new SubprocessTimeoutError('Subprocess timeout', result));\r\n                                            ^\r\n\r\nSubprocessTimeoutError: Subprocess timeout\r\n    at file:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:333:45\r\n    at file:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:110:17 {\r\n  code: 'SUBPROCESS_TIMEOUT',\r\n  result: {\r\n    pid: 1332,\r\n    exitCode: null,\r\n    signal: null,\r\n    durationMs: 10263,\r\n    stdout: '',\r\n    stderr: '',\r\n    outputCapture: {\r\n      stdout: {\r\n        enabled: true,\r\n        maxBytes: 1048576,\r\n        observedBytes: 0,\r\n        retainedBytes: 0,\r\n        droppedBytes: 0,\r\n        retainedBufferBytes: 0,\r\n        outputBytes: 0,\r\n        encodingLoss: false,\r\n        truncated: false\r\n      },\r\n      stderr: {\r\n        enabled: true,\r\n        maxBytes: 1048576,\r\n        observedBytes: 0,\r\n        retainedBytes: 0,\r\n        droppedBytes: 0,\r\n        retainedBufferBytes: 0,\r\n        outputBytes: 0,\r\n        encodingLoss: false,\r\n        truncated: false\r\n      }\r\n    },\r\n    termination: {\r\n      scope: 'spawned-child-close-only',\r\n      method: 'child-close-event',\r\n      closeObserved: true,\r\n      closeTimedOut: false,\r\n      waitMs: 500,\r\n      treeCleanupSettled: true,\r\n      treeCleanupFailed: false,\r\n      treeCleanupForced: true\r\n    }\r\n  }\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+        }
+      ]
+    },
+    "attribution": {
+      "demonstrated": "Settings inspection starts the general bin dispatcher, which starts a second Node command for the canonical dump. A real-process preload witnesses both command entries.",
+      "limits": "The silent timed-out hosted child has no captured native/JavaScript stack. The extra dispatch process is demonstrated avoidable startup work, not proof of a native deadlock or attribution of a last log line.",
+      "repair": "One private bootstrap-guarded worker dynamically imports the unchanged canonical config-dump entry. No in-process config substitution, fixture response or bootstrap bypass."
+    },
+    "contracts": {
+      "childTimeoutMs": 10000,
+      "wholeFixtureMs": 30000,
+      "maxOutputBytes": 1048576,
+      "retries": 0,
+      "nativeStatusRedo": false,
+      "authority": "All original selected-file, symlink, backup, lock, trust, redaction, stale/schema and explicit-confirmation checks remain.",
+      "scope": "Existing production subprocess isolation, environment, signal and output validation remain; general dispatch startup is removed."
+    },
+    "before": {
+      "report": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862478883-3p3wxz",
+        "summary": {
+          "durationMs": 2658,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 2650,
+            "exitCode": 1,
+            "id": "tui/operator-settings",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862478883-3p3wxz\\tui_operator-settings.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862478883-3p3wxz\\tui_operator-settings.attempt-1.failure.json"
+            ],
+            "path": "tui/operator-settings.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "log": "id: tui/operator-settings\npath: tui/operator-settings.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: one inspection must run one guarded canonical command, without another CLI dispatcher\r\n\r\n2 !== 1\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/tui/operator-settings.test.js:41:8 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: 2,\r\n  expected: 1,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    "focused": {
+      "report": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06",
+        "summary": {
+          "durationMs": 40084,
+          "failed": 0,
+          "passed": 7,
+          "skipped": 0,
+          "total": 7
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 8394,
+            "exitCode": 0,
+            "id": "tooling/config/dump-readonly-host",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tooling_config_dump-readonly-host.attempt-1.log"
+            ],
+            "path": "tooling/config/dump-readonly-host.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 955,
+            "exitCode": 0,
+            "id": "tooling/config/effective-explanation-authority",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tooling_config_effective-explanation-authority.attempt-1.log"
+            ],
+            "path": "tooling/config/effective-explanation-authority.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 7595,
+            "exitCode": 0,
+            "id": "tooling/config/runtime-diagnostics-readonly",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tooling_config_runtime-diagnostics-readonly.attempt-1.log"
+            ],
+            "path": "tooling/config/runtime-diagnostics-readonly.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 5559,
+            "exitCode": 0,
+            "id": "tui/operator-settings",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tui_operator-settings.attempt-1.log"
+            ],
+            "path": "tui/operator-settings.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 7428,
+            "exitCode": 0,
+            "id": "tui/operator-settings-lifecycle",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tui_operator-settings-lifecycle.attempt-1.log"
+            ],
+            "path": "tui/operator-settings-lifecycle.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 9204,
+            "exitCode": 0,
+            "id": "tui/operator-settings-remove",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tui_operator-settings-remove.attempt-1.log"
+            ],
+            "path": "tui/operator-settings-remove.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 937,
+            "exitCode": 0,
+            "id": "tui/operator-settings-retrieval-guardrails",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862602713-sl7x06\\tui_operator-settings-retrieval-guardrails.attempt-1.log"
+            ],
+            "path": "tui/operator-settings-retrieval-guardrails.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      "logs": [
+        {
+          "id": "tooling/config/dump-readonly-host",
+          "text": "id: tooling/config/dump-readonly-host\npath: tooling/config/dump-readonly-host.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nconfig dump read-only host test passed\n"
+        },
+        {
+          "id": "tooling/config/effective-explanation-authority",
+          "text": "id: tooling/config/effective-explanation-authority\npath: tooling/config/effective-explanation-authority.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nEffective config explanation distinguishes authority and readiness.\n"
+        },
+        {
+          "id": "tooling/config/runtime-diagnostics-readonly",
+          "text": "id: tooling/config/runtime-diagnostics-readonly\npath: tooling/config/runtime-diagnostics-readonly.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nruntime diagnostics read-only and redaction test passed\n"
+        },
+        {
+          "id": "tui/operator-settings",
+          "text": "id: tui/operator-settings\npath: tui/operator-settings.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTUI settings schema, real canonical preview/persistence, scope, cancellation and stale/reset contracts passed\n"
+        },
+        {
+          "id": "tui/operator-settings-lifecycle",
+          "text": "id: tui/operator-settings-lifecycle\npath: tui/operator-settings-lifecycle.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTUI settings retention, abort, schema/backup races, malformed recovery and scope lifecycle passed\n"
+        },
+        {
+          "id": "tui/operator-settings-remove",
+          "text": "id: tui/operator-settings-remove\npath: tui/operator-settings-remove.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTUI selective override removal preserves JSONC, unrelated overrides, cancellation and revision authority\n"
+        },
+        {
+          "id": "tui/operator-settings-retrieval-guardrails",
+          "text": "id: tui/operator-settings-retrieval-guardrails\npath: tui/operator-settings-retrieval-guardrails.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nSettings effective retrieval guardrail controls authored; execution deferred.\n"
+        }
+      ]
+    },
+    "acceptance": {
+      "bootstrapNegative": {
+        "report": {
+          "junit": null,
+          "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862733578-l6di4t",
+          "summary": {
+            "durationMs": 13847,
+            "failed": 0,
+            "passed": 1,
+            "skipped": 0,
+            "total": 1
+          },
+          "tests": [
+            {
+              "attempts": 1,
+              "durationMs": 13843,
+              "exitCode": 0,
+              "id": "tooling/install/bootstrap-readiness",
+              "lane": "unit",
+              "logs": [
+                "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862733578-l6di4t\\tooling_install_bootstrap-readiness.attempt-1.log"
+              ],
+              "path": "tooling/install/bootstrap-readiness.test.js",
+              "signal": null,
+              "skipReason": null,
+              "status": "passed",
+              "tags": [
+                "tooling",
+                "unit"
+              ],
+              "termination": null,
+              "timedOut": false,
+              "timeoutClass": null
+            }
+          ]
+        },
+        "log": "id: tooling/install/bootstrap-readiness\npath: tooling/install/bootstrap-readiness.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nBootstrap readiness: absent, incomplete, stale, native activation and CLI/test/bench admission passed\n"
+      },
+      "publicationGate": {
+        "status": "passed",
+        "checks": [
+          "npm run format",
+          "npm run config:budget",
+          "npm run env:check",
+          "node tools/docs/generated-surfaces.js --check-freshness",
+          "node tools/ci/check-command-surface.js",
+          "node tests/ci/workflow-contract.test.js",
+          "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+          "git diff --check"
+        ],
+        "report": {
+          "junit": null,
+          "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa",
+          "summary": {
+            "durationMs": 37926,
+            "failed": 0,
+            "passed": 43,
+            "skipped": 0,
+            "total": 43
+          },
+          "tests": {
+            "$columns": [
+              "attempts",
+              "durationMs",
+              "exitCode",
+              "id",
+              "lane",
+              "logs",
+              "path",
+              "signal",
+              "skipReason",
+              "status",
+              "tags",
+              "termination",
+              "timedOut",
+              "timeoutClass"
+            ],
+            "$rows": [
+              [
+                1,
+                74,
+                0,
+                "indexing/policy/hotpath-membership-guard",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+                ],
+                "indexing/policy/hotpath-membership-guard.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                72,
+                0,
+                "indexing/policy/module-cache-boundedness-contract",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+                ],
+                "indexing/policy/module-cache-boundedness-contract.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                82,
+                0,
+                "indexing/policy/generated-matrix",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_generated-matrix.attempt-1.log"
+                ],
+                "indexing/policy/generated-matrix.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                72,
+                0,
+                "indexing/contracts/artifact-surface-version",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_artifact-surface-version.attempt-1.log"
+                ],
+                "indexing/contracts/artifact-surface-version.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/n-minus-one-adapter",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+                ],
+                "indexing/contracts/n-minus-one-adapter.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/public-artifact-surface-doc",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+                ],
+                "indexing/contracts/public-artifact-surface-doc.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                176,
+                0,
+                "indexing/contracts/index-compatibility-key-generation",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-generation.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                70,
+                0,
+                "indexing/contracts/semver-policy-enforced",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+                ],
+                "indexing/contracts/semver-policy-enforced.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                79,
+                0,
+                "indexing/contracts/index-state-dense-sidecars-present",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+                ],
+                "indexing/contracts/index-state-dense-sidecars-present.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                159,
+                0,
+                "contracts/manifest-max-bytes-validation",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\contracts_manifest-max-bytes-validation.attempt-1.log"
+                ],
+                "contracts/manifest-max-bytes-validation.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1650,
+                0,
+                "indexing/policy/repo-inventory",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_repo-inventory.attempt-1.log"
+                ],
+                "indexing/policy/repo-inventory.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                246,
+                0,
+                "indexing/policy/shared-module-cycle-guard",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+                ],
+                "indexing/policy/shared-module-cycle-guard.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                220,
+                0,
+                "indexing/contracts/loader-matrix-parity",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+                ],
+                "indexing/contracts/loader-matrix-parity.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                295,
+                0,
+                "indexing/policy/analysis-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_analysis-schema.attempt-1.log"
+                ],
+                "indexing/policy/analysis-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                278,
+                0,
+                "indexing/contracts/snapshots",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_snapshots.attempt-1.log"
+                ],
+                "indexing/contracts/snapshots.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                282,
+                0,
+                "indexing/contracts/builds-current-repo-head-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+                ],
+                "indexing/contracts/builds-current-repo-head-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                287,
+                0,
+                "indexing/contracts/call-sites-schema",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_call-sites-schema.attempt-1.log"
+                ],
+                "indexing/contracts/call-sites-schema.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                279,
+                0,
+                "indexing/contracts/diffs",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_diffs.attempt-1.log"
+                ],
+                "indexing/contracts/diffs.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                294,
+                0,
+                "indexing/contracts/additional-properties-policy",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_additional-properties-policy.attempt-1.log"
+                ],
+                "indexing/contracts/additional-properties-policy.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                530,
+                0,
+                "indexing/contracts/index-compatibility-key-enforced-on-load",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                263,
+                0,
+                "indexing/contracts/schema-registry-single-source",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+                ],
+                "indexing/contracts/schema-registry-single-source.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                707,
+                0,
+                "tooling/api-contracts/caps",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_api-contracts_caps.attempt-1.log"
+                ],
+                "tooling/api-contracts/caps.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                819,
+                0,
+                "tooling/api-contracts/schema-validate",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_api-contracts_schema-validate.attempt-1.log"
+                ],
+                "tooling/api-contracts/schema-validate.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                837,
+                0,
+                "tooling/api-contracts/fail-on-warn",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+                ],
+                "tooling/api-contracts/fail-on-warn.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1193,
+                0,
+                "tooling/api-contracts/optional-params",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_api-contracts_optional-params.attempt-1.log"
+                ],
+                "tooling/api-contracts/optional-params.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1341,
+                0,
+                "tooling/api-contracts/large-call-sites",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_api-contracts_large-call-sites.attempt-1.log"
+                ],
+                "tooling/api-contracts/large-call-sites.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                964,
+                0,
+                "indexing/contracts/embedding-identity-gating-on-load",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+                ],
+                "indexing/contracts/embedding-identity-gating-on-load.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                939,
+                0,
+                "ci/capability-gate.smoke",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\ci_capability-gate_smoke.attempt-1.log"
+                ],
+                "ci/capability-gate.smoke.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1231,
+                0,
+                "indexing/contracts/index-compatibility-key-federation-block",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+                ],
+                "indexing/contracts/index-compatibility-key-federation-block.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                73,
+                0,
+                "indexing/policy/stable-entrypoints",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_stable-entrypoints.attempt-1.log"
+                ],
+                "indexing/policy/stable-entrypoints.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1641,
+                0,
+                "indexing/policy/optional-deps",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_optional-deps.attempt-1.log"
+                ],
+                "indexing/policy/optional-deps.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1052,
+                0,
+                "indexing/policy/analysis-gating",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_policy_analysis-gating.attempt-1.log"
+                ],
+                "indexing/policy/analysis-gating.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1166,
+                0,
+                "ci/tooling-doctor-gate.smoke",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+                ],
+                "ci/tooling-doctor-gate.smoke.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                700,
+                0,
+                "tooling/api-contracts/basic",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_api-contracts_basic.attempt-1.log"
+                ],
+                "tooling/api-contracts/basic.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "tooling"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                2513,
+                0,
+                "contracts/module-export-surface-compat",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\contracts_module-export-surface-compat.attempt-1.log"
+                ],
+                "contracts/module-export-surface-compat.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1264,
+                0,
+                "indexing/contracts/semantic-foundations",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_semantic-foundations.attempt-1.log"
+                ],
+                "indexing/contracts/semantic-foundations.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                354,
+                0,
+                "indexing/contracts/semantic-handoff-contracts",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+                ],
+                "indexing/contracts/semantic-handoff-contracts.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                539,
+                0,
+                "indexing/contracts/runtime-evidence",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_runtime-evidence.attempt-1.log"
+                ],
+                "indexing/contracts/runtime-evidence.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1483,
+                0,
+                "indexing/contracts/index-format-cutover",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\indexing_contracts_index-format-cutover.attempt-1.log"
+                ],
+                "indexing/contracts/index-format-cutover.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate",
+                  "indexing"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                1433,
+                0,
+                "ci/windows-authority-cohort",
+                "gate",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\ci_windows-authority-cohort.attempt-1.log"
+                ],
+                "ci/windows-authority-cohort.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "gate"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                247,
+                0,
+                "ci/ordered-lane-discovery",
+                "integration",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\ci_ordered-lane-discovery.attempt-1.log"
+                ],
+                "ci/ordered-lane-discovery.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "integration"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                153,
+                0,
+                "ci/gate-policy",
+                "integration",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\ci_gate-policy.attempt-1.log"
+                ],
+                "ci/gate-policy.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "integration"
+                ],
+                null,
+                false,
+                null
+              ],
+              [
+                1,
+                11685,
+                0,
+                "tooling/ci/run-suite-api-plan",
+                "unit",
+                [
+                  "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793862885938-llztfa\\tooling_ci_run-suite-api-plan.attempt-1.log"
+                ],
+                "tooling/ci/run-suite-api-plan.test.js",
+                null,
+                null,
+                "passed",
+                [
+                  "tooling",
+                  "unit"
+                ],
+                null,
+                false,
+                null
+              ]
+            ]
+          }
+        }
+      },
+      "hosted": "Pending push; Windows file-symlink authority is qualified only by the capable hosted job."
+    },
+    "historicalWorkspace": "Embedded receipts are durable. .tmp/.testLogs paths are author-workspace historical and need not exist in clean checkouts.",
+    "sourceBlobs": {
+      "tools/tui/operator/settings.js": "5514fad58d1ada1821412e588e9c32e769081346",
+      "tools/tui/operator/config-worker.js": "23244045c7114383ba7fd6b0bf8e104d33f9d8c1",
+      "tests/tui/operator-settings.test.js": "b3074be8679bea8b8c0b9ea4f845480c03330dc3",
+      "tests/tooling/install/bootstrap-readiness.test.js": "2684ccb9253bfbf4ba03894f49054464a64b0087",
+      "tools/config/dump.js": "813dea2de67c00941394ddb059d8ad4355534e35",
+      "tools/config/dump-payload.js": "21b90fca07cc8640df9f18badaa7f6b26ec39602"
+    }
+  },
+  "sharedValues": {},
+  "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+}

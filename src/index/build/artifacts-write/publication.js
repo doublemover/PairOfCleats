@@ -89,6 +89,7 @@ export const createArtifactOrderingRecorder = ({
 };
 
 export const runArtifactPublicationFinalizers = async ({
+  indexStatePublication = null,
   runTrackedArtifactCloseout,
   commitArtifactCleanup,
   listPieceEntries,
@@ -146,6 +147,7 @@ export const runArtifactPublicationFinalizers = async ({
   const publicationBuildRoot = buildRoot || path.resolve(outDir, '..');
   const publicationManifestPath = path.join(outDir, 'pieces', 'manifest.json');
   await runTrackedArtifactCloseout('pieces-manifest', async () => writePiecesManifest({
+    indexStatePublication,
     pieceEntries,
     outDir,
     mode,
@@ -192,7 +194,9 @@ export const runArtifactPublicationFinalizers = async ({
       buildId: indexState?.buildId || null,
       pieceEntries,
       manifestPath: publicationManifestPath,
-      familyDeclarations
+      familyDeclarations,
+      producerPolicy: indexState.profile && indexState.artifacts
+        ? structuredClone({ profile: indexState.profile, artifacts: indexState.artifacts }) : null
     });
     assertPublicationValidationSucceeded(publicationValidation);
   });
@@ -244,6 +248,7 @@ export const runArtifactPublicationFinalizers = async ({
         ]
       });
       if (Number(cleanupCommit?.failedActions || 0) > 0) {
+        if (cleanupCommit.failure) throw cleanupCommit.failure;
         throw new Error(
           `[artifact-cleanup] cleanup failed for current generation: `
           + `${cleanupCommit.failures.map((entry) => entry.message).join(' | ')}`
@@ -260,7 +265,9 @@ export const runArtifactPublicationFinalizers = async ({
       buildId: indexState?.buildId || null,
       pieceEntries,
       manifestPath: publicationManifestPath,
-      familyDeclarations
+      familyDeclarations,
+      producerPolicy: indexState.profile && indexState.artifacts
+        ? structuredClone({ profile: indexState.profile, artifacts: indexState.artifacts }) : null
     });
     assertPublicationValidationSucceeded(finalPublicationValidation);
     if (mode === 'code') {

@@ -1,4 +1,5 @@
 import { offsetToLine } from '../../../../shared/lines.js';
+import { buildLineIndex as buildPythonLineIndex } from '../../../../lang/python/normalize.js';
 import { assignChunkUids } from '../../../identity/chunk-uid.js';
 import { buildVfsManifestRowsForFile } from '../../../tooling/vfs.js';
 
@@ -49,10 +50,10 @@ const assignSpanIndexes = (chunks) => {
   }
 };
 
-const buildChunkLineRanges = (chunks, lineIndex) => chunks.map((chunk) => {
-  const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
+const buildChunkLineRanges = (chunks, lineIndex, originalCoordinates = false) => chunks.map((chunk) => {
+  const startLine = originalCoordinates ? offsetToLine(lineIndex,chunk.start) : chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
   const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
-  let endLine = chunk.meta?.endLine ?? offsetToLine(lineIndex, endOffset);
+  let endLine = originalCoordinates ? offsetToLine(lineIndex,endOffset) : chunk.meta?.endLine ?? offsetToLine(lineIndex, endOffset);
   if (endLine < startLine) endLine = startLine;
   return { startLine, endLine };
 });
@@ -71,7 +72,9 @@ export const prepareChunkIds = async ({
   strict,
   log
 }) => {
-  const chunkLineRanges = buildChunkLineRanges(chunks, lineIndex);
+  const pythonCoordinates = containerLanguageId === 'python';
+  const sourceLineIndex = pythonCoordinates ? buildPythonLineIndex(text) : lineIndex;
+  const chunkLineRanges = buildChunkLineRanges(chunks, sourceLineIndex, pythonCoordinates);
   assignSpanIndexes(chunks);
   await assignChunkUids({
     chunks,
@@ -87,7 +90,7 @@ export const prepareChunkIds = async ({
     containerPath: relKey,
     containerExt,
     containerLanguageId,
-    lineIndex,
+    lineIndex: sourceLineIndex,
     fileHash,
     fileHashAlgo,
     concurrency: vfsManifestConcurrency,

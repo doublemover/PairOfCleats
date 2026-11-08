@@ -1,6 +1,6 @@
 import { sha1 } from '../../../shared/hash.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../../shared/stable-json.js';
-import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact.js';
+import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact-observation.js';
 
 export const CONTENT_CONFIG_PROJECTION_VERSION = 2;
 const SEMANTIC_ENV_FIELDS = Object.freeze([

@@ -1,4 +1,4 @@
-import { buildLineIndex, offsetToLine } from './normalize.js';
+import { buildLineIndex, offsetToLine, splitPythonPhysicalLines } from './normalize.js';
 
 /**
  * Heuristic Python chunker when AST is unavailable.
@@ -11,7 +11,7 @@ export function buildPythonHeuristicChunks(text) {
   const defs = [];
   const classStack = [];
   const indentValue = (prefix) => prefix.replace(/\t/g, '    ').length;
-  const lines = text.split('\n');
+  const lines = splitPythonPhysicalLines(text);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const match = line.match(/^([ \t]*)(async\s+)?(class|def)\s+([A-Za-z_][A-Za-z0-9_]*)/);

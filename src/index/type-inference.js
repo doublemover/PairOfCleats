@@ -1,4 +1,6 @@
+import { literalEvidenceType } from '../contracts/literal-evidence.js';
 import { collectDeclaredReturnTypes } from './metadata/docmeta.js';
+import { normalizeLiteralInput, inspectLiteralStructure, splitLiteralElements, isWholeQuotedLiteral } from './type-inference/literal-expression.js';
 
 const TYPE_SOURCES = {
   annotation: 'annotation',
@@ -54,7 +56,6 @@ const normalizeTypeName = (value, languageId) => {
   if (languageId === 'typescript' || languageId === 'tsx') {
     return normalized;
   }
-  const lowered = normalized.toLowerCase();
   if (languageId === 'python') {
     const pyMap = {
       integer: 'int',
@@ -64,11 +65,14 @@ const normalizeTypeName = (value, languageId) => {
       array: 'list',
       object: 'dict'
     };
-    return pyMap[lowered] || normalized;
+    return Object.hasOwn(pyMap, normalized) ? pyMap[normalized] : normalized;
   }
   const jsMap = {
     integer: 'number',
     float: 'number',
+    String: 'string',
+    Boolean: 'boolean',
+    Number: 'number',
     bool: 'boolean',
     string: 'string',
     array: 'array',
@@ -76,88 +80,77 @@ const normalizeTypeName = (value, languageId) => {
     dict: 'object',
     list: 'array'
   };
-  return jsMap[lowered] || normalized;
+  return Object.hasOwn(jsMap, normalized) ? jsMap[normalized] : normalized;
+};
+
+// Candidate expansion is a lexical projection, not a type checker. Preserve the
+// full annotation when quoting/nesting is malformed or exceeds this allowance.
+const inspectTypeExpression = value => {
+  if (!value || value.length > 65536 || value.includes('\u0000')) return null;
+  const matching = { '<': '>', '[': ']', '(': ')', '{': '}' };
+  const closers = new Set(Object.values(matching)), stack = [], pairs = new Map();
+  const separators = new Map([['|', []], [',', []]]);
+  let quote = null, outerOpen = -1;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
+    // An unparenthesized function return or conditional branch owns later
+    // unions. Preserve that unsupported outer grammar rather than flatten it.
+    if (!stack.length && (char === '=' && value[index + 1] === '>' || char === '?' && index < value.length - 1)) return null;
+    if (Object.hasOwn(matching, char)) {
+      if (stack.length >= 128) return null;
+      if (!stack.length && outerOpen < 0) outerOpen = index;
+      stack.push(index);
+    } else if (closers.has(char)) {
+      if (char === '>' && value[index - 1] === '=') continue;
+      const open = stack.pop();
+      if (open == null || matching[value[open]] !== char) return null;
+      pairs.set(open, index);
+    } else if (!stack.length && separators.has(char)) separators.get(char).push(index);
+  }
+  if (quote || stack.length) return null;
+  const split = delimiter => {
+    const parts = [], cuts = separators.get(delimiter) || [];
+    let start = 0;
+    for (const end of [...cuts, value.length]) { parts.push(value.slice(start, end).trim()); start = end + 1; }
+    return parts.every(Boolean) ? parts : [];
+  };
+  let generic = null;
+  if (outerOpen >= 0 && ['<', '['].includes(value[outerOpen]) && pairs.get(outerOpen) === value.length - 1) {
+    const outer = value.slice(0, outerOpen).trim(), inner = value.slice(outerOpen + 1, -1).trim();
+    if (inner && /^[\p{ID_Start}_$][\p{ID_Continue}$]*(?:(?:\.|::)[\p{ID_Start}_$][\p{ID_Continue}$]*)*$/u.test(outer)) generic = { outer, inner, opener: value[outerOpen] };
+  }
+  return { split, generic };
 };
 
 const splitTopLevel = (value, delimiter) => {
-  const parts = [];
-  if (!value) return parts;
-  let current = '';
-  let depth = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === '<' || ch === '[' || ch === '(') depth += 1;
-    if (ch === '>' || ch === ']' || ch === ')') depth = Math.max(0, depth - 1);
-    if (ch === delimiter && depth === 0) {
-      parts.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  if (current.trim()) parts.push(current.trim());
-  return parts;
-};
-
-const splitLiteralTopLevel = (value) => {
-  const parts = [];
-  if (!value) return parts;
-  let current = '';
-  let depth = 0;
-  let inSingle = false;
-  let inDouble = false;
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === "'" && !inDouble) inSingle = !inSingle;
-    if (ch === '"' && !inSingle) inDouble = !inDouble;
-    if (!inSingle && !inDouble) {
-      if (ch === '{' || ch === '[' || ch === '(') depth += 1;
-      if (ch === '}' || ch === ']' || ch === ')') depth = Math.max(0, depth - 1);
-      if (ch === ',' && depth === 0) {
-        if (current.trim()) parts.push(current.trim());
-        current = '';
-        continue;
-      }
-    }
-    current += ch;
-  }
-  if (current.trim()) parts.push(current.trim());
-  return parts;
+  return inspectTypeExpression(value)?.split(delimiter) || [];
 };
 
 const stripOptionalSuffix = (value) => {
   if (!value) return value;
-  if (value.endsWith('?')) return value.slice(0, -1).trim();
+  if (value.endsWith('?') && inspectTypeExpression(value)) return value.slice(0, -1).trim();
   return value;
 };
 
 const parseGeneric = (value) => {
-  if (!value) return null;
-  const ltIndex = value.indexOf('<');
-  const lbIndex = value.indexOf('[');
-  const index = ltIndex >= 0 && (lbIndex < 0 || ltIndex < lbIndex) ? ltIndex : lbIndex;
-  if (index < 0) return null;
-  const closer = value[index] === '<' ? '>' : ']';
-  const closeIndex = value.lastIndexOf(closer);
-  if (closeIndex <= index) return null;
-  const outer = value.slice(0, index).trim();
-  const inner = value.slice(index + 1, closeIndex).trim();
-  if (!outer || !inner) return null;
-  return { outer, inner };
+  return inspectTypeExpression(value)?.generic || null;
 };
 
 const expandUnionTypes = (value, languageId) => {
   const normalized = normalizeText(value);
   if (!normalized) return [];
   if (languageId === 'python') {
-    const optionalMatch = normalized.match(/^(?:typing\.)?Optional\[(.+)\]$/);
-    if (optionalMatch) {
-      const inner = optionalMatch[1];
-      return splitTopLevel(inner, ',').concat(PYTHON_TYPES.null);
-    }
-    const unionMatch = normalized.match(/^(?:typing\.)?Union\[(.+)\]$/);
-    if (unionMatch) {
-      return splitTopLevel(unionMatch[1], ',');
+    const generic = parseGeneric(normalized), argumentsList = generic ? splitTopLevel(generic.inner, ',') : [];
+    if (generic?.opener === '[' && ['Optional', 'typing.Optional', 'typing_extensions.Optional'].includes(generic.outer)
+      && argumentsList.length === 1) return [...argumentsList, PYTHON_TYPES.null];
+    if (generic?.opener === '[' && ['Union', 'typing.Union', 'typing_extensions.Union'].includes(generic.outer)) {
+      return argumentsList;
     }
   }
   const parts = splitTopLevel(normalized, '|');
@@ -183,29 +176,10 @@ const expandTypeCandidates = (raw, languageId) => {
     if (unions.length) {
       unions.forEach((entry) => queue.push(entry));
     }
-    const generic = parseGeneric(current);
-    if (generic) {
-      if (generic.outer) queue.push(generic.outer);
-      splitTopLevel(generic.inner, ',').forEach((entry) => queue.push(entry));
-    }
+    // A generic's arguments describe its contained values, not additional
+    // types of this parameter/return/field. Keep their ownership in the type.
   }
   return Array.from(seen).filter(Boolean);
-};
-
-const normalizeDefaultValue = (raw) => {
-  let value = normalizeText(raw);
-  if (!value || value === '...' || value === '...') return '';
-  const commentCuts = [];
-  const hashIdx = value.indexOf('#');
-  if (hashIdx >= 0) commentCuts.push(hashIdx);
-  const slashIdx = value.indexOf('//');
-  if (slashIdx >= 0) commentCuts.push(slashIdx);
-  if (commentCuts.length) {
-    const cut = Math.min(...commentCuts);
-    value = value.slice(0, cut).trim();
-  }
-  value = value.replace(/[;,]$/, '').trim();
-  return value;
 };
 
 const mapPrimitive = (kind, languageId) => {
@@ -226,69 +200,81 @@ const stripQuotes = (value) => {
 const extractObjectKeys = (value, limit) => {
   const keys = [];
   if (!value || !value.trim().startsWith('{')) return keys;
-  const keyRx = /([A-Za-z_$][\w$]*|"(?:[^"\\]|\\.)+"|'(?:[^'\\]|\\.)+')\s*:/g;
-  let match;
-  while ((match = keyRx.exec(value)) !== null) {
-    const key = stripQuotes(match[1]);
+  for (const part of splitLiteralElements(value.slice(1, -1))) {
+    const structure = inspectLiteralStructure(part), colon = structure?.colons[0];
+    const raw = colon === undefined ? part : part.slice(0, colon).trim();
+    if (!/^[A-Za-z_$][\w$]*$/u.test(raw) && !(['"', "'"].includes(raw[0]) && isWholeQuotedLiteral(raw))) continue;
+    const key = stripQuotes(raw);
     if (key) keys.push(key);
     if (keys.length >= limit) break;
   }
   return keys;
 };
 
-const extractArrayElements = (value, limit, languageId) => {
+const extractArrayElements = (value, limit, languageId, depth) => {
   const trimmed = value.trim();
   if (!trimmed.startsWith('[')) return null;
   const closeIndex = trimmed.lastIndexOf(']');
   if (closeIndex <= 0) return null;
   const inner = trimmed.slice(1, closeIndex);
-  const parts = splitLiteralTopLevel(inner).slice(0, limit);
+  const parts = splitLiteralElements(inner).slice(0, limit);
   const elements = [];
   for (const part of parts) {
-    const entry = inferLiteralType(part, languageId);
+    const entry = inferLiteralType(part, languageId, depth + 1);
     if (entry?.type) elements.push(entry.type);
   }
   return unique(elements);
 };
 
-const inferLiteralType = (raw, languageId) => {
-  const value = normalizeDefaultValue(raw);
+const inferLiteralType = (raw, languageId, depth = 0) => {
+  if (depth > 128) return null;
+  const value = normalizeLiteralInput(raw, languageId);
   if (!value) return null;
-  const lowered = value.toLowerCase();
+  const structure = inspectLiteralStructure(value);
+  if (!structure) return null;
+  const enclosed = structure.pairs.get(0) === value.length - 1;
+  if (value[0] === '(' && enclosed) {
+    const inner = value.slice(1, -1), layout = inspectLiteralStructure(inner);
+    if (languageId === 'python' && /^lambda(?:\s|:)/u.test(inner.trim())) return null;
+    if (languageId === 'python' && (!inner.trim() || layout?.commas.length)) return { type: PYTHON_TYPES.tuple };
+    return inferLiteralType(inner, languageId, depth + 1);
+  }
   if (languageId === 'python') {
-    if (lowered === 'none') return { type: PYTHON_TYPES.null };
-    if (lowered === 'true' || lowered === 'false') return { type: PYTHON_TYPES.boolean };
+    if (value === 'None') return { type: PYTHON_TYPES.null };
+    if (value === 'True' || value === 'False') return { type: PYTHON_TYPES.boolean };
     if (/^-?\d+\.\d+$/.test(value)) return { type: PYTHON_TYPES.float };
     if (/^-?\d+$/.test(value)) return { type: PYTHON_TYPES.number };
-    if (value.startsWith('[')) {
+    if (value.startsWith('[') && enclosed) {
       return {
         type: PYTHON_TYPES.array,
-        elements: extractArrayElements(value, 25, languageId)
+        elements: extractArrayElements(value, 25, languageId, depth)
       };
     }
-    if (value.startsWith('{')) {
+    if (value.startsWith('{') && enclosed) {
+      const inner = value.slice(1, -1).trim(), layout = inspectLiteralStructure(inner);
+      if (splitLiteralElements(inner).some(part => /^lambda(?:\s|:)/u.test(part))) return null;
+      if (inner && !layout.colons.length && !inner.startsWith('**')) return { type: PYTHON_TYPES.set };
       const keys = extractObjectKeys(value, 20);
       return {
         type: PYTHON_TYPES.object,
         shape: keys.length ? { kind: 'object', keys } : null
       };
     }
-    if (value.startsWith('(')) return { type: PYTHON_TYPES.tuple };
-    if (lowered.startsWith('set(')) return { type: PYTHON_TYPES.set };
-    if (lowered.startsWith('dict(')) return { type: PYTHON_TYPES.object };
-    if (lowered.startsWith('list(')) return { type: PYTHON_TYPES.array };
+    for (const [name, type] of [['set', PYTHON_TYPES.set], ['dict', PYTHON_TYPES.object], ['list', PYTHON_TYPES.array]]) {
+      if (value.startsWith(name + '(') && structure.pairs.get(name.length) === value.length - 1) return { type };
+    }
   } else {
-    if (lowered === 'null') return { type: JS_TYPES.null };
-    if (lowered === 'undefined') return { type: JS_TYPES.undefined };
-    if (lowered === 'true' || lowered === 'false') return { type: JS_TYPES.boolean };
+    if (value === 'null') return { type: JS_TYPES.null };
+    if (value === 'undefined') return { type: JS_TYPES.undefined };
+    if (value === 'true' || value === 'false') return { type: JS_TYPES.boolean };
     if (/^-?\d+(\.\d+)?$/.test(value)) return { type: JS_TYPES.number };
-    if (value.startsWith('[')) {
+    if (value.startsWith('[') && enclosed) {
       return {
         type: JS_TYPES.array,
-        elements: extractArrayElements(value, 25, languageId)
+        elements: extractArrayElements(value, 25, languageId, depth)
       };
     }
-    if (value.startsWith('{')) {
+    if (value.startsWith('{') && enclosed) {
       const keys = extractObjectKeys(value, 20);
       return {
         type: JS_TYPES.object,
@@ -296,11 +282,16 @@ const inferLiteralType = (raw, languageId) => {
       };
     }
   }
-  if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) {
+  if (isWholeQuotedLiteral(value, languageId)) {
     return { type: mapPrimitive('string', languageId) };
   }
-  const newMatch = value.match(/^new\s+([A-Za-z_][\w.]*)/);
-  if (newMatch) return { type: normalizeTypeName(newMatch[1], languageId) };
+  const newMatch = value.match(/^new\s+([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)/u);
+  if (newMatch) {
+    const tail = value.slice(newMatch[0].length).trim(), open = value.indexOf('(', newMatch[0].length);
+    if (!tail || tail[0] === '(' && structure.pairs.get(open) === value.length - 1) {
+      return { type: normalizeTypeName(newMatch[1], languageId) };
+    }
+  }
   return null;
 };
 
@@ -364,92 +355,78 @@ const addListEntry = (list, entry) => {
   return true;
 };
 
-const inferAssignments = (chunkText, languageId, knownTypes) => {
-  const locals = Object.create(null);
-  if (!chunkText) return { locals };
-  const lines = chunkText.split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) continue;
-    if (trimmed.includes('==') || trimmed.includes('!=') || trimmed.includes('=>')) continue;
-    if (trimmed.includes('>=') || trimmed.includes('<=')) continue;
-    let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
-    if (!match) {
-      match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+const inferAssignments = (chunkText,languageId,knownTypes) => {
+  const locals=Object.create(null);
+  if(!chunkText)return {locals};
+  for(const line of chunkText.split(/\r?\n/)){
+    const trimmed=line.trim();
+    if(!trimmed||trimmed.startsWith('//')||trimmed.startsWith('#')||trimmed.startsWith('*'))continue;
+    const match=trimmed.match(/^(?:(?:const|let|var)\s+)?([A-Za-z_$][\w$]*)\s*=(?!=|>)\s*(.+)$/);
+    if(!match)continue;
+    const name=match[1],value=match[2];
+    const inferred=inferLiteralType(value,languageId);
+    if(inferred){
+      addEntry(locals,name,{...inferred,source:TYPE_SOURCES.literal,confidence:CONFIDENCE.literal});
+      knownTypes?.set(name,[inferred.type]);
+      continue;
     }
-    if (!match) continue;
-    const name = match[1];
-    const value = match[2];
-    const inferred = inferLiteralType(value, languageId);
-    if (!inferred) continue;
-    addEntry(locals, name, {
-      ...inferred,
-      source: TYPE_SOURCES.literal,
-      confidence: CONFIDENCE.literal
-    });
+    const alias=/^([A-Za-z_$][\w$.]*)\s*;?$/.exec(value);
+    const types=alias&&knownTypes?.get(alias[1]);
+    if(types?.length){
+      for(const type of types)addEntry(locals,name,{type,source:TYPE_SOURCES.flow,confidence:CONFIDENCE.flow});
+      knownTypes.set(name,[...types]);
+    }else knownTypes?.delete(name);
   }
-  if (knownTypes && typeof knownTypes.get === 'function') {
-    for (const [name, entries] of Object.entries(locals)) {
-      const list = Array.isArray(entries) ? entries : [];
-      if (!list.length) continue;
-      const existing = knownTypes.get(name) || [];
-      for (const entry of list) {
-        if (!entry?.type) continue;
-        existing.push(entry.type);
-      }
-      knownTypes.set(name, existing);
-    }
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) continue;
-      if (trimmed.includes('==') || trimmed.includes('!=') || trimmed.includes('=>')) continue;
-      if (trimmed.includes('>=') || trimmed.includes('<=')) continue;
-      let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$.]*)\s*;?$/);
-      if (!match) {
-        match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$.]*)\s*;?$/);
-      }
-      if (!match) continue;
-      const name = match[1];
-      const value = match[2];
-      const types = knownTypes.get(value);
-      if (!types || !types.length) continue;
-      for (const type of types) {
-        addEntry(locals, name, {
-          type,
-          source: TYPE_SOURCES.flow,
-          confidence: CONFIDENCE.flow
-        });
-      }
-    }
-  }
-  return { locals };
+  return {locals};
 };
 
+const guardName = '[\\p{ID_Start}_$][\\p{ID_Continue}$\\u200c\\u200d]*';
+const guardBoundary = '(?<![\\p{ID_Continue}$\\u200c\\u200d.#])';
+const guardEnd = '(?![\\p{ID_Continue}$\\u200c\\u200d])';
+const conditionalGuards = {
+  typeof: new RegExp(guardBoundary + 'typeof\\s+(' + guardName + ')\\s*===?\\s*' + "(['\"])(string|number|boolean|object|function|undefined|symbol|bigint)\\2", 'gu'),
+  instanceof: new RegExp(guardBoundary + '(' + guardName + ')\\s+instanceof\\s+(' + guardName + '(?:\\.' + guardName + ')*)' + guardEnd, 'gu'),
+  array: new RegExp(guardBoundary + 'Array\\s*\\.\\s*isArray\\s*\\(\\s*(' + guardName + ')\\s*\\)', 'gu'),
+  null: new RegExp(guardBoundary + '(' + guardName + ')\\s*===?\\s*null' + guardEnd, 'gu')
+};
 const inferConditionalTypes = (chunkText, languageId) => {
   const results = [];
-  if (!chunkText) return results;
+  if (!chunkText || !['javascript', 'typescript', 'jsx', 'tsx'].includes(languageId)) return results;
+  const unqualified = (pattern, text) => {
+    pattern.lastIndex = 0;
+    for (let match; (match = pattern.exec(text));) {
+      let previous = match.index - 1;
+      while (previous >= 0 && /\s/u.test(text[previous])) previous--;
+      if (text[previous] === '.' || text[previous] === '#') continue;
+      if (pattern === conditionalGuards.instanceof || pattern === conditionalGuards.null) {
+        let next = pattern.lastIndex;
+        while (next < text.length && /\s/u.test(text[next])) next++;
+        if (['.', '[', '('].includes(text[next])) continue;
+      }
+      return match;
+    }
+    return null;
+  };
   const lines = chunkText.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
-    let match = trimmed.match(/typeof\s+([A-Za-z_$][\w$]*)\s*===?\s*['"]([A-Za-z]+)['"]/);
+    let match = unqualified(conditionalGuards.typeof, trimmed);
+    if (match) {
+      results.push({ name: match[1], type: normalizeTypeName(match[3], languageId) });
+      continue;
+    }
+    match = unqualified(conditionalGuards.instanceof, trimmed);
     if (match) {
       results.push({ name: match[1], type: normalizeTypeName(match[2], languageId) });
       continue;
     }
-    match = trimmed.match(/([A-Za-z_$][\w$]*)\s+instanceof\s+([A-Za-z_$][\w$.]*)/);
-    if (match) {
-      results.push({ name: match[1], type: normalizeTypeName(match[2], languageId) });
-      continue;
-    }
-    match = trimmed.match(/Array\.isArray\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/);
+    match = unqualified(conditionalGuards.array, trimmed);
     if (match) {
       results.push({ name: match[1], type: mapPrimitive('array', languageId) });
       continue;
     }
-    match = trimmed.match(/([A-Za-z_$][\w$]*)\s*===?\s*null/);
+    match = unqualified(conditionalGuards.null, trimmed);
     if (match) {
       results.push({ name: match[1], type: mapPrimitive('null', languageId) });
       continue;
@@ -481,7 +458,10 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
 
   const paramDefaults = docmeta.paramDefaults || {};
   for (const [name, value] of Object.entries(paramDefaults)) {
-    const inferredType = inferLiteralType(value, languageId);
+    const literal = docmeta.paramDefaultLiterals;
+    const typed = literal && Object.hasOwn(literal, name);
+    const type = typed ? literalEvidenceType(literal[name]) : null;
+    const inferredType = typed ? (type ? { type } : null) : inferLiteralType(value, languageId);
     if (!inferredType) continue;
     hasData = addTypes(inferred.params, name, {
       ...inferredType,

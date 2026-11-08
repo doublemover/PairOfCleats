@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["payload-bound-recency", "passive-and-incomplete-inputs", "lower-bound-age-refusal", "coalesced-original-journal", "read-only-original-inventory", "changed-input-refusal", "writer-refusal", "lifecycle-preview-preserves-cache", "original-close-refusal"]
+}

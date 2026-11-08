@@ -1,0 +1,1181 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-26",
+  "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3",
+  "baselineHead": "fa9993845b01a876d9250d907967a8441045c35e",
+  "mode": "solo; Windows only; existing checkout; implementation first",
+  "issues": [
+    {
+      "number": 586,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-27T01:40:20Z",
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3",
+      "summary": "Triage decisions use the owned asynchronous child runner and request signal. Cancellation and deadlines retain child settlement and execution capacity while the protocol stays responsive.",
+      "tests": [
+        "services/mcp/maintenance-cancellation"
+      ]
+    },
+    {
+      "number": 670,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-27T01:40:23Z",
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3",
+      "summary": "MCP search validates the advertised shared value schema with one cached validator before repository resolution, cache acquisition/refresh or core dispatch. Malformed values return INVALID_REQUEST; valid false, zero and list forms retain their semantics.",
+      "tests": [
+        "tooling/api-mcp/search-request-parity"
+      ]
+    },
+    {
+      "number": 811,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-27T01:40:27Z",
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3",
+      "summary": "Fresh and already-frozen results, including CLI JSON, retain the actual verification receipt. Unchecked freezes report verificationOk:false and null checked counts; an idempotent verify:true request cannot upgrade an unchecked receipt.",
+      "tests": [
+        "services/snapshot-freeze-integrity"
+      ]
+    },
+    {
+      "number": 1642,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-27T01:40:32Z",
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3",
+      "summary": "One UTF-16 span admission owner validates original source occurrences before coalescing, slicing and document hashing. Strict invalid spans reject; explicit legacy relative frames rebase once. Permissive omissions retain bounded receipts and warnings, including no-provider exits. Manifest-only descriptors retain their existing document scope. VFS producer version 4 invalidates old replay meaning.",
+      "tests": [
+        "tooling/vfs/source-span-admission",
+        "tooling/vfs/invalid-virtual-range-regression",
+        "tooling/vfs/maps-segment-offsets",
+        "tooling/vfs/parallel-manifest-deterministic"
+      ]
+    }
+  ],
+  "policy": {
+    "node": "v26.12.1",
+    "platform": "win32",
+    "arch": "x64",
+    "jobs": 1,
+    "threads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "removedEnvironment": "Only the inherited nonexistent PAIROFCLEATS_TRUSTED_CONFIG path in child checks; no trust was granted."
+  },
+  "dependencySetup": "Reused the clean required native/patch readiness verification recorded in github-issue-closeout-2026-10-26.json. Dependencies, patches, lockfile and Node pin are unchanged.",
+  "qualifiedTests": [
+    {
+      "id": "services/mcp/maintenance-cancellation",
+      "path": "services/mcp/maintenance-cancellation.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 7349,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "services/snapshot-freeze-integrity",
+      "path": "services/snapshot-freeze-integrity.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 3544,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/api-mcp/search-request-parity",
+      "path": "tooling/api-mcp/search-request-parity.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 750,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/document-preparation-occurrences",
+      "path": "tooling/vfs/document-preparation-occurrences.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 308,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/hash-origin-authority",
+      "path": "tooling/vfs/hash-origin-authority.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 848,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/invalid-virtual-range-regression",
+      "path": "tooling/vfs/invalid-virtual-range-regression.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 893,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/manifest-missing-segmentuid",
+      "path": "tooling/vfs/manifest-missing-segmentuid.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 295,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/maps-segment-offsets",
+      "path": "tooling/vfs/maps-segment-offsets.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 293,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/parallel-manifest-deterministic",
+      "path": "tooling/vfs/parallel-manifest-deterministic.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 290,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/segment-coalesce",
+      "path": "tooling/vfs/segment-coalesce.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 324,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/source-span-admission",
+      "path": "tooling/vfs/source-span-admission.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 686,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/fallback-mode-contract",
+      "path": "indexing/file-processor/fallback-mode-contract.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1053,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/heavy-file-perf-event-filelog",
+      "path": "indexing/file-processor/heavy-file-perf-event-filelog.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1629,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/heavy-file-root-path-downshift",
+      "path": "indexing/file-processor/heavy-file-root-path-downshift.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1015,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/heavy-file-tokenization-skip",
+      "path": "indexing/file-processor/heavy-file-tokenization-skip.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1024,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/lint-cache-replay",
+      "path": "indexing/file-processor/lint-cache-replay.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1317,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/lint-nested-chunk-projection",
+      "path": "indexing/file-processor/lint-nested-chunk-projection.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1045,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/token-worker-abort-and-evidence",
+      "path": "indexing/file-processor/token-worker-abort-and-evidence.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1068,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/tokenize-batch-bounds-order",
+      "path": "indexing/file-processor/tokenize-batch-bounds-order.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 988,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/tokenize-batch-receipt-lifetime",
+      "path": "indexing/file-processor/tokenize-batch-receipt-lifetime.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1097,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/incremental/complete-lexical-checkpoint",
+      "path": "indexing/incremental/complete-lexical-checkpoint.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1153,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/policy/analysis-gating",
+      "path": "indexing/policy/analysis-gating.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1051,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/tokenization/file-stream-punctuation-parity",
+      "path": "indexing/tokenization/file-stream-punctuation-parity.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1634,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/workers/hard-pressure-no-progress",
+      "path": "indexing/workers/hard-pressure-no-progress.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 2173,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/heavy-file-java-chunk-threshold",
+      "path": "indexing/file-processor/heavy-file-java-chunk-threshold.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1611,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/file-processor/heavy-file-swift-hotpath-coalescing",
+      "path": "indexing/file-processor/heavy-file-swift-hotpath-coalescing.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1210,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "indexing/vfs/manifest-roundtrip",
+      "path": "indexing/vfs/manifest-roundtrip.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 489,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/fastpath-telemetry-contract",
+      "path": "tooling/vfs/fastpath-telemetry-contract.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 372,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    },
+    {
+      "id": "tooling/vfs/routing-and-token-contract-matrix",
+      "path": "tooling/vfs/routing-and-token-contract-matrix.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1244,
+      "timedOut": false,
+      "exitCode": 0,
+      "sourceHead": "c4bec36c8f0c40e5a9b794ab5da4c555f135aba3"
+    }
+  ],
+  "frontGate": {
+    "format": "passed; subsequent changed maintenance fixture also passed focused ESLint",
+    "configBudget": "passed",
+    "environment": "passed",
+    "generatedFreshness": "passed",
+    "commandSurface": "passed",
+    "workflowContract": "passed",
+    "diffCheck": "passed",
+    "initialGate": {
+      "total": 40,
+      "passed": 39,
+      "failed": 1
+    },
+    "correctedCase": "indexing/policy/analysis-gating",
+    "correctedCaseResult": {
+      "id": "indexing/policy/analysis-gating",
+      "path": "indexing/policy/analysis-gating.test.js",
+      "status": "passed",
+      "attempts": 1,
+      "durationMs": 1051,
+      "timedOut": false,
+      "exitCode": 0
+    },
+    "explanation": "The fixture supplied an implicit full-file segment without required bounds. Its explicit source extent was corrected; dependent fixtures were checked. Other 39 gate cases have unchanged inputs and production behavior; only the affected failure was rechecked.",
+    "fullGateRerunAfterCorrection": false,
+    "remainingKnownGateFailures": 0
+  },
+  "historicalRuns": [
+    {
+      "file": "boundary-tests",
+      "summary": {
+        "total": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 16139
+      },
+      "tests": [
+        {
+          "id": "services/mcp/maintenance-cancellation",
+          "path": "services/mcp/maintenance-cancellation.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 7417,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "services/snapshot-freeze-integrity",
+          "path": "services/snapshot-freeze-integrity.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 3544,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-mcp/search-request-parity",
+          "path": "tooling/api-mcp/search-request-parity.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 750,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/document-preparation-occurrences",
+          "path": "tooling/vfs/document-preparation-occurrences.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 308,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/hash-origin-authority",
+          "path": "tooling/vfs/hash-origin-authority.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 848,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/invalid-virtual-range-regression",
+          "path": "tooling/vfs/invalid-virtual-range-regression.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1164,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/manifest-missing-segmentuid",
+          "path": "tooling/vfs/manifest-missing-segmentuid.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 295,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/maps-segment-offsets",
+          "path": "tooling/vfs/maps-segment-offsets.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 293,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/parallel-manifest-deterministic",
+          "path": "tooling/vfs/parallel-manifest-deterministic.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 290,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/segment-coalesce",
+          "path": "tooling/vfs/segment-coalesce.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 324,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/source-span-admission",
+          "path": "tooling/vfs/source-span-admission.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 890,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "file": "boundary-strengthened",
+      "summary": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 1584
+      },
+      "tests": [
+        {
+          "id": "tooling/vfs/invalid-virtual-range-regression",
+          "path": "tooling/vfs/invalid-virtual-range-regression.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 893,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/source-span-admission",
+          "path": "tooling/vfs/source-span-admission.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 686,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "file": "front-gate",
+      "summary": {
+        "total": 40,
+        "passed": 39,
+        "failed": 1,
+        "skipped": 0,
+        "durationMs": 4977
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 217,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 183,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "path": "indexing/policy/generated-matrix.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 154,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 128,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 104,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 181,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 210,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 131,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 126,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 209,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "path": "indexing/policy/repo-inventory.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2132,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 313,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 323,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "path": "indexing/policy/analysis-schema.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 377,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "path": "indexing/contracts/snapshots.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 389,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 364,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 406,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "path": "indexing/contracts/diffs.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 408,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 409,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 669,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 351,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "path": "tooling/api-contracts/caps.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 867,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1171,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1136,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1102,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 871,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 734,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "path": "ci/capability-gate.smoke.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1124,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1478,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 115,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "path": "indexing/policy/optional-deps.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1706,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "path": "indexing/policy/analysis-gating.test.js",
+          "status": "failed",
+          "attempts": 1,
+          "durationMs": 1255,
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1462,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "path": "tooling/api-contracts/basic.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 835,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "path": "contracts/module-export-surface-compat.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2923,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1558,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 494,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 711,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1588,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "path": "ci/windows-authority-cohort.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1613,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "file": "fixture-owner",
+      "summary": {
+        "total": 13,
+        "passed": 9,
+        "failed": 4,
+        "skipped": 0,
+        "durationMs": 15561
+      },
+      "tests": [
+        {
+          "id": "indexing/file-processor/fallback-mode-contract",
+          "path": "indexing/file-processor/fallback-mode-contract.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1053,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/heavy-file-perf-event-filelog",
+          "path": "indexing/file-processor/heavy-file-perf-event-filelog.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1017,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/heavy-file-root-path-downshift",
+          "path": "indexing/file-processor/heavy-file-root-path-downshift.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1015,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/heavy-file-tokenization-skip",
+          "path": "indexing/file-processor/heavy-file-tokenization-skip.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1024,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/lint-cache-replay",
+          "path": "indexing/file-processor/lint-cache-replay.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1317,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/lint-nested-chunk-projection",
+          "path": "indexing/file-processor/lint-nested-chunk-projection.test.js",
+          "status": "failed",
+          "attempts": 1,
+          "durationMs": 1096,
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/file-processor/token-worker-abort-and-evidence",
+          "path": "indexing/file-processor/token-worker-abort-and-evidence.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1068,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/tokenize-batch-bounds-order",
+          "path": "indexing/file-processor/tokenize-batch-bounds-order.test.js",
+          "status": "failed",
+          "attempts": 1,
+          "durationMs": 1023,
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/file-processor/tokenize-batch-receipt-lifetime",
+          "path": "indexing/file-processor/tokenize-batch-receipt-lifetime.test.js",
+          "status": "failed",
+          "attempts": 1,
+          "durationMs": 1035,
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/incremental/complete-lexical-checkpoint",
+          "path": "indexing/incremental/complete-lexical-checkpoint.test.js",
+          "status": "failed",
+          "attempts": 1,
+          "durationMs": 1028,
+          "timedOut": false,
+          "exitCode": 1
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "path": "indexing/policy/analysis-gating.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1051,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/tokenization/file-stream-punctuation-parity",
+          "path": "indexing/tokenization/file-stream-punctuation-parity.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1634,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/workers/hard-pressure-no-progress",
+          "path": "indexing/workers/hard-pressure-no-progress.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 2173,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "file": "fixture-corrections",
+      "summary": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 4290
+      },
+      "tests": [
+        {
+          "id": "indexing/file-processor/lint-nested-chunk-projection",
+          "path": "indexing/file-processor/lint-nested-chunk-projection.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1045,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/tokenize-batch-bounds-order",
+          "path": "indexing/file-processor/tokenize-batch-bounds-order.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 988,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/tokenize-batch-receipt-lifetime",
+          "path": "indexing/file-processor/tokenize-batch-receipt-lifetime.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1097,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/incremental/complete-lexical-checkpoint",
+          "path": "indexing/incremental/complete-lexical-checkpoint.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1153,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "file": "vfs-owner-compatibility",
+      "summary": {
+        "total": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 6565
+      },
+      "tests": [
+        {
+          "id": "indexing/file-processor/heavy-file-java-chunk-threshold",
+          "path": "indexing/file-processor/heavy-file-java-chunk-threshold.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1611,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/heavy-file-perf-event-filelog",
+          "path": "indexing/file-processor/heavy-file-perf-event-filelog.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1629,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/file-processor/heavy-file-swift-hotpath-coalescing",
+          "path": "indexing/file-processor/heavy-file-swift-hotpath-coalescing.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1210,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "indexing/vfs/manifest-roundtrip",
+          "path": "indexing/vfs/manifest-roundtrip.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 489,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/fastpath-telemetry-contract",
+          "path": "tooling/vfs/fastpath-telemetry-contract.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 372,
+          "timedOut": false,
+          "exitCode": 0
+        },
+        {
+          "id": "tooling/vfs/routing-and-token-contract-matrix",
+          "path": "tooling/vfs/routing-and-token-contract-matrix.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 1244,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "file": "maintenance-final",
+      "summary": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 7354
+      },
+      "tests": [
+        {
+          "id": "services/mcp/maintenance-cancellation",
+          "path": "services/mcp/maintenance-cancellation.test.js",
+          "status": "passed",
+          "attempts": 1,
+          "durationMs": 7349,
+          "timedOut": false,
+          "exitCode": 0
+        }
+      ]
+    }
+  ],
+  "reconciliation": {
+    "checkedAt": "2026-10-27T01:42:41.126Z",
+    "initialOpen": 743,
+    "closed": 4,
+    "remainingOpen": 739,
+    "missing": [],
+    "unexpected": []
+  },
+  "remaining": {
+    "open": 739,
+    "qualificationPending": 477,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 115
+  },
+  "scope": "Windows source/fixture correctness. Does not qualify full deep suite, optional native/model, live provider, representative latency/RSS or non-Windows/release programs."
+}

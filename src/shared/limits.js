@@ -79,6 +79,14 @@ export const normalizePositiveNumber = (value, fallback = null) => {
   return parsed;
 };
 
+/** Normalize a finite nonnegative number, retaining zero and numeric strings.
+ * Non-numeric types and blank strings must not coerce into a valid zero. */
+export const normalizeNonNegativeNumber = (value, fallback = null) => {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
 /**
  * Normalize a value to a positive integer, falling back when invalid.
  * @param {unknown} value

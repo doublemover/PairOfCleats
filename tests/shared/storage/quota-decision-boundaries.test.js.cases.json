@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["invalid-clock-and-age", "epoch-and-stable-alias-order", "explained-retention-and-link-blockers", "conflicting-and-unknown-allocation", "volume-scoped-free-space-reserve"]
+}

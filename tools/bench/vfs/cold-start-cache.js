@@ -1,172 +1,186 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
-// Usage: node tools/bench/vfs/cold-start-cache.js --docs 2000 --doc-bytes 256 --json
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 const { createCli } = await import('../../../src/shared/cli.js');
-const { spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
+const { spawnSubprocess } = await import('../../../src/shared/subprocess/runner.js');
 const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
-const { createVfsColdStartCache, ensureVfsDiskDocument } = await import('../../../src/index/tooling/vfs.js');
-const { checksumString } = await import('../../../src/shared/hash.js');
+const { isDirectExecution } = await import('../../../src/shared/direct-execution.js');
+const { stableStringify } = await import('../../../src/shared/stable-json.js');
+const { addStorageFailureContext } = await import('../../../src/shared/storage/operation-error.js');
+const { observeStorageResource } = await import('../../../src/shared/storage/failure-observation.js');
+const { assertToolingCachePath, ensureToolingCacheDir, readToolingCacheEntry } = await import('../../../src/index/tooling/cache-storage.js');
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
+const { admitVfsColdStartWork, buildVfsColdStartPlan, runVfsColdStartSample } = await import('./cold-start-sample.js');
 
-const rawArgs = process.argv.slice(2);
-const cli = createCli({
-  scriptName: 'cold-start-cache',
-  argv: ['node', 'cold-start-cache', ...rawArgs],
-  options: {
-    mode: { type: 'string', describe: 'Internal: cold|warm (used by harness)' },
-    docs: { type: 'number', default: 2000, describe: 'Document count' },
-    docBytes: { type: 'number', default: 256, describe: 'Bytes per document' },
-    samples: { type: 'number', default: 3, describe: 'Repeat count for timing stats' },
-    root: { type: 'string', describe: 'Internal: shared root for warm run' },
-    json: { type: 'boolean', default: false },
-    out: { type: 'string', describe: 'Write JSON results to a file' }
+const markerName = 'vfs-benchmark-owner.json';
+const markerKind = 'vfs-cold-cache-benchmark-v2';
+const readMarker = root => {
+  assertToolingCachePath(root);
+  const value = readToolingCacheEntry(path.join(root, markerName), 8192).payload;
+  if (value?.kind !== markerKind || typeof value.owner !== 'string' || !/^[a-f0-9-]{36}$/u.test(value.owner)) {
+    throw new Error('Internal VFS benchmark modes require an owned fixture root.');
   }
-});
-const argv = cli.parse();
-
-const docCount = clampInt(argv.docs, 1, 2000);
-const docBytes = clampInt(argv.docBytes, 8, 256);
-const samples = clampInt(argv.samples, 1, 3);
-
-if (argv.mode) {
-  const result = await runSingleMode({
-    mode: String(argv.mode),
-    rootDir: argv.root ? path.resolve(String(argv.root)) : null,
-    docs: docCount,
-    docBytes,
-    samples
+  return value;
+};
+const writeMarker = async (root, value) => {
+  ensureToolingCacheDir(root);
+  await fs.writeFile(path.join(root, markerName), JSON.stringify({ kind: markerKind, ...value }) + '\n', { flag: 'wx' });
+};
+const runSubprocess = async ({ mode, rootDir, docs, docBytes, content }) => {
+  const result = await spawnSubprocess(process.execPath, [fileURLToPath(import.meta.url), '--mode', mode, '--root', rootDir,
+    '--docs', String(docs), '--docBytes', String(docBytes), '--content', content, '--samples', '1', '--json'], {
+    timeoutMs: 30000, maxOutputBytes: 256 * 1024, outputEncoding: 'utf8', outputMode: 'string',
+    captureStdout: true, captureStderr: true, rejectOnNonZeroExit: true, killTree: true
   });
-  if (argv.json) {
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    console.error(`[cold-start-cache:${argv.mode}] docs=${docCount} bytes=${docBytes}`);
-    console.error(`- ${formatStats(result.stats)} | docs/sec ${result.docsPerSec.toFixed(1)}`);
+  if (result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated
+    || result.outputCapture?.stdout?.encodingLoss || result.outputCapture?.stderr?.encodingLoss || result.stderr?.trim()) {
+    throw Object.assign(new Error('VFS benchmark child emitted unexpected/truncated diagnostics.'), { result });
   }
-  process.exit(0);
-}
+  let observed;
+  try { observed = JSON.parse(result.stdout); }
+  catch (error) { throw addStorageFailureContext(error, { workerResult: result, mode }); }
+  if (observed.pid !== result.pid) throw Object.assign(new Error('VFS sample lacks its original child process identity.'), { result });
+  return { ...observed, childWallMs: result.durationMs };
+};
+const summarize = samples => {
+  const qualified = samples.every(value => value.state === 'qualified-phase');
+  const durations = samples.map(value => value.phases.totalMs), totalMs = durations.reduce((sum, value) => sum + value, 0);
+  const completedDocuments = samples.reduce((sum, value) => sum + value.counts.documents, 0);
+  const observedStats = summarizeDurations(durations);
+  return { state: qualified ? 'qualified-phase' : 'unqualified-phase', completedSamples: samples.length,
+    completedDocuments, totalMs, stats: qualified ? observedStats : null, observedStats,
+    docsPerSec: qualified && totalMs > 0 ? completedDocuments / (totalMs / 1000) : null,
+    phases: Object.fromEntries(['cacheLoadMs', 'warmupMs', 'documentAccessMs', 'flushMs'].map(key => [key,
+      { stats: summarizeDurations(samples.map(value => value.phases[key])), rawSamplesMs: samples.map(value => value.phases[key]) }])), samples };
+};
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-vfs-cold-start-'));
-try {
-  const cold = runSubprocess({ mode: 'cold', rootDir: tempRoot, docs: docCount, docBytes, samples });
-  const warm = runSubprocess({ mode: 'warm', rootDir: tempRoot, docs: docCount, docBytes, samples });
-
-  const results = {
-    generatedAt: new Date().toISOString(),
-    docs: docCount,
-    docBytes,
-    samples,
-    cold,
-    warm
+export const createVfsColdStartSeries = async (input, { runChild = runSubprocess } = {}) => {
+  const { docs, docBytes, samples, content } = admitVfsColdStartWork(input);
+  const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+  const tempBase = resolveDevelopmentArtifactPath(repoRoot, 'bench-cache', 'vfs-cold');
+  ensureToolingCacheDir(tempBase);
+  const taskRoot = await fs.mkdtemp(path.join(tempBase, 'run-')), owner = randomUUID();
+  try { await writeMarker(taskRoot, { owner, docs, docBytes, content }); }
+  catch (error) { throw addStorageFailureContext(error, { fixtureRoot: taskRoot, phase: 'vfs-benchmark-fixture-marker' }); }
+  const observations = { cold: [], warm: [], hot: [] }, order = [];
+  const steps = Array.from({ length: samples }, (_, index) => ['cold', ...(index % 2 ? ['hot', 'warm'] : ['warm', 'hot'])]
+    .map(mode => ({ sample: index + 1, mode }))).flat();
+  let primary, failed = false, active = false, closed = false, cleanupAttempted = false;
+  let workloadIdentity = null, outputIdentity = null;
+  const pending = () => Object.assign(new Error('The original VFS scenario child is still outstanding.'), {
+    code: 'ERR_VFS_BENCH_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: () => !active
+  });
+  const cleanup = async () => {
+    if (closed) return;
+    if (active) throw pending();
+    if (failed) observeStorageResource(primary, { phase: 'vfs-benchmark-before-fixture-cleanup' }).requireSettled();
+    cleanupAttempted = true;
+    if (path.dirname(taskRoot) !== tempBase || readMarker(taskRoot).owner !== owner) throw new Error('VFS fixture cleanup ownership is unconfirmed.');
+    assertToolingCachePath(taskRoot); await fs.rm(taskRoot, { recursive: true, force: true });
+    closed = true;
   };
-
-  if (argv.out) {
-    writeJsonWithDir(argv.out, results);
-  }
-  if (argv.json) {
-    console.log(JSON.stringify(results, null, 2));
-  } else {
-    console.error(`[cold-start-cache] docs=${docCount} bytes=${docBytes}`);
-    console.error(`- cold: ${formatStats(cold.stats)} | docs/sec ${cold.docsPerSec.toFixed(1)}`);
-    console.error(`- warm: ${formatStats(warm.stats)} | docs/sec ${warm.docsPerSec.toFixed(1)}`);
-  }
-} finally {
-  await fs.rm(tempRoot, { recursive: true, force: true });
-}
-
-function clampInt(value, min, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
-}
-
-function runSubprocess({ mode, rootDir, docs, docBytes, samples }) {
-  const result = spawnSubprocessSync(
-    process.execPath,
-    [
-      path.resolve(process.argv[1]),
-      '--mode',
-      mode,
-      '--root',
-      rootDir,
-      '--docs',
-      String(docs),
-      '--doc-bytes',
-      String(docBytes),
-      '--samples',
-      String(samples),
-      '--json'
-    ],
-    {
-      outputEncoding: 'utf8',
-      captureStdout: true,
-      captureStderr: true,
-      outputMode: 'string',
-      rejectOnNonZeroExit: false,
-      killTree: true,
-      detached: process.platform !== 'win32'
+  return Object.freeze({
+    fixtureRoot: taskRoot,
+    get done() { return order.length === steps.length; },
+    snapshot() {
+      return structuredClone({ schemaVersion: 1, kind: 'vfs-cache-series-progress', state: closed ? 'closed' : failed ? 'failed' : 'in-progress',
+        docs, docBytes, samples, content, fixtureRoot: taskRoot, expectedOrder: steps, order, observations });
+    },
+    async runNext() {
+      if (closed) throw new Error('VFS benchmark series is already closed.');
+      if (failed) throw primary;
+      if (active) throw pending();
+      const step = steps[order.length];
+      if (!step) throw new RangeError('VFS benchmark series has no remaining scenario.');
+      const { sample: sampleId, mode } = step, rootDir = path.join(taskRoot, `sample-${sampleId}`);
+      active = true;
+      try {
+        if (mode === 'cold') await writeMarker(rootDir, { owner, docs, docBytes, content, sample: sampleId });
+        const sample = await runChild({ mode, rootDir, docs, docBytes, content });
+        if (sample.mode !== mode || sample.counts?.documents !== docs || sample.consumerParity?.state !== 'byte-identical'
+          || !['qualified-phase', 'unqualified-phase'].includes(sample.state)) throw new Error('VFS child sample has inconsistent phase or content evidence.');
+        const workload = stableStringify(sample.workload), output = sample.consumerParity.sha256;
+        if (workloadIdentity !== null && workloadIdentity !== workload || outputIdentity !== null && outputIdentity !== output) {
+          throw new Error('VFS benchmark samples changed their input or consumer content.');
+        }
+        workloadIdentity = workload; outputIdentity = output; observations[mode].push(structuredClone(sample));
+        order.push({ sample: sampleId, mode });
+        return structuredClone({ step, observation: sample });
+      } catch (error) { failed = true; primary = error; throw error; }
+      finally { active = false; }
+    },
+    async complete() {
+      if (failed) throw primary;
+      if (active) throw pending();
+      if (closed || order.length !== steps.length) throw Object.assign(new Error('VFS benchmark series is incomplete or already closed.'), { code: 'ERR_VFS_BENCH_INCOMPLETE' });
+      const result = { schemaVersion: 2, kind: 'vfs-cache-phase-benchmark', generatedAt: new Date().toISOString(), docs, docBytes, samples,
+        state: Object.values(observations).every(values => values.every(value => value.state === 'qualified-phase')) ? 'qualified-phases' : 'unqualified-phases',
+        fixtureRoot: taskRoot, fixturePolicy: 'fresh-exclusively-owned-root-per-cold-repetition', fixtureCleanup: 'pending',
+        processPolicy: 'fresh-serial-node-child-per-scenario-sample', osCachePolicy: 'uncontrolled-filesystem-cache',
+        orderPolicy: 'cold-prime-each-fixture;alternate-warm-hot-order', order,
+        runtime: { node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch },
+        workload: observations.cold[0].workload, cold: summarize(observations.cold), warm: summarize(observations.warm), hot: summarize(observations.hot) };
+      try { await cleanup(); }
+      catch (error) { throw Object.assign(error, { fixtureRoot: taskRoot }); }
+      result.fixtureCleanup = 'completed'; return structuredClone(result);
+    },
+    async abort(error) {
+      if (!failed) { failed = true; primary = error; }
+      else if (error !== primary) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+      if (cleanupAttempted) throw error;
+      try { await cleanup(); }
+      catch (secondary) {
+        throw addStorageFailureContext(primary, { fixtureRoot: taskRoot, phase: 'vfs-benchmark-fixture-cleanup' }, secondary, { secondaryPresent: true });
+      }
+      throw primary;
     }
-  );
-  if (result.exitCode !== 0) {
-    throw new Error(result.stderr || result.stdout || `cold-start-cache ${mode} failed`);
-  }
-  return JSON.parse(result.stdout);
-}
-
-async function runSingleMode({ mode, rootDir, docs, docBytes, samples: sampleCount }) {
-  const baseDir = path.join(rootDir || process.cwd(), 'vfs');
-  const cacheRoot = path.join(rootDir || process.cwd(), 'cache');
-  await fs.mkdir(baseDir, { recursive: true });
-  await fs.mkdir(cacheRoot, { recursive: true });
-
-  const documents = await buildDocs({ count: docs, bytes: docBytes });
-  const indexSignature = 'bench-index-signature';
-  const manifestHash = 'xxh64:bench-manifest';
-  const cache = await createVfsColdStartCache({
-    cacheRoot,
-    indexSignature,
-    manifestHash,
-    config: { enabled: true, cacheRoot }
   });
+};
 
-  const timings = [];
-  let totalMs = 0;
-  for (let i = 0; i < sampleCount; i += 1) {
-    const start = process.hrtime.bigint();
-    for (const doc of documents) {
-      await ensureVfsDiskDocument({
-        baseDir,
-        virtualPath: doc.virtualPath,
-        text: doc.text,
-        docHash: doc.docHash,
-        coldStartCache: cache
-      });
-    }
-    if (mode === 'cold' && cache?.flush) {
-      await cache.flush();
-    }
-    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-    timings.push(elapsed);
-    totalMs += elapsed;
-  }
-  const stats = summarizeDurations(timings);
-  const docsPerSec = totalMs > 0 ? (docs * sampleCount) / (totalMs / 1000) : 0;
-  return { mode, docs, docBytes, samples: sampleCount, stats, totalMs, docsPerSec };
-}
+export const runVfsColdStartBench = async input => {
+  const series = await createVfsColdStartSeries(input);
+  try {
+    while (!series.done) await series.runNext();
+    return await series.complete();
+  } catch (error) { return series.abort(error); }
+};
 
-async function buildDocs({ count, bytes }) {
-  const docs = new Array(count);
-  for (let i = 0; i < count; i += 1) {
-    const text = `doc-${i}-` + 'x'.repeat(Math.max(0, bytes - 6));
-    const hash = await checksumString(text);
-    const docHash = hash?.value ? `xxh64:${hash.value}` : 'xxh64:';
-    docs[i] = {
-      virtualPath: `.poc-vfs/src/doc-${i}.txt`,
-      text,
-      docHash
-    };
+export const runVfsColdStartBenchCli = async (rawArgs = process.argv.slice(2)) => {
+  const argv = createCli({ scriptName: 'cold-start-cache', argv: ['node', 'cold-start-cache', ...rawArgs], options: {
+    mode: { type: 'string', describe: 'Internal: cold|warm|hot single scenario' },
+    docs: { type: 'number', default: 2000, describe: 'Document count' },
+    docBytes: { type: 'number', default: 256, describe: 'UTF-8 bytes per document' },
+    content: { type: 'string', default: 'ascii', describe: 'Deterministic document profile: ascii|utf8' },
+    samples: { type: 'number', default: 3, describe: 'Independent repetitions per scenario' },
+    root: { type: 'string', describe: 'Internal: owned scenario root' },
+    json: { type: 'boolean', default: false }, out: { type: 'string', describe: 'Write JSON results to a file' }
+  } }).parse();
+  const work = admitVfsColdStartWork({ docs: argv.docs, docBytes: argv.docBytes, samples: argv.samples, content: argv.content });
+  let result;
+  if (argv.mode) {
+    if (!['cold', 'warm', 'hot'].includes(argv.mode) || !argv.root || work.samples !== 1) throw new TypeError('Internal VFS scenario requires its owned root and exactly one sample.');
+    const rootDir = path.resolve(argv.root), marker = readMarker(rootDir);
+    if (marker.docs !== work.docs || marker.docBytes !== work.docBytes || marker.content !== work.content) throw new Error('VFS scenario request differs from its owned fixture.');
+    const started = performance.now(), plan = await buildVfsColdStartPlan(work), documentPlanMs = performance.now() - started;
+    result = { ...await runVfsColdStartSample({ mode: argv.mode, rootDir, plan }), documentPlanMs };
+  } else result = await runVfsColdStartBench(work);
+  if (argv.out) writeJsonWithDir(argv.out, result);
+  if (argv.json) console.log(JSON.stringify(result, null, 2));
+  else if (argv.mode) console.error(`[cold-start-cache:${argv.mode}] ${result.state}; ${result.counts.documents} documents`);
+  else {
+    console.error(`[cold-start-cache] ${work.docs} docs; ${work.docBytes} UTF-8 bytes/doc; ${work.samples} independent samples`);
+    for (const mode of ['cold', 'warm', 'hot']) console.error(`- ${mode}: ${result[mode].state}; ${result[mode].stats ? formatStats(result[mode].stats) : 'unqualified'}`);
   }
-  return docs;
-}
+  return result;
+};
+
+if (isDirectExecution(import.meta.url)) runVfsColdStartBenchCli().catch(error => {
+  console.error(error?.stack || error);
+  if (error?.fixtureRoot) console.error(`[cold-start-cache] retained fixture: ${error.fixtureRoot}`);
+  process.exitCode = 1;
+});

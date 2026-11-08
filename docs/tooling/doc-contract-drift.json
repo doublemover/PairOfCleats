@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-12T02:49:54.522Z",
+  "generatedAt": "2026-10-24T12:10:43.281Z",
   "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
-      "source": "src/retrieval/cli-args.js",
-      "sourceCount": 103,
-      "docCount": 103,
+      "source": "src/retrieval/cli-options.js",
+      "sourceCount": 105,
+      "docCount": 105,
       "missingInDocs": [],
       "extraInDocs": []
     },
     "searchContractFlags": {
       "doc": "docs/contracts/search-contract.md",
-      "source": "src/retrieval/cli-args.js",
-      "sourceCount": 103,
+      "source": "src/retrieval/cli-options.js",
+      "sourceCount": 105,
       "docCount": 24,
       "nonBlocking": true,
       "missingInDocs": [
@@ -59,6 +59,7 @@
         "--graph-ranking-max-work",
         "--graph-ranking-seed-k",
         "--graph-ranking-seeds",
+        "--help",
         "--import",
         "--include-disabled",
         "--json",
@@ -95,6 +96,7 @@
         "--why",
         "--workspace",
         "--writes",
+        "-h",
         "-n"
       ],
       "extraInDocs": []
@@ -102,16 +104,16 @@
     "artifactSchemas": {
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
-      "sourceCount": 88,
-      "docCount": 88,
+      "sourceCount": 90,
+      "docCount": 90,
       "missingInDocs": [],
       "extraInDocs": []
     },
     "scoreBreakdown": {
       "doc": "docs/contracts/search-contract.md",
-      "source": "src/retrieval/pipeline.js",
-      "sourceCount": 0,
-      "docCount": 0,
+      "source": "src/retrieval/pipeline/rank-stage.js",
+      "sourceCount": 8,
+      "docCount": 8,
       "missingInDocs": [],
       "extraInDocs": []
     },

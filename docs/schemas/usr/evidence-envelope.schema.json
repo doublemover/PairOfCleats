@@ -1,18 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "usr/evidence-envelope.schema.json",
-  "title": "USR Evidence Envelope",
+  "title": "usr-evidence-envelope",
   "type": "object",
+  "additionalProperties": false,
   "required": [
     "schemaVersion",
     "artifactId",
     "generatedAt",
     "producerId",
-    "scope",
     "runId",
     "lane",
     "buildId",
-    "status"
+    "status",
+    "scope"
   ],
   "properties": {
     "schemaVersion": {
@@ -34,45 +34,6 @@
         "null"
       ]
     },
-    "scope": {
-      "type": "object",
-      "required": [
-        "scopeType",
-        "scopeId"
-      ],
-      "properties": {
-        "scopeType": {
-          "enum": [
-            "global",
-            "lane",
-            "language",
-            "framework"
-          ]
-        },
-        "scopeId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "blockingFindings": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "advisoryFindings": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "evidenceRefs": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "runId": {
       "type": "string"
     },
@@ -86,7 +47,57 @@
       ]
     },
     "status": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "error",
+        "partial"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scopeType",
+        "scopeId"
+      ],
+      "properties": {
+        "scopeType": {
+          "type": "string",
+          "enum": [
+            "global",
+            "lane",
+            "language",
+            "framework"
+          ]
+        },
+        "scopeId": {
+          "type": "string"
+        }
+      }
+    },
+    "blockingFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "advisoryFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
-  }
+  },
+  "$id": "usr/evidence-envelope.schema.json"
 }

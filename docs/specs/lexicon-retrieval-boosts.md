@@ -2,7 +2,7 @@
 
 Status: Active  
 Owner: Retrieval  
-Last Updated: 2026-02-14
+Last Updated: 2026-10-21
 
 ## Purpose
 Add optional, bounded, boost-only ranking signals based on relation alignment between query tokens and chunk/file relations.
@@ -22,6 +22,14 @@ Recommended defaults:
 - `perCall = 0.25`
 - `perUse = 0.10`
 - `maxBoost = 1.50`
+
+Weights and the cap accept finite nonnegative numbers. Zero disables that
+contribution (or all boosting for a zero cap); it never restores a positive
+default. Negative/nonfinite values use the same positive defaults at CLI,
+pipeline and scorer boundaries, preserving the boost-only contract. Numeric
+strings retain runtime compatibility; blank strings and other types do not
+coerce into zero. Schema validation still rejects values of the wrong type.
+Explanation list lengths remain strictly positive.
 
 ## Config Surface
 - `retrieval.relationBoost.enabled` (default `false`)

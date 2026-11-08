@@ -77,10 +77,11 @@ const normalizeBlockText = (lines) => {
     .trim();
 };
 
-const detectTags = (normalizedText) => {
+const detectTags = (normalizedText, sourceLines = []) => {
   const text = typeof normalizedText === 'string' ? normalizedText : '';
   const tags = new Set();
-  const spdxMatch = text.match(/spdx-license-identifier\s*:\s*([^\n]+)/i);
+  const spdxMatch = sourceLines.map(stripCommentPrefix).join('\n')
+    .match(/spdx-license-identifier[^\S\r\n]*:[^\S\r\n]*([^\r\n]+)/i);
   if (spdxMatch && spdxMatch[1]) {
     const value = spdxMatch[1].trim().toLowerCase().replace(/\s+/g, '-');
     if (value) tags.add(`spdx:${value}`);
@@ -169,7 +170,7 @@ const buildBoilerplateEntry = async (candidate) => {
   const hash = await checksumString(normalizedText);
   const signature = hash?.value ? `xxh64:${hash.value}` : null;
   if (!signature) return null;
-  const tags = detectTags(normalizedText);
+  const tags = detectTags(normalizedText, candidate.lines);
   return {
     signature,
     position: candidate.position,

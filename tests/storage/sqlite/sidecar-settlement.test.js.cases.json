@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["drain", "frozen-errors", "warning-failure", "pending-error", "publication-original-close", "publication-primary"]
+}

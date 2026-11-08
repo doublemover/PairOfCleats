@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-before-classification", "function-before-classification", "independent-inspection-stops-fields", "callback-inspection-remains-required", "closed-positive-and-negative"]
+}

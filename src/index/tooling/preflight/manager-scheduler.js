@@ -133,6 +133,7 @@ export const finalizeQueuedTaskAbort = ({ state, task, error }) => {
 };
 
 export const runScheduledTask = ({ state, ctx, task, fromQueue = false }) => {
+  if (task.cancelled === true || task.settled) return;
   const scheduler = resolveScheduler(state, ctx);
   const log = resolveLogger(ctx);
   scheduler.running += 1;
@@ -164,11 +165,14 @@ export const runScheduledTask = ({ state, ctx, task, fromQueue = false }) => {
       task.settled = true;
       task.reject(error);
     })
-    .finally(() => {
+    .finally(async () => {
+      // runWithTimeout rejects promptly; the owned operation can still be
+      // settling its subprocesses. Admission capacity follows that lifetime.
+      if (task.executionSettlement && !task.executionSettled) await task.executionSettlement;
       scheduler.running = Math.max(0, scheduler.running - 1);
       scheduler.metrics.completed += 1;
       incrementClassMetric(scheduler.metrics, task.preflightClass, 'completed');
-      while (scheduler.running < scheduler.maxConcurrency && scheduler.queue.length > 0) {
+      while (scheduler.accepting && scheduler.running < scheduler.maxConcurrency && scheduler.queue.length > 0) {
         const nextTask = scheduler.queue.shift();
         if (!nextTask || nextTask.cancelled === true || nextTask.settled) continue;
         scheduler.metrics.dequeued += 1;

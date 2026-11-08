@@ -7,6 +7,7 @@ import { loadGraphRelationsSync } from '../../../../src/shared/artifact-io.js';
 import { enqueueGraphRelationsArtifacts } from '../../../../src/index/build/artifacts/graph-relations.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 
 const root = process.cwd();
 const cacheRoot = resolveTestCachePath(root, 'relations-streaming-build');
@@ -64,6 +65,7 @@ const writeManifest = async (outDir, pieces) => {
   const manifestPath = path.join(piecesDir, 'manifest.json');
   await fsPromises.writeFile(manifestPath, JSON.stringify({
     version: 2,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     generatedAt: new Date().toISOString(),
     mode: 'code',
     stage: 'stage2',

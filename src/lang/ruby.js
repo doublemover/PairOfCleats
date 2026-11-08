@@ -7,6 +7,8 @@ import {
 } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import { syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
+import { rubyCallableBodyRange } from './ruby/body-boundary.js';
 
 /**
  * Ruby language chunking and relations.
@@ -254,7 +256,10 @@ export function buildRubyChunks(text, options = {}) {
         methodName = `${currentScope}.${defName}`;
       } else if (defName.startsWith('self.')) {
         const base = defName.replace(/^self\./, '');
-        methodName = currentScope ? `${currentScope}.${base}` : base;
+        methodName = currentScope ? `${currentScope}.self.${base}` : `self.${base}`;
+      } else if (defName.includes('.')) {
+        const dot = defName.lastIndexOf('.');
+        methodName = `${defName.slice(0,dot)}.self.${defName.slice(dot+1)}`;
       }
       blockStack.push({
         kind: 'def',
@@ -286,6 +291,9 @@ export function buildRubyRelations(text, rubyChunks) {
   const exports = new Set();
   const calls = [];
   const usages = new Set();
+  const nativeChunks = (Array.isArray(rubyChunks) ? rubyChunks : []).filter(chunk => Array.isArray(chunk.meta?.syntaxCalls));
+  const native = syntaxRelationsForChunks(nativeChunks);
+  let heuristicCalls = false;
   if (Array.isArray(rubyChunks)) {
     for (const chunk of rubyChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
@@ -293,7 +301,13 @@ export function buildRubyRelations(text, rubyChunks) {
         exports.add(chunk.name);
       }
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const slice = text.slice(chunk.start, chunk.end);
+      if (Array.isArray(chunk.meta?.syntaxCalls)) {
+        for (const detail of chunk.meta.syntaxCalls) if (detail.callee) { calls.push([chunk.name,detail.callee]); usages.add(detail.callee); }
+        continue;
+      }
+      heuristicCalls = true;
+      const body = rubyCallableBodyRange(text, chunk);
+      const slice = body ? text.slice(body.start, body.end) : '';
       const { calls: chunkCalls, usages: chunkUsages } = collectRubyCallsAndUsages(slice);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
       for (const usage of chunkUsages) usages.add(usage);
@@ -303,6 +317,8 @@ export function buildRubyRelations(text, rubyChunks) {
     imports,
     exports: Array.from(exports),
     calls,
+    ...(nativeChunks.length ? { callDetails: native.callDetails, callOwnership: native.callOwnership } : {}),
+    ...(heuristicCalls ? { callCoverage: 'partial-heuristic-callable-bodies' } : {}),
     usages: Array.from(usages)
   };
 }

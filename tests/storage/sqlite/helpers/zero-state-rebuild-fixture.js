@@ -5,6 +5,8 @@ import path from 'node:path';
 import { buildSqliteIndex } from '../../../../tools/build/sqlite/runner.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
+import { writeSqliteIndexFormat } from '../../../../src/storage/sqlite/index-format.js';
 
 export const prepareZeroStateSqliteFixture = async ({
   label,
@@ -109,6 +111,8 @@ export const assertSeededDbUnchangedAfterZeroState = async ({
 }) => {
   const seedDb = new Database(outputPath);
   seedDb.exec('CREATE TABLE chunks (id INTEGER PRIMARY KEY, mode TEXT NOT NULL);');
+  seedDb.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(seedDb);
   seedDb.close();
 
   const before = await fs.stat(outputPath);

@@ -5,7 +5,10 @@ import {
 } from '../shared/embedding-input-format.js';
 import { getEnvConfig } from '../shared/env/runtime.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
-import { resolveEmbeddingModelProfile } from '../shared/embedding-model-profile.js';
+import { resolveEmbeddingModelProfile, resolveQueryEmbeddingContract } from '../shared/embedding-model-profile.js';
+import { admitEmbeddingVector } from '../shared/embedding-output-admission.js';
+import { assertEmbeddingArtifactCompatibility } from '../shared/embedding-artifact-identity.js';
+import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from '../shared/embedding-cache-lifetime.js';
 
 const warnOnce = createWarnOnce();
 
@@ -52,6 +55,16 @@ export async function getQueryEmbedding({
     if (profile && dims != null && Number(dims) !== profile.dimensions) {
       throw new Error('EmbeddingGemma 2 query dimensions do not match the persisted model profile. Rebuild the index.');
     }
+    // Persisted formatting may be stale. Reject it before acquiring any adapter
+    // lease; otherwise a formatter failure would precede its disposal scope.
+    const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
+      ? inputFormatting
+      : resolveEmbeddingInputFormatting(modelId);
+    const formattedText = formatEmbeddingInput(text, {
+      modelId,
+      kind: 'query',
+      formatting: resolvedInputFormatting
+    });
     const adapter = getEmbeddingAdapter({
       rootDir,
       useStub: resolvedUseStub,
@@ -65,21 +78,29 @@ export async function getQueryEmbedding({
       modelArtifact,
       retainInCache: true
     });
-    const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
-      ? inputFormatting
-      : resolveEmbeddingInputFormatting(modelId);
-    const formattedText = formatEmbeddingInput(text, {
-      modelId,
-      kind: 'query',
-      formatting: resolvedInputFormatting
-    });
+    let primaryError, primaryCaught = false;
     try {
       const embedding = await adapter.embedOne(formattedText);
-      if (!embedding || !embedding.length) return null;
+      const contract = resolveQueryEmbeddingContract({ modelId, modelProfile: profile, dims, useStub: resolvedUseStub });
+      admitEmbeddingVector(embedding, { ...contract, provider });
+      const execution = adapter.executionInfo();
+      const requestedProvider = execution.requestedProvider || provider;
+      if (execution.provider !== requestedProvider && !resolvedUseStub) {
+        throw new Error(`Query embedding provider changed from ${requestedProvider} to ${execution.provider}; rebuild the dense index with the effective provider.`);
+      }
+      if (modelArtifact && !resolvedUseStub) {
+        assertEmbeddingArtifactCompatibility(modelArtifact, execution.modelArtifact);
+      }
       return embedding;
-    } finally { await adapter.dispose?.(); }
+    } catch (error) { primaryCaught = true; primaryError = error; throw error; }
+    finally {
+      try { await adapter.dispose?.(); }
+      catch (cleanup) { throw primaryCaught ? preserveEmbeddingCleanupFailure(primaryError, cleanup) : cleanup; }
+    }
   } catch (err) {
-    warnOnce(`[embeddings] Query embedder unavailable; skipping ANN. ${err?.message || err}`);
+    const observe = observeEmbeddingOwnership(err);
+    if (observe && !observe()) throw err;
+    warnOnce(`[embeddings] Query embedder unavailable; skipping ANN. ${err?.code === 'ERR_EMBEDDING_OUTPUT' ? 'ERR_EMBEDDING_OUTPUT: invalid query vector.' : err?.message || err}`);
     return null;
   }
 }

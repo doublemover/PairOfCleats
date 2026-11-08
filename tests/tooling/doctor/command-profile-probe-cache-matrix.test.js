@@ -102,7 +102,8 @@ try {
     toolingConfig: {}
   });
   assert.equal(failedFirst.probe.ok, false);
-  assert.equal(failedFirst.probe.cached, false);
+  assert.deepEqual(failedFirst.probe.attempted, []);
+  assert.equal(failedFirst.probe.validationFailure.reasonCode, 'command-discovery-not-found');
 
   const failedSecond = resolveToolingCommandProfile({
     providerId: 'custom-missing',
@@ -112,7 +113,8 @@ try {
     toolingConfig: {}
   });
   assert.equal(failedSecond.probe.ok, false);
-  assert.equal(failedSecond.probe.cached, true);
+  assert.deepEqual(failedSecond.probe.attempted, []);
+  assert.equal(failedSecond.probe.validationFailure.reasonCode, 'command-discovery-not-found');
 
   __resetToolingCommandProbeCacheForTests();
   const clockStartMs = Date.now();

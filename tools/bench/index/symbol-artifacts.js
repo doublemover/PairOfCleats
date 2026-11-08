@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -15,7 +16,7 @@ const seed = Number(args.seed) || 4242;
 const sampleEvery = Number(args.sampleEvery) || 500;
 const mode = resolveCompareMode(args.mode);
 
-const benchRoot = path.join(process.cwd(), '.benchCache', 'symbol-artifacts');
+const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'symbol-artifacts');
 await fs.mkdir(benchRoot, { recursive: true });
 
 const langs = ['ts', 'js', 'py', 'go'];

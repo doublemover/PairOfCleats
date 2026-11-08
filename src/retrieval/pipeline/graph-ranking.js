@@ -1,76 +1,11 @@
-import { buildGraphNodeIndex } from '../../graph/indexes.js';
+import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
+import { resolveGraphNodeIndexes, resolveGraphRankingNeighbors } from '../../graph/prepared-node-indexes.js';
 import { createWorkBudget } from '../../graph/work-budget.js';
-import { normalizeOptionalNumber } from '../../shared/limits.js';
-import { compareStrings } from '../../shared/sort.js';
-
-const DEFAULT_MAX_WORK_UNITS = 500;
-const DEFAULT_MAX_DEPTH = 2;
-const DEFAULT_MAX_WIDTH_PER_NODE = 12;
-const DEFAULT_MAX_VISITED_NODES = 192;
-
-const normalizeSeedSelection = (value) => {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'topk') return 'topK';
-  if (raw === 'top1' || raw === 'topk' || raw === 'none') return raw;
-  return 'top1';
-};
-
-const normalizeBoundedInt = (value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) => {
-  const parsed = normalizeOptionalNumber(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  const rounded = Math.floor(parsed);
-  return Math.min(max, Math.max(min, rounded));
-};
-
-/**
- * Resolve bounded multi-hop defaults for graph ranking expansion.
- * @param {object|null|undefined} expansion
- * @returns {{maxDepth:number,maxWidthPerNode:number,maxVisitedNodes:number}}
- */
-const normalizeExpansionPolicy = (expansion) => ({
-  maxDepth: normalizeBoundedInt(expansion?.maxDepth, DEFAULT_MAX_DEPTH, { min: 1, max: 4 }),
-  maxWidthPerNode: normalizeBoundedInt(expansion?.maxWidthPerNode, DEFAULT_MAX_WIDTH_PER_NODE, { min: 1, max: 64 }),
-  maxVisitedNodes: normalizeBoundedInt(expansion?.maxVisitedNodes, DEFAULT_MAX_VISITED_NODES, { min: 8, max: 2048 })
-});
+import { resolveGraphRankingPolicy } from './graph-ranking-policy.js';
 
 const resolveChunkUid = (chunk) => (
   chunk?.chunkUid || chunk?.metaV2?.chunkUid || null
 );
-
-const resolveNeighbors = (index, nodeId) => {
-  const node = index.get(nodeId);
-  if (!node) return [];
-  const out = Array.isArray(node.out) ? node.out : [];
-  const incoming = Array.isArray(node.in) ? node.in : [];
-  const set = new Set([...out, ...incoming].filter(Boolean));
-  const list = Array.from(set);
-  list.sort(compareStrings);
-  return list;
-};
-
-/**
- * Create a memoized resolver that merges call+usage neighbors into one
- * deterministic sorted adjacency list per node.
- *
- * @param {Map<string, object>} callIndex
- * @param {Map<string, object>} usageIndex
- * @returns {(nodeId:string)=>string[]}
- */
-const createNeighborResolver = (callIndex, usageIndex) => {
-  const cache = new Map();
-  return (nodeId) => {
-    if (!nodeId) return [];
-    const cached = cache.get(nodeId);
-    if (cached) return cached;
-    const merged = Array.from(new Set([
-      ...resolveNeighbors(callIndex, nodeId),
-      ...resolveNeighbors(usageIndex, nodeId)
-    ]));
-    merged.sort(compareStrings);
-    cache.set(nodeId, merged);
-    return merged;
-  };
-};
 
 const resolveDegree = (index, nodeId) => {
   const node = index.get(nodeId);
@@ -190,32 +125,27 @@ export const applyGraphRanking = ({
     return { entries, stats: null };
   }
 
-  const weights = config?.weights || {};
-  const degreeWeight = Number(weights.degree) || 0;
-  const proximityWeight = Number(weights.proximity) || 0;
-  if (!degreeWeight && !proximityWeight) {
-    return { entries, stats: null };
-  }
+  const { degreeWeight, proximityWeight, seedSelection, seedK, maxGraphWorkUnits,
+    maxWallClockMs, expansionPolicy } = resolveGraphRankingPolicy(config);
+  if (!degreeWeight && !proximityWeight) return { entries, stats: null };
 
-  const seedSelection = normalizeSeedSelection(config?.seedSelection);
-  const seedK = normalizeOptionalNumber(config?.seedK);
-  const maxGraphWorkUnits = normalizeOptionalNumber(config?.maxGraphWorkUnits) ?? DEFAULT_MAX_WORK_UNITS;
-  const maxWallClockMs = normalizeOptionalNumber(config?.maxWallClockMs);
-  const expansionPolicy = normalizeExpansionPolicy(config?.expansion);
-
-  const callIndex = buildGraphNodeIndex(graphRelations?.callGraph);
-  const usageIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
-  const resolveMergedNeighbors = createNeighborResolver(callIndex, usageIndex);
+  const preparation = { nodeIndexesBuilt: 0, nodeSlotsVisited: 0, adjacencyListsBuilt: 0,
+    adjacencyInputsVisited: 0, adjacencyCacheHits: 0, elapsedMs: 0,
+    scope: 'generation lookup and demanded canonical adjacency; separate from traversal edge work' };
+  const { callGraph: callIndex, usageGraph: usageIndex } = resolveGraphNodeIndexes(graphRelations,
+    ['callGraph', 'usageGraph'], preparation);
+  const resolveMergedNeighbors = nodeId => resolveGraphRankingNeighbors(graphRelations, nodeId, preparation);
 
   const seedList = resolveSeeds(entries, seedSelection, seedK);
   const seedSet = new Set(seedList);
   const budget = createWorkBudget({ maxWorkUnits: maxGraphWorkUnits, maxWallClockMs });
-  const expanded = expandSeedNeighborhood({
+  const expanded = proximityWeight ? expandSeedNeighborhood({
     seedList,
     resolveMergedNeighbors,
     expansionPolicy,
     budget
-  });
+  }) : { depthByNode: new Map(seedList.map(id => [id, 0])), widthLimitedNodes: 0,
+    depthLimitedNodes: 0, stop: { reason: null } };
   const stopReason = resolveStopReason(expanded);
 
   const ranked = entries.map((entry) => {
@@ -228,7 +158,7 @@ export const applyGraphRanking = ({
       ? 1
       : (Number.isFinite(seedDistance) ? (1 / (seedDistance + 1)) : 0);
     const graphScore = (degreeWeight * degree) + (proximityWeight * proximity);
-    const next = { ...entry };
+    const next = { ...entry, graphScoreCoordinate: { kind: 'graph-additive-v1', stopReason } };
     next.score = entry.score + graphScore;
     if (explain) {
       next.scoreBreakdown = {
@@ -253,6 +183,9 @@ export const applyGraphRanking = ({
         }
       };
     }
+    if (next.scoreBreakdown) next.scoreBreakdown = reconcileSelectedScore(next.scoreBreakdown, {
+      score: next.score, type: next.scoreType, stage: 'graph', sourceScore: entry.score, sourceType: entry.scoreType
+    });
     return next;
   });
 
@@ -261,6 +194,7 @@ export const applyGraphRanking = ({
   return {
     entries: ranked,
     stats: {
+      preparation,
       workUnitsUsed: budget.getUsed(),
       truncated: Boolean(stopReason),
       stopReason,

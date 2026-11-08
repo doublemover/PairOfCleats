@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { diffFileManifests, isManifestMatch, normalizeManifestFiles } from '../../../src/storage/sqlite/build/manifest.js';
+import { sqliteBundleIdentity } from '../../../src/storage/sqlite/bundle-identity.js';
+
+const finalized = { bundleInventory: [{ name: 'immutable.json', bytes: 12, checksum: 'sha256:qualified' }] };
 
 const manifestFiles = {
   'src/conflict.js': { hash: 'aaa', mtimeMs: 1, size: 10 },
   'src\\conflict.js': { hash: 'bbb', mtimeMs: 2, size: 20 },
-  'src/unchanged.js': { hash: 'keep', mtimeMs: 5, size: 50 },
+  'src/unchanged.js': { hash: 'keep', mtimeMs: 5, size: 50, ...finalized },
   'src/changed.js': { mtimeMs: 9, size: 90 }
 };
 
@@ -14,7 +17,7 @@ assert.ok(normalized.conflicts.includes('src/conflict.js'), 'expected conflict t
 assert.equal(normalized.entries.length, 3, 'expected normalized entries to dedupe conflicts');
 
 const dbFiles = new Map();
-dbFiles.set('src/unchanged.js', { hash: 'keep', mtimeMs: 5, size: 50 });
+dbFiles.set('src/unchanged.js', { hash: 'keep', mtimeMs: 5, size: 50, bundle_hash: sqliteBundleIdentity(finalized) });
 dbFiles.set('src/changed.js', { hash: 'old', mtimeMs: 8, size: 90 });
 dbFiles.set('src/deleted.js', { hash: 'gone', mtimeMs: 1, size: 10 });
 
@@ -29,8 +32,8 @@ assert.equal(matchByHash, true, 'expected hash match to win');
 const matchByMeta = isManifestMatch({ mtimeMs: 5, size: 50 }, { mtimeMs: 5, size: 50 });
 assert.equal(matchByMeta, true, 'expected mtime+size match');
 
-const hashUpgradeEntry = { hash: 'newhash', mtimeMs: 5, size: 50 };
-const dbMissingHash = { mtimeMs: 5, size: 50 };
+const hashUpgradeEntry = { hash: 'newhash', mtimeMs: 5, size: 50, ...finalized };
+const dbMissingHash = { mtimeMs: 5, size: 50, bundle_hash: sqliteBundleIdentity(finalized) };
 const strictMatch = isManifestMatch(hashUpgradeEntry, dbMissingHash, { strictHash: true });
 assert.equal(strictMatch, false, 'expected strict hash mismatch when db hash missing');
 
@@ -39,6 +42,10 @@ const dbUpgrade = new Map([['src/upgrade.js', dbMissingHash]]);
 const diffUpgrade = diffFileManifests(manifestUpgrade, dbUpgrade);
 assert.equal(diffUpgrade.changed.length, 0, 'expected hash-only upgrade to avoid full rebuild');
 assert.equal(diffUpgrade.manifestUpdates.length, 1, 'expected manifest update to fill missing hash');
+const unknownFinalized = diffFileManifests([{ file: 'src/upgrade.js', normalized: 'src/upgrade.js',
+  entry: { hash: 'newhash', mtimeMs: 5, size: 50 } }], dbUpgrade);
+assert.equal(unknownFinalized.changed.length, 1, 'source metadata alone cannot authorize finalized metadata reuse');
+assert.equal(unknownFinalized.manifestUpdates.length, 0);
 
 const malformedDiff = diffFileManifests({ bad: true }, dbUpgrade);
 assert.deepEqual(malformedDiff.changed, [], 'expected malformed manifestEntries payload to fail closed');

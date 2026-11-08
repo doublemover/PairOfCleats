@@ -4,6 +4,7 @@ import { resolveJsonlExtension } from '../../../../shared/json-stream/jsonl-writ
 import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
 import { removePathWithRetry } from '../../../../shared/io/remove-path-with-retry.js';
 import { withGeneratedArtifactMetadata } from '../../../../shared/generated-artifact-core.js';
+import { readPreparedJsonlRow } from '../../../../shared/json-stream/prepared-row.js';
 export { resolveJsonlExtension };
 
 export const resolveJsonExtension = (value) => {
@@ -16,8 +17,9 @@ export const measureJsonlRows = (rows, { serialize = JSON.stringify } = {}) => {
   let totalBytes = 0;
   let maxLineBytes = 0;
   for (const row of rows || []) {
-    const line = serialize(row);
-    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+    const prepared = serialize === JSON.stringify ? readPreparedJsonlRow(row) : null;
+    const lineBytes = prepared ? prepared.lineBytes
+      : Buffer.byteLength(serialize(row), 'utf8') + 1;
     totalBytes += lineBytes;
     if (lineBytes > maxLineBytes) maxLineBytes = lineBytes;
   }

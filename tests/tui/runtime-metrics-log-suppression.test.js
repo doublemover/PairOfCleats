@@ -8,11 +8,12 @@ ensureTestingEnv(process.env);
 const root = process.cwd();
 const mainPath = path.join(root, 'crates', 'pairofcleats-tui', 'src', 'main.rs');
 const source = fs.readFileSync(mainPath, 'utf8');
-const runtimeMetricsIndex = source.indexOf('if event_name == "runtime:metrics"');
-const logPushIndex = source.indexOf('model.push_log_entry(log_line, &log_level, &log_source);');
+const handlerIndex = source.indexOf('fn apply_protocol_event(');
+const runtimeMetricsIndex = source.indexOf('if event_name == "runtime:metrics"', handlerIndex);
+const logPushIndex = source.indexOf('model.push_scoped_log_entry(', handlerIndex);
 const runtimeReturnIndex = source.indexOf('return;', runtimeMetricsIndex);
 
-if (runtimeMetricsIndex === -1) {
+if (handlerIndex === -1 || runtimeMetricsIndex === -1) {
   console.error('runtime metrics log suppression test failed: missing runtime metrics branch');
   process.exit(1);
 }

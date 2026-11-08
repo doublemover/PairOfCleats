@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
-import { writeArtifactPublicationRecord } from '../../src/index/build/artifact-publication.js';
+import { writeArtifactPublicationRecord, writeArtifactPublicationValidationReport } from '../../src/index/build/artifact-publication.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 export const seedPublishedArtifacts = async ({
   buildRoot,
@@ -31,12 +32,16 @@ export const seedPublishedArtifacts = async ({
   await writeJsonObjectFile(manifestPath, {
     fields: {
       version: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       mode,
       stage,
       buildId,
       pieces: pieceEntries
     },
     atomic: true
+  });
+  const publicationValidation = await writeArtifactPublicationValidationReport({
+    buildRoot, outDir, mode, buildId, pieceEntries, manifestPath
   });
   await writeArtifactPublicationRecord({
     buildRoot,
@@ -45,7 +50,8 @@ export const seedPublishedArtifacts = async ({
     stage,
     buildId,
     pieceEntries,
-    manifestPath
+    manifestPath,
+    publicationValidation
   });
   return { outDir, manifestPath, pieceEntries };
 };

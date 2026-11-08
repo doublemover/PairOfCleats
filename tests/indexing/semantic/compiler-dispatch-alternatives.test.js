@@ -28,6 +28,27 @@ try {
     class StaticChild extends StaticBase {static call(x:number){return this.method(x);}}
     function reassigned(x:number,y:number){return x;}reassigned=second;reassigned(10,11);
     function rest(...values:number[]){return values[1];}function restCaller(a:number,b:number){return rest(a,b);}
+    class MultiBase {local(){return 1;}inherited(){return 2;}}
+    class MultiDerived extends MultiBase {local(){return 3;}}
+    function multiKey(key:'local'|'inherited'){return new MultiDerived()[key]();}
+    class StaticMultiBase {static local(){return 1;}static inherited(){return 2;}}
+    class StaticMultiDerived extends StaticMultiBase {static local(){return 3;}}
+    function staticMultiKey(key:'local'|'inherited'){return StaticMultiDerived[key]();}
+    class DeclaredField extends MultiBase {declare inherited:()=>number;}
+    function declarationOnly(){return new DeclaredField().inherited();}
+    declare const computedMemberKey:'local'|'inherited';
+    class ComputedMember extends MultiBase {[computedMemberKey](){return 4;}}
+    function computedMember(key:'local'|'inherited'){return new ComputedMember()[key]();}
+    class LeftCtor {constructor(input:number){} call(){return 17;}}
+    class RightCtor {constructor(input:number){} call(){return 29;}}
+    function classChoices(flag:boolean) {
+      const ChoiceCtor=flag?LeftCtor:RightCtor;
+      let MutableCtor=LeftCtor; if(flag)MutableCtor=RightCtor;
+      const LogicalCtor=LeftCtor||RightCtor;
+      class Forwarded extends ChoiceCtor {}
+      new ChoiceCtor(1).call(); new MutableCtor(2).call(); new LogicalCtor(3).call();
+      return new Forwarded(4);
+    }
 
   `},{},{withFlow:true});
   const doc=fixture.documents[0],{ts,checker,sourceFile,expressionFor}=doc;
@@ -53,11 +74,40 @@ try {
   assert.equal(call('reassigned(10,11)').certainty,'modeled');
   assert.ok(call('this.method(x)').targets.some(ref=>key(ref)===key(declarationRef(named('StaticBase').members[0]))));
   assert.equal(call('accessor.callback(8,9)').targets.some(ref=>key(ref)===key(declarationRef(named('Box').members[2]))),false,'getter declaration is not the returned callable');
+  const directTargets=text=>new Set(dispatch(call(text).node).targets.map(key));
+  const memberRef=(owner,index)=>key(declarationRef(named(owner).members[index]));
+  assert.deepEqual(directTargets('new MultiDerived()[key]()'),new Set([memberRef('MultiDerived',0),memberRef('MultiBase',1)]),
+    'one derived key must not hide another inherited alternative, while its exact override shadows the matching base key');
+  assert.deepEqual(directTargets('StaticMultiDerived[key]()'),new Set([memberRef('StaticMultiDerived',0),memberRef('StaticMultiBase',1)]),
+    'static inherited alternatives use the same per-key shadowing rule');
+  assert.deepEqual(directTargets('new DeclaredField().inherited()'),new Set([memberRef('MultiBase',1)]),
+    'a declaration-only field cannot establish runtime shadowing of the inherited method');
+  assert.deepEqual(directTargets('new ComputedMember()[key]()'),new Set([memberRef('ComputedMember',0),memberRef('MultiBase',0),memberRef('MultiBase',1)]),
+    'a computed member with multiple possible keys cannot establish which base name it shadows');
+  assert.ok(dispatch(call('new ComputedMember()[key]()').node).reasons.includes('class_member_key_shadowing_conservative'));
+  const constructorMethods = new Set([memberRef('LeftCtor',1), memberRef('RightCtor',1)]);
+  for (const text of ['new ChoiceCtor(1).call()', 'new MutableCtor(2).call()', 'new LogicalCtor(3).call()']) {
+    assert.deepEqual(directTargets(text), constructorMethods, `${text} retains all indexed source class alternatives`);
+    assert.equal(call(text).incomplete, true, 'class alternatives do not establish branch feasibility or final runtime dispatch');
+    assert.equal(call(text).certainty, 'modeled');
+  }
+  assert.ok(dispatch(call('new MutableCtor(2).call()').node).reasons.includes('mutable_class_binding_order_and_escape_conservative'));
+  const forwarded = doc.nodes.find(node => ts.isNewExpression(node) && node.getText(sourceFile) === 'new Forwarded(4)');
+  const forwardedResult = dispatch(forwarded);
+  assert.deepEqual(new Set(forwardedResult.targets.map(key)), new Set([memberRef('LeftCtor',0), memberRef('RightCtor',0)]),
+    'default derived constructors retain both source-backed heritage alternatives');
+  assert.ok(forwardedResult.reasons.includes('default_derived_constructor_forwarding_modeled'));
 
   const partitions=await collectCompilerCrossFileFlow(fixture),all=[...fixture.syntaxPartitions,...partitions],store=fixture.storeFor(all);
   await validateSemanticPartitions({store,partitions:all});
   const edges=[];for(const partition of all)for await(const edge of store.iterateRows(partition.partitionId,'semantic_edges'))edges.push(edge);
   assert.equal(edges.filter(edge=>edge.kind==='returnToResult'&&key(edge.callSite)===key(alternatives.occurrence)).length,2,'both source callees retain return channels');
+  assert.equal(edges.filter(edge=>edge.kind==='returnToResult'&&key(edge.callSite)===key(call('new MultiDerived()[key]()').occurrence)).length,2,
+    'both computed-name alternatives retain their source-backed return channels in the canonical call-flow partition');
+  for (const text of ['new ChoiceCtor(1).call()', 'new MutableCtor(2).call()', 'new LogicalCtor(3).call()']) {
+    assert.equal(edges.filter(edge => edge.kind === 'returnToResult' && key(edge.callSite) === key(call(text).occurrence)).length, 2,
+      `${text} retains both method return channels in the canonical call-flow partition`);
+  }
   assert.ok(edges.filter(edge=>edge.kind==='argumentToParameter'&&edge.callSite&&key(edge.callSite)===key(alternatives.occurrence)).length>=4,'each modeled alternative retains positional parameter channels');
   const flows=(from,to)=>{const visited=new Set([key(from)]);for(const ref of visited)for(const edge of edges)if(key(edge.from)===ref&&['flowsTo','reads','writes','defines','returns','packs'].includes(edge.kind))visited.add(key(edge.to));return visited.has(key(to));};
   for(const name of ['heap','finite']) {

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-10-27",
+  "sourceBeforeRemoval": "15175d4dc",
+  "scope": "Five proven unused direct roots; this is not a grep-based automatic deletion catalog.",
+  "retiredRoots": [
+    { "name": "@ast-grep/napi", "lockedVersion": "0.40.5", "reason": "No NAPI consumer or executable export; structural search selects the separately verified native CLI.", "owner": "src/experimental/structural/binaries.js" },
+    { "name": "@swc/core", "lockedVersion": "1.16.13", "reason": "No selected SWC parser/module consumer; production parser identity selects Babel, Acorn and Esprima.", "owner": "src/lang/javascript/parse.js" },
+    { "name": "@mdx-js/mdx", "lockedVersion": "3.1.1", "reason": "No MDX compiler/build consumer; the .mdx route uses the Markdown chunker.", "owner": "src/index/chunking/dispatch.js" },
+    { "name": "@vscode/ripgrep", "lockedVersion": "1.17.0", "reason": "No rgPath consumer or bin export; dictionary generation selects PATH rg or its filesystem walk.", "owner": "tools/dicts/generate-repo-dict.js" },
+    { "name": "tree-sitter-lua", "lockedVersion": "2.1.3", "reason": "Native registry and its derived bootstrap inventory select only the scoped grammar; logical route/caps labels are not package imports.", "owner": "src/lang/tree-sitter/native-runtime.js" }
+  ],
+  "retainedExceptions": [
+    { "name": "@tree-sitter-grammars/tree-sitter-lua", "role": "selected native grammar and bootstrap activation" },
+    { "name": "apache-arrow", "role": "explicit @lancedb/lancedb peer provision; legacy peer resolution does not supply it implicitly" },
+    { "name": "esquery", "role": "real @es-joy/jsdoccomment and ESLint transitive consumers remain" },
+    { "name": "nan", "role": "retained while the optional re2 dependency still requires it" }
+  ],
+  "executionExceptions": [
+    { "name": "ast-grep", "role": "separate canonical managed/external CLI; no use of the retired NAPI root" },
+    { "name": "rg", "role": "explicit PATH command in dictionary discovery with filesystem fallback; no bundled ripgrep claim" }
+  ]
+}

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { resolveDenseVector } from '../../../src/retrieval/cli/index-loader.js';
@@ -61,16 +62,16 @@ const cases = [
       assert.equal(resolveIntentVectorMode('code', { vectorMode: 'doc' }), 'code');
 
       const clipped = normalizeEmbeddingDims([1, 2, 3, 4], 2);
-      assert.equal(clipped.adjusted, true);
+      assert.equal(clipped.adjusted, false);
       assert.equal(clipped.queryDims, 4);
       assert.equal(clipped.expectedDims, 2);
-      assert.deepEqual(clipped.embedding, [1, 2]);
+      assert.equal(clipped.embedding, null, 'an over-wide query cannot be incidentally projected into another space');
 
       const padded = normalizeEmbeddingDims(new Float32Array([3, 4]), 4);
-      assert.equal(padded.adjusted, true);
+      assert.equal(padded.adjusted, false);
       assert.equal(padded.queryDims, 2);
       assert.equal(padded.expectedDims, 4);
-      assert.deepEqual(padded.embedding, [3, 4, 0, 0]);
+      assert.equal(padded.embedding, null, 'a short query cannot be zero-padded into an apparently valid embedding');
 
       const unchanged = normalizeEmbeddingDims([7, 8, 9], 3);
       assert.equal(unchanged.adjusted, false);
@@ -123,7 +124,7 @@ const cases = [
           vectors: [
             [0.1, 0.2],
             [0.2, 0.1]
-          ]
+          ].map(vector => quantizeEmbeddingVector(vector))
         };
         return idx.denseVec;
       };

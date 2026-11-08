@@ -16,13 +16,16 @@ await fs.mkdir(repoRoot);
 // This controlled installer returns success without creating an executable.
 // It never invokes npm or downloads a package.
 const fakeNpm = path.join(binDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
-await fs.writeFile(fakeNpm, process.platform === 'win32' ? '@echo off\r\nexit /b 0\r\n' : '#!/bin/sh\nexit 0\n');
+await fs.writeFile(fakeNpm, process.platform === 'win32'
+  ? '@echo off\r\nif "%1"=="--version" echo 11.0.0\r\nexit /b 0\r\n'
+  : '#!/bin/sh\nif [ "$1" = "--version" ]; then echo 11.0.0; fi\nexit 0\n');
 if (process.platform !== 'win32') await fs.chmod(fakeNpm, 0o755);
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(tempRoot, 'cache'),
-  extraEnv: { PATH: binDir, Path: binDir, PAIROFCLEATS_HOME: path.join(tempRoot, 'resources') } });
+  extraEnv: { PATH: binDir, Path: binDir, PAIROFCLEATS_HOME: path.join(tempRoot, 'resources'),
+    PAIROFCLEATS_TOOLING_DIR: path.join(tempRoot, 'tooling'), PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const run = (id, extra = []) => {
   const result = runNode([path.join(root, 'tools/tooling/install.js'), '--root', repoRoot,
-    '--tools', id, '--scope', 'cache', '--no-fallback', '--json', ...extra],
+    '--tools', id, '--scope', 'user', '--no-fallback', '--json', ...extra],
   `verify installer ${id}`, root, env, { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
   return { result, payload: JSON.parse(result.stdout) };
 };

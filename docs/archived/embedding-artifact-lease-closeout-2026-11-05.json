@@ -1,0 +1,4582 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "issue": 1204,
+  "sourceParent": "895d18c66967426754088215d68cbe8260b1fcb7",
+  "candidateIdentity": "Containing commit plus exact source hashes; focused Windows acceptance rather than a new full-suite/model inference qualification.",
+  "runtime": {
+    "node": "26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "bounds": {
+    "jobs": 1,
+    "threads": 1,
+    "timeoutMs": 30000,
+    "childTimeoutMs": 10000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "repair": {
+    "async": "Existing two-active/32-request owner coalesces only live identical selected closures and phases. No mutable path/stat digest cache is introduced.",
+    "inventory": "Reject linked loader routes, linked graph/tokenizer/data candidates and non-file artifacts before sibling hashing. Replan the entire selected namespace after hashing/stat rechecks, catching newly selected graph/data/tokenizer candidates and changed installation pointers.",
+    "sync": "The compatibility resolver now uses the original contained-file descriptor/close owner, bounded file reads and namespace revalidation, preserving valid canonical digest meaning.",
+    "version": "No numerical embedding, identity format, public configuration or CLI meaning change."
+  },
+  "before": {
+    "report": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47",
+      "summary": {
+        "durationMs": 3185,
+        "failed": 10,
+        "passed": 6,
+        "skipped": 0,
+        "total": 16
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 216,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/external-data-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_external-data-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 189,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/external-data-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_external-data-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 198,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/graph-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_graph-link-async.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_graph-link-async.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 205,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/graph-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_graph-link-sync.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_graph-link-sync.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 207,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/late-member-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_late-member-async.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_late-member-async.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 190,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/late-member-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_late-member-sync.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_late-member-sync.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 210,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/non-file-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_non-file-async.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_non-file-async.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 177,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/non-file-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_non-file-sync.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_non-file-sync.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 198,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/root-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_root-link-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 178,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/root-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_root-link-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 202,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/route-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_route-link-async.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_route-link-async.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 185,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/route-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_route-link-sync.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_route-link-sync.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 204,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/shadow-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_shadow-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 208,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/shadow-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_shadow-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 194,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_tokenizer-link-async.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_tokenizer-link-async.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 187,
+          "exitCode": 1,
+          "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_tokenizer-link-sync.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924812394-soow47\\indexing_embeddings_artifact-inventory-authority_tokenizer-link-sync.attempt-1.failure.json"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "failures": [
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/graph-link-async",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/graph-link-async\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/graph-link-sync",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/graph-link-sync\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/late-member-async",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/late-member-async\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:58:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_EMBEDDING_ARTIFACT_CHANGED' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/late-member-sync",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/late-member-sync\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:58:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_EMBEDDING_ARTIFACT_CHANGED' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/non-file-async",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/non-file-async\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/non-file-sync",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/non-file-sync\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/route-link-async",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/route-link-async\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/route-link-sync",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/route-link-sync\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-async",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/tokenizer-link-async\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      },
+      {
+        "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-sync",
+        "log": "id: indexing/embeddings/artifact-inventory-authority/tokenizer-link-sync\npath: indexing/embeddings/artifact-inventory-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection.\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/embeddings/artifact-inventory-authority.test.js:79:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: { code: 'ERR_UNSAFE_FILE_PATH' },\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+      }
+    ],
+    "outcome": "Original895d18c producer accepts ambiguous graph/tokenizer/route/non-file candidates or a newly selected member in ten new cases. All ten fail with Missing expected rejection. Six existing healthy/authority controls pass.",
+    "restoration": "Both original producer substitutions restore repaired bytes and verify their SHA256 in finally."
+  },
+  "after": {
+    "controls": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl",
+      "summary": {
+        "durationMs": 14012,
+        "failed": 0,
+        "passed": 31,
+        "skipped": 0,
+        "total": 31
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 366,
+          "exitCode": 0,
+          "id": "embeddings/embedding-acquisition-plan",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\embeddings_embedding-acquisition-plan.attempt-1.log"
+          ],
+          "path": "embeddings/embedding-acquisition-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1628,
+          "exitCode": 0,
+          "id": "embeddings/onnx/downloader-installation-consumer",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\embeddings_onnx_downloader-installation-consumer.attempt-1.log"
+          ],
+          "path": "embeddings/onnx/downloader-installation-consumer.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 247,
+          "exitCode": 0,
+          "id": "embeddings/onnx/explicit-model-selection",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\embeddings_onnx_explicit-model-selection.attempt-1.log"
+          ],
+          "path": "embeddings/onnx/explicit-model-selection.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 644,
+          "exitCode": 0,
+          "id": "embeddings/onnx/installation-closure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\embeddings_onnx_installation-closure.attempt-1.log"
+          ],
+          "path": "embeddings/onnx/installation-closure.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 224,
+          "exitCode": 0,
+          "id": "embeddings/onnx/model-selection-observation",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\embeddings_onnx_model-selection-observation.attempt-1.log"
+          ],
+          "path": "embeddings/onnx/model-selection-observation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 553,
+          "exitCode": 0,
+          "id": "indexing/embeddings/adapter-pipeline-leases",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_adapter-pipeline-leases.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/adapter-pipeline-leases.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1224,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-async-lease-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-async-lease-authority.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-async-lease-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 406,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-byte-progress-admission",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-byte-progress-admission.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-byte-progress-admission.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 684,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-installed-closure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-installed-closure.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-installed-closure.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 328,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/external-data-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_external-data-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 316,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/external-data-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_external-data-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 269,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/graph-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_graph-link-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 269,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/graph-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_graph-link-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 330,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/late-member-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_late-member-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 270,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/late-member-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_late-member-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 262,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/non-file-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_non-file-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 249,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/non-file-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_non-file-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 244,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/root-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_root-link-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 249,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/root-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_root-link-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 246,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/route-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_route-link-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 239,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/route-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_route-link-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 242,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/shadow-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_shadow-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 253,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/shadow-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_shadow-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 225,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-async",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_tokenizer-link-async.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 226,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-sync",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-inventory-authority_tokenizer-link-sync.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-inventory-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 245,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-verification-cancellation",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_artifact-verification-cancellation.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-verification-cancellation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1817,
+          "exitCode": 0,
+          "id": "indexing/embeddings/build/bundle-coverage-receipt",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_build_bundle-coverage-receipt.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/build/bundle-coverage-receipt.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 467,
+          "exitCode": 0,
+          "id": "indexing/embeddings/inactive-and-provenance-runtime",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_inactive-and-provenance-runtime.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/inactive-and-provenance-runtime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 473,
+          "exitCode": 0,
+          "id": "indexing/embeddings/inline-runtime-lease-close",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_inline-runtime-lease-close.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/inline-runtime-lease-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 466,
+          "exitCode": 0,
+          "id": "indexing/embeddings/model-artifact-identity",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_model-artifact-identity.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/model-artifact-identity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 316,
+          "exitCode": 0,
+          "id": "indexing/embeddings/provider-selection-isolation",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924848875-l9oadl\\indexing_embeddings_provider-selection-isolation.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/provider-selection-isolation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "work": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq",
+      "summary": {
+        "durationMs": 24968,
+        "failed": 0,
+        "passed": 24,
+        "skipped": 0,
+        "total": 24
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 974,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/cold-async-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_cold-async-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 993,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/cold-async-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_cold-async-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 960,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/cold-async-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_cold-async-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 961,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/cold-sync-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_cold-sync-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 939,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/cold-sync-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_cold-sync-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 862,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/cold-sync-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_cold-sync-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 925,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/concurrent-async-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_concurrent-async-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1028,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/concurrent-async-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_concurrent-async-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 935,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/concurrent-async-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_concurrent-async-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1581,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/concurrent-sync-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_concurrent-sync-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1493,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/concurrent-sync-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_concurrent-sync-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1563,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/concurrent-sync-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_concurrent-sync-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 769,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/small-async-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_small-async-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 746,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/small-async-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_small-async-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 789,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/small-async-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_small-async-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 752,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/small-sync-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_small-sync-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 749,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/small-sync-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_small-sync-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 723,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/small-sync-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_small-sync-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1258,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/warm-async-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_warm-async-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1257,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/warm-async-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_warm-async-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1173,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/warm-async-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_warm-async-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1141,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/warm-sync-1",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_warm-sync-1.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1170,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/warm-sync-2",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_warm-sync-2.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1198,
+          "exitCode": 0,
+          "id": "perf/embeddings/artifact-lease-work/warm-sync-3",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793924899032-7mngnq\\perf_embeddings_artifact-lease-work_warm-sync-3.attempt-1.log"
+          ],
+          "path": "perf/embeddings/artifact-lease-work.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "perf"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "importBudget": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925034900-0fafsb",
+      "summary": {
+        "durationMs": 3328,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 3322,
+          "exitCode": 0,
+          "id": "tooling/shared-module-performance",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925034900-0fafsb\\tooling_shared-module-performance.attempt-1.log"
+          ],
+          "path": "tooling/shared-module-performance.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "distinctFocusedPassed": 56,
+    "samples": [
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "cold",
+        "arm": "async",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 10358632
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 0,
+          "filesHashed": 8,
+          "bytesHashed": 92340224
+        },
+        "wallMs": 119.50400000000002,
+        "cpuMicroseconds": {
+          "user": 78000,
+          "system": 47000
+        },
+        "memoryBefore": {
+          "rss": 60604416,
+          "heapTotal": 14028800,
+          "heapUsed": 8534168,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 67342336,
+          "heapTotal": 14028800,
+          "heapUsed": 10643856,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 61026304,
+          "heapTotal": 14290944,
+          "heapUsed": 8801096,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103904,
+        "heartbeatsDuringWork": 104,
+        "eventLoopDelayNs": {
+          "min": 177664,
+          "max": 15507455,
+          "mean": 1317785.6,
+          "p95": 2073599
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/cold-async-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "cold",
+        "arm": "async",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 10356848
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 0,
+          "filesHashed": 8,
+          "bytesHashed": 92340224
+        },
+        "wallMs": 108.24829999999997,
+        "cpuMicroseconds": {
+          "user": 109000,
+          "system": 0
+        },
+        "memoryBefore": {
+          "rss": 60567552,
+          "heapTotal": 14028800,
+          "heapUsed": 8534808,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 66887680,
+          "heapTotal": 14028800,
+          "heapUsed": 10641808,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 60624896,
+          "heapTotal": 14028800,
+          "heapUsed": 8800976,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103888,
+        "heartbeatsDuringWork": 96,
+        "eventLoopDelayNs": {
+          "min": 419840,
+          "max": 15515647,
+          "mean": 1364487.4563106797,
+          "p95": 2191359
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/cold-async-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "cold",
+        "arm": "async",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 10355568
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 0,
+          "filesHashed": 8,
+          "bytesHashed": 92340224
+        },
+        "wallMs": 106.70819999999992,
+        "cpuMicroseconds": {
+          "user": 78000,
+          "system": 31000
+        },
+        "memoryBefore": {
+          "rss": 60268544,
+          "heapTotal": 14028800,
+          "heapUsed": 8534680,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 66740224,
+          "heapTotal": 14028800,
+          "heapUsed": 10640504,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 60456960,
+          "heapTotal": 14290944,
+          "heapUsed": 8800880,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103608,
+        "heartbeatsDuringWork": 94,
+        "eventLoopDelayNs": {
+          "min": 251392,
+          "max": 15515647,
+          "mean": 1416455.603960396,
+          "p95": 1970175
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/cold-async-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "cold",
+        "arm": "sync",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 9677024
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 91.42460000000005,
+        "cpuMicroseconds": {
+          "user": 62000,
+          "system": 31000
+        },
+        "memoryBefore": {
+          "rss": 60170240,
+          "heapTotal": 13766656,
+          "heapUsed": 8534856,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 66490368,
+          "heapTotal": 14290944,
+          "heapUsed": 9896336,
+          "external": 11904499,
+          "arrayBuffers": 8568002
+        },
+        "memoryAfterCollection": {
+          "rss": 60284928,
+          "heapTotal": 14028800,
+          "heapUsed": 8692776,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103528,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 880128,
+          "max": 92078079,
+          "mean": 23303219.2,
+          "p95": 92078079
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/cold-sync-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "cold",
+        "arm": "sync",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 9676784
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 94.75659999999993,
+        "cpuMicroseconds": {
+          "user": 47000,
+          "system": 47000
+        },
+        "memoryBefore": {
+          "rss": 60297216,
+          "heapTotal": 13766656,
+          "heapUsed": 8534616,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 66904064,
+          "heapTotal": 13766656,
+          "heapUsed": 9896096,
+          "external": 11904499,
+          "arrayBuffers": 8568002
+        },
+        "memoryAfterCollection": {
+          "rss": 60575744,
+          "heapTotal": 13766656,
+          "heapUsed": 8692568,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103652,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 195584,
+          "max": 95354879,
+          "mean": 20071210.666666668,
+          "p95": 95354879
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/cold-sync-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "cold",
+        "arm": "sync",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 9676720
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 110.0501999999999,
+        "cpuMicroseconds": {
+          "user": 62000,
+          "system": 31000
+        },
+        "memoryBefore": {
+          "rss": 60534784,
+          "heapTotal": 14028800,
+          "heapUsed": 8534552,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 66654208,
+          "heapTotal": 14028800,
+          "heapUsed": 9896032,
+          "external": 11904499,
+          "arrayBuffers": 8568002
+        },
+        "memoryAfterCollection": {
+          "rss": 60334080,
+          "heapTotal": 14028800,
+          "heapUsed": 8692504,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103764,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 927744,
+          "max": 110690303,
+          "mean": 25979443.2,
+          "p95": 110690303
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/cold-sync-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "concurrent",
+        "arm": "async",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 8,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 11816384
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 14,
+          "filesHashed": 8,
+          "bytesHashed": 92340224
+        },
+        "wallMs": 134.83629999999994,
+        "cpuMicroseconds": {
+          "user": 125000,
+          "system": 16000
+        },
+        "memoryBefore": {
+          "rss": 60203008,
+          "heapTotal": 14028800,
+          "heapUsed": 8533808,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 68136960,
+          "heapTotal": 15339520,
+          "heapUsed": 12102152,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 61952000,
+          "heapTotal": 15339520,
+          "heapUsed": 9323272,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103552,
+        "heartbeatsDuringWork": 100,
+        "eventLoopDelayNs": {
+          "min": 209920,
+          "max": 15794175,
+          "mean": 1451256.7547169812,
+          "p95": 2359295
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/concurrent-async-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "concurrent",
+        "arm": "async",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 8,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 11816672
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 14,
+          "filesHashed": 8,
+          "bytesHashed": 92340224
+        },
+        "wallMs": 137.52530000000002,
+        "cpuMicroseconds": {
+          "user": 109000,
+          "system": 16000
+        },
+        "memoryBefore": {
+          "rss": 60276736,
+          "heapTotal": 13766656,
+          "heapUsed": 8534712,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 68182016,
+          "heapTotal": 15339520,
+          "heapUsed": 12102472,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 62021632,
+          "heapTotal": 15339520,
+          "heapUsed": 8865576,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103616,
+        "heartbeatsDuringWork": 98,
+        "eventLoopDelayNs": {
+          "min": 11776,
+          "max": 16195583,
+          "mean": 1642032.761904762,
+          "p95": 3024895
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/concurrent-async-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "concurrent",
+        "arm": "async",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 2,
+        "clients": 8,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 90,
+          "bytesRead": 92340224,
+          "sampledPeakHeapBytes": 11817464
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 14,
+          "filesHashed": 8,
+          "bytesHashed": 92340224
+        },
+        "wallMs": 133.39749999999992,
+        "cpuMicroseconds": {
+          "user": 78000,
+          "system": 47000
+        },
+        "memoryBefore": {
+          "rss": 60780544,
+          "heapTotal": 14028800,
+          "heapUsed": 8534696,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 68694016,
+          "heapTotal": 15339520,
+          "heapUsed": 12103536,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 62492672,
+          "heapTotal": 15339520,
+          "heapUsed": 8865528,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 104004,
+        "heartbeatsDuringWork": 102,
+        "eventLoopDelayNs": {
+          "min": 212992,
+          "max": 15736831,
+          "mean": 1515261.6513761468,
+          "p95": 1772543
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/concurrent-async-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "concurrent",
+        "arm": "sync",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 16,
+        "clients": 8,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 64,
+          "readCalls": 720,
+          "bytesRead": 738721792,
+          "sampledPeakHeapBytes": 10718152
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 749.1315000000001,
+        "cpuMicroseconds": {
+          "user": 532000,
+          "system": 187000
+        },
+        "memoryBefore": {
+          "rss": 60162048,
+          "heapTotal": 14028800,
+          "heapUsed": 8534760,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 70590464,
+          "heapTotal": 14290944,
+          "heapUsed": 10602984,
+          "external": 17147379,
+          "arrayBuffers": 13810882
+        },
+        "memoryAfterCollection": {
+          "rss": 61009920,
+          "heapTotal": 14290944,
+          "heapUsed": 7529520,
+          "external": 3537724,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103484,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 760832,
+          "max": 749731839,
+          "mean": 191715904,
+          "p95": 749731839
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/concurrent-sync-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "concurrent",
+        "arm": "sync",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 16,
+        "clients": 8,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 64,
+          "readCalls": 720,
+          "bytesRead": 738721792,
+          "sampledPeakHeapBytes": 10722704
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 743.6614,
+        "cpuMicroseconds": {
+          "user": 453000,
+          "system": 266000
+        },
+        "memoryBefore": {
+          "rss": 60514304,
+          "heapTotal": 14028800,
+          "heapUsed": 8534632,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 70828032,
+          "heapTotal": 14290944,
+          "heapUsed": 10607696,
+          "external": 17147379,
+          "arrayBuffers": 13810882
+        },
+        "memoryAfterCollection": {
+          "rss": 61251584,
+          "heapTotal": 14290944,
+          "heapUsed": 7755608,
+          "external": 3537724,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103828,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 848384,
+          "max": 744488959,
+          "mean": 189348032,
+          "p95": 744488959
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/concurrent-sync-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "concurrent",
+        "arm": "sync",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 16,
+        "clients": 8,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 64,
+          "readCalls": 720,
+          "bytesRead": 738721792,
+          "sampledPeakHeapBytes": 10722664
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 717.5190000000001,
+        "cpuMicroseconds": {
+          "user": 500000,
+          "system": 172000
+        },
+        "memoryBefore": {
+          "rss": 60399616,
+          "heapTotal": 13766656,
+          "heapUsed": 8534592,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 70389760,
+          "heapTotal": 14290944,
+          "heapUsed": 10607720,
+          "external": 17147379,
+          "arrayBuffers": 13810882
+        },
+        "memoryAfterCollection": {
+          "rss": 60817408,
+          "heapTotal": 14290944,
+          "heapUsed": 7748000,
+          "external": 3537724,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 103740,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 808960,
+          "max": 718274559,
+          "mean": 185504832,
+          "p95": 718274559
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/concurrent-sync-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "small",
+        "arm": "async",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "outputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "bytesPerClosure": 1605632,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 8,
+          "bytesRead": 3211264,
+          "sampledPeakHeapBytes": 10048304
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 0,
+          "filesHashed": 8,
+          "bytesHashed": 3211264
+        },
+        "wallMs": 33.925500000000056,
+        "cpuMicroseconds": {
+          "user": 15000,
+          "system": 16000
+        },
+        "memoryBefore": {
+          "rss": 60145664,
+          "heapTotal": 13766656,
+          "heapUsed": 8516480,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 63709184,
+          "heapTotal": 14028800,
+          "heapUsed": 10220984,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 60592128,
+          "heapTotal": 13504512,
+          "heapUsed": 8795872,
+          "external": 4597768,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 62216,
+        "heartbeatsDuringWork": 25,
+        "eventLoopDelayNs": {
+          "min": 10240,
+          "max": 15007743,
+          "mean": 2065177.6,
+          "p95": 10551295
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/small-async-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "small",
+        "arm": "async",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "outputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "bytesPerClosure": 1605632,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 8,
+          "bytesRead": 3211264,
+          "sampledPeakHeapBytes": 10047920
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 0,
+          "filesHashed": 8,
+          "bytesHashed": 3211264
+        },
+        "wallMs": 33.57590000000005,
+        "cpuMicroseconds": {
+          "user": 16000,
+          "system": 31000
+        },
+        "memoryBefore": {
+          "rss": 59990016,
+          "heapTotal": 14028800,
+          "heapUsed": 8516304,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 64008192,
+          "heapTotal": 14290944,
+          "heapUsed": 10220872,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 60772352,
+          "heapTotal": 14028800,
+          "heapUsed": 8796544,
+          "external": 4597768,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 62508,
+        "heartbeatsDuringWork": 24,
+        "eventLoopDelayNs": {
+          "min": 403968,
+          "max": 14123007,
+          "mean": 2032744.2962962964,
+          "p95": 5861375
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/small-async-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "small",
+        "arm": "async",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "outputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "bytesPerClosure": 1605632,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 8,
+          "bytesRead": 3211264,
+          "sampledPeakHeapBytes": 10048168
+        },
+        "verification": {
+          "verifications": 2,
+          "coalesced": 0,
+          "filesHashed": 8,
+          "bytesHashed": 3211264
+        },
+        "wallMs": 33.116199999999935,
+        "cpuMicroseconds": {
+          "user": 15000,
+          "system": 16000
+        },
+        "memoryBefore": {
+          "rss": 60547072,
+          "heapTotal": 13766656,
+          "heapUsed": 8516496,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 64495616,
+          "heapTotal": 14028800,
+          "heapUsed": 10221280,
+          "external": 11909107,
+          "arrayBuffers": 8572610
+        },
+        "memoryAfterCollection": {
+          "rss": 61304832,
+          "heapTotal": 13766656,
+          "heapUsed": 8796736,
+          "external": 4597768,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 62984,
+        "heartbeatsDuringWork": 24,
+        "eventLoopDelayNs": {
+          "min": 235520,
+          "max": 10838015,
+          "mean": 1960960,
+          "p95": 7405567
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/small-async-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "small",
+        "arm": "sync",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "outputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "bytesPerClosure": 1605632,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 8,
+          "bytesRead": 3211264,
+          "sampledPeakHeapBytes": 9690744
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 25.62749999999994,
+        "cpuMicroseconds": {
+          "user": 32000,
+          "system": 0
+        },
+        "memoryBefore": {
+          "rss": 60956672,
+          "heapTotal": 14028800,
+          "heapUsed": 8516280,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 64557056,
+          "heapTotal": 14290944,
+          "heapUsed": 9822288,
+          "external": 11904499,
+          "arrayBuffers": 8568002
+        },
+        "memoryAfterCollection": {
+          "rss": 61345792,
+          "heapTotal": 14028800,
+          "heapUsed": 8672608,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 63044,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 823808,
+          "max": 26165247,
+          "mean": 7478886.4,
+          "p95": 26165247
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/small-sync-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "small",
+        "arm": "sync",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "outputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "bytesPerClosure": 1605632,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 8,
+          "bytesRead": 3211264,
+          "sampledPeakHeapBytes": 9688424
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 32.45920000000001,
+        "cpuMicroseconds": {
+          "user": 15000,
+          "system": 16000
+        },
+        "memoryBefore": {
+          "rss": 60260352,
+          "heapTotal": 14028800,
+          "heapUsed": 8516376,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 63877120,
+          "heapTotal": 14028800,
+          "heapUsed": 9819584,
+          "external": 11904499,
+          "arrayBuffers": 8568002
+        },
+        "memoryAfterCollection": {
+          "rss": 60735488,
+          "heapTotal": 13766656,
+          "heapUsed": 8672736,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 62380,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 167424,
+          "max": 33095679,
+          "mean": 9410474.666666666,
+          "p95": 33095679
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/small-sync-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "small",
+        "arm": "sync",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "outputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "bytesPerClosure": 1605632,
+        "hashPasses": 2,
+        "clients": 1,
+        "repetitions": 1,
+        "work": {
+          "filesOpened": 8,
+          "readCalls": 8,
+          "bytesRead": 3211264,
+          "sampledPeakHeapBytes": 9690600
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 24.944799999999987,
+        "cpuMicroseconds": {
+          "user": 0,
+          "system": 15000
+        },
+        "memoryBefore": {
+          "rss": 60354560,
+          "heapTotal": 14028800,
+          "heapUsed": 8516136,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 64016384,
+          "heapTotal": 14290944,
+          "heapUsed": 9822144,
+          "external": 11904499,
+          "arrayBuffers": 8568002
+        },
+        "memoryAfterCollection": {
+          "rss": 60788736,
+          "heapTotal": 14028800,
+          "heapUsed": 8672496,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 62516,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 1019904,
+          "max": 25526271,
+          "mean": 7448166.4,
+          "p95": 25526271
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/small-sync-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "warm",
+        "arm": "async",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 6,
+        "clients": 1,
+        "repetitions": 3,
+        "work": {
+          "filesOpened": 24,
+          "readCalls": 270,
+          "bytesRead": 277020672,
+          "sampledPeakHeapBytes": 10409144
+        },
+        "verification": {
+          "verifications": 6,
+          "coalesced": 0,
+          "filesHashed": 24,
+          "bytesHashed": 277020672
+        },
+        "wallMs": 318.2248000000001,
+        "cpuMicroseconds": {
+          "user": 266000,
+          "system": 94000
+        },
+        "memoryBefore": {
+          "rss": 60215296,
+          "heapTotal": 14290944,
+          "heapUsed": 8761624,
+          "external": 3516019,
+          "arrayBuffers": 179522
+        },
+        "memoryAfter": {
+          "rss": 67477504,
+          "heapTotal": 14815232,
+          "heapUsed": 11073472,
+          "external": 11908963,
+          "arrayBuffers": 8572466
+        },
+        "memoryAfterCollection": {
+          "rss": 65449984,
+          "heapTotal": 14815232,
+          "heapUsed": 8951296,
+          "external": 11941400,
+          "arrayBuffers": 6474450
+        },
+        "maxRssKiB": 103748,
+        "heartbeatsDuringWork": 295,
+        "eventLoopDelayNs": {
+          "min": 10752,
+          "max": 12804095,
+          "mean": 1136526.127090301,
+          "p95": 1936383
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/warm-async-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "warm",
+        "arm": "async",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 6,
+        "clients": 1,
+        "repetitions": 3,
+        "work": {
+          "filesOpened": 24,
+          "readCalls": 270,
+          "bytesRead": 277020672,
+          "sampledPeakHeapBytes": 10410968
+        },
+        "verification": {
+          "verifications": 6,
+          "coalesced": 0,
+          "filesHashed": 24,
+          "bytesHashed": 277020672
+        },
+        "wallMs": 304.24080000000004,
+        "cpuMicroseconds": {
+          "user": 125000,
+          "system": 156000
+        },
+        "memoryBefore": {
+          "rss": 60801024,
+          "heapTotal": 14028800,
+          "heapUsed": 8762024,
+          "external": 3516019,
+          "arrayBuffers": 179522
+        },
+        "memoryAfter": {
+          "rss": 67424256,
+          "heapTotal": 14815232,
+          "heapUsed": 11089560,
+          "external": 11908963,
+          "arrayBuffers": 8572466
+        },
+        "memoryAfterCollection": {
+          "rss": 65179648,
+          "heapTotal": 14815232,
+          "heapUsed": 8951696,
+          "external": 11941400,
+          "arrayBuffers": 4375858
+        },
+        "maxRssKiB": 103884,
+        "heartbeatsDuringWork": 283,
+        "eventLoopDelayNs": {
+          "min": 532480,
+          "max": 15327231,
+          "mean": 1170919.9163763067,
+          "p95": 1895423
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/warm-async-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "warm",
+        "arm": "async",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 6,
+        "clients": 1,
+        "repetitions": 3,
+        "work": {
+          "filesOpened": 24,
+          "readCalls": 270,
+          "bytesRead": 277020672,
+          "sampledPeakHeapBytes": 10407712
+        },
+        "verification": {
+          "verifications": 6,
+          "coalesced": 0,
+          "filesHashed": 24,
+          "bytesHashed": 277020672
+        },
+        "wallMs": 298.919,
+        "cpuMicroseconds": {
+          "user": 234000,
+          "system": 46000
+        },
+        "memoryBefore": {
+          "rss": 61038592,
+          "heapTotal": 14028800,
+          "heapUsed": 8761568,
+          "external": 3516019,
+          "arrayBuffers": 179522
+        },
+        "memoryAfter": {
+          "rss": 68075520,
+          "heapTotal": 14815232,
+          "heapUsed": 11016216,
+          "external": 11908963,
+          "arrayBuffers": 8572466
+        },
+        "memoryAfterCollection": {
+          "rss": 66113536,
+          "heapTotal": 14815232,
+          "heapUsed": 8951344,
+          "external": 11941400,
+          "arrayBuffers": 6474450
+        },
+        "maxRssKiB": 104128,
+        "heartbeatsDuringWork": 278,
+        "eventLoopDelayNs": {
+          "min": 148480,
+          "max": 6578175,
+          "mean": 1108745.1103202847,
+          "p95": 1895423
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/warm-async-3"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "warm",
+        "arm": "sync",
+        "trial": 1,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 6,
+        "clients": 1,
+        "repetitions": 3,
+        "work": {
+          "filesOpened": 24,
+          "readCalls": 270,
+          "bytesRead": 277020672,
+          "sampledPeakHeapBytes": 10899640
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 286.80819999999994,
+        "cpuMicroseconds": {
+          "user": 172000,
+          "system": 156000
+        },
+        "memoryBefore": {
+          "rss": 61173760,
+          "heapTotal": 14028800,
+          "heapUsed": 8668480,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 70209536,
+          "heapTotal": 14553088,
+          "heapUsed": 10177192,
+          "external": 15050227,
+          "arrayBuffers": 11713730
+        },
+        "memoryAfterCollection": {
+          "rss": 61779968,
+          "heapTotal": 14553088,
+          "heapUsed": 8790528,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 108524,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 238592,
+          "max": 287571967,
+          "mean": 50208128,
+          "p95": 287571967
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/warm-sync-1"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "warm",
+        "arm": "sync",
+        "trial": 2,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 6,
+        "clients": 1,
+        "repetitions": 3,
+        "work": {
+          "filesOpened": 24,
+          "readCalls": 270,
+          "bytesRead": 277020672,
+          "sampledPeakHeapBytes": 10903272
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 264.9543,
+        "cpuMicroseconds": {
+          "user": 156000,
+          "system": 110000
+        },
+        "memoryBefore": {
+          "rss": 60813312,
+          "heapTotal": 14028800,
+          "heapUsed": 8668520,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 69644288,
+          "heapTotal": 14553088,
+          "heapUsed": 10179056,
+          "external": 15050227,
+          "arrayBuffers": 11713730
+        },
+        "memoryAfterCollection": {
+          "rss": 61153280,
+          "heapTotal": 14553088,
+          "heapUsed": 8790568,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 107116,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 458752,
+          "max": 265682943,
+          "mean": 48881450.666666664,
+          "p95": 265682943
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/warm-sync-2"
+      },
+      {
+        "measurement": "artifact-lease-verification-work",
+        "scope": "warm",
+        "arm": "sync",
+        "trial": 3,
+        "node": "v26.13.0",
+        "abi": "147",
+        "platform": "win32",
+        "arch": "x64",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "outputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "bytesPerClosure": 46170112,
+        "hashPasses": 6,
+        "clients": 1,
+        "repetitions": 3,
+        "work": {
+          "filesOpened": 24,
+          "readCalls": 270,
+          "bytesRead": 277020672,
+          "sampledPeakHeapBytes": 10899520
+        },
+        "verification": {
+          "verifications": 0,
+          "coalesced": 0,
+          "filesHashed": 0,
+          "bytesHashed": 0
+        },
+        "wallMs": 279.2069,
+        "cpuMicroseconds": {
+          "user": 187000,
+          "system": 93000
+        },
+        "memoryBefore": {
+          "rss": 61026304,
+          "heapTotal": 14290944,
+          "heapUsed": 8668360,
+          "external": 3515875,
+          "arrayBuffers": 179378
+        },
+        "memoryAfter": {
+          "rss": 69984256,
+          "heapTotal": 14815232,
+          "heapUsed": 10176952,
+          "external": 15050227,
+          "arrayBuffers": 11713730
+        },
+        "memoryAfterCollection": {
+          "rss": 61489152,
+          "heapTotal": 14815232,
+          "heapUsed": 8790384,
+          "external": 3548328,
+          "arrayBuffers": 179394
+        },
+        "maxRssKiB": 107396,
+        "heartbeatsDuringWork": 0,
+        "eventLoopDelayNs": {
+          "min": 394752,
+          "max": 279969791,
+          "mean": 50393642.666666664,
+          "p95": 279969791
+        },
+        "cacheState": "Fresh process; generated fixture bytes are filesystem-page-cache warm. Warm means repeated mutable selection, not zero I/O.",
+        "scopeLimit": "Actual artifact verification only; synthetic graph/data bytes are not loaded into a model provider. Conservative sibling inventory is preserved. Heap is sampled; RSS includes fixture preparation.",
+        "testId": "perf/embeddings/artifact-lease-work/warm-sync-3"
+      }
+    ],
+    "groupedMedians": [
+      {
+        "scope": "small",
+        "inputDigest": "aa050d35fd27cb322492ae4f9e5e4b35131d8f6fb10fc917b78995ea1fda31e6",
+        "arms": [
+          {
+            "arm": "sync",
+            "bytesRead": 3211264,
+            "hashPasses": 2,
+            "readCalls": 8,
+            "verifications": {
+              "verifications": 0,
+              "coalesced": 0,
+              "filesHashed": 0,
+              "bytesHashed": 0
+            },
+            "medianWallMs": 25.62749999999994,
+            "medianCpuMs": 31,
+            "medianSampledPeakHeapBytes": 9690600,
+            "medianProcessHighWaterRssKiB": 62516,
+            "medianHeartbeatsDuringWork": 0,
+            "medianMaxEventLoopDelayMs": 26.165247
+          },
+          {
+            "arm": "async",
+            "bytesRead": 3211264,
+            "hashPasses": 2,
+            "readCalls": 8,
+            "verifications": {
+              "verifications": 2,
+              "coalesced": 0,
+              "filesHashed": 8,
+              "bytesHashed": 3211264
+            },
+            "medianWallMs": 33.57590000000005,
+            "medianCpuMs": 31,
+            "medianSampledPeakHeapBytes": 10048168,
+            "medianProcessHighWaterRssKiB": 62508,
+            "medianHeartbeatsDuringWork": 24,
+            "medianMaxEventLoopDelayMs": 14.123007
+          }
+        ]
+      },
+      {
+        "scope": "cold",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "arms": [
+          {
+            "arm": "sync",
+            "bytesRead": 92340224,
+            "hashPasses": 2,
+            "readCalls": 90,
+            "verifications": {
+              "verifications": 0,
+              "coalesced": 0,
+              "filesHashed": 0,
+              "bytesHashed": 0
+            },
+            "medianWallMs": 94.75659999999993,
+            "medianCpuMs": 93,
+            "medianSampledPeakHeapBytes": 9676784,
+            "medianProcessHighWaterRssKiB": 103652,
+            "medianHeartbeatsDuringWork": 0,
+            "medianMaxEventLoopDelayMs": 95.354879
+          },
+          {
+            "arm": "async",
+            "bytesRead": 92340224,
+            "hashPasses": 2,
+            "readCalls": 90,
+            "verifications": {
+              "verifications": 2,
+              "coalesced": 0,
+              "filesHashed": 8,
+              "bytesHashed": 92340224
+            },
+            "medianWallMs": 108.24829999999997,
+            "medianCpuMs": 109,
+            "medianSampledPeakHeapBytes": 10356848,
+            "medianProcessHighWaterRssKiB": 103888,
+            "medianHeartbeatsDuringWork": 96,
+            "medianMaxEventLoopDelayMs": 15.515647
+          }
+        ]
+      },
+      {
+        "scope": "concurrent",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "arms": [
+          {
+            "arm": "sync",
+            "bytesRead": 738721792,
+            "hashPasses": 16,
+            "readCalls": 720,
+            "verifications": {
+              "verifications": 0,
+              "coalesced": 0,
+              "filesHashed": 0,
+              "bytesHashed": 0
+            },
+            "medianWallMs": 743.6614,
+            "medianCpuMs": 719,
+            "medianSampledPeakHeapBytes": 10722664,
+            "medianProcessHighWaterRssKiB": 103740,
+            "medianHeartbeatsDuringWork": 0,
+            "medianMaxEventLoopDelayMs": 744.488959
+          },
+          {
+            "arm": "async",
+            "bytesRead": 92340224,
+            "hashPasses": 2,
+            "readCalls": 90,
+            "verifications": {
+              "verifications": 2,
+              "coalesced": 14,
+              "filesHashed": 8,
+              "bytesHashed": 92340224
+            },
+            "medianWallMs": 134.83629999999994,
+            "medianCpuMs": 125,
+            "medianSampledPeakHeapBytes": 11816672,
+            "medianProcessHighWaterRssKiB": 103616,
+            "medianHeartbeatsDuringWork": 100,
+            "medianMaxEventLoopDelayMs": 15.794175
+          }
+        ]
+      },
+      {
+        "scope": "warm",
+        "inputDigest": "e9d699aeb562e393babfa26d70ab90feb85599c49471d4c516928c9499344c68",
+        "arms": [
+          {
+            "arm": "sync",
+            "bytesRead": 277020672,
+            "hashPasses": 6,
+            "readCalls": 270,
+            "verifications": {
+              "verifications": 0,
+              "coalesced": 0,
+              "filesHashed": 0,
+              "bytesHashed": 0
+            },
+            "medianWallMs": 279.2069,
+            "medianCpuMs": 280,
+            "medianSampledPeakHeapBytes": 10899640,
+            "medianProcessHighWaterRssKiB": 107396,
+            "medianHeartbeatsDuringWork": 0,
+            "medianMaxEventLoopDelayMs": 279.969791
+          },
+          {
+            "arm": "async",
+            "bytesRead": 277020672,
+            "hashPasses": 6,
+            "readCalls": 270,
+            "verifications": {
+              "verifications": 6,
+              "coalesced": 0,
+              "filesHashed": 24,
+              "bytesHashed": 277020672
+            },
+            "medianWallMs": 304.24080000000004,
+            "medianCpuMs": 281,
+            "medianSampledPeakHeapBytes": 10409144,
+            "medianProcessHighWaterRssKiB": 103884,
+            "medianHeartbeatsDuringWork": 283,
+            "medianMaxEventLoopDelayMs": 12.804095
+          }
+        ]
+      }
+    ]
+  },
+  "measurement": {
+    "baseline": "Current actual synchronous compatibility resolver versus actual async lease selection+verifyLoaded, with the same canonical selected bytes and independent original file read counters. This is a controlled API/work comparison, not exact historical provider throughput.",
+    "inputs": "Small1.5MiB plus32KiB tokenizer; other scopes44MiB plus32KiB tokenizer, including a conservative sibling graph and external data. Synthetic graph bytes are hashed, never passed to a model provider.",
+    "cache": "Fresh child processes. Files have just been prepared, so filesystem page-cache warmth is explicit. Cold means no prior lease in that process; warm primes once outside measurement then repeats three mutable selection/post-load cycles. No device-cold claim.",
+    "observed": "Bytes/read calls/opened files from actual original sync/async descriptors, independent producer verification/coalescing/file/byte counters, raw CPU/wall, sampled heap, before/after GC, process-lifetime RSS, timer heartbeat and monitorEventLoopDelay.",
+    "outcome": "Eight concurrent clients perform16 sync hash passes versus two shared async passes:738721792→92340224 bytes, with14 coalesced requests. Three warm cycles retain six hash passes/277020672 read bytes in both arms. Single/small/warm async wall overhead is retained. Event-loop responsiveness improves while full mutable freshness is preserved.",
+    "limitations": "Heap is sampled rather than an exact peak. Lifetime RSS includes fixture preparation. No trained-model numerical or end-to-end inference throughput claim. Metadata planning and per-chunk SHA256 still execute on the main thread."
+  },
+  "nativeClosure": {
+    "test": "indexing/embeddings/artifact-installed-closure",
+    "operation": "Actual ONNX installation and native InferenceSession load/run/release. Declared nested/weights.custom and selected tokenizer are inventoried; a malformed unselected sibling is excluded by the qualified installation receipt. Output tensor7 is independently expected. Same-size preserved-mtime external replacement fails ERR_ONNX_ARTIFACT_INTEGRITY after release."
+  },
+  "coverage": {
+    "cases": [
+      "graph-link-sync",
+      "graph-link-async",
+      "tokenizer-link-sync",
+      "tokenizer-link-async",
+      "route-link-sync",
+      "route-link-async",
+      "root-link-sync",
+      "root-link-async",
+      "non-file-sync",
+      "non-file-async",
+      "late-member-sync",
+      "late-member-async",
+      "shadow-sync",
+      "shadow-async",
+      "external-data-sync",
+      "external-data-async"
+    ],
+    "authority": "Native directory/stat admission results are explicitly injected over real ordinary files; no local symlinks are created. The real non-file and late-member mutations exercise actual filesystem changes. Existing contained-descriptor physical authority remains with its original capable-Windows cohort.",
+    "existing": "Existing31-case controls retain unknown requester isolation, same-stat weight/tokenizer/external edits, exact sync/async digest parity, failed initialization/raw pipeline release, canceled verification/sibling coalescing, deferred adapter close, byte/progress limits and interrupted native installation.",
+    "orderedNew": [
+      "indexing/embeddings/artifact-inventory-authority/graph-link-sync",
+      "indexing/embeddings/artifact-inventory-authority/graph-link-async",
+      "indexing/embeddings/artifact-inventory-authority/tokenizer-link-sync",
+      "indexing/embeddings/artifact-inventory-authority/tokenizer-link-async",
+      "indexing/embeddings/artifact-inventory-authority/route-link-sync",
+      "indexing/embeddings/artifact-inventory-authority/route-link-async",
+      "indexing/embeddings/artifact-inventory-authority/root-link-sync",
+      "indexing/embeddings/artifact-inventory-authority/root-link-async",
+      "indexing/embeddings/artifact-inventory-authority/non-file-sync",
+      "indexing/embeddings/artifact-inventory-authority/non-file-async",
+      "indexing/embeddings/artifact-inventory-authority/late-member-sync",
+      "indexing/embeddings/artifact-inventory-authority/late-member-async",
+      "indexing/embeddings/artifact-inventory-authority/shadow-sync",
+      "indexing/embeddings/artifact-inventory-authority/shadow-async",
+      "indexing/embeddings/artifact-inventory-authority/external-data-sync",
+      "indexing/embeddings/artifact-inventory-authority/external-data-async",
+      "perf/embeddings/artifact-lease-work/small-sync-1",
+      "perf/embeddings/artifact-lease-work/small-sync-2",
+      "perf/embeddings/artifact-lease-work/small-sync-3",
+      "perf/embeddings/artifact-lease-work/small-async-1",
+      "perf/embeddings/artifact-lease-work/small-async-2",
+      "perf/embeddings/artifact-lease-work/small-async-3",
+      "perf/embeddings/artifact-lease-work/cold-sync-1",
+      "perf/embeddings/artifact-lease-work/cold-sync-2",
+      "perf/embeddings/artifact-lease-work/cold-sync-3",
+      "perf/embeddings/artifact-lease-work/cold-async-1",
+      "perf/embeddings/artifact-lease-work/cold-async-2",
+      "perf/embeddings/artifact-lease-work/cold-async-3",
+      "perf/embeddings/artifact-lease-work/concurrent-sync-1",
+      "perf/embeddings/artifact-lease-work/concurrent-sync-2",
+      "perf/embeddings/artifact-lease-work/concurrent-sync-3",
+      "perf/embeddings/artifact-lease-work/concurrent-async-1",
+      "perf/embeddings/artifact-lease-work/concurrent-async-2",
+      "perf/embeddings/artifact-lease-work/concurrent-async-3",
+      "perf/embeddings/artifact-lease-work/warm-sync-1",
+      "perf/embeddings/artifact-lease-work/warm-sync-2",
+      "perf/embeddings/artifact-lease-work/warm-sync-3",
+      "perf/embeddings/artifact-lease-work/warm-async-1",
+      "perf/embeddings/artifact-lease-work/warm-async-2",
+      "perf/embeddings/artifact-lease-work/warm-async-3",
+      "indexing/embeddings/artifact-installed-closure"
+    ],
+    "restored": [
+      "indexing/embeddings/artifact-async-lease-authority",
+      "indexing/embeddings/artifact-byte-progress-admission",
+      "indexing/embeddings/model-artifact-identity",
+      "indexing/embeddings/adapter-pipeline-leases",
+      "indexing/embeddings/build/bundle-coverage-receipt",
+      "embeddings/onnx/explicit-model-selection",
+      "embeddings/onnx/installation-closure",
+      "embeddings/embedding-acquisition-plan",
+      "indexing/embeddings/provider-selection-isolation",
+      "embeddings/onnx/model-selection-observation",
+      "indexing/embeddings/inactive-and-provenance-runtime",
+      "indexing/embeddings/artifact-verification-cancellation"
+    ],
+    "serial": "All24 measured children and three actual native closure/install consumers use the existing serial runtime owner; no resource or latency threshold is raised.",
+    "expectedLanes": {
+      "ci-lite": 2314,
+      "ci": 239,
+      "gate": 43,
+      "ci-long": 23,
+      "usr-full-conformance": 11,
+      "total": 2630,
+      "serialRuntime": 139,
+      "serialCompiler": 33
+    },
+    "ciDryRunBroadCommandCharacters": 17274
+  },
+  "publicationChecks": [
+    {
+      "command": "npm run format",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run config:budget",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run env:check",
+      "exitCode": 0
+    },
+    {
+      "command": "node tools/docs/generated-surfaces.js --check-freshness",
+      "exitCode": 0
+    },
+    {
+      "command": "node tools/ci/check-command-surface.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node tests/ci/workflow-contract.test.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+      "exitCode": 0,
+      "report": {
+        "junit": null,
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf",
+        "summary": {
+          "durationMs": 46662,
+          "failed": 0,
+          "passed": 43,
+          "skipped": 0,
+          "total": 43
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 91,
+            "exitCode": 0,
+            "id": "indexing/policy/hotpath-membership-guard",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+            ],
+            "path": "indexing/policy/hotpath-membership-guard.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 87,
+            "exitCode": 0,
+            "id": "indexing/policy/module-cache-boundedness-contract",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+            ],
+            "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 100,
+            "exitCode": 0,
+            "id": "indexing/policy/generated-matrix",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_generated-matrix.attempt-1.log"
+            ],
+            "path": "indexing/policy/generated-matrix.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 85,
+            "exitCode": 0,
+            "id": "indexing/contracts/artifact-surface-version",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_artifact-surface-version.attempt-1.log"
+            ],
+            "path": "indexing/contracts/artifact-surface-version.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 89,
+            "exitCode": 0,
+            "id": "indexing/contracts/n-minus-one-adapter",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+            ],
+            "path": "indexing/contracts/n-minus-one-adapter.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 79,
+            "exitCode": 0,
+            "id": "indexing/contracts/public-artifact-surface-doc",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+            ],
+            "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 202,
+            "exitCode": 0,
+            "id": "indexing/contracts/index-compatibility-key-generation",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+            ],
+            "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 79,
+            "exitCode": 0,
+            "id": "indexing/contracts/semver-policy-enforced",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+            ],
+            "path": "indexing/contracts/semver-policy-enforced.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 92,
+            "exitCode": 0,
+            "id": "indexing/contracts/index-state-dense-sidecars-present",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+            ],
+            "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 183,
+            "exitCode": 0,
+            "id": "contracts/manifest-max-bytes-validation",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\contracts_manifest-max-bytes-validation.attempt-1.log"
+            ],
+            "path": "contracts/manifest-max-bytes-validation.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1885,
+            "exitCode": 0,
+            "id": "indexing/policy/repo-inventory",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_repo-inventory.attempt-1.log"
+            ],
+            "path": "indexing/policy/repo-inventory.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 296,
+            "exitCode": 0,
+            "id": "indexing/policy/shared-module-cycle-guard",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+            ],
+            "path": "indexing/policy/shared-module-cycle-guard.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 235,
+            "exitCode": 0,
+            "id": "indexing/contracts/loader-matrix-parity",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+            ],
+            "path": "indexing/contracts/loader-matrix-parity.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 332,
+            "exitCode": 0,
+            "id": "indexing/policy/analysis-schema",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_analysis-schema.attempt-1.log"
+            ],
+            "path": "indexing/policy/analysis-schema.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 323,
+            "exitCode": 0,
+            "id": "indexing/contracts/snapshots",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_snapshots.attempt-1.log"
+            ],
+            "path": "indexing/contracts/snapshots.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 302,
+            "exitCode": 0,
+            "id": "indexing/contracts/builds-current-repo-head-schema",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+            ],
+            "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 333,
+            "exitCode": 0,
+            "id": "indexing/contracts/call-sites-schema",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_call-sites-schema.attempt-1.log"
+            ],
+            "path": "indexing/contracts/call-sites-schema.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 322,
+            "exitCode": 0,
+            "id": "indexing/contracts/diffs",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_diffs.attempt-1.log"
+            ],
+            "path": "indexing/contracts/diffs.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 304,
+            "exitCode": 0,
+            "id": "indexing/contracts/additional-properties-policy",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_additional-properties-policy.attempt-1.log"
+            ],
+            "path": "indexing/contracts/additional-properties-policy.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 602,
+            "exitCode": 0,
+            "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+            ],
+            "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 293,
+            "exitCode": 0,
+            "id": "indexing/contracts/schema-registry-single-source",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+            ],
+            "path": "indexing/contracts/schema-registry-single-source.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 764,
+            "exitCode": 0,
+            "id": "tooling/api-contracts/caps",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_api-contracts_caps.attempt-1.log"
+            ],
+            "path": "tooling/api-contracts/caps.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 900,
+            "exitCode": 0,
+            "id": "tooling/api-contracts/schema-validate",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_api-contracts_schema-validate.attempt-1.log"
+            ],
+            "path": "tooling/api-contracts/schema-validate.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 885,
+            "exitCode": 0,
+            "id": "tooling/api-contracts/fail-on-warn",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+            ],
+            "path": "tooling/api-contracts/fail-on-warn.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 894,
+            "exitCode": 0,
+            "id": "tooling/api-contracts/optional-params",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_api-contracts_optional-params.attempt-1.log"
+            ],
+            "path": "tooling/api-contracts/optional-params.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 790,
+            "exitCode": 0,
+            "id": "tooling/api-contracts/large-call-sites",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_api-contracts_large-call-sites.attempt-1.log"
+            ],
+            "path": "tooling/api-contracts/large-call-sites.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 663,
+            "exitCode": 0,
+            "id": "indexing/contracts/embedding-identity-gating-on-load",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+            ],
+            "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1037,
+            "exitCode": 0,
+            "id": "ci/capability-gate.smoke",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\ci_capability-gate_smoke.attempt-1.log"
+            ],
+            "path": "ci/capability-gate.smoke.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1398,
+            "exitCode": 0,
+            "id": "indexing/contracts/index-compatibility-key-federation-block",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+            ],
+            "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 86,
+            "exitCode": 0,
+            "id": "indexing/policy/stable-entrypoints",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_stable-entrypoints.attempt-1.log"
+            ],
+            "path": "indexing/policy/stable-entrypoints.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1589,
+            "exitCode": 0,
+            "id": "indexing/policy/optional-deps",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_optional-deps.attempt-1.log"
+            ],
+            "path": "indexing/policy/optional-deps.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1129,
+            "exitCode": 0,
+            "id": "indexing/policy/analysis-gating",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_policy_analysis-gating.attempt-1.log"
+            ],
+            "path": "indexing/policy/analysis-gating.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1318,
+            "exitCode": 0,
+            "id": "ci/tooling-doctor-gate.smoke",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+            ],
+            "path": "ci/tooling-doctor-gate.smoke.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 785,
+            "exitCode": 0,
+            "id": "tooling/api-contracts/basic",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_api-contracts_basic.attempt-1.log"
+            ],
+            "path": "tooling/api-contracts/basic.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 2759,
+            "exitCode": 0,
+            "id": "contracts/module-export-surface-compat",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\contracts_module-export-surface-compat.attempt-1.log"
+            ],
+            "path": "contracts/module-export-surface-compat.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1545,
+            "exitCode": 0,
+            "id": "indexing/contracts/semantic-foundations",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_semantic-foundations.attempt-1.log"
+            ],
+            "path": "indexing/contracts/semantic-foundations.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 503,
+            "exitCode": 0,
+            "id": "indexing/contracts/semantic-handoff-contracts",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+            ],
+            "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 764,
+            "exitCode": 0,
+            "id": "indexing/contracts/runtime-evidence",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_runtime-evidence.attempt-1.log"
+            ],
+            "path": "indexing/contracts/runtime-evidence.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1747,
+            "exitCode": 0,
+            "id": "indexing/contracts/index-format-cutover",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\indexing_contracts_index-format-cutover.attempt-1.log"
+            ],
+            "path": "indexing/contracts/index-format-cutover.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1625,
+            "exitCode": 0,
+            "id": "ci/windows-authority-cohort",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\ci_windows-authority-cohort.attempt-1.log"
+            ],
+            "path": "ci/windows-authority-cohort.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 269,
+            "exitCode": 0,
+            "id": "ci/ordered-lane-discovery",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\ci_ordered-lane-discovery.attempt-1.log"
+            ],
+            "path": "ci/ordered-lane-discovery.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 168,
+            "exitCode": 0,
+            "id": "ci/gate-policy",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\ci_gate-policy.attempt-1.log"
+            ],
+            "path": "ci/gate-policy.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 18687,
+            "exitCode": 0,
+            "id": "tooling/ci/run-suite-api-plan",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925252440-1sdrzf\\tooling_ci_run-suite-api-plan.attempt-1.log"
+            ],
+            "path": "tooling/ci/run-suite-api-plan.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      }
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/shared/embedding-artifact-identity.js",
+      "sha256": "6402cc40c49a8c52bcabdecab6279c1c50a1c43085dac5026574e66255cdb32a",
+      "bytes": 12333
+    },
+    {
+      "path": "src/shared/embedding-artifact-lease.js",
+      "sha256": "3851b460461a1f86c13b91615340fd73cafe9e7c8625301294d0c4e3032572b6",
+      "bytes": 7290
+    },
+    {
+      "path": "src/shared/embedding-adapter.js",
+      "sha256": "aaaca7092fb45ae615f308e40f84b86f512207baae85a4f5f79dea8d10976c71",
+      "bytes": 19261
+    },
+    {
+      "path": "src/shared/embedding-provider-adapters.js",
+      "sha256": "0c0e3fd72e6abf68e988ecbb653337f796fc53d5b15cfe411e92b3bc9bff1d98",
+      "bytes": 23923
+    },
+    {
+      "path": "src/shared/contained-file.js",
+      "sha256": "113738dbb5b863501aa2c78672f0a49aa179a0a738939d2876bb95dbd0b5d0ec",
+      "bytes": 15618
+    },
+    {
+      "path": "src/shared/onnx-model-install.js",
+      "sha256": "a5ea3423d0eb6052600482fb78089cb728caacd4dccdc59e738b3a3cb43bccf6",
+      "bytes": 8481
+    },
+    {
+      "path": "src/shared/onnx-installation.js",
+      "sha256": "dfaa409d22196288103a117be6c32aa240bfa93f4266688c6d1545ad427c74e2",
+      "bytes": 3859
+    },
+    {
+      "path": "tests/helpers/embedding-artifact-work.js",
+      "sha256": "4cf20a2b8d4777509a7bbabe7131eec2c65e62ea5bef351324dd560a0b1171d5",
+      "bytes": 2029
+    },
+    {
+      "path": "tests/fixtures/embeddings/artifact-lease-work-child.js",
+      "sha256": "a9497de4596436b0b9345d6abf6bb8e69b0f28e37bfda8d83636b526e045b827",
+      "bytes": 6382
+    },
+    {
+      "path": "tests/indexing/embeddings/artifact-inventory-authority.test.js",
+      "sha256": "fb786115b9bce5a55add3a27b8c0a233c8a82af184ff5aca56767662b1cd761b",
+      "bytes": 6018
+    },
+    {
+      "path": "tests/indexing/embeddings/artifact-inventory-authority.test.js.cases.json",
+      "sha256": "8f72cfc1a1511d75e0a18ac08f32bbdb8b80498b7c473b45d5e22b6293c23811",
+      "bytes": 420
+    },
+    {
+      "path": "tests/indexing/embeddings/artifact-installed-closure.test.js",
+      "sha256": "5a2daa31891662dd83d6aa6cc116e39995674d0e99c76fa789716d68ae58a209",
+      "bytes": 3559
+    },
+    {
+      "path": "tests/perf/embeddings/artifact-lease-work.test.js",
+      "sha256": "cfc51320989816fc00a7cb0671fc5b80ee8f129b8832aec4774e59ca36b01788",
+      "bytes": 970
+    },
+    {
+      "path": "tests/perf/embeddings/artifact-lease-work.test.js.cases.json",
+      "sha256": "049e942678a19d6ef7490017de18932960c40a09eba9450653e20097a9f0208a",
+      "bytes": 552
+    },
+    {
+      "path": "tools/ci/run-suite.js",
+      "sha256": "467f243c0e6de4c5aa9a5863f229755a8db216f07020618c9ebddfcfcaee23ee",
+      "bytes": 22787
+    },
+    {
+      "path": "tests/tooling/ci/run-suite-api-plan.test.js",
+      "sha256": "0483dc4f6631392e11747b7944de53172220b896a6a04dfcefe1dd60c9a3505f",
+      "bytes": 9296
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "sha256": "2932bd799b48e4ecef7ddad15ae86fb6809e4702efb094a515cba3be77538a9a",
+      "bytes": 109718
+    }
+  ],
+  "historicalPaths": "Author-workspace .tmp/.testLogs paths are provenance, not deliverables promised in clean checkouts.",
+  "excluded": "Editor/Tantivy work, optional backends, cold-device performance, model numerical/inference requalification and release acceptance remain separate.",
+  "hostedFollowup": {
+    "source": "895d18c66967426754088215d68cbe8260b1fcb7",
+    "run": 42135979453,
+    "number": 2174,
+    "remaining": "Windows native workspace job reports an owned-job-end timeout after29s;20 native index cases pass. Native job evidence retained for a separate repair. Other jobs remain in progress at capture.",
+    "artifact": {
+      "id": 13464974557,
+      "sha256": "dddbb9b2a6d3f8d9976c55589a7dc11a6af95bf53b1fdbe0336a82f8a4917975",
+      "bytes": 1006300
+    }
+  },
+  "publication": {
+    "sourceHead": "302ad8e4df6ec08240100fcd091a03f46ece9b8a",
+    "remoteBranchShaVerified": true,
+    "issueState": "closed",
+    "stateReason": "completed",
+    "issueReadBack": true,
+    "pr": 572,
+    "prReadBack": true,
+    "openCount": 356,
+    "closingReferenceCount": 534
+  }
+}

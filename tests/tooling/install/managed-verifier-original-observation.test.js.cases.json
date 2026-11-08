@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["result-before-settlement", "failure-before-settlement", "nested-original-receipt", "enclosing-between-fields", "ok-revokes-original", "inspection-retains-independent-work", "function-failure-original", "closed-shape-and-control", "callback-inspection-original"]
+}

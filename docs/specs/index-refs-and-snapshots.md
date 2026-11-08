@@ -218,7 +218,7 @@ Otherwise base roots are derived from the snapshot's pointer mapping:
 - `indexBaseRoot = repoCacheRoot/<relativeBuildRootFromSnapshot>`
 
 The resolver MUST populate `identity.snapshotId = snapshotId` and `identity.buildIdByMode` by reading the relevant build_state.json files:
-- For frozen: if `<frozenRoot>/build_state.json` exists, use it.
+- For frozen: use the mode-specific verified `modeProvenance` receipt and `provenance/<mode>.build_state.json`. Bind its SHA256, mode, build ID/config/tool identity and copied mode manifest. Legacy frozen roots without that receipt may retain the snapshot pointer build ID, but configuration/tool provenance stays unknown; never apply a shared build state across modes.
 - For pointer: read from referenced build roots.
 
 ### 4.4 Resolve `tag:<tag>`
@@ -263,7 +263,7 @@ repoCacheRoot/
       snapshot.json
       frozen.json            (optional; only if frozen)
       frozen/                (optional; only if frozen)
-        build_state.json     (optional but recommended)
+        provenance/<mode>.build_state.json  (per-mode verified authority)
         index-code/
         index-prose/
         index-extracted-prose/
@@ -350,7 +350,7 @@ Notes:
   "version": 1,
   "snapshotId": "snap-...",
   "frozenAt": "2026-01-24T00:05:00.000Z",
-  "method": "hardlink",
+  "method": "copy",
   "frozenRoot": "snapshots/snap-.../frozen",
   "included": {
     "modes": ["code", "prose"],
@@ -430,7 +430,7 @@ Purpose: materialize an immutable copy of all selected artifacts under `snapshot
 
 Inputs:
 - `--snapshot <snapshotId | IndexRef>` (accept `snap:` or bare snapshotId; reject others)
-- `--method hardlink|copy` (default: `hardlink`)
+- `--method hardlink|copy` (default: `copy`; legacy `hardlink` requests use independent copies)
 - `--include-sqlite true|false` (default: `auto`)
 - `--include-lmdb true|false` (default: `false`)
 - `--verify true|false` (default: `true`)
@@ -456,19 +456,20 @@ Atomic, crash-safe algorithm:
      - `dstFile = path.join(dstDir, relPath)`
      - Ensure parent directories exist.
      - Copy strategy:
-       - If method==hardlink: try `fs.link(srcFile, dstFile)`
-         - On `EXDEV`, `EPERM`, `EACCES`, fall back to copy for that file.
-       - Else copy: `fs.copyFile(srcFile, dstFile)`
+       - Copy into an exclusively owned destination; a filesystem copy-on-write clone is allowed.
+       - Never share mutable hardlink bytes, including for legacy `hardlink` requests.
+       - Reject source file/directory links, junctions, unsupported entries and changed source identities.
      - If `verify==true`:
        - Compute checksum using `src/shared/hash.js#checksumFile(dstFile)`
-       - Compare to `entry.checksum` (`algo:value`)
+       - Compare to the supported declared `entry.checksum` (`algo:value`).
+       - If no checksum is declared, compare the destination with a source digest captured before copying.
+       - Reject malformed/unsupported declared checksums; do not count unchecked bytes as verified.
        - Record failures.
 6. Optionally include sqlite/lmdb:
-   - If include-sqlite: recursively copy/link `sourceBaseRoot/index-sqlite` to `<staging>/index-sqlite`
-   - If include-lmdb: recursively copy/link `sourceBaseRoot/index-lmdb` to `<staging>/index-lmdb`
+   - If include-sqlite: recursively copy `sourceBaseRoot/index-sqlite` to `<staging>/index-sqlite`
+   - If include-lmdb: recursively copy `sourceBaseRoot/index-lmdb` to `<staging>/index-lmdb`
    - These directories are not in pieces manifests and MUST be copied by direct directory walk.
-7. Optionally write `build_state.json` into staging:
-   - Prefer copying from the dominant source base root (the one used for `code` if present else first mode).
+7. Copy each selected mode’s build state into `provenance/<mode>.build_state.json`, verify it against that mode’s copied manifest and pointer identity, and record its SHA256 in `frozen.json.modeProvenance` (version 1). Optional SQLite/LMDB are copied only from that same mode root. A shared dominant state is not provenance for other modes.
 8. If verification failures exist:
    - Delete staging directory
    - Do **not** modify snapshot registry
@@ -568,3 +569,26 @@ Update `bin/pairofcleats.js`:
 - Tag-selected snapshot IDs and pre-parsed build/snapshot IDs retain the same validation
   as textual refs. Explicit `path:` refs keep their documented nonportable behavior.
 - Path IndexRefs MUST NOT be stored in registries.
+
+### Maintenance authority and verification details
+
+Manifest keys and stored snapshot/diff IDs must match and satisfy their canonical
+ID syntax before any plan or mutation. Registry roots and deletion targets must
+be regular directories inside the canonical registry root; linked entries are
+rejected. Validation precedes stale-staging cleanup. GC dry runs return stale
+staging `planned` paths with an empty `removed` list and preserve all bytes.
+
+Create-time and explicit pointer pruning apply the same retention classification
+as GC: pinned entries and tagged entries are protected, forensic entries are
+reserved for the explicit GC age policy, and only cache entries consume the
+pointer budget. Freeze preserves existing pinned protection unless a new tier
+is explicitly requested.
+
+A frozen record uses `verification.status: verified` and `ok: true` only after
+verification; `--verify false` uses `status: skipped`, `ok: false` and null checked
+counts. Optional SQLite/LMDB copies use the same independent-copy, no-link and
+byte-verification owner. Directory pieces retain empty directories and deduplicated
+overlapping descendants. These snapshot copies are not a live-database checkpoint
+contract; callers still supply the published generation named by the pointer.
+
+Frozen provenance and backend mode-root repairs are implemented without execution evidence. Browser, native SQLite, freeze interruption and final-head acceptance remain separate qualification obligations.

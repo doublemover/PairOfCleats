@@ -7,7 +7,7 @@ import { resolveArchiveEmbeddingOptions } from '../../../src/integrations/infere
 import { historySemanticSpans } from '../../../src/integrations/inference-history/semantic-values.js';
 import { convertEg2Checkpoint, hashFile, PINNED_GRAPH_SHA256, PINNED_TOKENIZER_SHA256 } from '../../../tools/history/eg2-convert-checkpoint.js';
 
-const base = path.resolve('temp/tasks/eg2-checkpoint-conversion-tests');
+const base = path.resolve('.tmp/tasks/eg2-checkpoint-conversion-tests');
 await fs.mkdir(base, { recursive: true });
 const root = await fs.mkdtemp(path.join(base, 'synthetic-'));
 const source = path.join(root, 'source.sqlite'), destination = path.join(root, 'converted.sqlite');

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-before-fields", "between-fields", "field-inspection", "shape-inspection", "closed-positive-and-invalid"]
+}

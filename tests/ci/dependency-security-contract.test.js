@@ -2,9 +2,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import semver from 'semver';
+import { parse } from 'yaml';
+import { spawnSync } from 'node:child_process';
 import { ensureTestingEnv } from '../helpers/test-env.js';
+import { makeTempDir, rmDirRecursive } from '../helpers/temp.js';
 
 ensureTestingEnv(process.env);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -13,6 +17,8 @@ const manifest = readJson('package.json');
 const lock = readJson('package-lock.json');
 const baseline = readJson('tests/fixtures/security/dependency-advisories-2026-10-02.json');
 const additions = readJson('tests/fixtures/security/dependency-advisories-2026-10-06.json');
+const current = readJson('tests/fixtures/security/dependency-advisories-2026-10-24.json');
+const october28 = readJson('tests/fixtures/security/dependency-advisories-2026-10-28.json');
 
 assert.equal(lock.lockfileVersion, 3, 'dependency security checks require the complete npm lock graph');
 for (const field of ['dependencies', 'optionalDependencies', 'devDependencies', 'engines']) {
@@ -21,7 +27,7 @@ for (const field of ['dependencies', 'optionalDependencies', 'devDependencies', 
 assert.ok(manifest.dependencies['@huggingface/transformers'], 'use the maintained Transformers.js package');
 assert.equal(manifest.dependencies['@xenova/transformers'], undefined, 'do not restore the vulnerable v2 runtime');
 assert.equal(manifest.dependencies.mammoth, '1.13.0', 'the reviewed Mammoth CLI patch requires an exact package version');
-assert.equal(manifest.overrides?.mammoth?.argparse, '2.0.1', 'remove the unpatched sprintf chain through the reviewed argparse migration');
+assert.equal(manifest.overrides?.mammoth?.argparse, '3.0.4', 'remove the unpatched sprintf chain through the reviewed argparse migration');
 
 const minimumNode = semver.minVersion(manifest.engines.node);
 assert.ok(minimumNode && semver.gte(minimumNode, '24.15.0'), 'patched native dependencies require Node 24.15+');
@@ -37,7 +43,7 @@ for (const [packagePath, entry] of Object.entries(lock.packages)) {
   if (packageName === 'braces' && semver.satisfies(entry.version, '<=3.0.3')) {
     failures.push(`${packagePath}@${entry.version}: vulnerable recursive brace expansion`);
   }
-  for (const advisories of [baseline, additions]) {
+  for (const advisories of [baseline, additions, current, october28]) {
     const advisory = advisories.packages[packageName];
     if (advisory && semver.satisfies(entry.version, advisory.range, { includePrerelease: true })) {
       failures.push(`${packagePath}@${entry.version}: known vulnerable range ${advisory.range}`);
@@ -53,8 +59,95 @@ for (const [packagePath, entry] of Object.entries(lock.packages)) {
 }
 assert.deepEqual(failures, [], 'the lock graph must stay fixed and target-compatible with the minimum Node version');
 
+// Identity currently selects MSAL 6; the scoped security override selects 7.
+// Exercise that real adapter through discovery, acquisition and cached reuse.
+// This transport owns every request: no live authentication or network fallback.
+let discoveryRequests = 0, tokenRequests = 0;
+const transportFailures = [];
+const vsceRequire = createRequire(import.meta.resolve('@vscode/vsce'));
+const identityEntry = vsceRequire.resolve('@azure/identity');
+const identityRequire = createRequire(identityEntry);
+const { ClientSecretCredential } = await import(pathToFileURL(identityEntry).href);
+const { createHttpHeaders } = await import(pathToFileURL(identityRequire.resolve('@azure/core-rest-pipeline')).href);
+const authority = 'https://identity.fixture.invalid';
+const tenant = '11111111-1111-1111-1111-111111111111';
+const endpoint = `${authority}/${tenant}/oauth2/v2.0/token`;
+const credential = new ClientSecretCredential(tenant, '22222222-2222-2222-2222-222222222222', 'fixture-secret', {
+  authorityHost: authority, disableInstanceDiscovery: true,
+  httpClient: { async sendRequest(request) {
+    try {
+      let body;
+      if (request.method === 'GET' && request.url === `${authority}/${tenant}/v2.0/.well-known/openid-configuration`) {
+        discoveryRequests++;
+        body = { issuer: `${authority}/${tenant}/v2.0`, token_endpoint: endpoint,
+          authorization_endpoint: `${authority}/${tenant}/oauth2/v2.0/authorize`,
+          jwks_uri: `${authority}/${tenant}/discovery/v2.0/keys` };
+      } else {
+        const tokenUrl = new URL(request.url);
+        assert.match(tokenUrl.searchParams.get('client-request-id'), /^[a-f0-9-]{36}$/u);
+        tokenUrl.searchParams.delete('client-request-id');
+        assert.equal(tokenUrl.href, endpoint, 'only the exact fixture token endpoint is admitted');
+        assert.equal(request.method, 'POST');
+        const form = new URLSearchParams(request.body);
+        assert.equal(form.get('grant_type'), 'client_credentials');
+        assert.equal(form.get('client_secret'), 'fixture-secret');
+        assert.equal(form.get('scope'), 'https://resource.fixture.invalid/.default');
+        tokenRequests++;
+        body = { access_token: 'fixture-token', token_type: 'Bearer', expires_in: 3600 };
+      }
+      return { request, status: 200, headers: createHttpHeaders({ 'content-type': 'application/json' }), bodyAsText: JSON.stringify(body) };
+    } catch (error) { transportFailures.push(error); throw error; }
+  } }
+});
+for (let attempt = 0; attempt < 2; attempt++) {
+  const token = await credential.getToken('https://resource.fixture.invalid/.default').catch(error => {
+    throw new AggregateError([error, ...transportFailures], 'Identity/MSAL offline token flow failed.');
+  });
+  assert.equal(token.token, 'fixture-token');
+  assert.ok(token.expiresOnTimestamp > Date.now());
+}
+assert.equal(discoveryRequests, 1);
+assert.equal(tokenRequests, 1, 'the real Identity/MSAL cache reuses the acquired token');
+
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
 assert.match(workflow, /run:\s*npm audit --audit-level=low\s*\n/, 'CI must also check current advisories, including dev/optional packages');
-assert.match(workflow, /shell: pwsh[\s\S]*npm run bootstrap:ci\s*\r?\n\s*if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}/,
-  'Windows bootstrap failures must stop before version-report commands can mask them');
+const dependencyAction = parse(fs.readFileSync(path.join(root, '.github/actions/ci-dependencies/action.yml'), 'utf8'));
+const bootstrap = dependencyAction.runs.steps.find(step => step.run?.includes('npm run bootstrap:ci'));
+assert.equal(bootstrap.shell, 'pwsh');
+assert.match(bootstrap.run, /if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}\s*$/,
+  'bootstrap failures must stop before later commands can mask them');
+// Execute the actual shared PowerShell/pipeline logic with explicit fixture
+// commands. This qualifies exit propagation, not real dependency readiness.
+const temporary = await makeTempDir('ci-bootstrap-status-');
+try {
+  const cases = [
+    ['false', 0, 17, 17, 1], ['true', 19, 17, 17, 1], ['false', 0, 0, 0, 1],
+    ['true', 0, 17, 0, 0], ['true', 19, 0, 0, 1]
+  ];
+  const invocations = cases.map(([hit, verifyStatus, bootstrapStatus, expected, calls], index) => {
+    fs.writeFileSync(path.join(temporary, `case-${index}.ps1`),
+      bootstrap.run.replaceAll('${{ steps.node-modules-cache.outputs.cache-hit }}', hit) + '\n$global:ReachedTail = $true\n');
+    // The call operator gives each actual script its own exit boundary while
+    // sharing one PowerShell startup. Verify exit and the unreachable tail.
+    return `$global:BootstrapCalls = 0; $global:ReachedTail = $false
+$global:BootstrapStatus = ${bootstrapStatus}; $global:VerifyStatus = ${verifyStatus}
+& (Join-Path $PSScriptRoot 'case-${index}.ps1')
+if ($LASTEXITCODE -ne ${expected}) { throw 'Unexpected native status in case${index}' }
+if ($global:BootstrapCalls -ne ${calls}) { throw 'Unexpected bootstrap dispatch in case${index}' }
+if ($global:ReachedTail -ne $${expected === 0 ? 'true' : 'false'}) { throw 'Bootstrap exit fell through in case${index}' }
+`;
+  });
+  const script = path.join(temporary, 'bootstrap-status.ps1');
+  fs.writeFileSync(script, `$ErrorActionPreference = 'Stop'
+$global:BootstrapCalls = 0
+function global:npm { $global:BootstrapCalls++; 'fixture bootstrap'; $global:LASTEXITCODE = $global:BootstrapStatus }
+function global:node { 'fixture verification'; $global:LASTEXITCODE = $global:VerifyStatus }
+${invocations.join('\n')}
+exit 0
+`);
+  const result = spawnSync('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', script],
+    { cwd: temporary, encoding: 'utf8', windowsHide: true, timeout: Math.max(1, Math.floor(30000 - (Date.now() - performance.timeOrigin))) });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+} finally { await rmDirRecursive(temporary); }
 console.log('dependency security and engine contract passed');

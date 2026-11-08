@@ -149,37 +149,44 @@ export const buildSlots = (width, depth, columns, rows, cellSize, gap, memberIns
 export const orderByAdjacency = (items, getKey, adjacency) => {
   if (!items.length) return [];
   if (items.length === 1) return items.slice();
-  if (items.length > 300) {
-    return items
-      .slice()
-      .sort((a, b) => String(getKey(a)).localeCompare(String(getKey(b))));
-  }
   const keys = items.map(getKey);
   const totalWeight = new Map();
+  const reverse = new Map();
+  const itemKeys = new Set(keys);
   keys.forEach((key) => {
     const neighbors = adjacency.get(key) || new Map();
     let total = 0;
-    for (const value of neighbors.values()) total += value;
+    for (const [target, value] of neighbors) {
+      total += value;
+      // The original score is candidate -> placed, not placed -> candidate.
+      // Keep that direction even when adjacency is asymmetric.
+      if (itemKeys.has(target) && value) {
+        if (!reverse.has(target)) reverse.set(target, new Map());
+        reverse.get(target).set(key, value);
+      }
+    }
     totalWeight.set(key, total);
   });
   const remaining = new Set(keys);
   const orderedKeys = [];
-  let current = keys.slice().sort((a, b) => {
+  const placedWeight = new Map(keys.map(key => [key, 0]));
+  const current = keys.slice().sort((a, b) => {
     const diff = (totalWeight.get(b) || 0) - (totalWeight.get(a) || 0);
     return diff || a.localeCompare(b);
   })[0];
   orderedKeys.push(current);
   remaining.delete(current);
+  let newlyPlaced = current;
   while (remaining.size) {
+    // Each edge contributes once, in placement order. Keep the total-weight
+    // bonus separate to preserve the old floating-point summation order.
+    for (const [candidate, weight] of reverse.get(newlyPlaced) || []) {
+      if (remaining.has(candidate)) placedWeight.set(candidate, placedWeight.get(candidate) + weight);
+    }
     let best = null;
-    let bestScore = -1;
+    let bestScore = -Infinity;
     for (const key of remaining) {
-      const neighbors = adjacency.get(key) || new Map();
-      let score = 0;
-      for (const placed of orderedKeys) {
-        score += neighbors.get(placed) || 0;
-      }
-      score += (totalWeight.get(key) || 0) * 0.1;
+      const score = placedWeight.get(key) + (totalWeight.get(key) || 0) * 0.1;
       if (score > bestScore) {
         bestScore = score;
         best = key;
@@ -189,6 +196,7 @@ export const orderByAdjacency = (items, getKey, adjacency) => {
     }
     orderedKeys.push(best);
     remaining.delete(best);
+    newlyPlaced = best;
   }
   const itemByKey = new Map(items.map((item) => [getKey(item), item]));
   return orderedKeys.map((key) => itemByKey.get(key)).filter(Boolean);
@@ -357,42 +365,35 @@ const buildSccLanes = (keys, adjacency) => {
   const components = [];
   let index = 0;
 
-  const strongconnect = (v) => {
-    indexByKey.set(v, index);
-    lowlink.set(v, index);
-    index += 1;
-    stack.push(v);
-    onStack.add(v);
-
-    const neighbors = adjacency.get(v) || new Map();
-    for (const w of neighbors.keys()) {
-      if (!keySet.has(w)) continue;
-      if (!indexByKey.has(w)) {
-        strongconnect(w);
-        lowlink.set(v, min(lowlink.get(v), lowlink.get(w)));
-      } else if (onStack.has(w)) {
-        lowlink.set(v, min(lowlink.get(v), indexByKey.get(w)));
-      }
-    }
-
-    if (lowlink.get(v) === indexByKey.get(v)) {
-      const component = [];
-      while (stack.length) {
-        const w = stack.pop();
-        onStack.delete(w);
-        componentByKey.set(w, components.length);
-        component.push(w);
-        if (w === v) break;
-      }
-      components.push(component);
-    }
+  const enter=(key,parent=null)=>{
+    indexByKey.set(key,index);lowlink.set(key,index);index+=1;
+    stack.push(key);onStack.add(key);
+    return {key,parent,neighbors:(adjacency.get(key)||new Map()).keys()};
   };
-
-  const min = (a, b) => a < b ? a : b;
-
-  for (const key of keys) {
-    if (!indexByKey.has(key)) {
-      strongconnect(key);
+  for(const key of keys){
+    if(indexByKey.has(key))continue;
+    const frames=[enter(key)];
+    while(frames.length){
+      const frame=frames[frames.length-1];
+      const next=frame.neighbors.next();
+      if(!next.done){
+        const neighbor=next.value;
+        if(!keySet.has(neighbor))continue;
+        if(!indexByKey.has(neighbor)){frames.push(enter(neighbor,frame.key));continue;}
+        if(onStack.has(neighbor))lowlink.set(frame.key,Math.min(lowlink.get(frame.key),indexByKey.get(neighbor)));
+        continue;
+      }
+      frames.pop();
+      if(frame.parent!=null)lowlink.set(frame.parent,Math.min(lowlink.get(frame.parent),lowlink.get(frame.key)));
+      if(lowlink.get(frame.key)===indexByKey.get(frame.key)){
+        const component=[];
+        while(stack.length){
+          const member=stack.pop();onStack.delete(member);
+          componentByKey.set(member,components.length);component.push(member);
+          if(member===frame.key)break;
+        }
+        components.push(component);
+      }
     }
   }
 
@@ -419,11 +420,9 @@ const buildSccLanes = (keys, adjacency) => {
   for (let i = 0; i < indegree.length; i += 1) {
     if (indegree[i] === 0) queue.push(i);
   }
-  queue.sort((a, b) => a - b);
-
   const topo = [];
-  while (queue.length) {
-    const comp = queue.shift();
+  for (let queueHead = 0; queueHead < queue.length; queueHead += 1) {
+    const comp = queue[queueHead];
     topo.push(comp);
     const out = componentEdges.get(comp);
     if (!out) continue;
@@ -431,7 +430,6 @@ const buildSccLanes = (keys, adjacency) => {
       indegree[target] -= 1;
       if (indegree[target] === 0) {
         queue.push(target);
-        queue.sort((a, b) => a - b);
       }
     }
   }

@@ -1,0 +1,264 @@
+name: OS CI cohorts
+on:
+  workflow_call:
+    inputs:
+      platform:
+        type: string
+        required: true
+      runner:
+        type: string
+        required: true
+permissions:
+  contents: read
+env:
+  PAIROFCLEATS_EMBEDDINGS: stub
+  PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+  ONNXRUNTIME_NODE_INSTALL: skip
+jobs:
+  prepare:
+    name: Prepare OS plan
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      serial-cohorts: ${{ steps.plan.outputs.serial-cohorts }}
+    steps:
+      - name: Checkout exact workflow source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare current checkout
+        uses: ./.github/actions/ci-dependencies
+        with:
+          save-cache: "true"
+      - name: Restore scheduling measurements
+        uses: actions/cache/restore@v6
+        with:
+          path: .cache/ci-timings
+          key: ci-timings-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: ci-timings-v1-${{ runner.os }}-
+      - name: Freeze exact OS assignments
+        id: plan
+        run: node tools/ci/prepare-platform-cohorts.js
+      - name: Upload OS cohort plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-plan-${{ inputs.platform }}
+          path: .diagnostics/ci-plan.json
+          if-no-files-found: error
+          include-hidden-files: true
+      - name: Upload preparation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-preparation-${{ inputs.platform }}
+          path: .diagnostics/**
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+    timeout-minutes: 25
+  correctness:
+    name: Correctness ${{ matrix.shard }}/4
+    runs-on: ${{ inputs.runner }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - 1
+          - 2
+          - 3
+          - 4
+    env:
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats/correctness-${{ matrix.shard }}
+    steps:
+      - name: Checkout exact workflow source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare current checkout
+        uses: ./.github/actions/ci-dependencies
+      - name: Download OS cohort plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-plan-${{ inputs.platform }}
+          path: .diagnostics
+      - name: Setup qualified Jujutsu
+        run: node tools/ci/provision-jj.js
+      - name: Run exact correctness shard
+        run: node tools/ci/run-platform-cohort.js correctness-${{ matrix.shard }}
+      - name: Upload original cohort evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-${{ inputs.platform }}-correctness-${{ matrix.shard }}
+          path: |
+            .diagnostics/**
+            .testLogs/**
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+    timeout-minutes: 60
+  serial:
+    name: Serial ${{ matrix.cohort }}
+    runs-on: ${{ inputs.runner }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        cohort: ${{ fromJSON(needs.prepare.outputs.serial-cohorts) }}
+    env:
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats/${{ matrix.cohort }}
+    steps:
+      - name: Checkout exact workflow source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare current checkout
+        uses: ./.github/actions/ci-dependencies
+      - name: Download OS cohort plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-plan-${{ inputs.platform }}
+          path: .diagnostics
+      - name: Run exact serial cohort
+        run: node tools/ci/run-platform-cohort.js ${{ matrix.cohort }}
+      - name: Upload original cohort evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-${{ inputs.platform }}-${{ matrix.cohort }}
+          path: |
+            .diagnostics/**
+            .testLogs/**
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+    timeout-minutes: 45
+  tooling:
+    name: Tooling providers and gates
+    runs-on: ${{ inputs.runner }}
+    needs: prepare
+    env:
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: "false"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats/tooling
+    steps:
+      - name: Checkout exact workflow source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare current checkout
+        uses: ./.github/actions/ci-dependencies
+      - name: Download OS cohort plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-plan-${{ inputs.platform }}
+          path: .diagnostics
+      - name: Setup qualified Jujutsu
+        run: node tools/ci/provision-jj.js
+      - name: Prepare and qualify platform tooling
+        uses: ./.github/actions/ci-tooling
+      - name: Run tooling cohort
+        run: node tools/ci/run-platform-cohort.js tooling
+      - name: Upload original cohort evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-${{ inputs.platform }}-tooling
+          path: |
+            .diagnostics/**
+            .testLogs/**
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+    timeout-minutes: 45
+  aggregate:
+    name: Complete OS coverage
+    runs-on: ${{ inputs.runner }}
+    if: always()
+    needs:
+      - prepare
+      - correctness
+      - serial
+      - tooling
+    steps:
+      - name: Checkout exact workflow source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Require prepared OS source
+        shell: pwsh
+        run: if ('${{ needs.prepare.result }}' -ne 'success') { throw 'The OS source/selection plan did not qualify.' }
+      - name: Prepare current checkout
+        uses: ./.github/actions/ci-dependencies
+      - name: Download OS cohort plan
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-plan-${{ inputs.platform }}
+          path: .diagnostics
+      - name: Download all original cohort evidence
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ci-${{ inputs.platform }}-*
+          path: .tmp/ci-cohort-artifacts
+          merge-multiple: false
+      - name: Verify complete OS outcomes
+        id: aggregate
+        run: node tools/ci/aggregate-platform-cohorts.js ${{ inputs.platform }}
+        env:
+          CI_COHORT_JOB_RESULTS: ${{ toJSON(needs) }}
+      - name: Coverage policy report
+        if: always() && steps.aggregate.outputs.correctness-complete == 'true'
+        run: node tools/ci/coverage-policy-report.js --root . --coverage .diagnostics/coverage/test-coverage-ci.json --out .diagnostics/coverage/coverage-policy-ci.json --markdown .diagnostics/coverage/coverage-policy-ci.md --mode ci
+      - name: Retain scheduling measurements
+        if: always() && steps.aggregate.outputs.correctness-complete == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .cache/ci-timings
+          key: ci-timings-v1-${{ runner.os }}-${{ github.run_id }}
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-quality-artifacts-${{ inputs.platform }}
+          path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-provisioning.json
+            .diagnostics/csharp-ls-startup.json
+            .diagnostics/php-sdk.json
+            .diagnostics/phpactor-provisioning.json
+            .diagnostics/phpactor-startup.json
+            .diagnostics/serial-native-lifecycle.json
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-provisioning.json
+            .diagnostics/jj-provisioning.json
+            .diagnostics/gopls-startup.json
+            .diagnostics/lsp-shutdown-qualification.json
+            .diagnostics/crash-log-qualification.json
+            .diagnostics/serial-compiler-api-contracts.json
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+            .testLogs/bench35-*.json
+            .testLogs/build-cli-selected-outcome-*.json
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
+            .diagnostics/phpactor-platform.json
+            .diagnostics/windows-subprocess-ownership.json
+            .diagnostics/cohort-acceptance.json
+            .diagnostics/cohorts/**
+            .testLogs/cohorts/**
+            .diagnostics/*.json
+            .diagnostics/usr/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 7
+    timeout-minutes: 20

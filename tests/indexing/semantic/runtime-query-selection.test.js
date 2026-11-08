@@ -32,7 +32,9 @@ try {
   const exact = await query({ sources: [{ sourceUnitId: fixture.source.sourceUnitId, byteHash: fixture.source.byteHash }] });
   assert.equal(exact.observations.length, 6); assert.ok(exact.observations.every(row => row.join.quality === 'exact-source'));
   assert.deepEqual(exact.coverage.map(row => row.sourceJoinCounts.exactSource), [6, 0]);
-  assert.ok(exact.coverage[1].reasons.includes('exact_source_mapping_unavailable_in_saved_capture'));
+  assert.ok(exact.coverage[1].reasons.includes('no_retained_exact_source_observations'));
+  assert.equal(exact.coverage[1].requestedSources[0].state, 'no-retained-exact-observations');
+  assert.equal(exact.coverage[1].requestedSources[0].retainedExactCount, 0);
   assert.equal(exact.status, 'partial', 'complete saved profiles do not imply complete source mapping');
   assert.equal((await query({ sources: [{ sourceUnitId: fixture.source.sourceUnitId, byteHash: 'a'.repeat(64) }] })).observations.length, 0);
   assert.equal((await query({ records: fixture.options().sourceCandidates[0].targets })).observations.length, 0,
@@ -71,6 +73,16 @@ try {
   unsupportedOptions.authority = { action: 'import-existing', captureId: fixture.capture.captureId,
     artifactHashes: [unsupportedOptions.capture.rawArtifacts[0].hash] };
   const unsupported = await importRuntimeEvidence(unsupportedOptions);
+  const pinnedDiscovery = await listRuntimeFamilies({ destination: fixture.options().destination,
+    limit: 1, cursor: discovery.nextCursor });
+  assert.deepEqual(pinnedDiscovery.families, nextDiscovery.families,
+    'a newly imported family cannot change a discovery snapshot already in progress');
+  const refreshedDiscovery = await listRuntimeFamilies({ destination: fixture.options().destination });
+  assert.equal(refreshedDiscovery.families.length, 3);
+  assert.ok(refreshedDiscovery.families.some(family => family.generationId === unsupported.pointer.generationId));
+  assert.equal(refreshedDiscovery.scannedDirectories, 0);
+  await assert.rejects(listRuntimeFamilies({ destination: fixture.options().destination, limit: 2,
+    cursor: discovery.nextCursor }), { code: 'ERR_RUNTIME_QUERY_CURSOR' });
   const unavailableProjection = await queryRuntimeEvidence({ destination: fixture.options().destination,
     request: { ...request, familyGenerations: [unsupported.pointer.generationId] } });
   assert.deepEqual(unavailableProjection.observations, []); assert.equal(unavailableProjection.status, 'partial');

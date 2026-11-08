@@ -1,6 +1,6 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 import { skip } from '../../helpers/skip.js';
@@ -23,7 +23,7 @@ const readWithTimeout = (promise, label) => {
 };
 
 const runCase = async ({ label, expectedMode, cliMode, env }) => {
-  const cacheRoot = path.join(process.cwd(), 'tests', '.cache', `mcp-mode-${label}`);
+  const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', `mcp-mode-${label}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   const { send, readMessage, shutdown } = await startMcpServer({
     cacheRoot,

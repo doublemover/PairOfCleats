@@ -29,6 +29,21 @@ A file may be classified as generated/vendor/minified based on:
 
 Exclude always wins over include.
 
+Explicit generated-policy includes use the
+`explicit-leaf-and-bounded-ancestor-v1` selection contract. Build discovery may
+descend through an ignored directory when a matching descendant remains
+possible, including `**/node_modules/pkg/keep.js`. That permission alone does not
+admit files: exact include matching overrides ordinary ignore admission only for
+selected leaves. Unselected siblings and explicit generated-policy exclusions
+remain excluded in build and watch paths. Ordinary ignore-file negations retain
+their ordered semantics, including later re-exclusion.
+
+The ancestor matcher keeps bounded selector/path states instead of enumerating
+hypothetical descendants. Selectors are limited to 4096 characters and 256
+relative segments; directory depth, file-count and root boundaries still apply.
+Its contract identity participates in the ignore-policy fingerprint, so cached
+source admission cannot silently reuse an older traversal meaning.
+
 ## Default behavior
 
 1. Generated/minified/vendor files default to metadata-only indexing.

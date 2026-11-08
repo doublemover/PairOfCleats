@@ -1,16 +1,14 @@
 import pino from 'pino';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
-let lastProgressActive = false;
-let lastProgressWidth = 0;
-let logger = null;
-let structuredEnabled = false;
-let logContext = {};
-let ringMax = 200;
-let ringMaxBytes = 2 * 1024 * 1024;
+const createLoggerState = () => ({ lastProgressActive: false, lastProgressWidth: 0,
+  logger: null, structuredEnabled: false, logContext: {}, ringMax: 200,
+  ringMaxBytes: 2 * 1024 * 1024, ringEvents: [], ringSizes: [], ringBytes: 0,
+  progressHandlers: null, metaSerializer: null, ownedDestination: null, closePromise: null });
+const defaultLoggerState = createLoggerState();
+const loggerScope = new AsyncLocalStorage();
+const currentLoggerState = () => loggerScope.getStore() || defaultLoggerState;
 const ringMetaMaxBytes = 8 * 1024;
-const ringEvents = [];
-const ringSizes = [];
-let ringBytes = 0;
 const defaultRedactPaths = [
   'password',
   'token',
@@ -23,7 +21,6 @@ const defaultRedactPaths = [
   'auth',
   'credentials'
 ];
-let progressHandlers = null;
 
 const normalizeRedact = (value) => {
   if (value === false) return null;
@@ -72,6 +69,12 @@ const snapshotMeta = (meta) => {
     encoded = '"[unserializable]"';
   }
   if (!encoded) return null;
+  try {
+    const state = currentLoggerState();
+    state.metaSerializer ||= createMetaSerializer(normalizeRedact());
+    encoded = state.metaSerializer(encoded);
+  }
+  catch { encoded = '"[redaction unavailable]"'; }
   return truncateUtf8(encoded, ringMetaMaxBytes);
 };
 
@@ -93,12 +96,58 @@ const resolveDestinationStream = (value) => {
   return pino.destination(target);
 };
 
+// Reuse Pino's redaction semantics for immutable ring snapshots, including
+// wildcard/bracket paths and remove mode, rather than maintaining another engine.
+const createMetaSerializer = redact => {
+  if (!redact) return encoded => encoded;
+  let output = '';
+  const serializer = pino({ level: 'trace', base: null, timestamp: false, redact,
+    formatters: { level: () => ({ level: 0 }) } }, { write(value) { output = String(value).trimEnd(); } });
+  return encoded => {
+    output = ''; serializer.info(JSON.parse(encoded));
+    // Pino requires a nonempty level fragment to emit valid JSON. Remove only
+    // that leading synthetic fragment; a caller's own level field survives.
+    if (output === '{"level":0}') return '{}';
+    return output.startsWith('{"level":0,') ? `{${output.slice(11)}` : '"[redaction unavailable]"';
+  };
+};
+
+export const createLoggerScope = (options = {}) => {
+  const state = createLoggerState();
+  // Runtime scopes keep their caller's selected display. Later global handler
+  // replacement cannot redirect that scope; independent scopes stay isolated.
+  if (options.inheritProgressHandlers === true) state.progressHandlers = currentLoggerState().progressHandlers;
+  loggerScope.run(state, () => configureLogger(options));
+  const run = (fn, ...args) => loggerScope.run(state, fn, ...args);
+  return { run, log: (...args) => run(log, ...args), logLine: (...args) => run(logLine, ...args),
+    logError: (...args) => run(logError, ...args), showProgress: (...args) => run(showProgress, ...args),
+    updateLogContext: (...args) => run(updateLogContext, ...args),
+    getRecentLogEvents: () => run(getRecentLogEvents),
+    setProgressHandlers: (...args) => run(setProgressHandlers, ...args),
+    close: () => {
+      if (state.closePromise) return state.closePromise;
+      state.closePromise = (async () => {
+        if (state.logger) await new Promise((resolve, reject) => state.logger.flush(error => error ? reject(error) : resolve()));
+        const destination = state.ownedDestination;
+        if (destination && !destination.destroyed && !destination.closed) {
+          await new Promise((resolve, reject) => {
+            destination.once('error', reject);
+            destination.once('close', resolve);
+            destination.end();
+          });
+        }
+      })();
+      return state.closePromise;
+    } };
+};
+
 const recordEvent = (level, msg, meta) => {
+  const state = currentLoggerState();
   const payload = {
     ts: new Date().toISOString(),
     level,
     msg,
-    meta: snapshotMeta(meta)
+    meta: snapshotMeta({ ...state.logContext, ...(meta || {}) })
   };
   let encoded = '';
   try {
@@ -107,35 +156,32 @@ const recordEvent = (level, msg, meta) => {
     encoded = '{"ts":"[unserializable]","level":"error","msg":"[unserializable]"}';
   }
   const size = Buffer.byteLength(encoded, 'utf8');
-  ringEvents.push(payload);
-  ringSizes.push(size);
-  ringBytes += size;
-  while (ringEvents.length > ringMax || ringBytes > ringMaxBytes) {
-    ringBytes -= ringSizes.shift() || 0;
-    ringEvents.shift();
+  state.ringEvents.push(payload);
+  state.ringSizes.push(size);
+  state.ringBytes += size;
+  while (state.ringEvents.length > state.ringMax || state.ringBytes > state.ringMaxBytes) {
+    state.ringBytes -= state.ringSizes.shift() || 0;
+    state.ringEvents.shift();
   }
 };
 
 export function configureLogger(options = {}) {
+  const state = currentLoggerState();
   const enabled = options.enabled === true;
-  structuredEnabled = enabled;
-  if (!enabled) {
-    logger = null;
-    logContext = options.context && typeof options.context === 'object'
-      ? { ...options.context }
-      : {};
-    return;
+  state.structuredEnabled = enabled;
+  if (Number.isFinite(Number(options.ringMax))) state.ringMax = Math.max(1, Math.floor(Number(options.ringMax)));
+  if (Number.isFinite(Number(options.ringMaxBytes))) state.ringMaxBytes = Math.max(1024, Math.floor(Number(options.ringMaxBytes)));
+  while (state.ringEvents.length > state.ringMax || state.ringBytes > state.ringMaxBytes) {
+    state.ringBytes -= state.ringSizes.shift() || 0;
+    state.ringEvents.shift();
   }
-  if (Number.isFinite(Number(options.ringMax))) {
-    ringMax = Math.max(1, Math.floor(Number(options.ringMax)));
-  }
-  if (Number.isFinite(Number(options.ringMaxBytes))) {
-    ringMaxBytes = Math.max(1024, Math.floor(Number(options.ringMaxBytes)));
-  }
+  const redact = normalizeRedact(options.redact);
+  state.metaSerializer = createMetaSerializer(redact);
+  state.logContext = options.context && typeof options.context === 'object' ? { ...options.context } : {};
+  if (!enabled) { state.logger = null; return; }
   const level = typeof options.level === 'string' && options.level.trim()
     ? options.level.trim().toLowerCase()
     : 'info';
-  const redact = normalizeRedact(options.redact);
   const destinationTarget = normalizeDestinationTarget(options.destination);
   const resolvedDestination = destinationTarget ?? 2;
   const destinationStream = options.pretty ? null : resolveDestinationStream(resolvedDestination);
@@ -149,54 +195,63 @@ export function configureLogger(options = {}) {
       }
     })
     : null;
-  logger = pino({
+  state.ownedDestination = transport || (destinationTarget && typeof destinationTarget !== 'object'
+    && destinationTarget !== 1 && destinationTarget !== 2 && destinationTarget !== 'stdout'
+    && destinationTarget !== 'stderr' ? destinationStream : null);
+  state.logger = pino({
     level,
     base: null,
     timestamp: pino.stdTimeFunctions.isoTime,
     ...(redact ? { redact } : {})
   }, transport || destinationStream || undefined);
-  logContext = options.context && typeof options.context === 'object'
+  state.logContext = options.context && typeof options.context === 'object'
     ? { ...options.context }
     : {};
 }
 
 export function setProgressHandlers(handlers) {
-  const prev = progressHandlers;
-  progressHandlers = handlers && typeof handlers === 'object' ? handlers : null;
+  const state = currentLoggerState();
+  const prev = state.progressHandlers;
+  state.progressHandlers = handlers && typeof handlers === 'object' ? handlers : null;
   return () => {
-    progressHandlers = prev;
+    state.progressHandlers = prev;
   };
 }
 
 export function updateLogContext(context = {}) {
+  const state = currentLoggerState();
   if (!context || typeof context !== 'object') return;
-  logContext = { ...logContext, ...context };
+  state.logContext = { ...state.logContext, ...context };
 }
 
 export function getRecentLogEvents() {
-  return ringEvents.slice();
+  const state = currentLoggerState();
+  return state.ringEvents.slice();
 }
 
 export function isStructuredLogging() {
-  return structuredEnabled;
+  const state = currentLoggerState();
+  return state.structuredEnabled;
 }
 
 function clearProgressLine() {
-  if (!lastProgressActive || !process.stderr.isTTY) return;
-  const width = Math.max(0, lastProgressWidth);
+  const state = currentLoggerState();
+  if (!state.lastProgressActive || !process.stderr.isTTY) return;
+  const width = Math.max(0, state.lastProgressWidth);
   if (width > 0) {
     process.stderr.write(`\r${' '.repeat(width)}\r`);
   }
-  lastProgressActive = false;
-  lastProgressWidth = 0;
+  state.lastProgressActive = false;
+  state.lastProgressWidth = 0;
 }
 
 export function showProgress(step, i, total, meta = null) {
-  if (progressHandlers?.showProgress) {
-    progressHandlers.showProgress(step, i, total, meta);
+  const state = currentLoggerState();
+  if (state.progressHandlers?.showProgress) {
+    state.progressHandlers.showProgress(step, i, total, meta);
     return;
   }
-  if (structuredEnabled) return;
+  if (state.structuredEnabled) return;
   const safeTotal = Number.isFinite(total) ? Math.max(0, total) : 0;
   const safeIndex = Number.isFinite(i) ? Math.max(0, i) : 0;
   const pct = safeTotal ? ((safeIndex / safeTotal) * 100).toFixed(1) : '0.0';
@@ -204,32 +259,33 @@ export function showProgress(step, i, total, meta = null) {
   const isTty = process.stderr.isTTY;
   if (isTty) {
     process.stderr.write(`\r${line}\x1b[K`);
-    lastProgressActive = true;
-    lastProgressWidth = line.length;
+    state.lastProgressActive = true;
+    state.lastProgressWidth = line.length;
     if (i === total) {
       process.stderr.write('\n');
-      lastProgressActive = false;
-      lastProgressWidth = 0;
+      state.lastProgressActive = false;
+      state.lastProgressWidth = 0;
     }
   } else {
     process.stderr.write(`${line}\n`);
-    lastProgressActive = false;
-    lastProgressWidth = 0;
+    state.lastProgressActive = false;
+    state.lastProgressWidth = 0;
   }
 }
 
 export function log(msg, meta = null) {
-  if (logger) {
-    logger.info({ ...logContext, ...(meta || {}) }, msg);
+  const state = currentLoggerState();
+  if (state.logger) {
+    state.logger.info({ ...state.logContext, ...(meta || {}) }, msg);
     recordEvent('info', msg, meta);
-    if (progressHandlers?.log) {
-      progressHandlers.log(msg, meta);
+    if (state.progressHandlers?.log) {
+      state.progressHandlers.log(msg, meta);
     }
     return;
   }
   recordEvent('info', msg, meta);
-  if (progressHandlers?.log) {
-    progressHandlers.log(msg, meta);
+  if (state.progressHandlers?.log) {
+    state.progressHandlers.log(msg, meta);
     return;
   }
   clearProgressLine();
@@ -237,32 +293,33 @@ export function log(msg, meta = null) {
 }
 
 export function logLine(msg, meta = null) {
+  const state = currentLoggerState();
   const isStatus = meta && typeof meta === 'object' && meta.kind === 'status';
-  if (isStatus && !progressHandlers?.logLine && process.stderr.isTTY) {
+  if (isStatus && !state.progressHandlers?.logLine && process.stderr.isTTY) {
     recordEvent('info', msg, meta);
     const line = String(msg || '');
     const width = line.length;
     process.stderr.write(`\r${line}\x1b[K`);
-    lastProgressActive = true;
-    lastProgressWidth = width;
+    state.lastProgressActive = true;
+    state.lastProgressWidth = width;
     if (!line) {
       process.stderr.write('\r');
-      lastProgressActive = false;
-      lastProgressWidth = 0;
+      state.lastProgressActive = false;
+      state.lastProgressWidth = 0;
     }
     return;
   }
-  if (logger) {
-    logger.info({ ...logContext, ...(meta || {}) }, msg);
+  if (state.logger) {
+    state.logger.info({ ...state.logContext, ...(meta || {}) }, msg);
     recordEvent('info', msg, meta);
-    if (progressHandlers?.logLine) {
-      progressHandlers.logLine(msg, meta);
+    if (state.progressHandlers?.logLine) {
+      state.progressHandlers.logLine(msg, meta);
     }
     return;
   }
   recordEvent('info', msg, meta);
-  if (progressHandlers?.logLine) {
-    progressHandlers.logLine(msg, meta);
+  if (state.progressHandlers?.logLine) {
+    state.progressHandlers.logLine(msg, meta);
     return;
   }
   clearProgressLine();
@@ -270,17 +327,18 @@ export function logLine(msg, meta = null) {
 }
 
 export function logError(msg, meta = null) {
-  if (logger) {
-    logger.error({ ...logContext, ...(meta || {}) }, msg);
+  const state = currentLoggerState();
+  if (state.logger) {
+    state.logger.error({ ...state.logContext, ...(meta || {}) }, msg);
     recordEvent('error', msg, meta);
-    if (progressHandlers?.logError) {
-      progressHandlers.logError(msg, meta);
+    if (state.progressHandlers?.logError) {
+      state.progressHandlers.logError(msg, meta);
     }
     return;
   }
   recordEvent('error', msg, meta);
-  if (progressHandlers?.logError) {
-    progressHandlers.logError(msg, meta);
+  if (state.progressHandlers?.logError) {
+    state.progressHandlers.logError(msg, meta);
     return;
   }
   clearProgressLine();

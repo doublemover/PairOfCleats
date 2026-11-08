@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["excerpt-bytes", "excerpt-tokens", "partial-count", "partial-bytes", "partial-tokens"]
+}

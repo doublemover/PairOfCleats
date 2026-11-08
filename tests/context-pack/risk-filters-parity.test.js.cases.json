@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["filters-and-aliases", "empty-results", "degraded-artifact", "invalid-request"]
+}

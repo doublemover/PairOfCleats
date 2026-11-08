@@ -3,6 +3,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatDuration } from './metrics.js';
 import { isProcessAlive, readLockInfo } from '../../../src/shared/locks/file-lock.js';
+import { isLocalProcessDefinitelyDead, requiresLockResourceSettlement } from '../../../src/shared/locks/file-lock-info.js';
+import { removeLockFileIfOwned } from '../../../src/shared/locks/file-lock-owner.js';
 
 const getLockAgeMs = async (lockPath, info) => {
   if (info?.startedAt) {
@@ -44,15 +46,20 @@ export const checkIndexLock = async ({
     const info = await readLockInfo(lockPath);
     const ageMs = await getLockAgeMs(lockPath, info);
     const pid = Number.isFinite(Number(info?.pid)) ? Number(info.pid) : null;
-    const alive = pid ? isProcessAlive(pid) : null;
-    const detail = { lockPath, ageMs, pid, alive };
-    const isStale = (Number.isFinite(ageMs) && ageMs > lockStaleMs) || (pid && !alive);
+    const resourcePending = requiresLockResourceSettlement(info);
+    const alive = resourcePending ? null : pid ? isProcessAlive(pid) : null;
+    const detail = { lockPath, ageMs, pid, alive, resourcePending,
+      staleByAge: Number.isFinite(ageMs) && ageMs > lockStaleMs };
+    // Age is diagnostic, never permission to erase a live/unknown writer. This
+    // helper has no owner capability for reconciling a durable resource fence.
+    const isStale = !resourcePending && isLocalProcessDefinitelyDead(pid);
+    if (isStale) Object.defineProperty(detail, 'owner', { value: info });
     return { detail, isStale };
   };
 
   const clearIfStale = async (detail) => {
     try {
-      await fsPromises.rm(lockPath, { force: true });
+      if (!await removeLockFileIfOwned(lockPath, detail.owner, { swallowErrors: false })) return false;
       if (onLog) {
         onLog(`[lock] cleared stale lock for ${repoLabel} ${formatLockDetail(detail)}`);
       }

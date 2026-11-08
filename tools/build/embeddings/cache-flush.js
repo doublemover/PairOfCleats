@@ -1,4 +1,6 @@
 import { flushCacheIndex as flushCacheIndexImpl } from './cache.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { isAbortError } from '../../../src/shared/abort.js';
 
 /**
  * Flush cache index updates when needed and return updated dirty state.
@@ -45,7 +47,9 @@ export const flushCacheIndexIfNeeded = async ({
       return { cacheIndexDirty: false, flushResult };
     }
     return { cacheIndexDirty, flushResult: flushResult || null };
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'embedding-cache-checkpoint' }).requireSettled();
+    if (isAbortError(error) || error instanceof AggregateError) throw error;
     return { cacheIndexDirty, flushResult: null };
   }
 };

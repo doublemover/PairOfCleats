@@ -17,6 +17,7 @@ if (!fs.existsSync(registryPath)) {
 const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
 const surfaces = Array.isArray(registry?.surfaces) ? registry.surfaces : [];
 const requiredIds = [
+  'sublime-editor-config-bundle',
   'script-inventory',
   'repo-inventory',
   'doc-contract-drift',

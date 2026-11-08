@@ -1,10 +1,17 @@
 import { sha1 } from './hash.js';
+import { stableStringify } from './stable-json.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
+import { isEmbeddingModelRepositoryId } from './embedding-artifact-identity.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
+import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting,
+  validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 
-/** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 4;
+/** Embedding identity version. V8 retires vectors produced by post-template
+ * truncation that discarded trailing special tokens in Transformers.js.
+ */
+export const EMBEDDING_IDENTITY_VERSION = 8;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v4';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v8';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
@@ -43,7 +50,8 @@ const normalizeInputFormatting = (value) => {
   return {
     family,
     queryPrefix: queryPrefix || null,
-    passagePrefix: passagePrefix || null
+    passagePrefix: passagePrefix || null,
+    ...(value.contract ? { contract: value.contract, templateVersion: value.templateVersion, task: value.task ?? null } : {})
   };
 };
 
@@ -91,6 +99,7 @@ export const buildEmbeddingIdentity = ({
   const identity = {
     version: EMBEDDING_IDENTITY_VERSION,
     fingerprint: EMBEDDING_IDENTITY_FINGERPRINT,
+    vectorValidityVersion: 1,
     modelId: normalizeString(modelId),
     provider: normalizeString(provider),
     mode: normalizeString(mode),
@@ -124,6 +133,15 @@ export const buildEmbeddingIdentity = ({
     } : null
   };
   const profile = resolveEmbeddingModelProfile(modelId, modelProfile);
+  const acquisition = resolveEmbeddingAcquisitionPlan(modelId, profile);
+  // This finite recipe changes graph precision/revision, not E5 input bytes.
+  // Persist it even when an artifact digest is supplied so old q8 identities
+  // cannot be reinterpreted as the author's external-data fp32 export.
+  if (provider === 'xenova' && acquisition.exportFiles && stub !== true) identity.acquisition = acquisition;
+  if (provider === 'onnx' && stub !== true) {
+    const tokenizer = resolveEmbeddingAcquisitionPlan(onnxConfig.tokenizerId || modelId);
+    if (tokenizer.exportFiles) identity.tokenizerAcquisition = { modelId: tokenizer.modelId, revision: tokenizer.revision };
+  }
   if (profile) {
     identity.modelProfile = profile;
     if (!modelArtifact && stub !== true) identity.modelArtifact = {
@@ -132,6 +150,20 @@ export const buildEmbeddingIdentity = ({
     identity.pooling = profile.output;
     identity.dims = profile.dimensions;
     identity.maxLength = profile.maxLength;
+    if (!modelArtifact && stub !== true && !isEmbeddingModelRepositoryId(modelId)) {
+      identity.modelArtifact = { status: 'unknown', reuse: 'refuse', digest: null,
+        revision: profile.revision, method: 'local-profile-needs-artifact-verification' };
+    }
+  }
+  const denseContract = resolveEmbeddingDenseContract(modelId);
+  if (denseContract) {
+    validateEmbeddingDenseContract(denseContract, { normalize });
+    assertEmbeddingDenseFormatting(denseContract, inputFormatting);
+    identity.denseEncoding = { ...denseContract };
+    identity.pooling = denseContract.pooling;
+    identity.inputFormatting = denseContractFormatting(denseContract);
+    identity.maxLength = denseContract.maxLength;
+    if (stub !== true) identity.dims = denseContract.dimensions;
   }
   return identity;
 };
@@ -139,12 +171,13 @@ export const buildEmbeddingIdentity = ({
 /**
  * Compute a stable identity key for embedding cache entries.
  *
- * Deterministic: JSON stringification of normalized identity.
+ * Canonical JSON key order survives persistence through index-state writers.
+ * Array order remains meaningful for ordered execution-provider preferences.
  *
  * @param {object} identity
  * @returns {string}
  */
 export const buildEmbeddingIdentityKey = (identity) => {
   const safeIdentity = identity && typeof identity === 'object' ? identity : {};
-  return sha1(JSON.stringify(safeIdentity));
+  return sha1(stableStringify(safeIdentity));
 };

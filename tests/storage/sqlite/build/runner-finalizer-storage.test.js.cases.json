@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["wait", "primary-and-finalizer", "owned-child-in-finalizer"]
+}

@@ -1,129 +1,132 @@
-import { maybeYield, sortStrings } from './constants.js';
+import { getOwn } from '../../../shared/object-record.js';
+import { collectFieldPostingNames, getFieldPostingLengths, setFieldPostingRecord } from './field-record.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { sortStrings } from './constants.js';
+import { normalizeTfPostingList } from './id-lists.js';
+import { DEFAULT_POSTINGS_WORK_BATCH, normalizeTfPostingsWork, runPostingsWork, sortPostingsWork } from './cooperative-work.js';
 
-/**
- * Build token-level and field-level sparse posting artifacts.
- *
- * @param {{
- *   sparseEnabled?: boolean,
- *   tokenPostings: Map<any, unknown>,
- *   tokenIdMap?: Map<any, string>|null,
- *   fieldPostings?: Record<string, Map<string, unknown>>|null,
- *   fieldDocLengths?: Record<string, number[]>|null,
- *   normalizedDocLengths?: number[],
- *   requestYield?: (() => Promise<void> | null)|null,
- *   normalizeTfPostingList: (value: unknown) => Array<[number, number]>
- * }} [input]
- * @returns {Promise<{
- *   tokenVocab: string[],
- *   tokenVocabIds: Array<string|number>|null,
- *   tokenPostingsList: Array<Array<[number, number]>>,
- *   avgDocLen: number,
- *   fieldPostingsResult: { fields: Record<string, {
- *     vocab: string[],
- *     postings: Array<Array<[number, number]>>,
- *     docLengths: number[],
- *     avgDocLen: number,
- *     totalDocs: number
- *   }>}|null
- * }>}
- */
+const activeInputs = new WeakSet(), consumedInputs = new WeakSet();
+const inputFailure = () => Object.assign(new Error('Postings inputs belong to an active or consumed attempt; rebuild its index state before retry.'),
+  { code: 'ERR_POSTINGS_INPUT_CONSUMED' });
+
+/** Token/field assembly consumes each source map only after capturing its owned
+ * entries. Once consumption starts, cancellation makes this attempt terminal.
+ * Reservations remain with the caller until all cooperative waits settle. */
 export const buildTokenAndFieldPostings = async ({
-  sparseEnabled,
-  tokenPostings,
-  tokenIdMap,
-  fieldPostings,
-  fieldDocLengths,
-  normalizedDocLengths,
-  requestYield,
-  normalizeTfPostingList
+  sparseEnabled, tokenPostings, tokenIdMap, fieldPostings, fieldDocLengths,
+  normalizedDocLengths, requestYield, signal = null, workBatchSize = DEFAULT_POSTINGS_WORK_BATCH
 } = {}) => {
-  let tokenVocab = [];
-  let tokenVocabIds = [];
-  let tokenPostingsList = [];
-  if (sparseEnabled) {
-    let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
-    const tokenEntries = [];
-    for (const [id, posting] of tokenPostings.entries()) {
-      const mapped = tokenIdMap?.get(id);
-      if (!mapped) includeTokenIds = false;
-      const token = mapped ?? (typeof id === 'string' ? id : String(id));
-      tokenEntries.push({ id, token, posting });
-      await maybeYield(requestYield);
+  throwIfAborted(signal);
+  if (!Number.isSafeInteger(workBatchSize) || workBatchSize < 1 || workBatchSize > 4096) throw new TypeError('Invalid postings work batch.');
+  const inputs = [...new Set([tokenPostings, ...Object.values(fieldPostings || {})]
+    .filter(value => value && typeof value === 'object'))];
+  if (inputs.some(value => activeInputs.has(value) || consumedInputs.has(value))) throw inputFailure();
+  for (const input of inputs) activeInputs.add(input);
+  let consumed = false;
+  const consume = map => {
+    throwIfAborted(signal);
+    if (typeof map?.clear === 'function') {
+      if (!Number.isSafeInteger(map.size) || map.size > 0) consumed = true;
+      map.clear();
     }
-    tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
-    tokenVocab = new Array(tokenEntries.length);
-    tokenVocabIds = includeTokenIds ? new Array(tokenEntries.length) : null;
-    tokenPostingsList = new Array(tokenEntries.length);
-    for (let i = 0; i < tokenEntries.length; i += 1) {
-      const entry = tokenEntries[i];
-      tokenVocab[i] = entry.token;
-      if (tokenVocabIds) tokenVocabIds[i] = entry.id;
-      tokenPostingsList[i] = normalizeTfPostingList(entry.posting);
-      await maybeYield(requestYield);
+  };
+  function* materialize() {
+    let tokenVocab = [], tokenVocabIds = [], tokenPostingsList = [];
+    if (sparseEnabled) {
+      let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
+      const entries = [];
+      for (const [id, posting] of tokenPostings.entries()) {
+        const mapped = tokenIdMap?.get(id);
+        if (!mapped) includeTokenIds = false;
+        entries.push({ id, token: mapped ?? (typeof id === 'string' ? id : String(id)), posting });
+        if (entries.length % workBatchSize === 0) yield { phase: 'token-vocabulary', units: workBatchSize };
+      }
+      if (entries.length % workBatchSize) yield { phase: 'token-vocabulary', units: entries.length % workBatchSize };
+      yield* sortPostingsWork(entries, (left, right) => sortStrings(left.token, right.token), workBatchSize, 'token-vocabulary-sort');
+      tokenVocab = new Array(entries.length);
+      tokenVocabIds = includeTokenIds ? new Array(entries.length) : null;
+      tokenPostingsList = new Array(entries.length);
+      let postingUnits = 0;
+      for (let index = 0; index < entries.length; index++) {
+        throwIfAborted(signal);
+        const entry = entries[index];
+        tokenVocab[index] = entry.token;
+        if (tokenVocabIds) tokenVocabIds[index] = entry.id;
+        const units = Array.isArray(entry.posting) ? Math.max(1, entry.posting.length) : 1;
+        if (postingUnits && postingUnits + units > workBatchSize) {
+          yield { phase: 'token-posting', units: postingUnits }; postingUnits = 0;
+        }
+        tokenPostingsList[index] = units > workBatchSize
+          ? yield* normalizeTfPostingsWork(entry.posting, workBatchSize) : normalizeTfPostingList(entry.posting);
+        entry.posting = null;
+        postingUnits += units > workBatchSize ? 1 : units;
+        if (postingUnits >= workBatchSize) { yield { phase: 'token-posting', units: postingUnits }; postingUnits = 0; }
+      }
+      if (postingUnits) yield { phase: 'token-posting', units: postingUnits };
+    }
+    consume(tokenPostings);
+    let totalLength = 0;
+    for (let index = 0; index < normalizedDocLengths.length; index++) {
+      totalLength += normalizedDocLengths[index];
+      if ((index + 1) % workBatchSize === 0) yield { phase: 'document-lengths', units: workBatchSize };
+    }
+    const avgDocLen = normalizedDocLengths.length ? totalLength / normalizedDocLengths.length : 0;
+    let fieldPostingsResult = null;
+    if (sparseEnabled && (fieldPostings || fieldDocLengths)) {
+      const fields = {};
+      const fieldEntries = Array.from(collectFieldPostingNames(fieldPostings, fieldDocLengths),
+        field => [field, getOwn(fieldPostings || {}, field)]);
+      yield* sortPostingsWork(fieldEntries, (left, right) => sortStrings(left[0], right[0]), workBatchSize, 'field-order');
+      for (const [field, postingsMap] of fieldEntries) {
+        throwIfAborted(signal);
+        if (postingsMap != null && typeof postingsMap.entries !== 'function') continue;
+        const entries = [];
+        for (const [token, posting] of postingsMap?.entries() || []) {
+          entries.push([token, posting]);
+          if (entries.length % workBatchSize === 0) yield { phase: 'field-vocabulary', field, units: workBatchSize };
+        }
+        if (entries.length % workBatchSize) yield { phase: 'field-vocabulary', field, units: entries.length % workBatchSize };
+        if (postingsMap) consume(postingsMap);
+        yield* sortPostingsWork(entries, (left, right) => sortStrings(left[0], right[0]), workBatchSize, 'field-vocabulary-sort');
+        const vocab = new Array(entries.length), postings = new Array(entries.length);
+        let postingUnits = 0;
+        for (let index = 0; index < entries.length; index++) {
+          throwIfAborted(signal);
+          const entry = entries[index]; vocab[index] = entry[0];
+          const units = Array.isArray(entry[1]) ? Math.max(1, entry[1].length) : 1;
+          if (postingUnits && postingUnits + units > workBatchSize) {
+            yield { phase: 'field-posting', field, units: postingUnits }; postingUnits = 0;
+          }
+          postings[index] = units > workBatchSize
+            ? yield* normalizeTfPostingsWork(entry[1], workBatchSize) : normalizeTfPostingList(entry[1]);
+          entry[1] = null;
+          postingUnits += units > workBatchSize ? 1 : units;
+          if (postingUnits >= workBatchSize) { yield { phase: 'field-posting', field, units: postingUnits }; postingUnits = 0; }
+        }
+        if (postingUnits) yield { phase: 'field-posting', field, units: postingUnits };
+        const raw = getFieldPostingLengths(fieldDocLengths, field), lengths = new Array(raw.length);
+        let lengthSum = 0;
+        for (let index = 0; index < lengths.length; index++) {
+          const length = Number.isFinite(raw[index]) ? raw[index] : 0;
+          lengths[index] = length; lengthSum += length;
+          if ((index + 1) % workBatchSize === 0) yield { phase: 'field-lengths', field, units: workBatchSize };
+        }
+        setFieldPostingRecord(fields, field, { vocab, postings, docLengths: lengths,
+          avgDocLen: lengths.length ? lengthSum / lengths.length : 0 });
+        yield { phase: 'field-complete', field, units: 1 };
+      }
+      if (Object.keys(fields).length) fieldPostingsResult = { fields };
+    }
+    yield { phase: 'before-success', units: 0 };
+    return { tokenVocab, tokenVocabIds, tokenPostingsList, avgDocLen, fieldPostingsResult };
+  }
+  try {
+    const result = runPostingsWork(materialize(), { signal, requestYield });
+    return result && typeof result.then === 'function' ? await result : result;
+  } finally {
+    for (const input of inputs) {
+      activeInputs.delete(input);
+      if (consumed) consumedInputs.add(input);
     }
   }
-  if (typeof tokenPostings?.clear === 'function') tokenPostings.clear();
-  const avgDocLen = normalizedDocLengths.length
-    ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
-    : 0;
-
-  /**
-   * Build per-field sparse postings with deterministic token order.
-   *
-   * @returns {Promise<{ fields: Record<string, {
-   *   vocab: string[],
-   *   postings: Array<Array<[number, number]>>,
-   *   docLengths: number[],
-   *   avgDocLen: number,
-   *   totalDocs: number
-   * }>}|null>}
-   */
-  const buildFieldPostings = async () => {
-    if (!sparseEnabled) return null;
-    if (!fieldPostings || !fieldDocLengths) return null;
-    const fields = {};
-    const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortStrings(a[0], b[0]));
-    for (const [field, postingsMap] of fieldEntries) {
-      if (!postingsMap || typeof postingsMap.entries !== 'function') continue;
-      const entries = [];
-      for (const [token, posting] of postingsMap.entries()) {
-        entries.push([token, posting]);
-        await maybeYield(requestYield);
-      }
-      if (typeof postingsMap.clear === 'function') postingsMap.clear();
-      entries.sort((a, b) => sortStrings(a[0], b[0]));
-      const vocab = new Array(entries.length);
-      const postings = new Array(entries.length);
-      for (let i = 0; i < entries.length; i += 1) {
-        const [token, posting] = entries[i];
-        vocab[i] = token;
-        postings[i] = normalizeTfPostingList(posting);
-        await maybeYield(requestYield);
-      }
-      const lengthsRaw = fieldDocLengths[field] || [];
-      const lengths = Array.isArray(lengthsRaw)
-        ? lengthsRaw.map((len) => (Number.isFinite(len) ? len : 0))
-        : [];
-      const avgLen = lengths.length
-        ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
-        : 0;
-      fields[field] = {
-        vocab,
-        postings,
-        docLengths: lengths,
-        avgDocLen: avgLen,
-        totalDocs: lengths.length
-      };
-      await maybeYield(requestYield);
-    }
-    return Object.keys(fields).length ? { fields } : null;
-  };
-
-  return {
-    tokenVocab,
-    tokenVocabIds,
-    tokenPostingsList,
-    avgDocLen,
-    fieldPostingsResult: await buildFieldPostings()
-  };
 };

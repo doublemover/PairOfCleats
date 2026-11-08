@@ -26,11 +26,17 @@ const originalFstatSync = fs.fstatSync;
 const originalRealpathSync = fs.realpathSync;
 const sample = Buffer.from('0123456789', 'utf8');
 let closedFdZero = false;
+const statRequests = [];
 
 try {
   clearContextPackCaches();
-  fs.fstatSync = (fd, ...args) => fd === 0
-    ? fs.statSync(filePath) : originalFstatSync.call(fs, fd, ...args);
+  fs.fstatSync = (fd, ...args) => {
+    if (fd !== 0) return originalFstatSync.call(fs, fd, ...args);
+    const stat = fs.statSync(filePath, ...args);
+    statRequests.push({ bigint: args[0]?.bigint === true,
+      deviceType: typeof stat.dev, inodeType: typeof stat.ino });
+    return stat;
+  };
   fs.realpathSync = (target, ...args) => String(target) === '/proc/self/fd/0'
     ? filePath : originalRealpathSync.call(fs, target, ...args);
 
@@ -78,6 +84,12 @@ try {
 
   assert.equal(payload.primary.excerpt, '0123456789');
   assert.equal(closedFdZero, true, 'expected fd=0 to be closed in finally path');
+  assert.ok(statRequests.some(request => request.bigint
+    && request.deviceType === 'bigint' && request.inodeType === 'bigint'),
+  'the fd-zero adapter forwards exact-identity stat requests');
+  assert.ok(statRequests.some(request => !request.bigint
+    && request.deviceType === 'number' && request.inodeType === 'number'),
+  'ordinary byte/stat reads retain their numeric representation');
 } finally {
   fs.openSync = originalOpenSync;
   fs.readSync = originalReadSync;
@@ -85,6 +97,7 @@ try {
   fs.fstatSync = originalFstatSync;
   fs.realpathSync = originalRealpathSync;
   clearContextPackCaches();
+  fs.rmSync(repoRoot, { recursive: true, force: true });
 }
 
 console.log('context pack fd zero close test passed');

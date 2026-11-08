@@ -5,6 +5,21 @@
 * Uses RFC 2119 keywords (**MUST**, **SHOULD**, **MAY**) for requirements.
 
 ## 1) Goal
+
+Propagation state identity includes the complete normalized taint set, depth and
+sanitizer barrier count. A convergence retains distinct predecessor witnesses up
+to the configured path cap, rather than discarding every path after the first.
+The bounded frontier prioritizes shallower paths and then fewer sanitizer
+barriers, with deterministic path/call-site ordering. Depth, time, edge and flow
+caps still apply; witness truncation is reported as a cap. A configured zero
+blocked-expansion preview emits no preview entries.
+
+Local flow inference processes semicolon-separated statements in source order,
+respecting quoted/nested punctuation. A later sanitizer cannot erase an earlier
+sink, and a nested sanitizer applies to its argument range. Sink evidence comes
+from that sink's arguments, not unrelated tainted variables elsewhere on its
+line. This remains bounded heuristic evidence rather than a full control-flow
+proof. Local alias inference similarly uses only assignments already encountered.
 These artifacts provide explainable, bounded evidence for **interprocedural** (cross-chunk) risk:
 
 * `call_sites`: sampled call-site records keyed by `callSiteId`

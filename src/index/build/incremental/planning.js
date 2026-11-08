@@ -1,6 +1,7 @@
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { BUNDLE_CHECKSUM_SCHEMA_VERSION } from '../../../shared/bundle-io-constants.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
@@ -8,9 +9,13 @@ import { isIndexBuildStageAtLeast } from '../../../shared/indexing/stages.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 import { SIGNATURE_VERSION } from '../indexer/signatures.js';
 import { pathExists } from './shared.js';
-import { INCREMENTAL_MANIFEST_VERSION, INCREMENTAL_MANIFEST_MAX_BYTES, decodeIncrementalManifest } from './manifest-codec.js';
+import { INCREMENTAL_MANIFEST_VERSION, INCREMENTAL_MANIFEST_MAX_BYTES, decodeIncrementalManifest, isIncrementalManifestContentError } from './manifest-codec.js';
 import { sourceEntryIsFresh } from './source-freshness.js';
 import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+
+const malformedJsonErrors = new WeakSet();
 
 const INCREMENTAL_MANIFEST_JSON_MAX_BYTES = INCREMENTAL_MANIFEST_MAX_BYTES;
 const INCREMENTAL_INDEX_STATE_JSON_MAX_BYTES = 8 * 1024 * 1024;
@@ -108,11 +113,13 @@ export async function loadIncrementalState({
     files: {},
     shards: null
   };
-  if (enabled && await pathExists(manifestPath)) {
+  if (enabled) {
+    let observedHash = null;
     try {
       const raw = await readJsonFile(manifestPath, {
         maxBytes: INCREMENTAL_MANIFEST_JSON_MAX_BYTES,
-        label: `${mode} incremental manifest`
+        label: `${mode} incremental manifest`,
+        onRead: observation => { observedHash = observation.hash; }
       });
       const loaded = decodeIncrementalManifest(raw, { repoRoot, indexPath: manifestPath });
       assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
@@ -188,17 +195,18 @@ export async function loadIncrementalState({
         }
       }
     } catch (error) {
-      if (['ERR_INDEX_FORMAT_UNSUPPORTED', 'ERR_INCREMENTAL_JSON_OVERSIZE', 'ERR_FILE_TOO_LARGE'].includes(error?.code)) throw error;
-      if (typeof log === 'function') {
-        log(
-          `[incremental] ${mode} cache manifest read failed ` +
-          `(${error?.code || 'ERR_INCREMENTAL_MANIFEST_READ'}): ${error?.message || error}.`
-        );
+      const diagnostic = describeStorageFailure(error, { phase: 'incremental-manifest-read', defaultCode: 'ERR_INCREMENTAL_MANIFEST_READ' });
+      const corrupt = malformedJsonErrors.has(error) || isIncrementalManifestContentError(error);
+      if (!corrupt) {
+        if (diagnostic.code !== 'ENOENT') throw error;
+      } else {
+        try {
+          if (typeof log === 'function') log(`[incremental] ${mode} cache manifest read failed (${diagnostic.code}): ${diagnostic.message}.`);
+          await quarantineCorruptJsonFile(manifestPath, { label: `${mode} incremental manifest`, log, observedHash });
+        } catch (quarantineFailure) {
+          throw addStorageFailureContext(error, {}, quarantineFailure, { secondaryPresent: true });
+        }
       }
-      await quarantineCorruptJsonFile(manifestPath, {
-        label: `${mode} incremental manifest`,
-        log
-      });
     }
   }
   if (enabled) {
@@ -244,23 +252,27 @@ const createOutDirContainmentCheck = (outDir) => {
   };
 };
 
-const quarantineCorruptJsonFile = async (filePath, { label = 'json', log = null } = {}) => {
-  try {
-    const quarantinePath = `${filePath}.corrupt-${Date.now()}`;
-    await fs.rename(filePath, quarantinePath);
-    if (typeof log === 'function') {
-      log(`[incremental] quarantined ${label}: ${quarantinePath}`);
-    }
-    return quarantinePath;
-  } catch (error) {
-    if (typeof log === 'function') {
-      log(
-        `[incremental] failed to quarantine ${label} (${filePath}): ` +
-        `${error?.message || error}`
-      );
-    }
-    return null;
+const quarantineCorruptJsonFile = async (filePath, { label = 'json', log = null, observedHash } = {}) => {
+  if (typeof observedHash !== 'string' || !/^[a-f0-9]{64}$/u.test(observedHash)) {
+    throw Object.assign(new Error('Manifest quarantine has no successfully read source identity.'), { code: 'ERR_INCREMENTAL_MANIFEST_OBSERVATION' });
   }
+  // Requalify only a corruption path. Healthy loads keep their existing single
+  // contained read and compact dependency identities without another copy.
+  await readVerifiedContainedFile(path.dirname(filePath), filePath, {
+    maxBytes: INCREMENTAL_MANIFEST_JSON_MAX_BYTES, expectedHash: observedHash
+  });
+  const quarantinePath = `${filePath}.corrupt-${Date.now()}-${randomUUID()}`;
+  await fs.rename(filePath, quarantinePath);
+  if (typeof log === 'function') {
+    try { log(`[incremental] quarantined ${label}: ${quarantinePath}`); }
+    catch (error) {
+      const publication = Object.assign(new Error('Manifest quarantine published before its diagnostic failed.'), {
+        code: 'ERR_INCREMENTAL_MANIFEST_QUARANTINE_DIAGNOSTIC', quarantinePath, quarantined: true
+      });
+      throw addStorageFailureContext(publication, {}, error, { secondaryPresent: true });
+    }
+  }
+  return quarantinePath;
 };
 
 /**
@@ -270,7 +282,7 @@ const quarantineCorruptJsonFile = async (filePath, { label = 'json', log = null 
  * @param {{maxBytes?:number,label?:string}} [options]
  * @returns {Promise<unknown>}
  */
-const readJsonFile = async (filePath, { maxBytes = 0, label = 'json' } = {}) => {
+const readJsonFile = async (filePath, { maxBytes = 0, label = 'json', onRead = null } = {}) => {
   const resolvedMaxBytes = Number(maxBytes);
   if (Number.isFinite(resolvedMaxBytes) && resolvedMaxBytes > 0) {
     const stat = await fs.stat(filePath);
@@ -282,18 +294,22 @@ const readJsonFile = async (filePath, { maxBytes = 0, label = 'json' } = {}) => 
       throw err;
     }
   }
-  const { buffer } = await readVerifiedContainedFile(path.dirname(filePath), filePath, {
+  const observation = await readVerifiedContainedFile(path.dirname(filePath), filePath, {
     maxBytes: maxBytes || INCREMENTAL_MANIFEST_MAX_BYTES
   });
+  const { buffer } = observation;
+  onRead?.(observation);
   const raw = buffer.toString('utf8');
   try {
     return JSON.parse(raw);
   } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
     const err = new Error(
       `[incremental] failed to parse ${label}: ${error?.message || error}`,
       { cause: error }
     );
     err.code = 'ERR_INCREMENTAL_JSON_PARSE';
+    malformedJsonErrors.add(err);
     throw err;
   }
 };

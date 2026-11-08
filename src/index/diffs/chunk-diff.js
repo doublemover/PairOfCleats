@@ -141,17 +141,19 @@ const piecesFingerprint = (indexDir) => {
   });
 };
 
-const buildRelationSet = (chunk) => {
+export const buildRelationSet = (chunk) => {
   const codeRelations = isObject(chunk?.raw?.codeRelations) ? chunk.raw.codeRelations : null;
   if (!codeRelations) return new Set();
   const keys = [];
   const appendList = (prefix, list) => {
     if (!Array.isArray(list)) return;
     for (const entry of list) {
-      if (!entry || typeof entry !== 'object') continue;
-      const to = entry.to || entry.target || entry.file || entry.symbol || '';
-      const type = entry.type || '';
-      keys.push(`${prefix}|${to}|${type}`);
+      if (typeof entry === 'string') keys.push(stableStringify([prefix, entry]));
+      else if (Array.isArray(entry)) keys.push(stableStringify([prefix, entry]));
+      else if (entry && typeof entry === 'object') {
+        const target = entry.to ?? entry.target ?? entry.file ?? entry.symbol ?? entry;
+        keys.push(stableStringify([prefix, target, entry.type ?? '', entry.from ?? entry.caller ?? null]));
+      }
     }
   };
   appendList('imports', codeRelations.imports);
@@ -268,7 +270,7 @@ const diffChunksForFile = ({
   for (const logicalKey of logicalKeys) {
     const left = beforeLogical.get(logicalKey) || [];
     const right = afterLogical.get(logicalKey) || [];
-    const pairs = Math.min(left.length, right.length);
+    const pairs = left.length === 1 && right.length === 1 ? 1 : 0;
     for (let i = 0; i < pairs; i += 1) {
       matched.push([left[i], right[i]]);
     }

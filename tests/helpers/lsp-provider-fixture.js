@@ -4,6 +4,7 @@ import { runToolingProviders } from '../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { prepareIsolatedTestCacheDir } from './test-cache.js';
 import { grantFixtureRepositoryExecution } from './execution-authority.js';
+export { resolveLspFixtureCommand } from './lsp-fixture-command.js';
 
 const stringifySafePath = (value) => String(value || '').replace(/[\\/]/g, '_');
 
@@ -38,15 +39,6 @@ export const createLspProviderTempRepo = async ({
   }
   return tempRoot;
 };
-
-export const resolveLspFixtureCommand = (commandName, { repoRoot = process.cwd() } = {}) => path.join(
-  repoRoot,
-  'tests',
-  'fixtures',
-  'lsp',
-  'bin',
-  process.platform === 'win32' ? `${commandName}.cmd` : commandName
-);
 
 export const buildSingleSymbolInputs = ({
   scenarioName,

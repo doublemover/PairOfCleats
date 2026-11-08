@@ -3,12 +3,14 @@ import { ANSI } from '../../shared/cli/ansi-utils.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { getSearchHelp, getSearchUsage, hasSearchFilterArgs, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
 import { formatHumanError, inferJsonOutputFromArgs } from './runner.js';
+import { wrapTerminalText } from '../output/format/shared.js';
+import { optionPrefix } from '../../shared/cli/option-prefix.js';
 
 const resolveHelpWidth = (stdout = process.stdout) => {
   const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
-  if (Number.isFinite(envColumns) && envColumns >= 48) return envColumns;
+  if (Number.isFinite(envColumns) && envColumns >= 20) return Math.min(envColumns, 500);
   const streamColumns = Number.parseInt(String(stdout?.columns ?? ''), 10);
-  if (Number.isFinite(streamColumns) && streamColumns >= 48) return streamColumns;
+  if (Number.isFinite(streamColumns) && streamColumns >= 20) return Math.min(streamColumns, 500);
   return 100;
 };
 
@@ -46,6 +48,7 @@ const emitCliError = ({ stdout, message, jsonOutput }) => {
 };
 
 const findMissingValueFlag = (args) => {
+  args = optionPrefix(args);
   for (let index = 0; index < args.length; index += 1) {
     const current = String(args[index] || '');
     if (!SEARCH_VALUE_FLAGS.has(current)) continue;
@@ -63,7 +66,7 @@ export async function runCli({
 } = {}) {
   const args = rawArgs.slice();
   if (hasHelpArg(args)) {
-    printHelp(stdout, { full: args.includes('--all'), json: args.includes('--json') });
+    printHelp(stdout, { full: optionPrefix(args).includes('--all'), json: optionPrefix(args).includes('--json') });
     return 0;
   }
   if (hasVersionArg(args)) {
@@ -118,18 +121,18 @@ export async function runCli({
   }
 
   const { search } = await import('../../integrations/core/search.js');
-  await search(null, { args, emitOutput: true, exitOnError: true });
+  await search(null, { args, argsMode: 'complete', emitOutput: true, exitOnError: true });
   return 0;
 }
 
 export function hasHelpArg(values) {
-  return Array.isArray(values) && values.some((value) => (
+  return optionPrefix(values).some((value) => (
     value === '--help' || value === '-h'
   ));
 }
 
 export function hasVersionArg(values) {
-  return Array.isArray(values) && values.some((value) => (
+  return optionPrefix(values).some((value) => (
     value === '--version' || value === '-v'
   ));
 }
@@ -137,14 +140,15 @@ export function hasVersionArg(values) {
 export function printHelp(stdout = process.stdout, { full = false, json = false } = {}) {
   const guide = getSearchHelp({ full });
   if (json) { stdout.write(JSON.stringify(guide) + '\n'); return; }
+  const width = resolveHelpWidth(stdout);
+  const writeHelp = (text) => stdout.write(stdout.isTTY ? wrapTerminalText(text, width) : text);
   if (full) {
-    stdout.write('PairOfCleats Search: all options\n' + Object.entries(guide.options).map(([name, field]) =>
+    writeHelp('PairOfCleats Search: all options\n' + Object.entries(guide.options).map(([name, field]) =>
       '--' + name + (field.type === 'boolean' ? ' / --no-' + name : ' <' + field.type + '>')
       + (Object.hasOwn(field, 'default') ? ' (default ' + JSON.stringify(field.default) + ')' : '')
       + (field.describe ? ' ' + field.describe : '')).join('\n') + '\n');
     return;
   }
-  const width = resolveHelpWidth(stdout);
   const color = isColorAllowed(stdout);
   const lines = [
     heading('PairOfCleats Search', color),
@@ -171,7 +175,8 @@ export function printHelp(stdout = process.stdout, { full = false, json = false 
     '',
     heading('Output', color),
     ...formatFlagList([
-      '--json / --compact  Emit machine-readable payloads.',
+      '--top <N>  Request N ranked hits per mode (default 5); filter-only page size.',
+      '--json  Emit machine-readable payloads; add --compact for a smaller hit projection.',
       '--cursor <nextCursor>  Continue filter-only enumeration with the same filters.',
       '--plain  Disable styling and hyperlinks.',
       '--stats / --explain  Show retrieval metadata or summary ranking explanation.',
@@ -180,8 +185,9 @@ export function printHelp(stdout = process.stdout, { full = false, json = false 
     ], width),
     '',
     heading('Starter Recipes', color),
-    '  pairofcleats search --return-type boolean --mode code --json',
     '  pairofcleats search parseSearchArgs --mode code',
+    '  pairofcleats search "cache AND refresh" --repo . --explain',
+    '  pairofcleats search --return-type boolean --mode code --top 20',
     '  pairofcleats search "Search Pipeline" --mode prose',
     '  pairofcleats search withLspSession --calls startProvider',
     '  pairofcleats search risk --risk severity=high --explain',
@@ -202,7 +208,7 @@ export function printHelp(stdout = process.stdout, { full = false, json = false 
     ),
     ''
   ];
-  stdout.write(`${lines.join('\n')}\n`);
+  writeHelp(`${lines.join('\n')}\n`);
 }
 
 export function printVersion(stdout = process.stdout) {

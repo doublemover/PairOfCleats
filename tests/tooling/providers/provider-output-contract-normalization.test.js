@@ -66,9 +66,10 @@ assert.equal(
 );
 assert.equal(
   capped.paramTypes.arg[0]?.originalText,
-  'T1',
-  'expected original type text preservation'
+  'T4',
+  'strongest capped facts preserve their original type text'
 );
+assert.deepEqual(capped.paramTypes.arg.map(entry => entry.originalText), ['T4', 'T5', 'T6', 'T7', 'T8']);
 assert.equal(
   typeof capped.paramTypes.arg[0]?.normalizedType,
   'string',

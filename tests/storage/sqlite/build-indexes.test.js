@@ -30,6 +30,7 @@ try {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    testConfig: { indexing: { scm: { provider: 'none' } } },
     syncProcess: false
   });
 

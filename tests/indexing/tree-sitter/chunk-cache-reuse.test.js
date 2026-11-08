@@ -12,6 +12,7 @@ import {
   resetTreeSitterStats
 } from '../../../src/lang/tree-sitter.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
+import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from '../../../src/lang/tree-sitter/native-runtime.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv({ testing: '1' });
@@ -33,10 +34,7 @@ try {
   treeSitterState.chunkCache.clear();
 
   const ok = await initTreeSitterRuntime({ log });
-  if (!ok) {
-    console.log('tree-sitter runtime unavailable; skipping chunk cache reuse test.');
-    process.exit(0);
-  }
+  assert.equal(ok, true, 'the prepared native runtime is required for cache qualification');
 
   const languageId = 'javascript';
   const ext = '.js';
@@ -55,20 +53,24 @@ try {
 
   const first = buildTreeSitterChunks({ text, languageId, ext, options: queryOptions });
   assert.ok(Array.isArray(first) && first.length > 0, 'expected tree-sitter chunks for query cache test');
+  for (const name of ['top', 'outer']) assert.ok(first.some(chunk => chunk.name === name), 'real named declarations survive query production');
+  const queryKey = `native:${languageId}`, cachedQuery = treeSitterState.queryCache.get(queryKey);
+  assert.ok(cachedQuery?.query, 'actual native query compilation must succeed');
+  assert.equal(cachedQuery.language, loadNativeTreeSitterGrammar(languageId).language);
+  assert.equal(cachedQuery.runtime, getNativeTreeSitterParser(languageId).constructor);
+  assert.ok(cachedQuery.pattern.length > 0);
 
   const second = buildTreeSitterChunks({ text, languageId, ext, options: queryOptions });
   assert.deepStrictEqual(second, first, 'expected query-only chunking to be deterministic');
 
   const queryStats = getTreeSitterStats();
-  const hasCachedQueryEntry = treeSitterState.queryCache.has(languageId);
+  assert.strictEqual(treeSitterState.queryCache.get(queryKey), cachedQuery, 'the original native grammar/runtime query is reused');
   const queryBuilds = Number(queryStats.queryBuilds) || 0;
   const queryHits = Number(queryStats.queryHits) || 0;
   const queryMisses = Number(queryStats.queryMisses) || 0;
-  assert.ok(hasCachedQueryEntry, 'expected query cache probe result to be cached');
-  assert.ok(
-    (queryBuilds >= 1 && queryHits >= 1) || queryMisses >= 1,
-    'expected query path to either compile/reuse or cache an unsupported-query result'
-  );
+  assert.equal(treeSitterState.queryCache.has(languageId), false, 'native readiness is not stored under the retired language-only key');
+  assert.ok(queryBuilds >= 1 && queryHits >= 1 && queryMisses >= 1, 'actual native query compile/reuse is required');
+  assert.ok(queryStats.queryExecutions > 0); assert.equal(queryStats.queryFailures, 0);
 
   // Chunk cache reuse (must avoid parser activation on cache hit).
   resetTreeSitterStats();

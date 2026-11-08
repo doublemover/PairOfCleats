@@ -5,7 +5,8 @@ import {
 import {
   DEFAULT_CACHE_MB,
   DEFAULT_CACHE_TTL_MS,
-  estimateStringBytes
+  estimateStringBytes,
+  estimateFileTextBytes
 } from '../../shared/cache/size.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
 
@@ -16,19 +17,21 @@ const resolveEntryLimit = (raw) => {
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : undefined;
 };
 
+const estimateOutputTextBytes = value => estimateFileTextBytes(value) + (typeof value === 'object' && value
+  ? estimateStringBytes(value.path) + estimateStringBytes(value.generation) + 128 : 0);
 let outputCacheReporter = createCacheReporter({ enabled: false, log: null });
 let fileTextCache = createLruCache({
   name: 'fileText',
   maxMb: DEFAULT_CACHE_MB.fileText,
   ttlMs: DEFAULT_CACHE_TTL_MS.fileText,
-  sizeCalculation: estimateStringBytes,
+  sizeCalculation: estimateOutputTextBytes,
   reporter: outputCacheReporter
 });
 let summaryCache = createLruCache({
   name: 'summary',
   maxMb: DEFAULT_CACHE_MB.summary,
   ttlMs: DEFAULT_CACHE_TTL_MS.summary,
-  sizeCalculation: estimateStringBytes,
+  sizeCalculation: estimateOutputTextBytes,
   reporter: outputCacheReporter
 });
 let formatFullCache = createLruCache({
@@ -66,7 +69,7 @@ export function configureOutputCaches({ cacheConfig = null, verbose = false, log
       ? Number(fileTextConfig.ttlMs)
       : DEFAULT_CACHE_TTL_MS.fileText,
     maxEntries: entryLimits.fileText,
-    sizeCalculation: estimateStringBytes,
+    sizeCalculation: estimateOutputTextBytes,
     reporter: outputCacheReporter
   });
   summaryCache = createLruCache({
@@ -78,7 +81,7 @@ export function configureOutputCaches({ cacheConfig = null, verbose = false, log
       ? Number(summaryConfig.ttlMs)
       : DEFAULT_CACHE_TTL_MS.summary,
     maxEntries: entryLimits.summary,
-    sizeCalculation: estimateStringBytes,
+    sizeCalculation: estimateOutputTextBytes,
     reporter: outputCacheReporter
   });
   formatFullCache = createLruCache({

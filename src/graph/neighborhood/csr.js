@@ -1,5 +1,6 @@
 import { buildReverseAdjacencyCsr } from '../indexes.js';
 import { compareStrings } from '../../shared/sort.js';
+import { hasAdmittedCsrOrder } from '../csr-order.js';
 
 function* mergeSortedUniqueStrings(left, right) {
   const leftIterator = left[Symbol.iterator]();
@@ -106,14 +107,38 @@ export const createCsrNeighborIterator = ({ graphIndex }) => {
     return mergeSortedUniqueStrings(out, incoming);
   };
 
+  resolveCsrNeighbors.count = (graphName, nodeId, dir) => {
+    const graph = graphIndex?.graphRelationsCsr?.[graphName];
+    if (!graph || !hasAdmittedCsrOrder(graph)) return null;
+    const ids = graphName === 'callGraph' ? graphIndex.callGraphIds
+      : graphName === 'usageGraph' ? graphIndex.usageGraphIds : graphIndex.importGraphIds;
+    const row = ids?.idToIndex?.get(nodeId);
+    if (row == null) return 0;
+    const out = graph.offsets[row + 1] - graph.offsets[row];
+    if (dir === 'out') return out;
+    const reverse = ensureReverseCsr(graphName);
+    if (!reverse) return null;
+    const incoming = reverse.offsets[row + 1] - reverse.offsets[row];
+    if (dir === 'in') return incoming;
+    let low = graph.offsets[row], high = graph.offsets[row + 1];
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (graph.edges[middle] < row) low = middle + 1;
+      else high = middle;
+    }
+    const self = low < graph.offsets[row + 1] && graph.edges[low] === row ? 1 : 0;
+    return out + incoming - self;
+  };
   return resolveCsrNeighbors;
 };
 
 /** Keep the materialized resolver contract for callers that need an array. */
 export const createCsrNeighborResolver = (options) => {
   const iterate = createCsrNeighborIterator(options);
-  return (...args) => {
+  const resolve = (...args) => {
     const neighbors = iterate(...args);
     return neighbors === null || options?.iterable === true ? neighbors : Array.from(neighbors);
   };
+  resolve.count = iterate.count;
+  return resolve;
 };

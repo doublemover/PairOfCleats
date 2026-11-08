@@ -399,4 +399,12 @@ report = await validateIndexArtifacts({
 assert.ok(!report.ok, 'expected validation to fail with watchByStep length mismatch');
 assert.ok(report.issues.some((issue) => issue.includes('watchByStep length mismatch')), 'expected watchByStep mismatch issue');
 
+await writeJsonl(path.join(indexDir,'risk_partial_flows.jsonl'),riskPartialFlows);
+await writeJsonl(path.join(indexDir,'risk_flows.jsonl'),riskFlows.map(row=>({
+  ...row,path:{...row.path,callSiteIdsByStep:row.path.callSiteIdsByStep.map(()=>[])}
+})));
+report=await validateIndexArtifacts({root:repoRoot,indexRoot,modes:['code'],userConfig:defaultUserConfig,
+  strict:true,sqliteEnabled:false,lmdbEnabled:false});
+assert.ok(report.issues.some(issue=>issue.includes('uniqueCallSitesReferenced mismatch')),
+  'zero observed references must disagree with a positive persisted count');
 console.log('risk interprocedural validator test passed');

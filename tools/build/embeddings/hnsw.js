@@ -1,14 +1,19 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
+import { runIsolatedBackendJobs } from './backend-isolate.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
+import { copyFileWithDurability } from '../../../src/shared/io/persistence-helpers.js';
 import { resolveVectorsSource } from './vector-source.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
+import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
@@ -88,7 +93,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     }
   };
 
-  const writeIndex = async ({ indexPath, metaPath, modelId, dims, quantization, scale }) => {
+  const writeIndex = async ({ indexPath, metaPath, modelId, dims, quantization, scale, normalize = true }) => {
     if (!enabled || !index || !expected) return { skipped: true };
     if (expected !== added) {
       const reportPath = metaPath
@@ -112,26 +117,30 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     }
     const tempHnswPath = createTempPath(indexPath);
     try {
-      index.writeIndexSync(tempHnswPath);
+      index.writeIndexSync(path.toNamespacedPath(tempHnswPath));
       const hasTempIndex = fsSync.existsSync(tempHnswPath);
       if (!hasTempIndex) {
         // Some hnswlib builds can race temp visibility on Windows. Fall back
         // to direct write instead of failing the whole backend.
         traceLog(`[embeddings] ${mode}/hnsw: temp index missing after write; falling back to direct write.`);
-        index.writeIndexSync(indexPath);
+        index.writeIndexSync(path.toNamespacedPath(indexPath));
       } else {
-        try {
-          traceLog(`[embeddings] ${mode}/hnsw: deleting backup ${indexPath}.bak`);
-          await fs.rm(`${indexPath}.bak`, { force: true });
-        } catch {}
+        if (fsSync.existsSync(indexPath)) {
+          const backupPath = `${indexPath}.bak`;
+          const backupTempPath = createTempPath(backupPath);
+          try {
+            await copyFileWithDurability(indexPath, backupTempPath);
+            await replaceFile(backupTempPath, backupPath);
+          } finally { await fs.rm(backupTempPath, { force: true }); }
+        }
         traceLog(`[embeddings] ${mode}/hnsw: moving ${tempHnswPath} -> ${indexPath}`);
-        await replaceFile(tempHnswPath, indexPath, { keepBackup: true });
+        await replaceFile(tempHnswPath, indexPath);
       }
     } catch (err) {
       if (err?.code === 'ERR_TEMP_MISSING') {
         try {
           traceLog(`[embeddings] ${mode}/hnsw: retrying direct write after missing temp.`);
-          index.writeIndexSync(indexPath);
+          index.writeIndexSync(path.toNamespacedPath(indexPath));
         } catch (directErr) {
           try {
             traceLog(`[embeddings] ${mode}/hnsw: deleting temp ${tempHnswPath}`);
@@ -165,7 +174,9 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
       scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
       minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
       maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
-      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
+      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined,
+      quantizationVersion: quantization?.version,
+      extensions: { nativeBuildKey: buildNativeBackendReuseKey({ backend: 'hnsw', config, normalize, dims, modelId, quantization, scale }) }
     };
     await writeJsonObjectFile(metaPath, { fields: hnswMeta, atomic: true });
     return { skipped: false, count: added };
@@ -191,14 +202,21 @@ const writeHnswIndexInProcess = async ({
   vectorsPath,
   normalize,
   config,
-  logger
+  logger,
+  signal = null
 }) => {
+  quantization = resolveEmbeddingQuantizationSpec(quantization);
+  scale = quantization.scale;
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
     : resolveVectorsSource(vectorsPath, {
       includeCanonicalBase: true,
       requireManifestDeclaration: true,
-      tryCandidateJson: true
+      tryCandidateJson: true,
+      expectedDims: dims,
+      expectedModelId: modelId,
+      expectedQuantization: quantization,
+      signal
     });
   if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
     return { skipped: true, reason: 'empty' };
@@ -215,10 +233,12 @@ const writeHnswIndexInProcess = async ({
   if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
     let i = 0;
     for await (const entry of vectorsSource.rows) {
+      throwIfAborted(signal);
       const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
         ? (entry.vector ?? entry.values ?? null)
         : entry;
       if (vec && typeof vec.length === 'number' && vec.length) {
+        assertQuantizedEmbeddingRow(vec, { spec: quantization, dims, allowEmpty: false });
         const floatVec = dequantizeUint8ToFloat32(
           vec,
           quantization?.minVal,
@@ -236,8 +256,10 @@ const writeHnswIndexInProcess = async ({
     }
   } else {
     for (let i = 0; i < vectorsSource.vectors.length; i += 1) {
+      throwIfAborted(signal);
       const vec = vectorsSource.vectors[i];
       if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
+      assertQuantizedEmbeddingRow(vec, { spec: quantization, dims, allowEmpty: false });
       const floatVec = dequantizeUint8ToFloat32(
         vec,
         quantization?.minVal,
@@ -251,13 +273,15 @@ const writeHnswIndexInProcess = async ({
       builder.addVector(i, floatVec);
     }
   }
+  throwIfAborted(signal);
   return builder.writeIndex({
     indexPath,
     metaPath,
     modelId,
     dims,
     quantization,
-    scale
+    scale,
+    normalize
   });
 };
 
@@ -274,75 +298,20 @@ export async function writeHnswIndex({
   config,
   isolate = false,
   skipIsolate = false,
-  logger
+  logger,
+  signal = null
 }) {
   const resolvedConfig = normalizeHnswConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
   if (isolate && !skipIsolate) {
-    if (!vectorsPath) {
-      return { skipped: true, reason: 'missing vectors path for isolate' };
-    }
-    const moduleUrl = new URL('./hnsw.js', import.meta.url).href;
-    const payload = {
-      indexPath,
-      metaPath,
-      modelId,
-      dims,
-      quantization,
-      scale,
-      vectorsPath,
-      normalize,
-      config: resolvedConfig,
-      isolate: false,
-      skipIsolate: true
-    };
-    const script = `
-      const payload = ${JSON.stringify(payload)};
-      const run = async () => {
-        const mod = await import(${JSON.stringify(moduleUrl)});
-        const result = await mod.writeHnswIndex(payload);
-        process.stdout.write(JSON.stringify(result || {}));
-      };
-      run().catch((err) => {
-        console.error(err && err.message ? err.message : String(err));
-        process.exit(2);
-      });
-    `;
-    const result = runIsolatedNodeScriptSync({
-      script,
-      env: process.env,
-      maxOutputBytes: 1024 * 1024,
-      outputMode: 'string',
-      captureStdout: true,
-      captureStderr: true,
-      rejectOnNonZeroExit: false,
-      name: 'hnsw'
-    });
-    if (result.exitCode !== 0) {
-      const detail = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-      throw new Error(`HNSW isolate failed${detail ? `: ${detail}` : ''}`);
-    }
-    const stdoutText = typeof result.stdout === 'string' ? result.stdout.trim() : '';
-    let parsed = null;
-    if (stdoutText) {
-      const lines = stdoutText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-      for (let i = lines.length - 1; i >= 0; i -= 1) {
-        try {
-          parsed = JSON.parse(lines[i]);
-          break;
-        } catch {}
-      }
-    }
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('HNSW isolate returned invalid JSON output.');
-    }
-    if (parsed.skipped !== true && !Number.isFinite(Number(parsed.count))) {
-      throw new Error('HNSW isolate returned incomplete result payload.');
-    }
-    return parsed;
+    if (!vectorsPath) return { skipped: true, reason: 'missing vectors path for isolate' };
+    const batch = await runIsolatedBackendJobs({ backend: 'hnsw', signal,
+      jobs: [{ target: 'merged', payload: { indexPath, metaPath, modelId, dims, quantization, scale,
+        vectorsPath, normalize, config: resolvedConfig } }] });
+    const result = batch.results.merged;
+    if (result?.reason === 'isolate failed') throw Object.assign(new Error(result.error.message),
+      { code: result.error.code, diagnosticEvidence: result.error.diagnosticEvidence, result });
+    return result;
   }
   return writeHnswIndexInProcess({
     indexPath,
@@ -355,6 +324,7 @@ export async function writeHnswIndex({
     vectorsPath,
     normalize,
     config: resolvedConfig,
-    logger
+    logger,
+    signal
   });
 }

@@ -1,5 +1,5 @@
-import fs from 'node:fs';
 import { parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
+import { readJsonResourceTextSync } from './file-read-resource.js';
 
 const describeSource = (source) => (source ? ` ${source}` : '');
 
@@ -21,6 +21,6 @@ export function parseJsoncText(rawText, source = '') {
 }
 
 export function readJsoncFile(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
+  const raw = readJsonResourceTextSync(filePath);
   return parseJsoncText(raw, filePath);
 }

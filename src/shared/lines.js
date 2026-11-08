@@ -48,6 +48,32 @@ export function createLineAccessor(text, lineIndex) {
   };
 }
 
+/** Admit a bounded complete-line prefix before allocating a line index. This
+ * never presents a cut-off final line as a complete syntax observation. */
+export function createBoundedLineAccessor(text, { maxChars, maxLines }) {
+  if (typeof text !== 'string' || !Number.isSafeInteger(maxChars) || maxChars < 0
+    || !Number.isSafeInteger(maxLines) || maxLines < 1) throw new TypeError('Invalid bounded line admission.');
+  const starts = [0], reasons = [];
+  let end = Math.min(text.length, maxChars), examined = 0;
+  if (end < text.length) reasons.push('source_chars_limit');
+  for (let i = 0; i < end; i++) {
+    examined = i + 1;
+    if (text[i] !== '\n') continue;
+    if (starts.length === maxLines) {
+      end = i + 1;
+      if (end < text.length) reasons.push('source_lines_limit');
+      break;
+    }
+    if (i + 1 < end) starts.push(i + 1);
+  }
+  if (end < text.length && end > 0 && text[end - 1] !== '\n') {
+    end = text.lastIndexOf('\n', end - 1) + 1;
+    while (starts.length > 1 && starts.at(-1) >= end) starts.pop();
+  }
+  const source = text.slice(0, end);
+  return { ...createLineAccessor(source, starts), starts, admittedEnd: end, examinedChars: examined, reasons };
+}
+
 /**
  * Convert a character offset into a 1-based line number.
  * @param {number[]} lineIndex

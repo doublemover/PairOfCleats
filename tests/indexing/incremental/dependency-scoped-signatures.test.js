@@ -18,7 +18,7 @@ assert.equal(signature({...base,repoProvenance:{provider:'git',head:{commitId:'b
 assert.notEqual(deps({...base,embeddingIdentityKey:'model-b'}).embeddings,deps(base).embeddings);
 assert.equal(deps({...base,languageOptions:{javascript:{parser:'babel'}}}).lexical,deps(base).lexical);
 assert.notEqual(deps({...base,languageOptions:{javascript:{parser:'babel'}}}).parse,deps(base).parse);
-const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('temp/tasks/retrieval-dependencies');
+const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('.tmp/tasks/retrieval-dependencies');
 await fs.mkdir(parent,{recursive:true});
 const root=await fs.mkdtemp(path.join(parent,'manifest-'));
 const state=await loadIncrementalState({repoCacheRoot:root,mode:'code',enabled:true,cacheSignature:signature(base),tokenizationKey:'tokens',dependencySignatures:deps(base)});

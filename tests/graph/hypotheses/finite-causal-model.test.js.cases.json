@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["all-valuations-and-interventions", "typed-domains-and-support", "strict-equations-and-mass", "ownership-and-cancellation"]
+}

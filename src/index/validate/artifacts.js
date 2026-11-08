@@ -50,6 +50,7 @@ export const buildArtifactLists = (userConfig, postingsConfig, { profileId = nul
     optionalArtifacts.push('dense_vectors_code_lancedb_meta');
   }
   return {
+    sparseEnabled,
     requiredArtifacts,
     strictOnlyRequiredArtifacts,
     optionalArtifacts,

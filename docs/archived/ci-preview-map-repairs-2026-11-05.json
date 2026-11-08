@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "sourceParent": "d6e398750fbc3162fd29fde9757369ea3381689d",
+  "candidateIdentity": "Containing commit and exact source hashes; targeted checks only.",
+  "runtime": {
+    "node": "26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "bounds": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "changes": {
+    "config": "Canonical preview preserves fields and explicit capability content; capability-only dependency graphs load only when requested.",
+    "map": "Real canonical manifest hashing, validation/publication records and promotion build two distinct tiny artifact generations. Every selected-cache/replacement/negative assertion and CLI invocation remains; physical alias moves to its own capable cohort fixture.",
+    "nativeInspection": "All original attempts/PID/status assertions wait for a complete PTY metadata frame under the original deadline; failed inspection source identity, raw terminal, event and screen evidence is uploaded."
+  },
+  "before": {
+    "config": {
+      "source": "d6e3987:tools/config/dump-payload.js",
+      "report": ".tmp/tasks/ci-lite-1104/config-lazy-before.json",
+      "result": "failed original eager module linkage assertion; exactly two unrequested imports",
+      "sourceRestoredSha256": "4cf73f64d06a3c44c5466d948b09d4c293d50426c241fd106b32c64ccb72f849"
+    },
+    "hostedAuthority": {
+      "run": 42114621504,
+      "head": "48ab658730e1a74c3bcf5cf0b04e4552e136c9cc",
+      "artifact": 13456046811,
+      "sha256": "c54af4b38c8d17998c6adb752060acca387cdfc02921e8b6624a0a8d5d702244",
+      "passed": 39,
+      "failed": 1,
+      "timedOut": 1,
+      "failures": [
+        "tooling/reports/map-selected-index-identity outer 30.208s",
+        "tui/operator-settings-authority first config dump child 10.152s, stdout/stderr empty"
+      ]
+    },
+    "laterAuthority": {
+      "run": 42119232798,
+      "head": "d6e398750fbc3162fd29fde9757369ea3381689d",
+      "artifact": 13458765577,
+      "sha256": "9ff6bdbad70861e61cee97419219dfe6690f009cb82f2f1385a4eb79dcc8c8cc",
+      "status": "hosted strict cohort passed original cases; intermittent silent child timeout cause remains unattributed"
+    },
+    "hostedNativeFailures": [
+      {
+        "run": 42119232798,
+        "job": 127570429874,
+        "artifact": 13459720389,
+        "sha256": "fe476304ae2223ca3b677decb3603c08168ad169acd61658da3a4448ea46c748",
+        "id": "tui/native-job-inspection/oversized",
+        "failure": "Attempts row not yet present after Process status label; original frame assertion retained and bounded complete metadata wait added"
+      },
+      {
+        "run": 42119232798,
+        "job": 127570429614,
+        "artifact": 13459605517,
+        "sha256": "92f8abfd767a0fe8fc3baa92167101944b2c797035d63cb35f73ac01427b4ff5",
+        "id": "tui/native-index-workflows/validate-published",
+        "failure": "outer 30.249s; real native seed completed at22.923s; remains pending, no deadline increase/skip/backend relaxation"
+      }
+    ],
+    "fixtureDevelopment": {
+      "report": ".tmp/tasks/ci-lite-1104/config-map-after.json",
+      "passed": 8,
+      "failed": 1,
+      "cause": "New reduced map setup initially omitted real piece checksums; retained-ID replacement assertion caught stale identity. Fixed by calling actual writePiecesManifest owner, then reran unchanged case.",
+      "selectionRejection": "First exact selector exceeded existing256-character regex bound; no test launched; shortened selector within unchanged bound."
+    }
+  },
+  "coverage": {
+    "orderedAdded": [
+      "tooling/config/dump-lazy-capability-imports",
+      "tooling/reports/map-selected-index-alias"
+    ],
+    "ciLiteCount": 2163,
+    "authorityCount": 41,
+    "portableMap": "tooling/reports/map-selected-index-identity",
+    "physicalAlias": "tooling/reports/map-selected-index-alias",
+    "producerOwners": [
+      "indexing/runtime/build-cli-selected-outcome/stage1-code",
+      "indexing/build-state/produced-contract",
+      "tui/supervisor-index-build"
+    ]
+  },
+  "focusedReports": [
+    ".tmp/tasks/ci-lite-1104/config-map-after.json",
+    ".tmp/tasks/ci-lite-1104/map-identity-final.json",
+    ".tmp/tasks/ci-lite-1104/config-map-native-metadata.json"
+  ],
+  "remaining": [
+    "Changed-head capable authority and hosted Linux/macOS metadata-frame acceptance. No local file links created.",
+    "Windows native validate-published aggregate timeout remains a separate active repair.",
+    "No new full suite, optional backend, Tantivy, editor or release qualification.",
+    "All .tmp/.testLogs receipts are historical author-workspace provenance, not clean-checkout deliverables."
+  ],
+  "results": {
+    "focused": [
+      {
+        "path": ".tmp/tasks/ci-lite-1104/config-map-after.json",
+        "summary": {
+          "durationMs": 55873,
+          "failed": 1,
+          "passed": 8,
+          "skipped": 0,
+          "total": 9
+        },
+        "tests": [
+          {
+            "id": "tooling/config/dump-lazy-capability-imports",
+            "status": "passed",
+            "durationMs": 1472,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/config/dump-readonly-host",
+            "status": "passed",
+            "durationMs": 10836,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/config/effective-explanation-authority",
+            "status": "passed",
+            "durationMs": 1200,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/install/bootstrap-readiness",
+            "status": "passed",
+            "durationMs": 18164,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/reports/map-selected-index-identity",
+            "status": "failed",
+            "durationMs": 6705,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/operator-settings",
+            "status": "passed",
+            "durationMs": 6734,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/operator-settings-lifecycle",
+            "status": "passed",
+            "durationMs": 9346,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/operator-settings-request-contract",
+            "status": "passed",
+            "durationMs": 213,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/operator-settings-retrieval-guardrails",
+            "status": "passed",
+            "durationMs": 1185,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/map-identity-final.json",
+        "summary": {
+          "durationMs": 9064,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "tooling/reports/map-selected-index-identity",
+            "status": "passed",
+            "durationMs": 9057,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/config-map-native-metadata.json",
+        "summary": {
+          "durationMs": 30246,
+          "failed": 0,
+          "passed": 8,
+          "skipped": 0,
+          "total": 8
+        },
+        "tests": [
+          {
+            "id": "tooling/shared-module-performance",
+            "status": "passed",
+            "durationMs": 3275,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/disabled",
+            "status": "passed",
+            "durationMs": 4433,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/incomplete",
+            "status": "passed",
+            "durationMs": 3742,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/invalid-json",
+            "status": "passed",
+            "durationMs": 3250,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/json",
+            "status": "passed",
+            "durationMs": 4509,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/oversized",
+            "status": "passed",
+            "durationMs": 3395,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/text",
+            "status": "passed",
+            "durationMs": 4353,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tui/native-job-inspection/truncated",
+            "status": "passed",
+            "durationMs": 3275,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/ci-lite-1104/config-map-ci-controls.json",
+        "summary": {
+          "durationMs": 878,
+          "failed": 0,
+          "passed": 2,
+          "skipped": 0,
+          "total": 2
+        },
+        "tests": [
+          {
+            "id": "ci/native-inspection-workflow",
+            "status": "passed",
+            "durationMs": 574,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "ci/ordered-lane-discovery",
+            "status": "passed",
+            "durationMs": 298,
+            "attempts": 1,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      }
+    ],
+    "latestDistinct": {
+      "total": 19,
+      "passed": 19
+    },
+    "frontGate": {
+      "summary": {
+        "durationMs": 44478,
+        "failed": 0,
+        "passed": 43,
+        "skipped": 0,
+        "total": 43
+      },
+      "report": ".tmp/tasks/ci-lite-1104/config-map-gate.json",
+      "checks": [
+        {
+          "command": "npm run format",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run config:budget",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run env:check",
+          "exitCode": 0
+        },
+        {
+          "command": "node tools/docs/generated-surfaces.js --check-freshness",
+          "exitCode": 0
+        },
+        {
+          "command": "node tools/ci/check-command-surface.js",
+          "exitCode": 0
+        },
+        {
+          "command": "node tests/ci/workflow-contract.test.js",
+          "exitCode": 0
+        },
+        {
+          "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+          "exitCode": 0
+        },
+        {
+          "command": "git diff --check",
+          "exitCode": 0
+        }
+      ]
+    },
+    "nativeBinary": {
+      "path": "crates/pairofcleats-tui/target/debug/pairofcleats-tui.exe",
+      "sha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+      "note": "Actual Windows binary exercised by all seven inspection modes; no Rust change in this batch."
+    }
+  },
+  "sources": [
+    {
+      "path": "tools/config/dump-payload.js",
+      "sha256": "3fad6ff5b82721f0ea980e365bfa66b6116670ca1666d70c0b32fdfe9ec57c69",
+      "normalizedTextSha256": "3fad6ff5b82721f0ea980e365bfa66b6116670ca1666d70c0b32fdfe9ec57c69"
+    },
+    {
+      "path": "tests/helpers/map-selected-index-fixture.js",
+      "sha256": "89c6a36be5e3d52704b409237bb32fb2206de9cbeac89c9cc068a3db0bd2590f",
+      "normalizedTextSha256": "89c6a36be5e3d52704b409237bb32fb2206de9cbeac89c9cc068a3db0bd2590f"
+    },
+    {
+      "path": "tests/tooling/config/dump-lazy-capability-imports.test.js",
+      "sha256": "e436908ec71a80930a6274506bb253efd0904101b16fd9bab26fc9c381b492ca",
+      "normalizedTextSha256": "e436908ec71a80930a6274506bb253efd0904101b16fd9bab26fc9c381b492ca"
+    },
+    {
+      "path": "tests/tooling/reports/map-selected-index-identity.test.js",
+      "sha256": "e1b69acd0e740e4c28d4e7dca5b93f9c2b1fd26ae62fe1e4c591da34b38a8b0c",
+      "normalizedTextSha256": "e1b69acd0e740e4c28d4e7dca5b93f9c2b1fd26ae62fe1e4c591da34b38a8b0c"
+    },
+    {
+      "path": "tests/tooling/reports/map-selected-index-alias.test.js",
+      "sha256": "fb5e1c5d8c17db2eeba158d4348f5753980a1fcf5e3e4d0c18ee65ed854b39ea",
+      "normalizedTextSha256": "fb5e1c5d8c17db2eeba158d4348f5753980a1fcf5e3e4d0c18ee65ed854b39ea"
+    },
+    {
+      "path": "tests/tui/native-job-inspection.test.js",
+      "sha256": "7c78c5a9b520642eba3dc6637dd5a2b581162b0be94396c2cadf92246f535ae5",
+      "normalizedTextSha256": "7c78c5a9b520642eba3dc6637dd5a2b581162b0be94396c2cadf92246f535ae5"
+    },
+    {
+      "path": "tests/ci/windows-authority-fixtures.json",
+      "sha256": "4f73911715895cdb51c57ed0d131c28210b9014b8df562efcb5bd36393ba1470",
+      "normalizedTextSha256": "4f73911715895cdb51c57ed0d131c28210b9014b8df562efcb5bd36393ba1470"
+    },
+    {
+      "path": "tests/ci/windows-authority-cohort.test.js",
+      "sha256": "49c69c6ae8097f62edf4f5a2ae3f2c0424a8b22e169630746ebb46584611d147",
+      "normalizedTextSha256": "49c69c6ae8097f62edf4f5a2ae3f2c0424a8b22e169630746ebb46584611d147"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "06486a224c5c1d88ec7a7a0783225e3722219fc4ce9e84bfd0ec7378c320aa53",
+      "normalizedTextSha256": "06486a224c5c1d88ec7a7a0783225e3722219fc4ce9e84bfd0ec7378c320aa53"
+    }
+  ]
+}

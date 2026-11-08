@@ -10,7 +10,6 @@ import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticTask } from '../contracts/validators/semantic-task.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { validateSemanticPartitions } from '../index/semantic/reconcile.js';
-import { checksumFile } from '../shared/hash.js';
 import { loadPiecesManifest } from '../shared/artifact-io/manifest-read.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
@@ -74,11 +73,11 @@ export const verifyEnrichmentTask = async ({ inventory, task, budget, deep = fal
   if ((await fs.stat(filename)).size > 32 * 1024 * 1024) throw enrichmentError('Target set exceeds its metadata allowance.');
   const bytes = await fs.readFile(filename), target = JSON.parse(bytes.toString('utf8'));
   const registered = inventory.manifest.frontierTargets?.find(row => row.path === task.targetsRef);
-  const checksum = await checksumFile(filename);
+  const hash = enrichmentByteHash(bytes);
   const pieces = loadPiecesManifest(inventory.indexDir, { repoRoot: inventory.store.repoRoot });
-  if (!registered || registered.hash !== enrichmentByteHash(bytes) || registered.bytes !== bytes.length
+  if (!registered || registered.hash !== hash || registered.bytes !== bytes.length
     || !pieces.pieces.some(piece => piece.name === 'semantic_frontier_targets' && piece.path === 'semantic/' + task.targetsRef
-      && piece.checksum === checksum.algo + ':' + checksum.value)) throw enrichmentError('Task target inventory is not registered and verified.');
+      && piece.bytes === bytes.length && piece.checksum === 'sha256:' + hash)) throw enrichmentError('Task target inventory is not registered and verified.');
   if (Object.keys(target).filter(key => !['compilerInventory','binaryInventory','nativeInventory'].includes(key)).sort().join(',') !== 'generation,schemaVersion,sourceUnits,syntaxPartitionRefs'
     || target.schemaVersion !== 1 || !enrichmentSame(target.generation, inventory.manifest.generation)
     || semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash

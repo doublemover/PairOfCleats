@@ -28,62 +28,24 @@ const resolveGroupEstimatedParseCost = (group) => {
  */
 export const buildContinuousWaveExecutionOrder = (groups) => {
   const entries = Array.isArray(groups) ? groups : [];
-  const byBucket = new Map();
+  const wave = (value, fallback = 1) => {
+    if (value == null) return fallback;
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) throw new TypeError('Scheduler wave metadata requires positive safe integers.');
+    return value;
+  };
+  const admitted = [], keys = new Set();
   for (const group of entries) {
     if (!group?.grammarKey) continue;
-    const bucketKey = group.bucketKey || group.grammarKey;
-    if (!byBucket.has(bucketKey)) byBucket.set(bucketKey, []);
-    byBucket.get(bucketKey).push(group);
+    if (typeof group.grammarKey !== 'string' || keys.has(group.grammarKey)) throw new TypeError('Scheduler grammar keys must be unique strings.');
+    keys.add(group.grammarKey);
+    const index = wave(group.wave?.waveIndex), total = wave(group.wave?.waveCount, index);
+    if (index > total) throw new TypeError('Scheduler wave index exceeds its count.');
+    admitted.push({ key: group.grammarKey, bucket: group.bucketKey || group.grammarKey, index });
   }
-
-  const bucketKeys = Array.from(byBucket.keys()).sort(compareStrings);
-  const cursors = new Map();
-  let maxWaveCount = 1;
-
-  for (const bucketKey of bucketKeys) {
-    const list = byBucket.get(bucketKey) || [];
-    list.sort((a, b) => {
-      const waveA = Number(a?.wave?.waveIndex || 1);
-      const waveB = Number(b?.wave?.waveIndex || 1);
-      if (waveA !== waveB) return waveA - waveB;
-      return compareStrings(a?.grammarKey || '', b?.grammarKey || '');
-    });
-    cursors.set(bucketKey, 0);
-
-    let waveCount = 1;
-    for (const item of list) {
-      waveCount = Math.max(
-        waveCount,
-        Number(item?.wave?.waveIndex || 1),
-        Number(item?.wave?.waveCount || 1)
-      );
-    }
-    maxWaveCount = Math.max(maxWaveCount, waveCount);
-  }
-
-  const order = [];
-  for (let waveIndex = 1; waveIndex <= maxWaveCount; waveIndex += 1) {
-    for (const bucketKey of bucketKeys) {
-      const list = byBucket.get(bucketKey) || [];
-      let cursor = cursors.get(bucketKey) || 0;
-      while (cursor < list.length) {
-        const candidate = list[cursor];
-        const candidateWaveIndex = Number(candidate?.wave?.waveIndex || 1);
-        if (candidateWaveIndex < waveIndex) {
-          cursor += 1;
-          continue;
-        }
-        if (candidateWaveIndex === waveIndex && candidate?.grammarKey) {
-          order.push(candidate.grammarKey);
-          cursor += 1;
-        }
-        break;
-      }
-      cursors.set(bucketKey, cursor);
-    }
-  }
-
-  return order.length ? order : entries.map((group) => group.grammarKey).filter(Boolean);
+  // Sort only actual groups. Sparse/large wave numbers never create numeric
+  // iteration proportional to untrusted metadata rather than admitted work.
+  admitted.sort((a, b) => a.index - b.index || compareStrings(a.bucket, b.bucket) || compareStrings(a.key, b.key));
+  return admitted.map(group => group.key);
 };
 
 /**

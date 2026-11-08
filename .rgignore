@@ -2,6 +2,10 @@ benchmarks/cache/
 benchmarks/repos/
 benchmarks/results/
 node_modules/
+temp/
+.benchCache/
+.c8/
+.tmp/
 worktrees/
 .testCache/
 .testLogs/

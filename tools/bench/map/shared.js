@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { getIndexDir, resolveRepoConfig, resolveToolRoot } from '../../shared/dict-utils.js';
 import { decodePathnameSafe, safeJoinUnderBase } from '../../analysis/map-iso-safe-join.js';
+import { resolveMapViewerAsset } from '../../analysis/map-viewer-assets.js';
 import { serveMapIsoStaticFileOr404 } from '../../analysis/map-iso-static.js';
 import {
   MAP_BENCH_BUILD_OPTIONS,
@@ -20,9 +21,11 @@ export const createMapBenchCli = ({ scriptName, options = {} }) => createCli({
   }
 }).parse();
 
-export const resolveRuns = (value, fallback = 3) => (
-  Number.isFinite(Number(value)) ? Math.max(1, Number(value)) : fallback
-);
+export const resolveRuns = (value, fallback = 3) => {
+  const runs = value == null ? fallback : Number(value);
+  if (!Number.isSafeInteger(runs) || runs < 1) throw new RangeError('Map benchmark runs must be a positive safe integer.');
+  return runs;
+};
 
 export const resolveMapBenchInputs = (argv) => {
   const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
@@ -59,12 +62,8 @@ export const resolveMapViewerPathUnderBase = (baseDir, requestPath, pathApi = pa
 export const decodeMapViewerPathname = (rawPathname) => decodePathnameSafe(rawPathname);
 
 export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
+  const listeningStarted = performance.now();
   const toolRoot = resolveToolRoot();
-  const threeRoot = path.join(toolRoot, 'node_modules', 'three');
-  const threeBuildRoot = path.join(threeRoot, 'build');
-  const threeExamplesRoot = path.join(threeRoot, 'examples');
-  const isomapAssetsRoot = path.join(toolRoot, 'assets', 'isomap');
-  const isomapClientRoot = path.join(toolRoot, 'src', 'map', 'isometric', 'client');
   const htmlName = path.basename(outPath);
 
   const server = http.createServer((req, res) => {
@@ -79,48 +78,9 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
       serveMapIsoStaticFileOr404(res, outPath, 'bench html not found');
       return;
     }
-    if (pathname.startsWith('/three/examples/')) {
-      const relativePath = pathname.replace('/three/examples/', '');
-      const targetPath = resolveMapViewerPathUnderBase(threeExamplesRoot, relativePath);
-      if (!targetPath) {
-        res.writeHead(404);
-        res.end('three.js example asset not found');
-        return;
-      }
-      serveMapIsoStaticFileOr404(res, targetPath, 'three.js example asset not found');
-      return;
-    }
-    if (pathname.startsWith('/three/')) {
-      const relativePath = pathname.replace('/three/', '');
-      const targetPath = resolveMapViewerPathUnderBase(threeBuildRoot, relativePath);
-      if (!targetPath) {
-        res.writeHead(404);
-        res.end('three.js asset not found');
-        return;
-      }
-      serveMapIsoStaticFileOr404(res, targetPath, 'three.js asset not found');
-      return;
-    }
-    if (pathname.startsWith('/assets/isomap/')) {
-      const relativePath = pathname.replace('/assets/isomap/', '');
-      const targetPath = resolveMapViewerPathUnderBase(isomapAssetsRoot, relativePath);
-      if (!targetPath) {
-        res.writeHead(404);
-        res.end('isomap asset not found');
-        return;
-      }
-      serveMapIsoStaticFileOr404(res, targetPath, 'isomap asset not found');
-      return;
-    }
-    if (pathname.startsWith('/isomap/')) {
-      const relativePath = pathname.replace('/isomap/', '');
-      const targetPath = resolveMapViewerPathUnderBase(isomapClientRoot, relativePath);
-      if (!targetPath) {
-        res.writeHead(404);
-        res.end('isomap client asset not found');
-        return;
-      }
-      serveMapIsoStaticFileOr404(res, targetPath, 'isomap client asset not found');
+    const targetPath = resolveMapViewerAsset(toolRoot, pathname);
+    if (targetPath) {
+      serveMapIsoStaticFileOr404(res, targetPath, 'viewer asset not found');
       return;
     }
     res.writeHead(404);
@@ -143,9 +103,14 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
 
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : Number(port) || 0;
+  const originalClose = server.close.bind(server);
+  let closing = null;
 
   return {
     server,
+    close: () => closing ||= new Promise((resolve, reject) => originalClose(error => error ? reject(error) : resolve())),
+    readiness: 'listener-ready',
+    timings: { listenerReadyMs: performance.now() - listeningStarted },
     url: `http://127.0.0.1:${actualPort}/${htmlName}`
   };
 };

@@ -412,6 +412,7 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     : null;
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
   const denseKey = options?.denseVectorMode ? String(options.denseVectorMode) : '';
+  const validationPolicy = options?.strict === false ? 'permissive' : 'strict';
   const includeKey = [
     options?.includeDense !== false ? 'dense' : 'no-dense',
     options?.includeMinhash !== false ? 'minhash' : 'no-minhash',
@@ -421,7 +422,7 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     options?.includeTokenIndex !== false ? 'token' : 'no-token',
     options?.includeChunkMetaCold !== false ? 'chunk-meta-cold' : 'chunk-meta-hot'
   ].join(',');
-  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}::generation:${generationTag || 'default'}`;
+  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}::validation:${validationPolicy}::generation:${generationTag || 'default'}`;
   const signature = await buildIndexSignature(canonicalDir);
   const cached = cache.get(cacheKey);
   // Clearing during asynchronous identity probes also retires that load.

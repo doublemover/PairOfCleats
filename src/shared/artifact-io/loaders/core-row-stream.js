@@ -1,6 +1,8 @@
 import { iterateColumnarRows } from '../columnar-rows.js';
 import { readJsonFile } from '../json.js';
 import { createLoaderError } from './shared.js';
+import { admitJsonArrayPayload } from '../payload-admission.js';
+import { throwIfAborted } from '../../abort.js';
 import {
   iterateBinaryColumnarRows,
   streamJsonlRowsFromSources
@@ -19,30 +21,40 @@ export const streamArrayArtifactRowsFromSources = async function* (
     maxInFlight = 0,
     onBackpressure = null,
     onResume = null,
-    enforceBinaryDataBudget = true
+    enforceBinaryDataBudget = true,
+    signal = null
   }
 ) {
   if (sources.format === 'json') {
+    throwIfAborted(signal);
     for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      const rows = Array.isArray(payload) ? payload : [];
-      for (const row of rows) yield row;
+      throwIfAborted(signal);
+      const payload = admitJsonArrayPayload(readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot }),
+        { artifact: baseName, sourcePath });
+      throwIfAborted(signal);
+      for (const row of payload) {
+        throwIfAborted(signal);
+        yield row;
+      }
     }
+    throwIfAborted(signal);
     return;
   }
   if (sources.format === 'columnar') {
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      const rows = iterateColumnarRows(payload);
+    for (const [index, sourcePath] of sources.paths.entries()) {
+      throwIfAborted(signal);
+      const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
+      const rows = iterateColumnarRows(payload, { artifact: baseName, sourcePath,
+        expectedCount: sources.sourceParts?.[index]?.expectedCount });
       if (!rows) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
       }
-      for (const row of rows) yield row;
+      for (const row of rows) { throwIfAborted(signal); yield row; }
     }
     return;
   }
   if (sources.format === 'binary-columnar') {
-    for (const row of iterateBinaryColumnarRows({
+    yield* iterateBinaryColumnarRows({
       dir,
       baseName,
       sources,
@@ -50,18 +62,19 @@ export const streamArrayArtifactRowsFromSources = async function* (
       maxBytes,
       strict,
       enforceBinaryDataBudget
-    })) {
-      yield row;
-    }
+    });
     return;
   }
   for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {
     maxBytes,
+    containedRoot: sources.containedRoot,
     requiredKeys,
     validationMode,
     maxInFlight,
     onBackpressure,
-    onResume
+    onResume,
+    signal,
+    expectedCounts: sources.sourceParts?.map(part => part.expectedCount)
   })) {
     yield row;
   }

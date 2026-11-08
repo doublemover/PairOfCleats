@@ -1,16 +1,15 @@
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../../shared/subprocess/runner.js';
-import { pathExists } from '../../../shared/file-read.js';
-import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
-import { readJsonFile } from '../../../shared/artifact-io/json.js';
+import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { tryRequire } from '../../../shared/optional-deps.js';
-import { normalizeTantivyConfig, resolveTantivyPaths } from '../../../shared/tantivy.js';
+import { hasTantivyAdapter } from '../../sparse/providers/tantivy-adapter.js';
+import { normalizeTantivyConfig } from '../../../shared/tantivy.js';
 import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../shared/dict-utils.js';
 import { loadIndex } from '../../cli-index.js';
 import { loadIndexCached } from '../index-loader.js';
 import { EMPTY_INDEX } from '../filter-index.js';
 import { filterRepresentationIdentity } from '../../pipeline/filter-enumeration.js';
 import { readFilterMatchPage } from '../../pipeline/filter-enumeration-cache.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 export function createIndexBackendLoader({
   filterOnly = false,
@@ -24,6 +23,7 @@ export function createIndexBackendLoader({
   emitOutput,
   annActive,
   filtersActive,
+  relationFilters = null,
   contextExpansionEnabled,
   graphRankingEnabled,
   sqliteFtsRequested,
@@ -49,6 +49,7 @@ export function createIndexBackendLoader({
   const needsAnnArtifacts = !filterOnly && (hasRequirements ? requiredArtifacts.has('ann') : true);
   const needsFilterIndex = !filterOnly && (hasRequirements ? requiredArtifacts.has('filterIndex') : true);
   const needsFileRelations = hasRequirements ? requiredArtifacts.has('fileRelations') : true;
+  const demandedRelationFields = Boolean(relationFilters?.importName || relationFilters?.uses);
   const needsRepoMap = hasRequirements ? requiredArtifacts.has('repoMap') : true;
   const needsGraphRelations = hasRequirements
     ? requiredArtifacts.has('graphRelations')
@@ -69,6 +70,7 @@ export function createIndexBackendLoader({
     if (!dep.ok) {
       throw new Error('Tantivy backend requested but the optional "tantivy" module is not available.');
     }
+    if (!hasTantivyAdapter(dep.mod)) throw new Error('Tantivy backend requested but its module has no compatible synchronous open/search adapter.');
   }
 
   const loadIndexCachedLocal = async (dir, options = {}, mode = null) => {
@@ -87,6 +89,7 @@ export function createIndexBackendLoader({
         : null,
       modelIdDefault,
       fileChargramN,
+      strict,
       includeHnsw: options.includeHnsw !== false,
       includeDense: options.includeDense !== false,
       includeMinhash: options.includeMinhash !== false,
@@ -128,7 +131,9 @@ export function createIndexBackendLoader({
   };
   const cachedLoadOptions = {
     ...baseBackendLoadOptions,
-    includeFileRelations: needsFileRelations,
+    // Required predicate evidence is loaded after inspecting inline facts.
+    // An unrelated optional sidecar must not defeat complete inline evidence.
+    includeFileRelations: needsFileRelations && !demandedRelationFields,
     includeRepoMap: needsRepoMap,
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
@@ -137,40 +142,63 @@ export function createIndexBackendLoader({
     loadIndexCachedLocal(dir, modeLoadOptions, mode)
   );
 
-  const resolveTantivyAvailability = async (mode, indexDir) => {
+  const resolveTantivyAvailability = async (mode, indexDir, idx) => {
     if (!tantivyEnabled || !indexDir) {
       return { dir: null, metaPath: null, meta: null, available: false };
     }
-    const paths = resolveTantivyPaths(indexDir, mode, resolvedTantivyConfig);
-    let meta = null;
-    if (paths.metaPath && await pathExists(paths.metaPath)) {
+    const [{ createTantivySource, readTantivyManifest }, { readTantivyReceipt },
+      { withTantivyStorage }, { observeStorageResource }] = await Promise.all([
+      import('../../../shared/tantivy-source.js'), import('../../../shared/tantivy-receipt.js'),
+      import('../../../shared/tantivy-storage.js'), import('../../../shared/storage/failure-observation.js')
+    ]);
+    return withTantivyStorage(indexDir, { repoRoot: rootDir, userConfig, env: runtimeEnv }, async () => {
+      let selected, source;
       try {
-        meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
-      } catch {}
-    }
-    const available = Boolean(meta && paths.dir && await pathExists(paths.dir));
-    return { ...paths, meta, available };
+        selected = await readTantivyManifest(indexDir, { repoRoot: rootDir, signal });
+        source = await createTantivySource({ repoRoot: rootDir, indexDir, mode, signal,
+          manifestSha256: selected.sha256, chunkMeta: idx.chunkMeta, tokenPostings: idx.tokenIndex });
+        if ((await readTantivyManifest(indexDir, { repoRoot: rootDir, signal })).sha256 !== selected.sha256) {
+          throw Object.assign(new Error('Tantivy source changed during attachment.'), { code: 'ERR_TANTIVY_SOURCE' });
+        }
+      } catch (error) {
+        observeStorageResource(error, { phase: 'tantivy-source-admission' }).requireSettled();
+        if (!['ERR_TANTIVY_SOURCE', 'ENOENT'].includes(error?.code)) throw error;
+        return { dir: null, metaPath: null, meta: null, available: false, reason: 'source-identity-unavailable' };
+      }
+      return readTantivyReceipt({ indexDir, mode, config: resolvedTantivyConfig, source, signal });
+    });
   };
 
-  const ensureTantivyIndex = async (mode, indexDir) => {
-    const availability = await resolveTantivyAvailability(mode, indexDir);
+  const ensureTantivyIndex = async (mode, indexDir, idx) => {
+    if (tantivyRequired && resolvedTantivyConfig.autoBuild && path.basename(indexDir) !== `index-${mode}`) {
+      throw Object.assign(new Error(`Tantivy source layout is not canonical for mode=${mode}.`), { code: 'ERR_TANTIVY_SOURCE_LAYOUT' });
+    }
+    const availability = await resolveTantivyAvailability(mode, indexDir, idx);
     if (availability.available) return availability;
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
     const scriptPath = path.join(toolRoot, 'tools', 'build/tantivy-index.js');
-    const result = spawnSubprocessSync(
+    // Preserve the immutable source already selected by this request. A child
+    // resolving latest again can build a different generation than its reader.
+    if (path.basename(indexDir) !== `index-${mode}`) {
+      throw Object.assign(new Error(`Tantivy source layout is not canonical for mode=${mode}.`), {
+        code: 'ERR_TANTIVY_SOURCE_LAYOUT'
+      });
+    }
+    const result = await spawnSubprocess(
       process.execPath,
-      [scriptPath, '--mode', mode, '--repo', rootDir],
+      [scriptPath, '--mode', mode, '--repo', rootDir, '--index-root', path.dirname(indexDir)],
       {
         stdio: emitOutput ? 'inherit' : 'ignore',
         rejectOnNonZeroExit: false,
-        env: runtimeEnv
+        env: runtimeEnv,
+        signal
       }
     );
     if (result.exitCode !== 0) {
       throw new Error(`Tantivy index build failed for mode=${mode}.`);
     }
-    return resolveTantivyAvailability(mode, indexDir);
+    return resolveTantivyAvailability(mode, indexDir, idx);
   };
 
   return {
@@ -222,21 +250,23 @@ export function createIndexBackendLoader({
       }
       if (backend === 'sqlite') {
         const started = performance.now();
-        if (filterEnumeration && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
+        if (filterEnumeration && !needsFileRelations && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
           try {
             const lazy = loadIndexFromSqlite(mode, { ...sqliteBackendLoadOptions, includeChunks: false });
-            const page = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
+            const persisted = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
               identity: filterRepresentationIdentity(filterEnumeration, mode), rowCount: lazy.chunkMeta.length,
               offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, throwIfAborted: () => signal?.throwIfAborted() });
+            const page = persisted || await lazy.loadFilterFactPage?.({ filters: filterEnumeration.filters,
+              offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, signal });
             if (page) {
               lazy.loadChunkMetaByIds(mode, Array.from(page.ids), lazy.chunkMeta);
               if (page.ids.every(id => lazy.chunkMeta[id])) {
-                const cost = { kind: 'sqlite-seek-page',
+                const cost = { kind: page.representation === 'sqlite-indexed-facts' ? 'sqlite-indexed-filter-page' : 'sqlite-seek-page',
                   metadataLoadedRows: page.ids.length, elapsedMs: performance.now() - started,
                   tokenIndexLoaded: false, filterIndexBuilt: false };
                 return { ...lazy, preparedFilterPage: page, filterLoadCost: cost,
                   loadFilterMetadata: async () => {
-                    const full = loadIndexFromSqlite(mode, sqliteBackendLoadOptions), all = full.chunkMeta;
+                    const full = loadIndexFromSqlite(mode, { ...sqliteBackendLoadOptions, includeChunks: true }), all = full.chunkMeta;
                     for (let id = 0; id < all.length; id += 1) {
                       if (id % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); signal?.throwIfAborted(); }
                       lazy.chunkMeta[id] = all[id];
@@ -247,6 +277,7 @@ export function createIndexBackendLoader({
               }
             }
           } catch (error) {
+            observeStorageResource(error, { phase: 'sqlite-filter-page-fallback' }).requireSettled();
             signal?.throwIfAborted();
             if (!allowSqliteFallback) throw error;
             return loadCachedModeIndex(mode, dir, modeLoadOptions);
@@ -260,7 +291,8 @@ export function createIndexBackendLoader({
         if (allowSqliteFallback) {
           try {
             return loadSqlite();
-          } catch {
+          } catch (error) {
+            observeStorageResource(error, { phase: 'sqlite-index-fallback' }).requireSettled();
             return loadCachedModeIndex(mode, dir, modeLoadOptions);
           }
         }
@@ -277,13 +309,17 @@ export function createIndexBackendLoader({
 
     async attachTantivy(idx, mode, dir) {
       if (!idx || !dir || !tantivyEnabled) return null;
-      const availability = await ensureTantivyIndex(mode, dir);
+      const availability = await ensureTantivyIndex(mode, dir, idx);
       idx.tantivy = {
         dir: availability.dir,
         metaPath: availability.metaPath,
         meta: availability.meta,
-        available: availability.available
+        available: availability.available,
+        reason: availability.reason
       };
+      Object.defineProperty(idx.tantivy, 'storageContext', {
+        value: { repoRoot: rootDir, userConfig, env: runtimeEnv }
+      });
       return idx.tantivy;
     },
 

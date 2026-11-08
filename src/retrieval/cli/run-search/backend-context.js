@@ -1,4 +1,5 @@
 import { createBackendContext } from '../backend-context.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 /**
  * Build backend runtime context and consistently attribute timing samples.
@@ -20,7 +21,8 @@ export const createBackendContextWithTracking = async ({
   try {
     stageTracker.record(stageName, backendStart, { mode: 'all' });
   } catch (error) {
-    try { await context.dispose(); } catch {}
+    try { await context.dispose(); }
+    catch (cleanupError) { throw addStorageFailureContext(error, {}, cleanupError, { secondaryPresent: true }); }
     throw error;
   }
   return context;

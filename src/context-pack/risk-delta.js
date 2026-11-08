@@ -218,19 +218,24 @@ const buildDeltaBucket = ({ beforeEntries, afterEntries, idField }) => {
   };
 };
 
-const safeLoadArray = async (indexDir, manifest, name) => {
+const loadRiskArtifact = async (indexDir, manifest, name, { allowAbsent = false, object = false } = {}) => {
   try {
-    return await loadJsonArrayArtifact(indexDir, name, { manifest, strict: true });
-  } catch {
-    return [];
-  }
-};
-
-const safeLoadObject = async (indexDir, manifest, name) => {
-  try {
-    return await loadJsonObjectArtifact(indexDir, name, { manifest, strict: true });
-  } catch {
-    return null;
+    const load = object ? loadJsonObjectArtifact : loadJsonArrayArtifact;
+    const value = await load(indexDir, name, { manifest, strict: true });
+    const { validateArtifact } = await import('../contracts/validators/artifacts.js');
+    const validation = validateArtifact(name, value);
+    if (!validation.ok) throw Object.assign(new Error(`Invalid ${name}: ${validation.errors.slice(0, 3).join('; ')}`), {
+      code: 'ERR_ARTIFACT_INVALID'
+    });
+    return value;
+  } catch (error) {
+    // Only a genuinely undeclared, proven-zero family is an empty set.
+    // Missing declared pieces, corrupt bytes and I/O errors remain failures.
+    if (allowAbsent && error?.code === 'ERR_MANIFEST_ENTRY_MISSING'
+      && !manifest.pieces.some(piece => piece.name === name)) return [];
+    throw createError(ERROR_CODES.INTERNAL,
+      `Cannot compare risk evidence: ${name} failed to load (${error?.code || error?.name || 'unknown'}).`,
+      { reason: 'risk_artifact_load_failed', artifact: name, causeCode: error?.code || error?.name || null, cause: error });
   }
 };
 
@@ -256,12 +261,13 @@ const loadRiskSliceForRef = async ({
   const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
   const targetChunks = resolveChunksFromSeed(parsedSeed, chunkIndex);
   const targetChunk = targetChunks[0] || null;
-  const riskSummaries = await safeLoadArray(indexDir, manifest, 'risk_summaries');
-  const riskFlows = await safeLoadArray(indexDir, manifest, 'risk_flows');
+  const stats = await loadRiskArtifact(indexDir, manifest, 'risk_interprocedural_stats', { object: true });
+  const statsSummary = summarizeRiskStats(stats);
+  const riskSummaries = await loadRiskArtifact(indexDir, manifest, 'risk_summaries');
+  const riskFlows = await loadRiskArtifact(indexDir, manifest, 'risk_flows', { allowAbsent: statsSummary.flowsEmitted === 0 });
   const riskPartialFlows = includePartialFlows
-    ? await safeLoadArray(indexDir, manifest, 'risk_partial_flows')
+    ? await loadRiskArtifact(indexDir, manifest, 'risk_partial_flows', { allowAbsent: statsSummary.partialFlowsEmitted === 0 })
     : [];
-  const stats = await safeLoadObject(indexDir, manifest, 'risk_interprocedural_stats');
   const targetChunkUids = new Set(targetChunks
     .map((chunk) => chunk?.chunkUid || chunk?.metaV2?.chunkUid || null)
     .filter(Boolean));
@@ -300,7 +306,7 @@ const loadRiskSliceForRef = async ({
     summary: summaryFromChunk
       ? normalizeRiskSummary(summaryFromChunk, relevantFlows)
       : aggregateRiskSummary(summaryRows, targetChunks, relevantFlows),
-    stats: summarizeRiskStats(stats),
+    stats: statsSummary,
     provenance: {
       manifestVersion: Number.isFinite(manifest?.version) ? manifest.version : null,
       artifactSurfaceVersion: manifest?.artifactSurfaceVersion || null,

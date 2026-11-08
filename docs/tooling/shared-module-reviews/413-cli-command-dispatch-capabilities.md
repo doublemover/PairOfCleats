@@ -63,3 +63,7 @@ This shared surface is mostly healthy and already acts as the repo's canonical c
 | `src/shared/runtime-capability-manifest.js` | `keep`, `document`, `test` | Keep as the public manifest API over static specs, builder helpers, and `runtime-capability/surfaces.js`. |
 | `src/shared/runtime-capability/surfaces.js` | `keep`, `document`, `test` | Keep as the runtime-capability owner for flag-set projection and API/MCP/TUI/editor surface assembly. |
 | `src/shared/tooling-bin-dirs.js` | `keep`, `document`, `test` | Keep as the canonical platform-aware tooling-bin search helper. |
+
+## Current ownership inventory
+
+The JSON companion matches all 33 current ledger-owned files and their static consumer counts. Native database lifetime and delegated authority share `src/shared/storage`; production cleanup no longer imports a tooling owner. Runtime and performance acceptance are recorded in the qualification matrix.

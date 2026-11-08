@@ -15,6 +15,12 @@ The showcase intentionally mixes:
 
 That split is deliberate. The main codebase provides the strongest repo-specific entrypoints and docs headings, while the checked-in language fixtures expose filters that need richer syntax and metadata shapes than the production sources naturally contain.
 
+The default index skip policy excludes `tools/`. The stable
+`code-capture-search-debug-run` case requires an index built with
+`extraIgnore: ["!tools/testing/search-debug-capture.js"]` to include that one
+source file. The bounded fixture-eval test applies this exception only to its
+disposable corpus; an ordinary default repo index will correctly omit the hit.
+
 ## Stability tiers
 
 - `stable`: high-signal cases that should be useful in most indexed repo runs
@@ -95,3 +101,11 @@ Capture one search through a PTY directly:
 ```powershell
 node tools/testing/capture-search-debug.js --pty --label help-review -- --help
 ```
+
+
+Machine cases in pipe captures validate the complete raw stdout as JSON. Valid
+JSON with diagnostics on stderr remains clean; empty stdout, malformed JSON or
+trailing stdout warnings increment the machine-output failure/pollution metric.
+Reports retain parse errors, raw stdout paths, case identity and capture mode.
+Process status still follows the expected exit code, separately from QA scoring.
+Human pipe cases remain unparsed, and PTY captures remain layout observations.

@@ -157,13 +157,13 @@ const abortAwareScmProvider = {
 const abortController = new AbortController();
 setTimeout(() => abortController.abort(new Error('abort scm task from outer signal')), 10);
 const abortAwareStart = Date.now();
-await processScmFile({
+await assert.rejects(processScmFile({
   ...fixture,
   scmProviderImpl: abortAwareScmProvider,
   fileHash: 'scm-runproc-queue-timeout-abort',
   signal: abortController.signal,
   scmConfig: { allowSlowTimeouts: true, timeoutMs: 1000, annotate: { timeoutMs: 1000 } }
-});
+}), { code: 'ABORT_ERR', name: 'AbortError' });
 const abortAwareElapsedMs = Date.now() - abortAwareStart;
 assert.equal(abortAwareMetaCalls, 1, 'expected metadata task to start before abort signal');
 assert.ok(

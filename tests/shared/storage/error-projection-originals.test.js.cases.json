@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pending-originals", "metadata-observers", "inspection-and-falsey", "bounded-and-reentrant"]
+}

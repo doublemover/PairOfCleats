@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "graph-link-sync",
+    "graph-link-async",
+    "tokenizer-link-sync",
+    "tokenizer-link-async",
+    "route-link-sync",
+    "route-link-async",
+    "root-link-sync",
+    "root-link-async",
+    "non-file-sync",
+    "non-file-async",
+    "late-member-sync",
+    "late-member-async",
+    "shadow-sync",
+    "shadow-async",
+    "external-data-sync",
+    "external-data-async"
+  ]
+}

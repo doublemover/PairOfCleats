@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -39,9 +40,9 @@ try {
     const output = path.join(temp, name);
     const configPath = path.join(temp, `${name}.json`);
     fs.writeFileSync(configPath, JSON.stringify({ ...config, ...overrides, output }));
-    const result = spawnSync(process.execPath, [
+    const result = runNodeFixture([
       cli, '--config', configPath, '--absolute', '--workers', '1', ...args, ...inputs
-    ], { cwd: temp, encoding: 'utf8', timeout: 30000 });
+    ], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { cwd: temp, encoding: 'utf8', timeout: 30000 } });
     assert.equal(result.error, undefined, result.error?.message);
     return { result, output, report: JSON.parse(fs.readFileSync(path.join(output, 'jscpd-report.json'), 'utf8')) };
   };

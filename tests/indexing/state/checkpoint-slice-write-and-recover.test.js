@@ -48,7 +48,7 @@ await updateBuildState(buildRoot, {
 await flushBuildState(buildRoot);
 
 const firstIndex = JSON.parse(await fs.readFile(path.join(buildRoot, 'stage_checkpoints.v1.index.json'), 'utf8'));
-const codePath = path.join(buildRoot, firstIndex.modes.code.path);
+let codePath = path.join(buildRoot, firstIndex.modes.code.path);
 const codeStatBefore = await fs.stat(codePath);
 
 await updateBuildState(buildRoot, {
@@ -87,8 +87,11 @@ await flushBuildState(buildRoot);
 const codeStatAfterCode = await fs.stat(codePath);
 assert.ok(
   codeStatAfterCode.mtimeMs >= codeStatAfterProse.mtimeMs,
-  'updating the same mode should rewrite only that mode sidecar'
+  'updating a mode retains its previously committed slice'
 );
+const indexAfterCodeWrite = JSON.parse(await fs.readFile(path.join(buildRoot, 'stage_checkpoints.v1.index.json'), 'utf8'));
+assert.notEqual(indexAfterCodeWrite.modes.code.path, firstIndex.modes.code.path);
+codePath = path.join(buildRoot, indexAfterCodeWrite.modes.code.path);
 
 const recovered = await loadCheckpointAggregate();
 assert.deepEqual(
@@ -130,7 +133,8 @@ await updateBuildState(buildRoot, {
   }
 });
 await flushBuildState(buildRoot);
-const restoredCode = JSON.parse(await fs.readFile(codePath, 'utf8'));
+const restoredIndex = JSON.parse(await fs.readFile(path.join(buildRoot, 'stage_checkpoints.v1.index.json'), 'utf8'));
+const restoredCode = JSON.parse(await fs.readFile(path.join(buildRoot, restoredIndex.modes.code.path), 'utf8'));
 assert.deepEqual(
   restoredCode,
   recovered.code,
@@ -150,9 +154,6 @@ assert.equal(
   false,
   'expected prose checkpoint mode to be removed from index when patch sets mode=null'
 );
-await assert.rejects(
-  () => fs.stat(prosePath),
-  'expected deleted checkpoint mode sidecar to be removed from disk'
-);
+assert.ok((await fs.stat(prosePath)).isFile(), 'retained index readers keep their previously committed slice');
 
 console.log('checkpoint slice write and recover test passed');

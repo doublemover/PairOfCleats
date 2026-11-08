@@ -57,8 +57,10 @@ const astroText = [
 ].join('\n');
 await fs.writeFile(astroPath, astroText, 'utf8');
 
+const skippedFiles = [];
 const { processFile } = createFileProcessorForTest({
   root: repoRoot,
+  skippedFiles,
   languageOptions: {
     skipUnknownLanguages: false,
     treeSitter: { enabled: false }
@@ -79,7 +81,7 @@ const processAndCollectImports = async (absPath, relPath, text) => {
     lines: text.split('\n').length
   });
   const out = await processFile(fileEntry, 0);
-  assert.ok(out?.chunks?.length, `expected chunks for ${relPath}`);
+  assert.ok(out?.chunks?.length, `expected chunks for ${relPath}: ${JSON.stringify(skippedFiles)}`);
   const imports = new Set();
   for (const chunk of out.chunks) {
     for (const spec of chunk?.codeRelations?.imports || []) {

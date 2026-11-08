@@ -14,6 +14,8 @@ const hasRe2 = tryRequire('re2').ok;
   const forcedJs = createSafeRegex('a', 'g', { engine: 're2js' });
   assert(forcedJs);
   assert.equal(forcedJs.engine, 're2js');
+  assert.equal(createSafeRegex('(?<=a)b', 'g', { engine: 're2js' }), null,
+    'the product never enables the opt-in lookbehind surface from the dependency advisory');
 
   const forcedRe2 = createSafeRegex('a', 'g', { engine: 're2' });
   assert(forcedRe2);

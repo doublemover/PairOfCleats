@@ -1,6 +1,7 @@
 import { createError, ERROR_CODES, isErrorCode } from '../../shared/error-codes.js';
 import { formatHealthFailure, runRetrievalHealthChecks } from '../../shared/ops/health.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
+import { optionPrefix } from '../../shared/cli/option-prefix.js';
 
 const humanErrorHeader = (title) => `${ANSI.bold}${ANSI.fgRed}${title}${ANSI.reset}`;
 const humanErrorLabel = (label) => `${ANSI.fgDarkGray}${label}${ANSI.reset}`;
@@ -28,7 +29,7 @@ export const formatHumanError = (message, errorCode) => {
 export const inferJsonOutputFromArgs = (rawArgs) => {
   if (!Array.isArray(rawArgs)) return { jsonOutput: false };
   const hasFlag = (name) =>
-    rawArgs.some((arg) => typeof arg === 'string' && (arg === name || arg.startsWith(`${name}=`)));
+    optionPrefix(rawArgs).some((arg) => typeof arg === 'string' && (arg === name || arg.startsWith(`${name}=`)));
   const jsonOutput = hasFlag('--json');
   return { jsonOutput };
 };

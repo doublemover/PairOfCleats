@@ -22,7 +22,11 @@ import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from
 import { isKnownReasonCode, isKnownResolverStage } from './reason-codes.js';
 import { summarizeResolverPipelineStageElapsedPercentiles } from './stage-pipeline-metrics.js';
 
-export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
+export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze([
+  '.tmp/dev/tests/cache', '.tmp/dev/benchmarks',
+  // Read-only discovery of historical reports does not recreate these roots.
+  'temp/dev/tests/cache', 'temp/dev/benchmarks', '.testCache', '.benchCache'
+]);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
 
 const clampActionableCount = ({ unresolved, actionable }) => {
@@ -178,16 +182,20 @@ export const discoverImportResolutionGraphReports = async ({
   const roots = (Array.isArray(scanRoots) ? scanRoots : DEFAULT_REPLAY_SCAN_ROOTS)
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
+    // The configured order admits current reports before historical caches
+    // when the bounded discovery limit is reached. Sort within each root only.
     .map((entry) => path.join(rootDir, entry));
   const discovered = [];
   for (const scanRoot of roots) {
+    if (discovered.length >= limit) break;
     let dirEntries;
     try {
       dirEntries = await readdir(scanRoot, { withFileTypes: true });
     } catch {
       continue;
     }
-    const stack = dirEntries.map((entry) => ({ dir: scanRoot, entry }));
+    const descending = entries => entries.slice().sort((a,b) => sortStrings(b.name,a.name));
+    const stack = descending(dirEntries).map((entry) => ({ dir: scanRoot, entry }));
     while (stack.length > 0 && discovered.length < limit) {
       const { dir, entry } = stack.pop();
       const fullPath = path.join(dir, entry.name);
@@ -198,7 +206,7 @@ export const discoverImportResolutionGraphReports = async ({
         } catch {
           children = [];
         }
-        for (const child of children) {
+        for (const child of descending(children)) {
           stack.push({ dir: fullPath, entry: child });
         }
         continue;

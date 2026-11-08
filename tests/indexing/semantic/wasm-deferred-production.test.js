@@ -18,6 +18,17 @@ try {
   const indexDir=getIndexDir(repoRoot,'code',loadUserConfig(repoRoot));
   const initial=await openPublishedSemanticStore({indexDir,repoRoot});
   assert.equal(initial.manifest.completedTasks.length,0);
+  const recordsFor = async inventory => {
+    const rows = [];
+    for (const partition of inventory.manifest.partitions) for await (const row of inventory.store.iterateRows(partition.partitionId, 'semantic_records')) {
+      rows.push({ partitionId: partition.partitionId, row });
+    }
+    return rows;
+  };
+  const beforeRecords = await recordsFor(initial);
+  assert.ok(beforeRecords.some(item => item.row.data?.astKind === 'WasmInstruction'));
+  assert.ok(beforeRecords.every(item => !['block', 'value'].includes(item.row.kind)), 'deferred indexing retains structure without solver products');
+
   const request={schemaVersion:1,repoRoot,generation:initial.manifest.generation,limits:{maxTasks:4,maxBytes:65536,maxMs:5000,drainMaxMs:15000}};
   const plan=await runSemanticEnrichmentService({request});
   assert.equal(plan.tasks.length,1);assert.equal(plan.tasks[0].kind,'localFlow');assert.equal(plan.tasks[0].executable,true);
@@ -25,6 +36,11 @@ try {
   assert.equal(result.status,'published');assert.equal(result.lineage.length,1);
   const fresh=await openPublishedSemanticStore({indexDir:getIndexDir(repoRoot,'code',loadUserConfig(repoRoot)),repoRoot,generation:result.publishedGeneration});
   assert.equal(fresh.manifest.completedTasks.length,1);
+  const afterRecords = await recordsFor(fresh);
+  assert.deepEqual(afterRecords.filter(item => item.partitionId.startsWith('sy1:')), beforeRecords.filter(item => item.partitionId.startsWith('sy1:')),
+    'the granted task preserves every structural reference and row');
+  assert.ok(afterRecords.some(item => item.row.kind === 'value'), 'the one granted flow task adds derived values');
+
   assert.deepEqual(fresh.manifest.partitions.filter(row=>row.partitionId.startsWith('sy1:')).map(row=>row.canonicalHash),initial.manifest.partitions.filter(row=>row.partitionId.startsWith('sy1:')).map(row=>row.canonicalHash));
   const edges=[],coverage=[];
   for(const partition of fresh.manifest.partitions) {

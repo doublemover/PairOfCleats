@@ -26,7 +26,9 @@ if (process.platform === 'win32') {
 }
 
 try {
-  await withTemporaryEnv({ PATH: path.dirname(process.execPath), Path: path.dirname(process.execPath) }, async () => {
+  await withTemporaryEnv({ PATH: path.dirname(process.execPath), Path: path.dirname(process.execPath),
+    PAIROFCLEATS_TRUSTED_CONFIG: null,
+    PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([tempRoot]) }, async () => {
     const docText = 'local function add(a, b) return a + b end\n';
     const chunkUid = 'ck64:v1:test:src/sample.lua:lua-broken-layout';
     const result = await runToolingProviders({

@@ -43,7 +43,9 @@ const firstFailure = retrievalHealth.failures[0];
 const formatted = formatHealthFailure(firstFailure);
 assert.ok(formatted.includes(`code=${HEALTH_CHECK_CODES.RETRIEVAL_QUERY_EMPTY}`), 'expected health code in log line');
 assert.ok(formatted.includes('component=retrieval'), 'expected component context in log line');
-assert.ok(formatted.includes('next="Provide a non-empty query string."'), 'expected actionable next step in log line');
+assert.ok(formatted.includes('next="Provide a non-empty query string or a structured filter."'), 'expected actionable next step in log line');
+assert.equal(runRetrievalHealthChecks({ query: '', filterOnly: true, runCode: true,
+  backendLabel: 'memory' }).ok, true, 'structured enumeration is a healthy query without free text');
 
 const logLines = [];
 const originalError = console.error;
@@ -73,7 +75,7 @@ try {
 }
 
 assert.ok(
-  logLines.some((line) => line.includes('component=retrieval') && line.includes('next="Provide a non-empty query string."')),
+  logLines.some((line) => line.includes('component=retrieval') && line.includes('next="Provide a non-empty query string or a structured filter."')),
   'expected emitted log to include failure type, component context, and next action'
 );
 

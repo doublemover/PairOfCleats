@@ -7,7 +7,7 @@ import { runtimeByteHash } from '../../src/index/semantic/runtime/raw-store.js';
 import { applyTestEnv } from './test-env.js';
 
 export const createRuntimeImportFixture = async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-import-'));
+  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-import-')));
   applyTestEnv({ cacheRoot: path.join(root, 'cache') });
   const source = createSemanticSourceSnapshot({ bytes: Buffer.from('function work(x) { return x + 1; }\n'),
     repositoryNamespace: 'runtime-fixture', path: 'work.js', language: 'javascript' }).manifest;

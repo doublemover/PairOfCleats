@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["missing", "wrong-kind", "malformed", "empty", "unrelated", "mixed", "partial", "ambiguous", "required", "response", "response-changed", "database-changed", "launch-changed", "explicit-invalid", "over-budget", "command-text", "nested-response", "argument-selection", "argument-conflict", "source-escape", "unreadable", "empty-selection", "duplicate-identical", "source-replaced", "response-missing"]
+}

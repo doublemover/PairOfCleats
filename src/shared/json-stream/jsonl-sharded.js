@@ -2,11 +2,15 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createTempPath, replaceDir } from './atomic.js';
 import { createJsonlBatchWriter } from './jsonl-batch.js';
+import { borrowJsonlCompressionPool } from './jsonl-compression-scope.js';
 import { createJsonlCompressionPool } from './jsonl-compression-pool.js';
 import { createOffsetsWriter } from './offsets.js';
 import { throwIfAborted } from './runtime.js';
 import { removePathWithRetry } from '../io/remove-path-with-retry.js';
 import { resolveJsonlExtension, resolveJsonlLine } from './jsonl-write.js';
+import { removeMergeDiskDirectory } from '../merge-disk.js';
+import { consumeJsonRows } from './consume-rows.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const normalizeShardLimit = (value) => (
   Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0
@@ -116,6 +120,7 @@ const createShardedWriterState = ({
     get offsetsWriter() { return offsetsWriter; },
     get partCount() { return partCount; },
     get partLogicalBytes() { return partLogicalBytes; },
+    get hasOffsets() { return Boolean(offsets); },
     get parts() { return parts; },
     get counts() { return counts; },
     get bytes() { return bytes; },
@@ -135,13 +140,15 @@ const createShardedWriterState = ({
       counts[counts.length - 1] = partCount;
     },
     async destroy(err) {
-      if (current) {
-        try { await current.destroy(err); } catch {}
+      const pending = [current, offsetsWriter].filter(Boolean).map(owner => owner.destroy(err));
+      const settled = await Promise.allSettled(pending);
+      current = null; offsetsWriter = null;
+      let primary, failed = false;
+      for (const result of settled) if (result.status === 'rejected') {
+        primary = failed ? addStorageFailureContext(primary, {}, result.reason, { secondaryPresent: true }) : result.reason;
+        failed = true;
       }
-      if (offsetsWriter) {
-        await offsetsWriter.destroy(err);
-        offsetsWriter = null;
-      }
+      if (failed) throw primary;
     },
     snapshot(resolvedMaxBytes, partsDir) {
       return {
@@ -151,8 +158,8 @@ const createShardedWriterState = ({
         total,
         totalBytes,
         partsDir,
-        maxPartRecords: counts.length ? Math.max(...counts) : 0,
-        maxPartBytes: bytes.length ? Math.max(...bytes) : 0,
+        maxPartRecords: counts.reduce((maximum, count) => Math.max(maximum, count), 0),
+        maxPartBytes: bytes.reduce((maximum, count) => Math.max(maximum, count), 0),
         targetMaxBytes: resolvedMaxBytes > 0 ? resolvedMaxBytes : null,
         ...(offsetsParts.length ? { offsets: offsetsParts } : {})
       };
@@ -166,12 +173,14 @@ const writeItemToShard = async ({
   signal,
   resolvedMaxItems,
   resolvedMaxBytes,
-  partsDirName
+  partsDirName,
+  diskAccount = null
 }) => {
   throwIfAborted(signal);
   const line = resolveJsonlLine(item);
   const lineBuffer = Buffer.from(line, 'utf8');
   const lineBytes = lineBuffer.length + 1;
+  diskAccount?.reserve(lineBytes + (state.hasOffsets ? 8 : 0));
   const needsNewPart = state.current
     && ((resolvedMaxItems && state.partCount >= resolvedMaxItems)
       || (resolvedMaxBytes && (state.partLogicalBytes + lineBytes) > resolvedMaxBytes));
@@ -200,12 +209,18 @@ const runShardedWrite = async (input, useAsyncIterable) => {
     highWaterMark = null,
     signal = null,
     offsets = null,
-    preallocatePartBytes = null
+    preallocatePartBytes = null,
+    diskAccount = null
   } = input || {};
   const resolvedCompression = compression === 'none' ? null : compression;
+  const resolvedGzipOptions = gzipOptions && typeof gzipOptions === 'object' ? { ...gzipOptions } : gzipOptions;
+  if (diskAccount && (typeof diskAccount.reserve !== 'function' || typeof diskAccount.release !== 'function' || resolvedCompression)) {
+    throw new TypeError('Shared sharded disk admission requires an uncompressed writer and reserve/release owner.');
+  }
+  throwIfAborted(signal);
   validateOffsetsConfig(offsets, resolvedCompression);
   const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
-  const resolvedPartPreallocateBytes = resolveJsonlPartPreallocateBytes({
+  const resolvedPartPreallocateBytes = diskAccount ? 0 : resolveJsonlPartPreallocateBytes({
     compression: resolvedCompression,
     maxBytes: resolvedMaxBytes,
     preallocatePartBytes
@@ -215,83 +230,60 @@ const runShardedWrite = async (input, useAsyncIterable) => {
   await removeTempDirOrThrow(tempPartsDir);
   await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
-  let compressionPool = null;
+  let compressionPool = input?.pool || null;
+  let ownedCompressionPool = false;
+  let poolClosePromise = null;
   const closeCompressionPool = async () => {
-    if (!compressionPool) return;
-    await compressionPool.close();
+    if (!compressionPool || !ownedCompressionPool) return;
+    poolClosePromise ||= Promise.resolve().then(() => compressionPool.close());
+    await poolClosePromise;
     compressionPool = null;
   };
-  if (resolvedCompression) {
-    compressionPool = createJsonlCompressionPool({
-      compression: resolvedCompression,
-      gzipOptions
-    });
-  }
-
-  const state = createShardedWriterState({
-    tempPartsDir,
-    partsDirName,
-    partPrefix,
-    compression: resolvedCompression,
-    gzipOptions,
-    highWaterMark,
-    signal,
-    offsets,
-    pool: compressionPool,
-    preallocateBytes: resolvedPartPreallocateBytes
-  });
-
+  let state = null, result, primary, failed = false;
   try {
-    if (useAsyncIterable) {
-      for await (const item of items) {
-        await writeItemToShard({
-          state,
-          item,
-          signal,
-          resolvedMaxItems,
-          resolvedMaxBytes,
-          partsDirName
-        });
-        if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes) {
-          await state.closePart();
-        }
-      }
-    } else {
-      const iterator = items?.[Symbol.iterator] ? items[Symbol.iterator]() : null;
-      if (!iterator) {
-        throw new Error('writeJsonLinesSharded requires a synchronous iterable.');
-      }
-      let next = iterator.next();
-      while (!next.done) {
-        const item = next.value;
-        next = iterator.next();
-        const hasMore = !next.done;
-        await writeItemToShard({
-          state,
-          item,
-          signal,
-          resolvedMaxItems,
-          resolvedMaxBytes,
-          partsDirName
-        });
-        if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes && hasMore) {
-          await state.closePart();
-          state.openPart();
-        }
-      }
+    if (resolvedCompression === 'zstd' && !compressionPool) {
+      const codecOptions = { compression: resolvedCompression, gzipOptions: resolvedGzipOptions };
+      compressionPool = borrowJsonlCompressionPool(codecOptions);
+      if (!compressionPool) { compressionPool = createJsonlCompressionPool(codecOptions); ownedCompressionPool = true; }
     }
+    state = createShardedWriterState({ tempPartsDir, partsDirName, partPrefix,
+      compression: resolvedCompression, gzipOptions: resolvedGzipOptions, highWaterMark, signal,
+      offsets, pool: compressionPool, preallocateBytes: resolvedPartPreallocateBytes });
+    await consumeJsonRows(items, async item => {
+      await writeItemToShard({ state, item, signal, resolvedMaxItems, resolvedMaxBytes, partsDirName, diskAccount });
+      if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes) await state.closePart();
+      throwIfAborted(signal);
+    }, { signal, syncOnly: !useAsyncIterable, awaitSyncValues: useAsyncIterable });
     await state.closePart();
-    await replaceDir(tempPartsDir, partsDir);
-    return state.snapshot(resolvedMaxBytes, partsDir);
-  } catch (err) {
-    await state.destroy(err);
-    try { await removeTempDirOrThrow(tempPartsDir); } catch {}
-    throw err;
-  } finally {
+    // Owned codecs must settle before replacement gives the new directory
+    // authority. A failed worker close cannot turn a rejected write into a
+    // physically published family.
     await closeCompressionPool();
+    const promoted = await replaceDir(tempPartsDir, partsDir, {
+      keepBackup: Boolean(diskAccount), allowCopyFallback: !diskAccount
+    });
+    if (promoted?.backupPath) await removeMergeDiskDirectory(promoted.backupPath, diskAccount);
+    result = state.snapshot(resolvedMaxBytes, partsDir);
+  } catch (err) {
+    primary = err; failed = true;
+    try { await state?.destroy(err); }
+    catch (error) { if (error !== primary) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true }); }
+    try { await removeTempDirOrThrow(tempPartsDir); }
+    catch (error) { primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true }); }
+  } finally {
+    try { await closeCompressionPool(); } catch (error) {
+      if (!failed || error !== primary) primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+      failed = true;
+    }
   }
+  if (failed) throw primary;
+  return result;
 };
 
+/** The current yield is encoded and admitted before requesting another row.
+ * Producers may reuse their row/storage when next() is called again; the writer
+ * retains only its owned encoded bytes in bounded output/codec buffers.
+ */
 export async function writeJsonLinesSharded(input) {
   return runShardedWrite(input, false);
 }

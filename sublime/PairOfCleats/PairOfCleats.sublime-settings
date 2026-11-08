@@ -49,6 +49,6 @@
   "map_zoom_sensitivity": 0.1,
 
   // Extra environment variables passed to the CLI/API processes.
-  // Project-level env values are shallow-merged over these base values.
+  // User Settings only; project-level env overrides are ignored.
   "env": {}
 }

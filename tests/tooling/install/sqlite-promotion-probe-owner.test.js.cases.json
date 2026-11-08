@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-probe-rejection-and-rollback", "pending-probe-defers-rollback"]
+}

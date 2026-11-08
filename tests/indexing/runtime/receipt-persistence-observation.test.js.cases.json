@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["confirmed", "ordinary", "pending-marker-true", "pending-marker-false", "callback-capture", "diagnostic-owner", "frozen-attempt", "falsey-primary", "unconfirmed", "pending-success", "getter-success", "captured-attempt"]
+}

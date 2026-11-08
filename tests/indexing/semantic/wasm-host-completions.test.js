@@ -15,9 +15,12 @@ try {
     const suppressed=(x:number)=>{try{return x;}finally{throw 9;}};
     function withThis(this:void, shifted:number){return shifted;}
     function withThisRest(this:void, ...packed:number[]){return packed[0];}
+    function reassigned(x:number){return x;}
+    reassigned=(x:number)=>x+1;
     const module=new WebAssembly.Module(${sourceBytes(wasmHostFixture())});
     new WebAssembly.Instance(module,{env:{chosen:withThis}}).exports.run(4);
     new WebAssembly.Instance(module,{env:{chosen:withThisRest}}).exports.run(5);
+    new WebAssembly.Instance(module,{env:{chosen:reassigned}}).exports.run(6);
     const instance=new WebAssembly.Instance(module,{env:{chosen}}); instance.exports.run(1);
     new WebAssembly.Instance(module,{env:{chosen:suppressed}}).exports.run(2);
     new WebAssembly.Instance(new WebAssembly.Module(${sourceBytes(multi)}),{env:{chosen:(x:number)=>[x,x+1]}}).exports.run(3);
@@ -41,5 +44,10 @@ try {
   assert.ok(edges.some(edge=>edge.kind==='throws'&&records.get(key(edge.to))?.data.blockKind==='exception'&&records.get(key(edge.from))?.span));
   assert.ok(hostReturns.some(edge=>edge.operandOrdinal===1),'multi-value host arrays keep positional return channels');
   assert.ok(edges.filter(edge=>edge.kind==='sharesStorage'&&records.get(key(edge.to))?.data.boundaryKind==='wasm-module-memory').length>=2,'import and export storage views link through module identity');
+  const reassigned = fixture.documents[0].sourceFile.statements.find(node => node.name?.text === 'reassigned');
+  const reassignedRef = fixture.documents[0].expressionFor(reassigned);
+  assert.ok(reassignedRef);
+  assert.ok(!edges.some(edge => edge.kind === 'callTarget' && key(edge.to) === key(reassignedRef)),
+    'runtime use inventory keeps assignment references for the existing host-callable mutation guard');
   console.log('WASM compiler completion summaries, finally overrides, multi-value returns and host memory links passed');
 } finally {await fs.rm(root,{recursive:true,force:true});}

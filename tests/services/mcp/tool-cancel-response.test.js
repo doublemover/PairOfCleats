@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-cancel');
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'mcp-cancel');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 const repoRoot = path.join(cacheRoot, 'repo');
 const repoSrc = path.join(repoRoot, 'src');

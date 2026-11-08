@@ -49,12 +49,12 @@ try {
   const group = inventory.groups[0];
   assert.equal(group.configPath, appConfig);
   assert.deepEqual(group.rootNames, [path.join(root, virtualPath)], 'sealed roots must use the same canonical VFS identity as execution');
-  assert.equal(group.projectReferences[0].path, path.dirname(referencedConfig), 'reference configuration stays unchanged');
+  assert.equal(path.normalize(group.projectReferences[0].path), path.normalize(path.dirname(referencedConfig)), 'reference configuration stays unchanged');
   assert.ok(inventory.closure.files.some(file => file.path === development), 'development conditional export remains in the closure');
   assert.ok(inventory.closure.files.some(file => file.path === referencedConfig), 'referenced project configuration remains in the closure');
   assert.ok(!inventory.closure.files.some(file => file.path === physical), 'ordinary aliased root must not inflate the sealed closure');
   const { ts, system } = await verifyCompilerDependencyInventory({ inventory, repoRoot: root, toolingConfig });
-  const virtual = path.join(root, virtualPath), key = file => ts.sys.useCaseSensitiveFileNames ? file : file.toLowerCase();
+  const virtual = path.join(root, virtualPath), key = file => ts.sys.useCaseSensitiveFileNames ? path.normalize(file) : path.normalize(file).toLowerCase();
   const aliases = new Map([[key(virtual), physical]]);
   const host = createVirtualCompilerHost(ts, group.options, new Map([[key(virtual), text]]), aliases, aliases, system);
   const program = ts.createProgram({ rootNames: group.rootNames, options: group.options,
@@ -79,6 +79,11 @@ try {
     assert.ok(messages.some(message => message.includes('phase=' + phase) && message.includes('heapUsedBytes=') && message.includes('rssBytes=')),
       'execution must expose bounded phase evidence for ' + phase);
   }
+  assert.throws(() => system.fileExists(path.join(root, 'unsealed.ts')),
+    { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' }, 'resolver caches cannot authorize unknown filesystem probes');
+  await put('package.json', { type: 'commonjs' });
+  await assert.rejects(verifyCompilerDependencyInventory({ inventory, repoRoot: root, toolingConfig }),
+    { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' }, 'the next authority verification must reject changed package contents');
   console.log('TypeScript canonical roots preserve sealed closure, project references, conditional exports and phase evidence.');
 } finally {
   await fs.rm(root, { recursive: true, force: true });

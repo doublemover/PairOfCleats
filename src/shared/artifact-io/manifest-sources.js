@@ -64,7 +64,8 @@ export const resolveMetaFormat = (meta, fallback) => {
   return raw;
 };
 
-export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, maxBytes = MAX_JSON_BYTES }) => {
+export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, maxBytes = MAX_JSON_BYTES,
+  containedRoot = strict ? dir : null }) => {
   assertPiecesManifestFormat(dir, manifest);
   const entries = resolveManifestEntries(manifest, name);
   const metaEntry = resolveNamedManifestEntry({
@@ -75,9 +76,9 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
   if (metaEntry) {
     const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
     if (metaPath) {
-      const cachePolicy = { maxBytes, view: 'json' };
+      const cachePolicy = { maxBytes, view: 'json', containedRoot };
       const cachedMeta = readCache(metaPath, cachePolicy);
-      const metaRaw = cachedMeta || readJsonFile(metaPath, { maxBytes });
+      const metaRaw = cachedMeta || readJsonFile(metaPath, { maxBytes, containedRoot });
       if (!cachedMeta) writeCache(metaPath, metaRaw, cachePolicy);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
       const parts = normalizeMetaParts(meta?.parts);
@@ -107,6 +108,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
         if (paths.length) {
           return {
             format: resolveMetaFormat(meta, 'jsonl'),
+            containedRoot: strict ? dir : null,
             paths,
             meta,
             metaPath,
@@ -147,6 +149,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     : null;
   return {
     format,
+    containedRoot: strict ? dir : null,
     paths,
     entries: resolvedEntries,
     ...(binaryColumnar
@@ -222,6 +225,7 @@ export const resolveArtifactPresence = (
     manifest = null,
     maxBytes = MAX_JSON_BYTES,
     strict = true,
+    containedRoot = strict ? dir : null,
     fallbackPath = null,
     fallbackDirEntry = false
   } = {}
@@ -235,7 +239,8 @@ export const resolveArtifactPresence = (
       manifest: resolvedManifest,
       name,
       strict,
-      maxBytes
+      maxBytes,
+      containedRoot
     });
   } catch (err) {
     error = err;

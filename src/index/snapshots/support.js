@@ -16,6 +16,16 @@ export const normalizeSnapshotRetentionTier = (value, fallback = 'cache') => {
   return normalized;
 };
 
+export const resolveSnapshotRetentionPolicy = (entry, { tagProtected = false } = {}) => {
+  const tier = normalizeSnapshotRetentionTier(entry?.retention?.tier,
+    entry?.hasFrozen === true ? 'forensic' : 'cache');
+  return {
+    tier,
+    protectionReason: tagProtected ? 'tagged' : tier === 'pinned' ? 'pinned' : null,
+    pointerBudgetEligible: !tagProtected && tier === 'cache'
+  };
+};
+
 export const buildSnapshotRetention = ({
   retentionTier = null,
   tags = [],

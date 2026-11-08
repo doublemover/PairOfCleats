@@ -2,6 +2,9 @@ import { state } from './state.js';
 import { clamp } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
 import { configureWireMaterial } from './materials.js';
+import { parseEndpointKey, selectionEndpointMatcher } from './selection-endpoints.js';
+import { markInstanceRange } from './rendering/attribute-ranges.js';
+import { canonicalMemberId, lookupMemberIdentity } from './data/member-identity.js';
 
 const formatPrimitive = (value) => {
   if (value === null || value === undefined || value === '') return 'None';
@@ -11,10 +14,19 @@ const formatPrimitive = (value) => {
 };
 
 const isRefItem = (value) => value && typeof value === 'object' && value.__ref;
+const wireReference = (pill, entry) => {
+  pill.tabIndex=0; pill.setAttribute('role','button');
+  pill.addEventListener('focus',()=>setHoverRef(entry));
+  pill.addEventListener('blur',()=>setHoverRef(null));
+  const inspect=()=>state.inspectSourceReference?.(entry.refType==='member'?{type:'member',id:entry.refId}:{type:'file',file:entry.refId});
+  pill.addEventListener('click',inspect);
+  pill.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();inspect();}});
+};
 
 export const setHoverRef = (ref) => {
   state.hoveredRef = ref;
   applyHighlights();
+  state.invalidateRender?.();
 };
 
 const renderValueNode = (value) => {
@@ -40,6 +52,7 @@ const renderValueNode = (value) => {
         pill.textContent = entry.label;
         pill.dataset.refType = entry.refType;
         pill.dataset.refId = entry.refId;
+        wireReference(pill,entry);
         pill.addEventListener('mouseenter', () => setHoverRef(entry));
         pill.addEventListener('mouseleave', () => setHoverRef(null));
       } else {
@@ -56,6 +69,7 @@ const renderValueNode = (value) => {
       pill.textContent = value.label;
       pill.dataset.refType = value.refType;
       pill.dataset.refId = value.refId;
+      wireReference(pill,value);
       pill.addEventListener('mouseenter', () => setHoverRef(value));
       pill.addEventListener('mouseleave', () => setHoverRef(null));
       return pill;
@@ -102,10 +116,16 @@ const addSelectionRow = (section, label, value) => {
   labelNode.textContent = label;
   const valueNode = document.createElement('div');
   valueNode.className = 'sel-value';
-  valueNode.appendChild(renderValueNode(value));
+  const missing=value===null||value===undefined;
+  valueNode.appendChild(renderValueNode(missing?'Unavailable / not captured':value));
   row.appendChild(labelNode);
   row.appendChild(valueNode);
-  section.appendChild(row);
+  const secondary=missing||value===false||value===0||value==='None'||(Array.isArray(value)&&value.length===0);
+  if(secondary){
+    let optional=section.querySelector('details.sel-optional');
+    if(!optional){optional=document.createElement('details');optional.className='sel-optional';const summary=document.createElement('summary');summary.textContent='Additional fields · none, zero or unavailable';optional.append(summary);section.append(optional);}
+    optional.append(row);
+  }else section.appendChild(row);
 };
 
 const formatRange = (range) => {
@@ -139,12 +159,11 @@ const formatEdgeTargets = (edgeList, direction, limit = 8) => {
     let refType = '';
     let refId = '';
     if (endpoint.member != null) {
-      const memberKey = endpoint.member === 0 || endpoint.member ? String(endpoint.member) : null;
-      const member = memberKey ? (state.memberById.get(memberKey) || state.memberById.get(endpoint.member)) : null;
+      const member = state.sourceIndex?.member?.(endpoint.member)?.member || lookupMemberIdentity(state.memberById,endpoint.member,state.sourceIndex) || null;
       if (member) {
         label = `${member.name || endpoint.member} - ${member.file || ''}`.trim();
         refType = 'member';
-        refId = member.id || endpoint.member;
+        refId = member.id ?? endpoint.member;
       } else {
         label = endpoint.member;
         refType = 'member';
@@ -177,24 +196,12 @@ const formatListWithLimit = (values, limit = 10) => {
 
 const collectEdgesForSelection = (selectionInfo, member, node) => {
   if (!selectionInfo) return { incoming: [], outgoing: [] };
-  const memberId = member?.id || selectionInfo.id || null;
-  const fileKey = selectionInfo.file || node?.path || node?.name || '';
+  const touches = selectionEndpointMatcher(selectionInfo, { member, node, fileByMember: state.sourceIndex?.fileByMember||state.fileByMember,sourceIndex:state.sourceIndex });
   const incoming = [];
   const outgoing = [];
-  state.edges.forEach((edge) => {
-    const from = edge.from || {};
-    const to = edge.to || {};
-    const fromMemberId = from.member === 0 || from.member ? String(from.member) : null;
-    const toMemberId = to.member === 0 || to.member ? String(to.member) : null;
-    const fromMemberFile = fromMemberId ? (state.fileByMember.get(fromMemberId) || state.fileByMember.get(from.member)) : null;
-    const toMemberFile = toMemberId ? (state.fileByMember.get(toMemberId) || state.fileByMember.get(to.member)) : null;
-
-    const fromMatch = memberId
-      ? (fromMemberId === String(memberId))
-      : (from.file === fileKey || fromMemberFile === fileKey);
-    const toMatch = memberId
-      ? (toMemberId === String(memberId))
-      : (to.file === fileKey || toMemberFile === fileKey);
+  (state.sourceIndex?.relationships(selectionInfo) || state.edges).forEach((edge) => {
+    const fromMatch = touches(edge.from);
+    const toMatch = touches(edge.to);
     if (fromMatch) outgoing.push(edge);
     if (toMatch) incoming.push(edge);
   });
@@ -209,13 +216,13 @@ export const renderSelectionDetails = (info) => {
     return;
   }
   const fileKey = info.file || info.name || '';
-  const node = nodeByPath.get(fileKey) || nodeById.get(info.id) || null;
+  const node = state.sourceIndex?.files.get(fileKey) || nodeByPath.get(fileKey) || nodeById.get(info.id) || null;
   const rangeKey = buildMemberKey(fileKey, info.name || '', info.range || {});
   const nameKey = buildMemberNameKey(fileKey, info.name || '');
   const rawMemberId = (info.type === 'member' ? (info.id ?? info.memberId ?? null) : (info.memberId ?? null));
   const memberId = rawMemberId !== null && rawMemberId !== undefined ? String(rawMemberId) : null;
-  const member = memberId
-    ? (memberById.get(memberId) || memberById.get(rawMemberId))
+  const member = rawMemberId!=null
+    ? (state.sourceIndex?.member?.(rawMemberId)?.member || state.sourceIndex?.members.get(memberId)?.member || lookupMemberIdentity(memberById,rawMemberId,state.sourceIndex))
     : (memberByKey.get(rangeKey) || memberByKey.get(nameKey) || null);
 
   if (info.type === 'file' || (!info.type && node)) {
@@ -227,10 +234,10 @@ export const renderSelectionDetails = (info) => {
     addSelectionRow(section, 'Ext', node?.ext || 'None');
     addSelectionRow(section, 'Id', node?.id || 'None');
     const members = Array.isArray(node?.members) ? node.members : [];
-    addSelectionRow(section, 'Members', members.length);
+    addSelectionRow(section, 'Members', state.remoteSource?(node?.memberCount??members.length):members.length);
     if (members.length) {
       const memberNames = members.map((entry) => entry.name).filter(Boolean);
-      addSelectionRow(section, 'Member names', formatListWithLimit(memberNames, 10));
+      addSelectionRow(section, state.remoteSource?'Resident member names':'Member names', formatListWithLimit(memberNames, 10));
     }
   }
 
@@ -244,9 +251,9 @@ export const renderSelectionDetails = (info) => {
     addSelectionRow(section, 'Params', member?.params || null);
     addSelectionRow(section, 'Returns', member?.returns || 'None');
     addSelectionRow(section, 'Modifiers', member?.modifiers || 'None');
-    addSelectionRow(section, 'Exported', member?.exported ?? false);
+    addSelectionRow(section, 'Exported', member?.exported ?? null);
     addSelectionRow(section, 'Range', formatRange(member?.range || info.range));
-    addSelectionRow(section, 'Id', member?.id || info.id || 'None');
+    addSelectionRow(section, 'Id', member?.id ?? info.id ?? 'None');
     addSelectionRow(section, 'Port', member?.port || 'None');
 
     const dataflow = member?.dataflow || {};
@@ -258,17 +265,18 @@ export const renderSelectionDetails = (info) => {
 
     const controlFlow = member?.controlFlow || {};
     const controlSection = createSelectionSection('Control flow');
-    addSelectionRow(controlSection, 'Branches', controlFlow.branches ?? 0);
-    addSelectionRow(controlSection, 'Loops', controlFlow.loops ?? 0);
-    addSelectionRow(controlSection, 'Returns', controlFlow.returns ?? 0);
-    addSelectionRow(controlSection, 'Breaks', controlFlow.breaks ?? 0);
-    addSelectionRow(controlSection, 'Continues', controlFlow.continues ?? 0);
-    addSelectionRow(controlSection, 'Throws', controlFlow.throws ?? 0);
-    addSelectionRow(controlSection, 'Awaits', controlFlow.awaits ?? 0);
-    addSelectionRow(controlSection, 'Yields', controlFlow.yields ?? 0);
+    addSelectionRow(controlSection, 'Branches', controlFlow.branches ?? null);
+    addSelectionRow(controlSection, 'Loops', controlFlow.loops ?? null);
+    addSelectionRow(controlSection, 'Returns', controlFlow.returns ?? null);
+    addSelectionRow(controlSection, 'Breaks', controlFlow.breaks ?? null);
+    addSelectionRow(controlSection, 'Continues', controlFlow.continues ?? null);
+    addSelectionRow(controlSection, 'Throws', controlFlow.throws ?? null);
+    addSelectionRow(controlSection, 'Awaits', controlFlow.awaits ?? null);
+    addSelectionRow(controlSection, 'Yields', controlFlow.yields ?? null);
   }
 
   const edgeSection = createSelectionSection('Edges');
+  if(state.remoteSource){addSelectionRow(edgeSection,'Directed evidence','Paged from pinned source; exact totals and continuation below.');return;}
   const edgeData = collectEdgesForSelection(info, member, node);
   addSelectionRow(edgeSection, 'Incoming', formatEdgeCounts(edgeData.incoming));
   addSelectionRow(edgeSection, 'Outgoing', formatEdgeCounts(edgeData.outgoing));
@@ -300,13 +308,12 @@ const resolveHitInfo = (hit) => {
 };
 
 const setMemberInstanceTint = (memberId, color) => {
-  if (!memberId) return;
-  const key = String(memberId);
-  const ref = state.memberInstanceById?.get(key) || null;
+  if (memberId == null) return;
+  const ref = lookupMemberIdentity(state.memberInstanceById,memberId,state.sourceIndex) || null;
   if (!ref || !ref.mesh || ref.instanceId == null) return;
 
   ref.mesh.setColorAt(ref.instanceId, color);
-  if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
+  markInstanceRange(ref.mesh.instanceColor,ref.instanceId,3,state.renderUpdateMetrics||(state.renderUpdateMetrics={}));
 };
 
 const setFileInstanceTint = (fileKey, color) => {
@@ -314,7 +321,7 @@ const setFileInstanceTint = (fileKey, color) => {
   const ref = state.fileInstanceByKey?.get(fileKey) || null;
   if (!ref || !ref.mesh || ref.instanceId == null) return;
   ref.mesh.setColorAt(ref.instanceId, color);
-  if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
+  markInstanceRange(ref.mesh.instanceColor,ref.instanceId,3,state.renderUpdateMetrics||(state.renderUpdateMetrics={}));
 };
 
 const resetMemberInstanceHighlights = () => {
@@ -323,7 +330,7 @@ const resetMemberInstanceHighlights = () => {
 
   const white = new state.THREE.Color(0xffffff);
   for (const memberId of highlighted) {
-    const base = state.memberColorById?.get(memberId) || white;
+    const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || white;
     setMemberInstanceTint(memberId, base);
   }
   highlighted.clear();
@@ -442,7 +449,7 @@ const highlightEdgeInstance = (mesh, index, color) => {
   if (!mesh || !mesh.isInstancedMesh) return;
   if (typeof mesh.setColorAt === 'function') {
     mesh.setColorAt(index, color);
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    markInstanceRange(mesh.instanceColor,index,3,state.renderUpdateMetrics||(state.renderUpdateMetrics={}));
   }
 };
 
@@ -499,7 +506,9 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
   connected.forEach((entry, endpointKey) => {
     if (!entry.weight) return;
     const color = entry.color.multiplyScalar(1 / entry.weight);
-    const [type, id] = endpointKey.split(':');
+    const endpoint = parseEndpointKey(endpointKey);
+    if (!endpoint) return;
+    const { type, id } = endpoint;
     if (type === 'file') {
       if (state.fileInstanceByKey?.has(id)) {
         const tint = color.clone().lerp(new state.THREE.Color(0xffffff), 0.2);
@@ -514,12 +523,13 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
       // Instanced members: tint the instance temporarily.
       const tint = color.clone().lerp(new state.THREE.Color(0xffffff), 0.2);
       setMemberInstanceTint(id, tint);
-      if (state.highlightedMemberIds) state.highlightedMemberIds.add(String(id));
+      if (state.highlightedMemberIds) state.highlightedMemberIds.add(canonicalMemberId(id,state.sourceIndex));
     }
   });
 };
 
 export const applyHighlights = () => {
+  if (!state.THREE) return;
   resetObjectHighlights();
   resetEdgeHighlights();
   resetWireHighlights();
@@ -528,7 +538,7 @@ export const applyHighlights = () => {
 
   const selectedHit = state.selected;
   const selectedObj = selectedHit?.object || null;
-  const selectedInfo = resolveHitInfo(selectedHit);
+  const selectedInfo = state.selectedInfo;
   const selectionKeys = buildSelectionKeys(selectedInfo);
 
   if (selectedHit && selectedObj) {
@@ -543,10 +553,10 @@ export const applyHighlights = () => {
           boostWireframeByKey(fileKey, tint, 0.25);
         }
       } else {
-        const memberId = selectedInfo?.id ? String(selectedInfo.id) : null;
-        const base = (memberId && state.memberColorById?.get(memberId)) || selectedInfo?.baseColor || white;
+        const memberId = selectedInfo?.id ?? null;
+        const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || selectedInfo?.baseColor || white;
         const tint = base.clone().lerp(white, 0.45);
-        if (memberId) {
+        if (memberId!==null) {
           setMemberInstanceTint(memberId, tint);
           state.highlightedMemberIds?.add(memberId);
         }
@@ -558,12 +568,12 @@ export const applyHighlights = () => {
       highlightMesh(selectedObj, baseColor.clone().lerp(white, 0.35), 0.7, 0.85);
     }
 
-    applyHighlightsForKeys(selectionKeys, 1);
   }
+  if (selectedInfo) applyHighlightsForKeys(selectionKeys, 1);
 
   if (state.hoveredRef) {
     const hoverInfo = state.hoveredRef.refType === 'member'
-      ? { type: 'member', id: String(state.hoveredRef.refId), memberId: String(state.hoveredRef.refId) }
+      ? { type: 'member', id: state.hoveredRef.refId, memberId: state.hoveredRef.refId }
       : { type: 'file', file: state.hoveredRef.refId, name: state.hoveredRef.refId };
 
     const hoverKeys = buildSelectionKeys(hoverInfo);
@@ -581,8 +591,8 @@ export const applyHighlights = () => {
     }
 
     if (state.hoveredRef.refType === 'member') {
-      const memberId = String(state.hoveredRef.refId);
-      const base = state.memberColorById?.get(memberId) || white;
+      const memberId = canonicalMemberId(state.hoveredRef.refId,state.sourceIndex);
+      const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || white;
       const tint = base.clone().lerp(white, 0.25);
       setMemberInstanceTint(memberId, tint);
       state.highlightedMemberIds?.add(memberId);
@@ -605,10 +615,10 @@ export const applyHighlights = () => {
             boostWireframeByKey(fileKey, tint, 0.2);
           }
         } else {
-          const memberId = hoverInfo?.id ? String(hoverInfo.id) : null;
-          const base = (memberId && state.memberColorById?.get(memberId)) || hoverInfo?.baseColor || white;
+          const memberId = hoverInfo?.id ?? null;
+          const base = lookupMemberIdentity(state.memberColorById,memberId,state.sourceIndex) || hoverInfo?.baseColor || white;
           const tint = base.clone().lerp(white, 0.25);
-          if (memberId) {
+          if (memberId!==null) {
             setMemberInstanceTint(memberId, tint);
             state.highlightedMemberIds?.add(memberId);
           }
@@ -623,14 +633,20 @@ export const applyHighlights = () => {
   }
 };
 
-export const setSelection = (hit) => {
-  state.selected = hit;
-  const info = resolveHitInfo(hit);
+export const setSemanticSelection = (candidate, hit = null) => {
+  state.viewRevisions?.bump('selection');
+  const info = candidate && state.sourceIndex ? state.sourceIndex.resolve(candidate) : candidate;
+  state.selected = info ? hit : null;
   state.selectedInfo = info || null;
+  state.selectionSnapshot = info ? state.sourceIndex?.snapshot || state.map : null;
+  state.selectionFocusAvailable = Boolean(info && hit);
   renderSelectionDetails(info);
   state.onSelectionChanged?.(info);
   applyHighlights();
+  state.invalidateRender?.();
 };
+
+export const setSelection = (hit) => setSemanticSelection(resolveHitInfo(hit), hit);
 
 const resolveFilePath = (file) => {
   if (!file) return '';
@@ -658,8 +674,8 @@ const buildOpenUri = (info) => {
 };
 
 export const openSelection = () => {
-  if (!state.selected) return;
-  const info = resolveHitInfo(state.selected);
+  const info = state.selectedInfo;
+  if (!info || (state.sourceIndex && state.selectionSnapshot !== state.sourceIndex.snapshot)) return;
   const uri = buildOpenUri(info || {});
   if (uri) window.location.href = uri;
 };

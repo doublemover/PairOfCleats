@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-callbacks", "getter-failures", "duplicates-cycles", "bounds", "reentrancy", "late-context", "directory-adapter", "transfer-adapter"]
+}

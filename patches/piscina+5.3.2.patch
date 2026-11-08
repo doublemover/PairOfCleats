@@ -1,0 +1,36 @@
+diff --git a/node_modules/piscina/src/index.ts b/node_modules/piscina/src/index.ts
+index d727b985a81e..582d3d3b7d41 100644
+--- a/node_modules/piscina/src/index.ts
++++ b/node_modules/piscina/src/index.ts
+@@ -1,5 +1,5 @@
+ import { Worker, MessageChannel, MessagePort } from 'node:worker_threads';
+-import { once, EventEmitterAsyncResource } from 'node:events';
++import { EventEmitterAsyncResource } from 'node:events';
+ import { resolve } from 'node:path';
+ import { inspect, types } from 'node:util';
+ import { performance } from 'node:perf_hooks';
+@@ -668,5 +668,7 @@
+-    const exitEvents : Promise<any[]>[] = [];
++    const exitEvents : Promise<void>[] = [];
+     while (this.workers.size > 0) {
+       const [workerInfo] = this.workers;
+-      exitEvents.push(once(workerInfo.worker, 'exit'));
++      // A Worker error precedes exit on fatal faults. events.once() rejects on
++      // that error, so it would finish destruction before the worker exits.
++      exitEvents.push(new Promise<void>(resolve => workerInfo.worker.once('exit', () => resolve())));
+       this._removeWorker(workerInfo);
+diff --git a/node_modules/piscina/dist/index.js b/node_modules/piscina/dist/index.js
+index 9f142160c48e..7ee1f5edcce4 100644
+--- a/node_modules/piscina/dist/index.js
++++ b/node_modules/piscina/dist/index.js
+@@ -512,7 +512,9 @@
+         const exitEvents = [];
+         while (this.workers.size > 0) {
+             const [workerInfo] = this.workers;
+-            exitEvents.push((0, node_events_1.once)(workerInfo.worker, 'exit'));
++            // A Worker error precedes exit on fatal faults. events.once() rejects on
++            // that error, so it would finish destruction before the worker exits.
++            exitEvents.push(new Promise(resolve => workerInfo.worker.once('exit', resolve)));
+             this._removeWorker(workerInfo);
+         }
+         await Promise.allSettled(exitEvents);

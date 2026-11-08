@@ -60,7 +60,7 @@ export function createProcessChunksFixtureContext({
   const sc = [{
     start: 0,
     end: text.length,
-    segment: { languageId, segmentUid },
+    segment: { languageId, segmentUid, start: 0, end: text.length },
     kind: 'code',
     name: segmentName
   }];

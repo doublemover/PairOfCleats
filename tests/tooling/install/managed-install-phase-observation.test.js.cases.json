@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pending-diagnostics-remain-unread", "independent-diagnostic-retains-stage", "pending-progress-is-not-reentered", "late-nested-verification-retains-stage", "function-original-observation", "download-recovery-after-journal-failure"]
+}

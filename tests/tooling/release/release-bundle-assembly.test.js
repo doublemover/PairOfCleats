@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { observeReleaseSource } from '../../../tools/release/source-revision.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { runNode } from '../../helpers/run-node.js';
@@ -25,7 +26,7 @@ fs.writeFileSync(path.join(artifactRoot, 'release-prepare', 'notes.md'), 'notes'
 fs.writeFileSync(metadataPath, `${JSON.stringify({
   releaseVersion: '0.3.0',
   releaseTag: 'v0.3.0',
-  gitSha: 'abc123'
+  gitSha: observeReleaseSource(root)
 }, null, 2)}\n`);
 
 const run = runNode(
@@ -89,4 +90,13 @@ assert.equal(
   'expected release bundle command not to create an outside output directory'
 );
 
+fs.writeFileSync(path.join(artifactRoot, 'release-prepare', 'release_check_report.json'), JSON.stringify({
+  executionMode: 'executed', observedSourceCommit: 'f'.repeat(40)
+}));
+const mismatched = runNode([scriptPath, '--artifact-root', artifactRoot, '--metadata', metadataPath,
+  '--out', path.join(fixtureDir, 'mismatched')], 'reject mixed revision build evidence', root, process.env,
+{ stdio: 'pipe', encoding: 'utf8', allowFailure: true });
+assert.notEqual(mismatched.status, 0);
+assert.match(mismatched.stderr, /observed source commit differs/);
+assert.equal(fs.existsSync(path.join(fixtureDir, 'mismatched', 'release-artifacts.json')), false);
 console.log('release bundle assembly test passed');

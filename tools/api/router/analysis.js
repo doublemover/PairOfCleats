@@ -6,6 +6,9 @@ import { buildRiskExplainPayload } from '../../analysis/explain-risk.js';
 import { projectRiskDeltaRequest, projectRiskExplainRequest } from '../../analysis/risk-request.js';
 import { buildCompositeContextPackPayload } from '../../../src/integrations/tooling/context-pack.js';
 import { buildContextPackRequestInput } from '../../../src/shared/context-pack-request.js';
+import { isContextTaskFailure } from '../../../src/contracts/context-task.js';
+import { isContextTokenFailure } from '../../../src/contracts/context-token-budget.js';
+import { withHttpRequestLifetime } from './request-lifetime.js';
 import { attachObservability, buildChildObservability } from '../../../src/shared/observability.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError, sendJson } from '../response.js';
@@ -105,81 +108,86 @@ export async function handleContextPackRoute({
   validateContextPackPayload,
   ensureWorkspaceAllowlist
 }) {
-  const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders);
-  if (!parsedBody.ok) return true;
-  const payload = parsedBody.payload;
-  const validation = validateContextPackPayload(payload);
-  if (!validation.ok) {
-    sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid context-pack request.', {
-      errors: validation.errors
-    }, corsHeaders || {});
-    return true;
-  }
+  return withHttpRequestLifetime(req, res, async lifetime => {
+    const parsedBody = await lifetime.prepare(() => parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders));
+    if (!parsedBody.ok) return true;
+    const payload = parsedBody.payload;
+    const validation = validateContextPackPayload(payload);
+    if (!validation.ok) {
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid context-pack request.', {
+        errors: validation.errors
+      }, corsHeaders || {});
+      return true;
+    }
 
-  const workspaceRequested = typeof payload.workspacePath === 'string' && payload.workspacePath.trim();
-  const requestedRepo = typeof payload.repoPath === 'string' && payload.repoPath.trim()
-    ? payload.repoPath
-    : typeof payload.repo === 'string' && payload.repo.trim()
-      ? payload.repo
-      : '';
-  let repoPath = null;
-  if (!(workspaceRequested && !requestedRepo)) {
-    const resolvedRepo = await resolveRepoOrSendError(
-      res,
-      resolveRepo,
-      requestedRepo,
-      corsHeaders
-    );
-    if (!resolvedRepo.ok) return true;
-    repoPath = resolvedRepo.repoPath;
-  }
-  try {
-    const workspaceConfig = workspaceRequested && typeof ensureWorkspaceAllowlist === 'function'
-      ? await ensureWorkspaceAllowlist(payload)
-      : null;
-    const resultObservability = buildChildObservability(observability, {
-      surface: 'analysis',
-      operation: 'context_pack',
-      context: repoPath
-        ? {
-          repoRoot: repoPath
+    const workspaceRequested = typeof payload.workspacePath === 'string' && payload.workspacePath.trim();
+    const requestedRepo = typeof payload.repoPath === 'string' && payload.repoPath.trim()
+      ? payload.repoPath
+      : typeof payload.repo === 'string' && payload.repo.trim()
+        ? payload.repo
+        : '';
+    let repoPath = null;
+    if (!(workspaceRequested && !requestedRepo)) {
+      const resolvedRepo = await lifetime.prepare(() => resolveRepoOrSendError(
+        res,
+        resolveRepo,
+        requestedRepo,
+        corsHeaders
+      ));
+      if (!resolvedRepo.ok) return true;
+      repoPath = resolvedRepo.repoPath;
+    }
+    try {
+      const workspaceConfig = workspaceRequested && typeof ensureWorkspaceAllowlist === 'function'
+        ? await lifetime.prepare(() => ensureWorkspaceAllowlist(payload))
+        : null;
+      const resultObservability = buildChildObservability(observability, {
+        surface: 'analysis',
+        operation: 'context_pack',
+        context: repoPath
+          ? {
+            repoRoot: repoPath
+          }
+          : {}
+      });
+      const result = await buildCompositeContextPackPayload(
+        buildContextPackRequestInput(payload, {
+          repoRoot: repoPath,
+          riskFilters: payload.filters || null,
+          workspaceConfig
+        }),
+        {
+          trustedWorkspaceConfig: Boolean(workspaceConfig), signal: lifetime.signal
         }
-        : {}
-    });
-    const result = await buildCompositeContextPackPayload(
-      buildContextPackRequestInput(payload, {
-        repoRoot: repoPath,
-        riskFilters: payload.filters || null,
-        workspaceConfig
-      }),
-      {
-        trustedWorkspaceConfig: Boolean(workspaceConfig)
-      }
-    );
-    sendJson(res, 200, attachObservability({ ok: true, result }, redactAbsolutePaths(resultObservability)), corsHeaders || {});
-    return true;
-  } catch (err) {
-    const message = err?.message || 'Failed to build context pack.';
-    const workspaceRequestError = classifyWorkspaceRequestError(err);
-    const status = Number.isFinite(err?.status) ? err.status
-      : workspaceRequestError.status === 403 ? 403
-        : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
-          : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
+      );
+      sendJson(res, 200, attachObservability({ ok: true, result }, redactAbsolutePaths(resultObservability)), corsHeaders || {});
+      return true;
+    } catch (err) {
+      if (lifetime.closedAfterFailure(err)) return true;
+      const message = err?.message || 'Failed to build context pack.';
+      const workspaceRequestError = classifyWorkspaceRequestError(err);
+      const status = Number.isFinite(err?.status) ? err.status
+        : workspaceRequestError.status === 403 ? 403
+          : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
+            : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
               || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
               || err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE' ? 400
-            : 500;
-    const details = err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
-      ? { reason: 'invalid_risk_filters' }
-      : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
-        ? { reason: 'strict_evidence_incomplete', evidence: err?.evidence || null }
-        : err?.code === ERROR_CODES.FORBIDDEN ? { reason: 'workspace_not_permitted' } : {};
-    const code = status === 400 ? ERROR_CODES.INVALID_REQUEST
-      : status === 403 ? ERROR_CODES.FORBIDDEN
-        : status === 404 ? ERROR_CODES.NO_INDEX
-          : ERROR_CODES.INTERNAL;
-    sendError(res, status, code, message, details, corsHeaders || {});
-    return true;
-  }
+              : 500;
+      const details = err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
+        ? { reason: 'invalid_risk_filters' }
+        : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
+          ? { reason: 'strict_evidence_incomplete', evidence: err?.evidence || null }
+          : isContextTaskFailure(err) || isContextTokenFailure(err)
+            ? { reason: err.code, contextPackCode: err.code }
+            : err?.code === ERROR_CODES.FORBIDDEN ? { reason: 'workspace_not_permitted' } : {};
+      const code = [400, 408, 409, 413, 422].includes(status) ? ERROR_CODES.INVALID_REQUEST
+        : status === 403 ? ERROR_CODES.FORBIDDEN
+          : status === 404 ? ERROR_CODES.NO_INDEX
+            : ERROR_CODES.INTERNAL;
+      sendError(res, status, code, message, details, corsHeaders || {});
+      return true;
+    }
+  });
 }
 
 export async function handleRiskDeltaRoute({

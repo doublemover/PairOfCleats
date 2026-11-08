@@ -124,6 +124,7 @@ export const applyObservabilityContextEnv = (env = process.env, observability = 
   return nextEnv;
 };
 
+export const OBSERVABILITY_HEADER_NAMES = Object.freeze(['X-Correlation-Id', 'X-Parent-Correlation-Id', 'X-Request-Id']);
 export const buildObservabilityHeaders = (observability = null) => {
   if (!observability || typeof observability !== 'object') return {};
   const correlationId = toTrimmedString(observability?.correlation?.correlationId);

@@ -15,6 +15,13 @@ const parseArgs = () => {
     help: false
   };
   const argv = process.argv.slice(2);
+  const threshold = (value, flag) => {
+    if (typeof value !== 'string' || !value.trim() || !Number.isFinite(Number(value))
+      || Number(value) < 0 || (flag.endsWith('-pct') && Number(value) > 100)) {
+      throw new TypeError(`${flag} requires a finite nonnegative ${flag.endsWith('-pct') ? 'percentage at most 100' : 'number'}.`);
+    }
+    return Number(value);
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = argv[i + 1];
@@ -28,22 +35,22 @@ const parseArgs = () => {
       continue;
     }
     if (arg === '--max-stage-duration-ms') {
-      out.maxStageDurationMs = Number(next);
+      out.maxStageDurationMs = threshold(next, arg);
       i += 1;
       continue;
     }
     if (arg === '--max-artifact-stall-p95-ms') {
-      out.maxArtifactStallP95Ms = Number(next);
+      out.maxArtifactStallP95Ms = threshold(next, arg);
       i += 1;
       continue;
     }
     if (arg === '--min-utilization-pct') {
-      out.minUtilizationPct = Number(next);
+      out.minUtilizationPct = threshold(next, arg);
       i += 1;
       continue;
     }
     if (arg === '--min-stage-overlap-pct') {
-      out.minStageOverlapPct = Number(next);
+      out.minStageOverlapPct = threshold(next, arg);
       i += 1;
       continue;
     }
@@ -56,6 +63,7 @@ const parseArgs = () => {
 };
 
 const toNumber = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim()) || typeof value === 'boolean') return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
@@ -94,46 +102,46 @@ const main = async () => {
     checks.push({ name, observed, expected, comparator, ok: ok === true });
   };
 
-  const topStageDurationMs = toNumber(summary?.criticalPath?.scripts?.[0]?.durationMs) || 0;
+  const topStageDurationMs = toNumber(summary?.criticalPath?.scripts?.[0]?.durationMs);
   if (Number.isFinite(maxStageDurationMs)) {
     addCheck(
       'stage-duration-max',
       topStageDurationMs,
       maxStageDurationMs,
-      topStageDurationMs <= maxStageDurationMs,
+      topStageDurationMs != null && topStageDurationMs <= maxStageDurationMs,
       '<='
     );
   }
 
-  const stallP95Ms = toNumber(summary?.artifactStallDurationMs?.p95) || 0;
+  const stallP95Ms = toNumber(summary?.artifactStallDurationMs?.p95);
   if (Number.isFinite(maxArtifactStallP95Ms)) {
     addCheck(
       'artifact-stall-p95-max',
       stallP95Ms,
       maxArtifactStallP95Ms,
-      stallP95Ms <= maxArtifactStallP95Ms,
+      stallP95Ms != null && stallP95Ms <= maxArtifactStallP95Ms,
       '<='
     );
   }
 
-  const avgUtilizationPct = toNumber(summary?.perCoreUtilization?.avgPct) || 0;
+  const avgUtilizationPct = toNumber(summary?.perCoreUtilization?.avgPct);
   if (Number.isFinite(minUtilizationPct)) {
     addCheck(
       'utilization-avg-min',
       avgUtilizationPct,
       minUtilizationPct,
-      avgUtilizationPct >= minUtilizationPct,
+      avgUtilizationPct != null && avgUtilizationPct >= minUtilizationPct,
       '>='
     );
   }
 
-  const stageOverlapPct = toNumber(summary?.stageOverlap?.avgPct) || 0;
+  const stageOverlapPct = toNumber(summary?.stageOverlap?.avgPct);
   if (Number.isFinite(minStageOverlapPct)) {
     addCheck(
       'stage-overlap-avg-min',
       stageOverlapPct,
       minStageOverlapPct,
-      stageOverlapPct >= minStageOverlapPct,
+      stageOverlapPct != null && stageOverlapPct >= minStageOverlapPct,
       '>='
     );
   }

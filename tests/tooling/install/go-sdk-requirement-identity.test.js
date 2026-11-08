@@ -16,5 +16,7 @@ for (const stdout of ['go version go1.27.1 linux/amd64\n', 'go version go1.28rc1
 }
 assert.equal(verifyInstallerRequirementProbe('go', { ok: false, outcome: 'nonzero',
   stdout: 'go version go1.27.1 linux/amd64' }).ok, false, 'recognized text cannot erase an execution failure');
-assert.equal(verifyInstallerRequirementProbe('dotnet', { ok: true }).ok, true, 'other prerequisite behavior is unchanged');
+assert.equal(verifyInstallerRequirementProbe('dotnet', { ok: true }).ok, false, 'exit zero without the SDK protocol is not identity');
+assert.equal(verifyInstallerRequirementProbe('dotnet', { ok: true, stdout: '10.0.100 [C:\\fixture\\dotnet\\sdk]' }).ok, true,
+  'recognized SDK inventory retains positive coverage');
 console.log('Go prerequisite identity rejects empty/unrelated exit-zero output and retains genuine release/development SDK protocols.');

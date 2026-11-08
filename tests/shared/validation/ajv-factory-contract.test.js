@@ -30,6 +30,19 @@ const tupleValidator = compileSchema(ajv2020, {
 assert.equal(tupleValidator(['ok']), true, 'Ajv 2020 should allow matching tuple payload');
 assert.equal(tupleValidator(['ok', 'extra']), false, 'Ajv 2020 should reject trailing tuple items');
 
+for (const dialect of ['default', '2020']) {
+  const strictAjv = createAjv({ dialect, strict: true });
+  const dateTime = compileSchema(strictAjv, { type: 'string', format: 'date-time' });
+  for (const value of ['2024-02-29T12:00:00Z', '2026-10-22T09:30:00.123+05:30']) {
+    assert.equal(dateTime(value), true, `${dialect}: valid RFC3339 timestamp`);
+  }
+  for (const value of ['2026-02-30T12:00:00Z', '2026-10-22T12:00:00', 'not-a-time']) {
+    assert.equal(dateTime(value), false, `${dialect}: invalid timestamp remains rejected`);
+  }
+  assert.throws(() => compileSchema(strictAjv, { type: 'string', format: 'unknown-project-format' }), /unknown format/,
+    'standard formats must not relax unknown-format rejection');
+}
+
 const sourceSchema = {
   type: 'object',
   properties: {

@@ -1,4 +1,4 @@
-import { getCapabilities } from '../../../shared/capabilities.js';
+import { getWatcherCapabilities } from '../../../shared/capabilities.js';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
 
 const normalizeBackend = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
@@ -8,15 +8,15 @@ export const resolveWatcherBackend = ({ runtime, pollMs }) => {
   const configBackend = normalizeBackend(runtime?.userConfig?.indexing?.watch?.backend);
   const envBackend = normalizeBackend(envConfig.watcherBackend);
   const requested = configBackend || envBackend || 'auto';
-  const caps = getCapabilities();
+  const caps = getWatcherCapabilities();
   const pollingEnabled = Number.isFinite(Number(pollMs)) && Number(pollMs) > 0;
   let resolved = requested;
   let warning = null;
 
   if (requested === 'auto') {
-    resolved = caps.watcher.parcel && !pollingEnabled ? 'parcel' : 'chokidar';
+    resolved = caps.parcel && !pollingEnabled ? 'parcel' : 'chokidar';
   } else if (requested === 'parcel') {
-    if (!caps.watcher.parcel) {
+    if (!caps.parcel) {
       resolved = 'chokidar';
       warning = 'Parcel watcher unavailable; falling back to chokidar.';
     } else if (pollingEnabled) {

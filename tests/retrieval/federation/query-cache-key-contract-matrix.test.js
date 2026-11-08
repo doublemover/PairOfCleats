@@ -16,6 +16,7 @@ import {
   upsertFederatedQueryCacheEntry
 } from '../../../src/retrieval/federation/query-cache.js';
 import { writeFederationRepoFixture } from './repo-fixture.js';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../../src/shared/embedding-output-admission.js';
 
 const withTempWorkspace = async (prefix, build) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -27,6 +28,24 @@ const withTempWorkspace = async (prefix, build) => {
 };
 
 const cases = [
+  {
+    name: 'Query-vector admission separates prior federated result keys',
+    async run() {
+      const payload = buildFederatedQueryCacheKeyPayload({ query: 'alpha' });
+      assert.equal(payload.queryEmbeddingAdmissionVersion, QUERY_EMBEDDING_ADMISSION_VERSION);
+      const prior = { ...payload }; delete prior.queryEmbeddingAdmissionVersion;
+      assert.notEqual(buildFederatedQueryCacheKey(payload).keyHash, buildFederatedQueryCacheKey(prior).keyHash);
+    }
+  },
+  {
+    name: 'Boolean complement results invalidate the earlier federated result namespace',
+    async run() {
+      const payload = buildFederatedQueryCacheKeyPayload({ query: 'alpha OR NOT gamma' });
+      assert.notEqual(buildFederatedQueryCacheKey(payload).keyHash,
+        buildFederatedQueryCacheKey({ ...payload, v: 3 }).keyHash,
+        'a parent cache cannot reuse results produced before complement eligibility');
+    }
+  },
   {
     name: 'manifest hash participates in federated query cache invalidation',
     async run() {
@@ -179,7 +198,7 @@ const cases = [
           workspacePath,
           query: 'cache-workspace-meta',
           search: { mode: 'code', top: 5 }
-        }, { searchFn });
+        }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         await fs.writeFile(workspacePath, `{
   "schemaVersion": 1,
   "name": "Workspace Beta",
@@ -192,7 +211,7 @@ const cases = [
           workspacePath,
           query: 'cache-workspace-meta',
           search: { mode: 'code', top: 5 }
-        }, { searchFn });
+        }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         assert.equal(searchCalls, 2);
         assert.equal(first.meta?.workspace?.name, 'Workspace Alpha');
         assert.equal(second.meta?.workspace?.name, 'Workspace Beta');
@@ -239,11 +258,11 @@ const cases = [
           search: { mode: 'code', top: 5 },
           limits: { concurrency: 1 }
         };
-        const nonStrict = await runFederatedSearch(baseRequest, { searchFn });
+        const nonStrict = await runFederatedSearch(baseRequest, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         assert.equal(nonStrict.ok, true);
         assert.equal(nonStrict.code.length, 1);
         await assert.rejects(
-          runFederatedSearch({ ...baseRequest, strict: true }, { searchFn }),
+          runFederatedSearch({ ...baseRequest, strict: true }, { searchPolicyId: 'fixture-query-policy@1', searchFn }),
           (error) => error?.code === ERROR_CODES.NO_INDEX
         );
         assert.ok(searchCalls >= 3);
@@ -281,7 +300,7 @@ const cases = [
           query: 'select-object-only',
           search: { mode: 'code', top: 5 },
           select: { includeDisabled: true }
-        }, { searchFn });
+        }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         assert.equal(first.ok, true);
         assert.deepEqual(first.meta?.selection?.explicitSelects || [], []);
         assert.equal(first.code.length, 1);
@@ -290,7 +309,7 @@ const cases = [
           query: 'select-object-only',
           search: { mode: 'code', top: 5 },
           includeDisabled: true
-        }, { searchFn });
+        }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         assert.equal(second.ok, true);
         assert.equal(second.code.length, 1);
         assert.equal(searchCalls, 1);

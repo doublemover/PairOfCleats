@@ -1,6 +1,6 @@
 import { writeSqliteIndexFormat } from '../index-format.js';
 import { CREATE_SEMANTIC_TABLES_SQL } from '../semantic/schema.js';
-import { createOptionalFtsTables, listOptionalFtsTables } from '../fts-variants.js';
+import { createFtsMultiRowInserter, createOptionalFtsTables, listOptionalFtsTables } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -14,14 +14,30 @@ import {
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
   removeSqliteSidecars,
+  replaceSqliteDatabase,
   resolveSqliteIngestPlan
 } from '../utils.js';
 import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { validateSqliteDatabase } from './validate.js';
-import { createInsertStatements } from './statements.js';
+import { createInsertStatements, SQLITE_CHUNK_COLUMNS } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
-import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { createTempPath } from '../../../shared/json-stream/atomic.js';
 import { getCacheTempRoot } from '../../../shared/cache-roots.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { createSqliteCacheCloseOwner } from '../../../retrieval/sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { getSqliteStorageOperation, isSqliteDiagnosticSettled } from './storage-operation.js';
+
+const nativeOwners = new WeakMap();
+const captureNativeOwner = db => {
+  let record = nativeOwners.get(db);
+  if (!record) {
+    record = { physical: createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {} }), finalization: null };
+    nativeOwners.set(db, record);
+  }
+  return record;
+};
 
 const normalizeStatementStrategy = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -44,7 +60,8 @@ const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
 const buildShortTempDbPath = (outPath) => {
   const hash = crypto.createHash('sha1').update(String(outPath || '')).digest('hex').slice(0, 20);
   const nonce = crypto.randomBytes(4).toString('hex');
-  return path.join(getCacheTempRoot('sqlite-build'), `${hash}-${process.pid}-${nonce}.db`);
+  const root = getSqliteStorageOperation()?.tmpRoot;
+  return path.join(root ? path.join(root, 'sqlite-build') : getCacheTempRoot('sqlite-build'), `${hash}-${process.pid}-${nonce}.db`);
 };
 
 const isSqliteCantOpen = (err) => (
@@ -96,6 +113,8 @@ const openDatabaseWithFallback = (Database, outPath) => {
           })()
           : candidate);
       try {
+        getSqliteStorageOperation()?.admitTargets([path.resolve(resolvedCandidate.dbPath),
+          `${path.resolve(resolvedCandidate.dbPath)}-wal`, `${path.resolve(resolvedCandidate.dbPath)}-shm`]);
         fsSync.mkdirSync(path.dirname(resolvedCandidate.dbPath || resolvedCandidate.openPath), { recursive: true });
         const db = new Database(resolvedCandidate.openPath);
         return {
@@ -104,8 +123,10 @@ const openDatabaseWithFallback = (Database, outPath) => {
           promotePath: resolvedCandidate.promotePath
         };
       } catch (err) {
+        observeStorageResource(err, { phase: 'sqlite-build-open' }).requireSettled();
         lastError = err;
-        if (!isSqliteCantOpen(err) || attempt >= maxAttempts - 1) break;
+        if (!isSqliteCantOpen(err)) throw err;
+        if (attempt >= maxAttempts - 1) break;
       }
     }
   }
@@ -117,7 +138,8 @@ const openDatabaseWithFallback = (Database, outPath) => {
  * @param {{batchSize?:number,inputBytes?:number,statementStrategy?:string,stats?:object}} input
  * @returns {{resolvedBatchSize:number,batchStats:object|null,resolvedStatementStrategy:string,recordBatch:function,recordTable:function}}
  */
-export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats }) => {
+export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats, signal = null }) => {
+  throwIfAborted(signal);
   const ingestPlan = resolveSqliteIngestPlan({ batchSize, inputBytes });
   const resolvedBatchSize = ingestPlan.batchSize;
   const batchStats = stats && typeof stats === 'object' ? stats : null;
@@ -135,8 +157,9 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
     };
     recordSqlitePlanTelemetry(batchStats, ingestPlan);
   }
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
-  const recordTable = createSqliteTableStatRecorder(batchStats);
+  const recordBatch = (key) => { throwIfAborted(signal); bumpSqliteBatchStat(batchStats, key); };
+  const recordTableStat = createSqliteTableStatRecorder(batchStats);
+  const recordTable = (...args) => { throwIfAborted(signal); recordTableStat(...args); };
   return {
     resolvedBatchSize,
     ingestPlan,
@@ -161,7 +184,13 @@ export const openSqliteBuildDatabase = ({
   ftsVariants = []
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
-  const { db, dbPath, promotePath } = openDatabaseWithFallback(Database, outPath);
+  // Exported artifact/bundle consumers may receive an existing authority too.
+  // Keep their schema/rows untouched until the complete replacement validates.
+  const existingOutput = fsSync.existsSync(outPath);
+  const opened = openDatabaseWithFallback(Database, existingOutput ? createTempPath(outPath) : outPath);
+  const { db, dbPath } = opened;
+  const native = captureNativeOwner(db).physical;
+  const promotePath = existingOutput ? path.resolve(outPath) : opened.promotePath;
   // Ownership transfers only after every initialization step succeeds.
   let pragmaState = null;
   try {
@@ -208,14 +237,14 @@ export const openSqliteBuildDatabase = ({
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
     return { db, pragmaState, dbPath, promotePath };
   } catch (error) {
-    if (pragmaState) {
+    native.retainFailure(error);
+    if (pragmaState && isSqliteDiagnosticSettled(error, native)) {
       try {
         restoreBuildPragmas(db, pragmaState);
-      } catch {}
+      } catch (restore) { isSqliteDiagnosticSettled(restore, native); }
     }
-    try {
-      db.close();
-    } catch {}
+    try { native.retire(); }
+    catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
     throw error;
   }
 };
@@ -227,10 +256,10 @@ const createOptionalMultiRowInserter = (db, enabled, options) => (
 /**
  * Create prepared/multi-row inserters for all sqlite output tables.
  * @param {any} db
- * @param {{batchStats?:object,resolvedStatementStrategy?:string}} input
+ * @param {{batchStats?:object,resolvedStatementStrategy?:string,uniqueTokenPostings?:boolean}} input
  * @returns {object}
  */
-export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStatementStrategy }) => {
+export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStatementStrategy, uniqueTokenPostings = false }) => {
   const statements = createInsertStatements(db, { updateMode: 'full', stats: batchStats });
   const insertClause = statements.insertClause || batchStats?.insertStatements?.insertClause || 'INSERT';
   const tokenPostingsConflictClause = insertClause === 'INSERT'
@@ -241,6 +270,10 @@ export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStateme
     ...statements,
     insertClause,
     useMultiRow,
+    insertChunkMany: createOptionalMultiRowInserter(db, useMultiRow, {
+      table: 'chunks', columns: SQLITE_CHUNK_COLUMNS, insertClause, stats: batchStats
+    }),
+    insertFtsMany: useMultiRow ? createFtsMultiRowInserter(db, { insertClause, stats: batchStats }) : null,
     insertTokenVocabMany: createOptionalMultiRowInserter(db, useMultiRow, {
       table: 'token_vocab',
       columns: ['mode', 'token_id', 'token'],
@@ -253,8 +286,7 @@ export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStateme
       columns: ['mode', 'token_id', 'doc_id', 'tf'],
       insertClause,
       conflictClause: tokenPostingsConflictClause,
-      dedupeKeyIndices: [0, 1, 2],
-      dedupeSumIndex: 3,
+      ...(uniqueTokenPostings ? {} : { dedupeKeyIndices: [0, 1, 2], dedupeSumIndex: 3 }),
       maxRows: 200,
       stats: batchStats
     }),
@@ -399,7 +431,7 @@ export const runSqliteBuildPostCommit = ({
  * @param {{db:any,succeeded:boolean,pragmaState?:object|null,outPath:string,dbPath?:string,promotePath?:string|null,batchStats?:object|null,warn?:(err:Error)=>void}} input
  * @returns {Promise<void>}
  */
-export const closeSqliteBuildDatabase = async ({
+export const closeSqliteBuildDatabase = ({
   db,
   succeeded,
   pragmaState,
@@ -407,69 +439,81 @@ export const closeSqliteBuildDatabase = async ({
   dbPath = outPath,
   promotePath = null,
   batchStats = null,
-  warn
+  signal = null,
+  warn,
+  operationError,
+  operationFailed = false
 }) => {
-  const resolvedOutPath = toComparablePath(outPath);
-  const resolvedDbPath = toComparablePath(dbPath);
-  const resolvedPromotePath = promotePath ? toComparablePath(promotePath) : null;
-  const needsPromote = Boolean(
-    succeeded
-    && resolvedPromotePath
-    && resolvedDbPath !== resolvedPromotePath
-  );
-  if (succeeded) {
-    try {
-      const plan = batchStats?.runtimeTelemetry?.plan || null;
-      checkpointSqliteWithTelemetry(db, {
-        stats: batchStats,
-        dbPath,
-        stage: 'close',
-        pageSize: plan?.pageSize ?? null,
-        journalMode: plan?.journalMode ?? null,
-        walEnabled: plan?.walEnabled ?? null,
-        walPressure: plan?.walPressure ?? null,
-        source: plan?.source || null
-      });
-    } catch (err) {
-      if (typeof warn === 'function') {
-        // Diagnostic callbacks cannot take ownership of the database or stop
-        // the finalizer before its close/promotion steps.
-        try { warn(err); } catch {}
-      }
-    }
-  }
-  try {
-    if (pragmaState) {
-      restoreBuildPragmas(db, pragmaState);
-    }
-  } finally {
-    db.close();
-  }
-  if (needsPromote) {
-    try {
-      await removeSqliteSidecars(outPath);
-      await replaceFile(dbPath, outPath);
-    } catch (err) {
-      if (typeof warn === 'function') {
-        try { warn(err); } catch {}
-      }
-      throw err;
-    } finally {
-      await removeSqliteSidecars(dbPath);
-    }
-  }
-  if (!succeeded) {
-    try {
-      fsSync.rmSync(outPath, { force: true });
-    } catch {}
-    if (resolvedDbPath !== resolvedOutPath) {
+  let record;
+  try { record = captureNativeOwner(db); }
+  catch (error) { return Promise.reject(error); }
+  if (record.finalization) return record.finalization;
+  if (operationFailed) record.physical.retainFailure(operationError);
+  record.finalization = Promise.resolve().then(async () => {
+    const resolvedDbPath = toComparablePath(dbPath);
+    const resolvedPromotePath = promotePath ? toComparablePath(promotePath) : null;
+    const needsPromote = Boolean(
+      succeeded
+      && resolvedPromotePath
+      && resolvedDbPath !== resolvedPromotePath
+    );
+    let checkpointSettled = true;
+    if (succeeded && !record.physical.isSettled()) {
       try {
-        fsSync.rmSync(dbPath, { force: true });
-      } catch {}
+        const plan = batchStats?.runtimeTelemetry?.plan || null;
+        checkpointSqliteWithTelemetry(db, {
+          stats: batchStats,
+          dbPath,
+          stage: 'close',
+          pageSize: plan?.pageSize ?? null,
+          journalMode: plan?.journalMode ?? null,
+          walEnabled: plan?.walEnabled ?? null,
+          walPressure: plan?.walPressure ?? null,
+          source: plan?.source || null
+        });
+      } catch (err) {
+        checkpointSettled = isSqliteDiagnosticSettled(err, record.physical);
+        if (typeof warn === 'function') {
+          // Diagnostic callbacks cannot take ownership of the database or stop
+          // the finalizer before its close/promotion steps.
+          try { warn(err); } catch (reporting) { checkpointSettled = isSqliteDiagnosticSettled(reporting, record.physical) && checkpointSettled; }
+        }
+      }
     }
-    await removeSqliteSidecars(outPath);
-    if (resolvedDbPath !== resolvedOutPath) {
+    let restoreError, restoreFailed = false;
+    try {
+      if (pragmaState && checkpointSettled && !record.physical.isSettled()) {
+        restoreBuildPragmas(db, pragmaState);
+      }
+    } catch (error) { restoreFailed = true; restoreError = error; record.physical.retainFailure(error); }
+    try { record.physical.retire(); }
+    catch (cleanup) { throw restoreFailed ? addStorageFailureContext(restoreError, {}, cleanup, { secondaryPresent: true }) : cleanup; }
+    if (restoreFailed) throw restoreError;
+    if (needsPromote) {
+      try {
+        if (!fsSync.existsSync(dbPath)) {
+          throw Object.assign(new Error(`Temp sqlite build database missing before promotion: ${dbPath}`), { code: 'ERR_TEMP_MISSING' });
+        }
+        // Short-path fallback publication has the same WAL/rollback contract as
+        // the ordinary runner. Generic replacement cannot preserve SQLite state.
+        await replaceSqliteDatabase(dbPath, outPath, { signal });
+      } catch (err) {
+        if (typeof warn === 'function') {
+          try { warn(err); } catch {}
+        }
+        // Retain the staged main/WAL together on a failed checkpoint or promotion;
+        // the caller still owns that recoverable database, never just its bytes.
+        throw err;
+      }
+    }
+    if (!succeeded) {
+      // A different dbPath is private staging; outPath can still be the old
+      // published database, including WAL frames owned by other connections.
+      try { fsSync.rmSync(dbPath, { force: true }); } catch {}
       await removeSqliteSidecars(dbPath);
     }
-  }
+  }).catch(cleanup => {
+    throw operationFailed ? addStorageFailureContext(operationError, {}, cleanup, { secondaryPresent: true }) : cleanup;
+  });
+  return record.finalization;
 };

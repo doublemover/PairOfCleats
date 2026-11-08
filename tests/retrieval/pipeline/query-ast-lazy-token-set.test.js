@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { createQueryAstHelpers } from '../../../src/retrieval/pipeline/query-ast.js';
+const tokens = ['alpha', 'beta'];
+let setIterations = 0;
+tokens[Symbol.iterator] = function* () { setIterations++; yield 'alpha'; yield 'beta'; };
+const chunk = { tokens, phraseTokens: ['alpha', 'beta'] };
+const phrase = createQueryAstHelpers({ queryAst: { type: 'phrase', tokens: ['alpha', 'beta'] } });
+assert.equal(phrase.matchesQueryAst({}, 0, chunk), true);
+assert.equal(setIterations, 0, 'phrase-only evaluation needs no token membership set');
+const supplied = createQueryAstHelpers({ queryAst: { type: 'term', tokens: ['alpha'] }, termMatches: () => true });
+assert.equal(supplied.matchesQueryAst({}, 0, chunk), true);
+assert.equal(setIterations, 0, 'an authoritative term matcher needs no local membership set');
+const lexical = createQueryAstHelpers({ queryAst: { type: 'term', tokens: ['alpha'] } });
+assert.equal(lexical.matchesQueryAst({}, 0, chunk), true);
+assert.equal(setIterations, 1);
+assert.equal(lexical.matchesQueryAst({}, 0, chunk), true);
+assert.equal(setIterations, 1, 'the required membership set is reused for the same chunk token identity');
+console.log('Query AST evaluation allocates token membership only when a lexical term needs it.');

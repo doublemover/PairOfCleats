@@ -46,6 +46,15 @@ Configuration (indexing):
 
 Use a rolling hash (Rabin or gear-based) to find boundaries:
 
+Implementation version `2.0.0` hashes the UTF-8 bytes of each Unicode scalar and
+measures every byte threshold in UTF-8, while returned ranges remain UTF-16
+source offsets. Cuts occur only between complete scalars. Before admitting a
+scalar that would cross `maxBytes`, the current nonempty segment is closed. A
+single scalar larger than the configured cap is retained intact and marked
+`oversizeScalar: true`; source content is never replaced by split surrogates.
+`minFileBytes` also measures UTF-8 bytes. Earlier code-unit-based boundaries
+require rebuilding and cannot be reused under this version.
+
 Parameters:
 - `minBytes`: minimum segment size
 - `avgBytes`: target average size

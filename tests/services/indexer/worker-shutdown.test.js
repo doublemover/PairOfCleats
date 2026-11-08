@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -57,11 +58,11 @@ const createHarness = () => {
         startBuildProgressMonitor: () => async () => {},
         touchJobHeartbeat: async () => null,
         requeueStaleJobs: async () => null,
-        claimNextJob: async () => {
+        claimNextJob: async (_dir, _queue, options) => {
           if (state.stopClaiming) return null;
           const next = remainingJobs.shift() || null;
           if (next) activeCount += 1;
-          return next;
+          return next ? createQueueClaimFixture(next, options) : null;
         },
         ensureQueueDir: async () => {},
         executeClaimedJob: async ({ job, abortSignal }) => {

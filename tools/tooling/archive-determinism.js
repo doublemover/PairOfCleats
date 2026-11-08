@@ -125,12 +125,37 @@ export const buildDeterministicZip = async ({
     include: ({ relPath }) => !matchesExclude(relPath, excludes)
   });
   const sortedFiles = files.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  const zip = new AdmZip();
-  const entries = [];
+  const archiveFiles = [];
   for (const file of sortedFiles) {
     const archiveRel = toPosix(path.posix.join(rootPrefix, file.relPath));
     const content = await fsPromises.readFile(file.absPath);
     const mode = await detectFileMode(file.absPath);
+    archiveFiles.push({ path: archiveRel, content, mode });
+  }
+  return buildDeterministicZipFromEntries({ files: archiveFiles, archivePath, fixedMtime });
+};
+
+/** Normalize a complete container without dropping its format metadata. */
+export const buildDeterministicZipFromEntries = async ({
+  files,
+  archivePath,
+  fixedMtime = FIXED_MTIME
+}) => {
+  const zip = new AdmZip();
+  const entries = [];
+  const seen = new Set();
+  const sortedFiles = files.slice().sort((left, right) => left.path.localeCompare(right.path));
+  for (const file of sortedFiles) {
+    const archiveRel = String(file.path);
+    if (!archiveRel || archiveRel.includes('\\') || archiveRel.includes('\0')
+      || path.posix.isAbsolute(archiveRel) || path.win32.isAbsolute(archiveRel)
+      || archiveRel.split('/').some((part) => !part || part === '.' || part === '..')
+      || seen.has(archiveRel.toLowerCase())) {
+      throw new Error(`Invalid or duplicate archive path: ${archiveRel}`);
+    }
+    seen.add(archiveRel.toLowerCase());
+    const content = Buffer.from(file.content);
+    const mode = (Number(file.mode) & 0o111) ? 0o755 : 0o644;
     const attr = mode << 16;
     zip.addFile(archiveRel, content, '', attr);
     const entry = zip.getEntry(archiveRel);

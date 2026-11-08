@@ -6,12 +6,12 @@ import path from 'node:path';
 import { tryRequire } from '../../src/shared/optional-deps.js';
 import { runNode } from '../helpers/run-node.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { skip } from '../helpers/skip.js';
 
 applyTestEnv();
 const gate = String(process.env.PAIROFCLEATS_TEST_TANTIVY || '').trim().toLowerCase();
 if (!['1', 'true', 'yes', 'on'].includes(gate)) {
-  console.warn('tantivy smoke test skipped (set PAIROFCLEATS_TEST_TANTIVY=1 to run).');
-  process.exit(0);
+  skip('optional Tantivy smoke requires PAIROFCLEATS_TEST_TANTIVY=1 and its installed backend');
 }
 
 const tantivyAvailable = tryRequire('tantivy').ok;

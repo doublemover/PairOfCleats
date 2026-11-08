@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
-import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { retainCrashArtifacts } from '../../../src/index/build/crash-log.js';
 import { isRootPath } from '../../../src/shared/file-paths.js';
 import { isPathUnderDir } from '../../../src/shared/path-normalize.js';
+import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
 import { ensureRepoBenchmarkReady, tryMirrorClone } from '../language/repos.js';
 import {
   classifyRepoPreflightBlock,
@@ -32,7 +31,7 @@ export const ensureBenchConfig = async (repoPath, cacheRoot) => {
  * @property {(repoPath:string) => boolean} hasRepoPath
  * @property {(input:{task:object,repoPath:string,repoLabel:string}) => Promise<{ok:boolean,failureReason?:string,failureCode?:number|null,failureDetail?:string|null,schedulerEvents?:object[]}>} ensureRepoPresent
  * @property {(input:{repoPath:string}) => Promise<{ok:boolean,failureReason?:string,failureCode?:number|null,failureDetail?:string|null}>} prepareRepoWorkspace
- * @property {(input:{repoCacheRoot:string,repoLabel:string}) => Promise<void>} cleanRepoCache
+ * @property {(input:{repoCacheRoot:string,repoLabel:string,admitted?:boolean}) => Promise<object>} cleanRepoCache
  * @property {(input:{
  *   task:object,
  *   repoLabel:string,
@@ -256,36 +255,30 @@ export const createRepoLifecycle = ({
   /**
    * Remove repo cache while guarding against deleting paths outside cache root.
    *
-   * @param {{repoCacheRoot:string,repoLabel:string}} input
-   * @returns {Promise<void>}
+   * @param {{repoCacheRoot:string,repoLabel:string,admitted?:boolean}} input
+   * @returns {Promise<object>}
    */
-  const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
-    if (keepCache || dryRun || !repoCacheRoot) return;
+  const cleanRepoCache = async ({ repoCacheRoot, repoLabel, admitted = false }) => {
+    if (!admitted) return { status: 'not-owned', removed: false, reason: 'attempt-did-not-acquire-admission' };
+    if (keepCache || dryRun || !repoCacheRoot) return { status: 'retained-policy', removed: false,
+      reason: keepCache ? 'keep-cache' : dryRun ? 'dry-run' : 'no-cache-root' };
     try {
       const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
       if (!isPathUnderDir(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
         appendLog('[cache] skip cleanup; repo cache path escaped cache root.', 'warn', {
           fileOnlyLine: `[cache] Skip cleanup; repo cache path not under cache root (${resolvedRepoCacheRoot}).`
         });
-        return;
+        return { status: 'not-owned', removed: false, reason: 'outside-selected-cache-root' };
       }
-      if (!fs.existsSync(resolvedRepoCacheRoot)) return;
-      const removal = await runWithTimeout(
-        () => removePathWithRetry(resolvedRepoCacheRoot),
-        {
-          timeoutMs: 15000,
-          errorFactory: () => createTimeoutError({
-            code: 'ERR_BENCH_CACHE_CLEANUP_TIMEOUT',
-            message: `Repo cache cleanup timed out for ${repoLabel}.`
-          })
-        }
-      );
-      if (!removal?.ok) {
-        throw removal?.error || new Error(`Failed to clean repo cache for ${repoLabel}.`);
-      }
-      appendLog(`[cache] cleaned ${repoLabel}.`);
+      const { cleanupDerivedRepoArtifacts } = await import('../../../src/shared/storage/repo-cleanup.js');
+      const outcome = await cleanupDerivedRepoArtifacts({ repoCacheRoot: resolvedRepoCacheRoot, cacheRoot: resolvedCacheRoot });
+      appendLog(`[cache] ${outcome.status} ${repoLabel}${outcome.reason ? ` (${outcome.reason})` : ''}.`,
+        outcome.status === 'failed' ? 'warn' : 'info');
+      return outcome;
     } catch (err) {
-      appendLog(`[cache] cleanup failed for ${repoLabel}: ${err?.message || err}`, 'warn');
+      const error = describeStorageFailure(err, { phase: 'benchmark-cache-cleanup' });
+      appendLog(`[cache] cleanup failed for ${repoLabel}: ${error.message}`, 'warn');
+      return { status: 'failed', removed: false, error };
     }
   };
 

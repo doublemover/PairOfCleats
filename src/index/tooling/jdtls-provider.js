@@ -231,7 +231,7 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
       await releaseFileLockOrThrow(lock);
     }
   },
-  prepareCollect: async ({ ctx, config, preflight, requested, commandProfile }) => {
+  prepareCollect: async ({ ctx, config, preflight, requested, commandProfile, abortSignal }) => {
     const workspaceDataDir = String(
       preflight?.workspaceDataDir || resolveWorkspaceDataDir(ctx, config)
     );
@@ -249,7 +249,7 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
       waitMs: 0,
       pollMs: 25,
       staleMs: 5 * 60 * 1000,
-      signal: ctx?.abortSignal || null,
+      signal: abortSignal || null,
       metadata: { scope: 'jdtls-workspace-runtime' },
       forceStaleCleanup: true
     });

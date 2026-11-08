@@ -60,12 +60,27 @@ try {
   const pathsModule = pathToFileURL(path.join(root, 'tools/shared/dict-utils.js')).href;
   const sqliteModule = pathToFileURL(path.join(root, 'tests/helpers/sqlite-builder.js')).href;
   const versionModule = pathToFileURL(path.join(root, 'src/contracts/versioning.js')).href;
+  const setupGuard = path.join(temp, 'sqlite-setup-import-guard.mjs');
+  await fs.writeFile(setupGuard, `
+    import { registerHooks } from 'node:module';
+    globalThis.paritySetupStarted = performance.now();
+    console.error('[parity-setup] bootstrap ready');
+    registerHooks({ load(url, context, nextLoad) {
+      if (url.endsWith('/src/index/build/indexer.js')) {
+        throw new Error('SQLite artifact setup must not load the source-indexing pipeline');
+      }
+      return nextLoad(url, context);
+    } });
+  `);
   const buildScript = `import fs from 'node:fs/promises';
     import path from 'node:path';
     import { createBaseIndex } from ${JSON.stringify(fixtureModule)};
     import { getRepoCacheRoot, loadUserConfig } from ${JSON.stringify(pathsModule)};
     import { runSqliteBuild } from ${JSON.stringify(sqliteModule)};
     import { ARTIFACT_SURFACE_VERSION } from ${JSON.stringify(versionModule)};
+    const phase = label => console.error('[parity-setup] ' + label + ' elapsedMs=' +
+      Math.round(performance.now() - globalThis.paritySetupStarted));
+    phase('imports ready');
     const repo = ${JSON.stringify(repo)};
     const cache = getRepoCacheRoot(repo, loadUserConfig(repo));
     const buildId = 'parity-fixture';
@@ -75,28 +90,38 @@ try {
     for (const mode of ['code', 'prose', 'extracted-prose']) {
       const empty = mode === 'extracted-prose';
       const file = mode === 'code' ? 'cache.js' : 'README.md';
-      const { indexDir } = await createBaseIndex({ semantic: true, rootDir: path.join(buildRoot, mode),
+      // Only the code importer opens the semantic store. Prose modes retain
+      // their canonical metadata/postings without an unused disabled family.
+      const { indexDir } = await createBaseIndex({ semantic: mode === 'code', rootDir: path.join(buildRoot, mode),
         chunkMeta: empty ? [] : [{ id: 0, file, start: 0, end: 14, startLine: 1, endLine: 1,
           name: 'refreshCache', kind: mode, metaV2: {}, tokens: ['cache', 'refresh', 'refreshcache'] }],
         tokenPostings: { vocab: empty ? [] : ['cache', 'refresh', 'refreshcache'],
           postings: empty ? [] : [[[0,1]], [[0,1]], [[0,1]]],
           docLengths: empty ? [] : [3], avgDocLen: empty ? 0 : 3, totalDocs: empty ? 0 : 1 },
         indexState: { buildId, generatedAt: new Date().toISOString(), mode, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-          compatibilityKey: 'parity-fixture-v1' },
-        manifestOverrides: { mode, compatibilityKey: 'parity-fixture-v1' }
+          compatibilityKey: 'parity-fixture-v1', profile: { id: 'default', schemaVersion: 1 } },
+        manifestOverrides: { mode, buildId, compatibilityKey: 'parity-fixture-v1' }
       });
       await fs.writeFile(path.join(indexDir, 'chunk_meta.meta.json'), JSON.stringify({ totalRecords: empty ? 0 : 1 }));
       await fs.rename(indexDir, path.join(buildRoot, 'index-' + mode));
       roots[mode] = 'builds/' + buildId;
+      phase('artifacts ' + mode);
     }
     await fs.writeFile(path.join(buildRoot, 'build_state.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, schemaVersion: 1, signatureVersion: 2,
-      buildId, configHash: 'parity-fixture', tool: { version: '1.0.0' },
+      buildId, configHash: 'parity-fixture', profile: { id: 'default' }, tool: { version: '1.0.0' },
       validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] } }));
     await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId,
       buildRoot: 'builds/' + buildId, buildRoots: roots }));
-    for (const mode of Object.keys(roots)) await runSqliteBuild(repo, { mode });`;
-  const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo);
+    for (const mode of Object.keys(roots)) {
+      phase('sqlite start ' + mode);
+      await runSqliteBuild(repo, { mode });
+      phase('sqlite finished ' + mode);
+    }`;
+  const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo, {
+    ...env, NODE_OPTIONS: `${env.NODE_OPTIONS || ''} --import=${pathToFileURL(setupGuard).href}`.trim()
+  });
   assert.equal(build.exitCode, 0, `${build.signal || ''}\n${build.stderr}`);
+  console.log(build.stderr.trim());
 
   // Ready indexes must not load the indexing pipeline in the report child.
   const importGuard = path.join(temp, 'parity-import-guard.mjs');
@@ -124,6 +149,9 @@ try {
   assert.ok(report.results[0].code.topMemory.length > 0, 'the real memory search must return hits');
   assert.ok(report.results[0].code.topSqlite.length > 0, 'the real SQLite search must return hits');
   assert.equal(report.results[0].code.overlap, 1, 'the real backends must agree on the fixture hits');
+  assert.ok(report.results[0].prose.topMemory.length > 0, 'the real memory prose search must return hits');
+  assert.ok(report.results[0].prose.topSqlite.length > 0, 'the real SQLite prose search must return hits');
+  assert.equal(report.results[0].prose.overlap, 1, 'the real prose backends must agree');
   assert.equal(report.summary.sqliteBackend, 'sqlite');
   assert.equal(report.summary.annEnabled, false);
 

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "size-positive", "size-zero", "size-missing", "size-error", "size-invalid", "size-directory", "size-pending",
+    "size-inspection", "staging-settled", "staging-primary-pending", "staging-remove-pending", "staging-enoent-pending",
+    "staging-enoent-settled", "staging-frozen-failures", "staging-falsey", "staging-sidecar-pending",
+    "native-build-positive", "native-build-stat-error"
+  ]
+}

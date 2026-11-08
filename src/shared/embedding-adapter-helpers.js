@@ -1,8 +1,21 @@
+import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics } from './embedding-failure-diagnostics.js';
+import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
+
 export const isDlopenFailure = (err) => {
-  const code = err?.code || err?.cause?.code;
-  if (code === 'ERR_DLOPEN_FAILED') return true;
-  const message = err?.message || '';
-  return message.includes('ERR_DLOPEN_FAILED');
+  const captured = captureEmbeddingFailureDiagnostics(err);
+  if (!captured.released()) return false;
+  const diagnostic = {};
+  projectEmbeddingFailureDiagnostics(diagnostic, captured);
+  if (diagnostic.code === 'ERR_DLOPEN_FAILED' || captured.message.includes('ERR_DLOPEN_FAILED')) return true;
+  let cause;
+  try { cause = err?.cause; }
+  catch (inspection) { throw preserveEmbeddingCleanupFailure(err, inspection); }
+  if (cause == null) return false;
+  const nested = captureEmbeddingFailureDiagnostics(cause);
+  if (!nested.released()) throw preserveEmbeddingCleanupFailure(err, cause);
+  const nestedDiagnostic = {};
+  projectEmbeddingFailureDiagnostics(nestedDiagnostic, nested);
+  return nestedDiagnostic.code === 'ERR_DLOPEN_FAILED';
 };
 
 export const normalizeAdapterPrewarmTexts = (value) => {

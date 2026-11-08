@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["dependency-free-publication", "late-metric-owner", "active-metric-reset"]
+}

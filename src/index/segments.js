@@ -1,6 +1,7 @@
 import { getSegmentSemanticContext } from './semantic/embedded-source.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { smartChunk } from './chunking.js';
+import { MARKDOWN_EXTS } from './constants.js';
 import { computeSegmentUid } from './identity/chunk-uid.js';
 import { finalizeSegments } from './segments/finalize.js';
 import {
@@ -15,6 +16,7 @@ import { segmentMarkdown } from './segments/markdown.js';
 import { segmentJsx } from './segments/jsx.js';
 import { segmentAstro, segmentSvelte, segmentVue } from './segments/vue.js';
 import { buildCdcSegments } from './segments/cdc.js';
+import { embeddedContentIdentity, readSegmentContent } from '../shared/embedded-content.js';
 
 export { normalizeSegmentsConfig } from './segments/config.js';
 export { detectFrontmatter } from './segments/frontmatter.js';
@@ -40,6 +42,7 @@ const stripFullFileChunkingCaches = (context) => {
   delete next.tsSyntax;
   delete next.typeScriptSyntaxContext;
   delete next.pythonAst;
+  delete next.pythonChunkPreparation;
   delete next.chunkingShared;
   return next;
 };
@@ -85,11 +88,13 @@ export const assignSegmentUids = async ({
   for (const segment of segments) {
     if (!segment || segment.segmentUid) continue;
     if (!includeBaseSegments && isBaseSegment(segment, text.length, baseSegmentType)) continue;
-    const segmentText = text.slice(segment.start, segment.end);
+    if (segment.contentUnavailable) continue;
+    const segmentText = readSegmentContent(text, segment);
     const segmentUid = await computeSegmentUid({
       segmentText,
       segmentType: segment.type,
-      languageId: segment.languageId
+      languageId: segment.languageId,
+      extractionPolicy: segment.contentView ? embeddedContentIdentity(segment.contentView) : segment.meta?.extractionPolicy || null
     });
     if (segmentUid) segment.segmentUid = segmentUid;
   }
@@ -111,7 +116,7 @@ export function discoverSegments({
   if (config.onlyExtras) {
     return finalizeSegments(extraSegments || [], relPath);
   }
-  if (ext === '.md' || ext === '.mdx') {
+  if (MARKDOWN_EXTS.has(ext)) {
     const segments = segmentMarkdown({ text, ext, relPath, segmentsConfig: config });
     return extraSegments && extraSegments.length
       ? finalizeSegments([...segments, ...extraSegments], relPath)
@@ -149,13 +154,15 @@ export function discoverSegments({
         : segments;
     }
   }
-  if (config.cdc?.enabled && text.length >= (config.cdc.minFileBytes || 0)) {
+  if (config.cdc?.enabled) {
     const cdcSegments = buildCdcSegments({
       text,
       languageId,
       options: config.cdc
     });
-    if (cdcSegments.length) {
+    // The CDC owner applies normalized UTF-8 byte admission. Its direct-call
+    // bypass receipt must not replace discovery's ordinary below-threshold base.
+    if (cdcSegments.length && !cdcSegments[0].meta?.cdc?.bypassedByMinFileBytes) {
       return extraSegments && extraSegments.length
         ? finalizeSegments([...cdcSegments, ...extraSegments], relPath)
         : finalizeSegments(cdcSegments, relPath);
@@ -183,16 +190,20 @@ export function chunkSegments({
   segments = [],
   lineIndex = null
 }) {
+  context ??= {};
   const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
   const baseSegmentType = resolveSegmentType(effectiveMode, ext);
   const resolvedLineIndex = lineIndex || buildLineIndex(text);
   const chunks = [];
   for (const segment of segments) {
-    const segmentText = text.slice(segment.start, segment.end);
+    if (segment.contentUnavailable) continue;
+    const segmentText = readSegmentContent(text, segment);
     const isBase = isBaseSegment(segment, text.length, baseSegmentType);
     const tokenMode = resolveSegmentTokenMode(segment);
     if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
-    const segmentExt = resolveSegmentExt(ext, segment);
+    // The canonical container retains its actual dialect (.jsx/.tsx included).
+    // Language aliases choose extensions only for independently sliced views.
+    const segmentExt = isBase ? ext : resolveSegmentExt(ext, segment);
     const embeddingContext = segment.embeddingContext || segment.meta?.embeddingContext || null;
     const segmentStartLine = offsetToLine(resolvedLineIndex, segment.start);
     const segmentEndOffset = segment.end > segment.start ? segment.end - 1 : segment.start;
@@ -209,7 +220,7 @@ export function chunkSegments({
       }
       : {
         text: segmentText,
-        lineIndex: buildSegmentLineIndex(resolvedLineIndex, segment.start, segment.end)
+        lineIndex: segment.contentView ? buildLineIndex(segmentText) : buildSegmentLineIndex(resolvedLineIndex, segment.start, segment.end)
       };
     const segmentContext = {
       ...(isBase ? context : stripFullFileChunkingCaches(context)),
@@ -245,7 +256,8 @@ export function chunkSegments({
         segmentEnd: segment.end,
         segmentStartLine,
         segmentEndLine,
-        embeddingContext
+        embeddingContext,
+        lineIndex: resolvedLineIndex
       }));
     }
   }

@@ -95,10 +95,7 @@ export const createScoreBufferPool = ({
     maxEntries
   };
 
-  const keyForFields = (fields, numericFields) => [
-    fields.join('|'),
-    (numericFields || DEFAULT_NUMERIC_FIELDS).join('|')
-  ].join('::');
+  const keyForFields = (fields, numericFields) => JSON.stringify([fields, numericFields || DEFAULT_NUMERIC_FIELDS]);
 
   const acquire = ({
     fields = ['idx', 'score'],
@@ -120,8 +117,8 @@ export const createScoreBufferPool = ({
         Number.isFinite(maxEntries) && maxEntries > 0 ? maxEntries : Infinity);
     }
     buffer[BUFFER_TAG] = poolId;
-    buffer.fields = fields;
-    buffer.numericFields = resolvedNumericFields;
+    buffer.fields = [...fields];
+    buffer.numericFields = [...resolvedNumericFields];
     buffer.numericFieldSet = new Set(resolvedNumericFields);
     buffer.referenceFields = fields.filter((field) => !buffer.numericFieldSet.has(field));
     buffer.ensureCapacity(capacity);

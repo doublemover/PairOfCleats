@@ -160,6 +160,8 @@ const cases = [
 
       const loaded = await loadSearchIndexes({
         rootDir: fixtureRoot,
+        explicitRef: true,
+        indexDirByMode: { code: indexDir },
         userConfig: {},
         searchMode: 'code',
         runProse: false,

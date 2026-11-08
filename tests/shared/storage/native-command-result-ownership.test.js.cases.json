@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "operation-pending", "operation-settled", "operation-replacement", "operation-inspection", "operation-revoked",
+    "work-pending", "work-settled", "work-replacement", "close-pending", "close-settled", "close-replacement", "close-inspection",
+    "configured-operation-pending", "configured-operation-settled", "configured-operation-replacement", "configured-operation-inspection", "configured-operation-revoked",
+    "configured-work-pending", "configured-work-settled", "configured-work-replacement", "configured-close-pending", "configured-close-settled", "configured-close-replacement", "configured-close-inspection"
+  ]
+}

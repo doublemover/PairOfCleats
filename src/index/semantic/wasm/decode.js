@@ -115,7 +115,11 @@ export const decodeWasmModule = (input, { signal = null } = {}) => {
   if (input.length > WASM_LIMITS.bytes) return { status: 'unsupported', reason: 'wasm_byte_budget', offset: 0 };
   const bytes = Buffer.from(input), reader = new Reader(bytes), budget = { instructions: 0 };
   const module = { byteHash: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length,
-    types: [], imports: [], functions: [], tables: [], memories: [], globals: [], exports: [], elements: [], data: [], start: null, customSections: [], tags: [], dataCount: null };
+    types: [], imports: [], functions: [], tables: [], memories: [], globals: [], exports: [], elements: [], data: [], start: null, customSections: [], tags: [], dataCount: null,
+    sourceRanges: { imports: [], functionDeclarations: [], functionBodies: [], tables: [], memories: [], globals: [], elements: [], data: [], tags: [] } };
+  const withRange = (field, read) => r => {
+    const start = r.pos, value = read(r); module.sourceRanges[field].push([start, r.pos]); return value;
+  };
   try {
     if (!reader.take(8).equals(Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]))) reader.fail('wasm_magic_or_version_invalid');
     let previous = 0, code = null;
@@ -128,7 +132,7 @@ export const decodeWasmModule = (input, { signal = null } = {}) => {
       switch (id) {
         case 0: module.customSections.push({ name: section.name(), offset: section.pos, bytes: section.end - section.pos }); section.take(section.end - section.pos); break;
         case 1: module.types = section.vector(r => { if(r.bytes[r.pos]===0x4e) { r.byte(); return r.vector(definitionType); } return [definitionType(r)]; }).flat(); if(module.types.length>WASM_LIMITS.entries) section.fail('wasm_type_budget',true); break;
-        case 2: module.imports = section.vector(r => {
+        case 2: module.imports = section.vector(withRange('imports', r => {
           const item = { module: r.name(), name: r.name(), kind: r.byte() };
           if (item.kind === 0) item.typeIndex = r.leb();
           else if (item.kind === 1) item.table = table(r);
@@ -137,14 +141,14 @@ export const decodeWasmModule = (input, { signal = null } = {}) => {
           else if (item.kind === 4) { if(r.byte()!==0) r.fail('wasm_tag_attribute'); item.typeIndex=r.leb(); }
           else r.fail('wasm_import_kind_unsupported', true);
           return item;
-        }); break;
-        case 3: module.functions = section.vector(r => ({ typeIndex: r.leb() })); break;
-        case 4: module.tables = section.vector(r=> { if(r.bytes[r.pos]!==0x40)return table(r); r.byte(); if(r.byte()!==0)r.fail('wasm_table_init_flags'); return {...table(r),initializer:expression(r,budget,signal)}; }); break;
-        case 5: module.memories = section.vector(limits); break;
-        case 6: module.globals = section.vector(r => ({ ...globalType(r), initializer: expression(r, budget, signal) })); break;
+        })); break;
+        case 3: module.functions = section.vector(withRange('functionDeclarations', r => ({ typeIndex: r.leb() }))); break;
+        case 4: module.tables = section.vector(withRange('tables', r=> { if(r.bytes[r.pos]!==0x40)return table(r); r.byte(); if(r.byte()!==0)r.fail('wasm_table_init_flags'); return {...table(r),initializer:expression(r,budget,signal)}; })); break;
+        case 5: module.memories = section.vector(withRange('memories', limits)); break;
+        case 6: module.globals = section.vector(withRange('globals', r => ({ ...globalType(r), initializer: expression(r, budget, signal) }))); break;
         case 7: module.exports = section.vector(r => ({ name: r.name(), kind: r.byte(), index: r.leb() })); break;
         case 8: module.start = section.leb(); break;
-        case 9: module.elements = section.vector(r => {
+        case 9: module.elements = section.vector(withRange('elements', r => {
           const flags=r.leb(); if(flags>7)r.fail('wasm_element_segment_mode_unsupported',true);
           const mode=flags&1 ? flags&2?'declarative':'passive' : 'active';
           const tableIndex=flags===2||flags===6?r.leb():0;
@@ -152,19 +156,20 @@ export const decodeWasmModule = (input, { signal = null } = {}) => {
           if(flags!==0 && flags<4 && r.byte()!==0)r.fail('wasm_element_kind');
           const type=flags>=5?r.type():'funcref';
           return {mode,tableIndex,offset,type,...(flags<4?{functions:r.vector(r=>r.leb())}:{expressions:r.vector(r=>expression(r,budget,signal))})};
-        }); break;
+        })); break;
         case 10: code = section.vector(r => {
-          const body = r.sub(r.leb()), locals = [];
+          const body = r.sub(r.leb()), bodyStart = body.pos, locals = [];
           for (const group of body.vector(r => ({ count: r.leb(), type: r.type() }))) {
             if (locals.length + group.count > WASM_LIMITS.locals) body.fail('wasm_local_budget', true);
             for (let i = 0; i < group.count; i++) locals.push(group.type);
           }
-          const instructions = expression(body, budget, signal); body.done(); return { locals, instructions };
+          const instructions = expression(body, budget, signal); body.done();
+          module.sourceRanges.functionBodies.push([bodyStart, body.end]); return { locals, instructions };
         }); break;
-        case 11: module.data = section.vector(r => { const flags=r.leb(); if(flags>2)r.fail('wasm_data_segment_mode_unsupported',true); const memoryIndex=flags===2?r.leb():0;
-          const offset=flags===1?null:expression(r,budget,signal), data=r.take(r.leb()); return {mode:flags===1?'passive':'active', memoryIndex, offset, bytes:data.toString('hex')}; }); break;
+        case 11: module.data = section.vector(withRange('data', r => { const flags=r.leb(); if(flags>2)r.fail('wasm_data_segment_mode_unsupported',true); const memoryIndex=flags===2?r.leb():0;
+          const offset=flags===1?null:expression(r,budget,signal), data=r.take(r.leb()); return {mode:flags===1?'passive':'active', memoryIndex, offset, bytes:data.toString('hex')}; })); break;
         case 12: module.dataCount=section.leb(); break;
-        case 13: module.tags=section.vector(r=>{if(r.byte()!==0)r.fail('wasm_tag_attribute');return {typeIndex:r.leb()};}); break;
+        case 13: module.tags=section.vector(withRange('tags', r=>{if(r.byte()!==0)r.fail('wasm_tag_attribute');return {typeIndex:r.leb()};})); break;
       }
       section.done();
     }
@@ -174,6 +179,7 @@ export const decodeWasmModule = (input, { signal = null } = {}) => {
     const imported = module.imports.filter(item => item.kind === 0);
     module.functions.forEach((fn, index) => { fn.index = imported.length + index; });
     if ([...imported, ...module.functions].some(fn => module.types[fn.typeIndex].params.length + (fn.locals?.length || 0) > WASM_LIMITS.locals)) reader.fail('wasm_local_budget', true);
+    module.decodedInstructionCount = budget.instructions;
     return { status: 'decoded', module };
   } catch (error) {
     if (!(error instanceof DecodeError)) throw error;

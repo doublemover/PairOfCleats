@@ -1,0 +1,4 @@
+import { parse } from 'yaml';
+export function parseDeploymentYaml(text) {
+  return parse(text, { uniqueKeys: true });
+}

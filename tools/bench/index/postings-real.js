@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -63,7 +64,7 @@ const threadsCurrent = Number.isFinite(Number(args['threads-current']))
 
 const benchRoot = args.root
   ? path.resolve(String(args.root))
-  : path.join(process.cwd(), '.benchCache', 'postings-real');
+  : resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'postings-real');
 const fixtureRoot = args.repo
   ? path.resolve(String(args.repo))
   : path.join(benchRoot, 'fixture');

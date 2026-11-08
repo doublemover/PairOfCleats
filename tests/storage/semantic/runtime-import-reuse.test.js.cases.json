@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "repeat", "fresh-process", "pointer-missing", "pointer-older", "interrupted", "receipt-missing", "receipt-stale", "missing-family",
+    "corrupt-raw", "corrupt-evidence", "corrupt-offsets", "corrupt-query-index", "corrupt-manifest", "corrupt-receipt",
+    "repointed-receipt", "repointed-qualification", "source-qualification", "raw-change", "adapter-change", "parser-change", "invalid-authority", "foreign-generation"
+  ]
+}

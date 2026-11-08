@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["reader", "windows-locked-reader", "builder", "unknown-owner", "saved-evidence", "custom-sqlite", "custom-lmdb", "selected-repository"]
+}

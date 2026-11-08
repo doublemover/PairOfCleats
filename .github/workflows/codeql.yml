@@ -85,7 +85,7 @@ jobs:
         if: matrix.language == 'rust' && (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
 
       - name: Perform CodeQL Analysis
         if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')

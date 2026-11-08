@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["closed-preflight", "edit-only", "delete-file", "edit-delete-rename", "restore-file", "original-world-rechecks", "pending-reader-retirement"]
+}

@@ -2,3 +2,5 @@ docs/config/inventory.json merge=ours
 docs/config/inventory.md merge=ours
 # Archived evidence is checked against its original Git blob byte identity.
 docs/archived/*.md text eol=lf
+# Numerical qualification freezes the exact saved passage bytes.
+tests/fixtures/embeddings/multilingual-dense/* text eol=lf

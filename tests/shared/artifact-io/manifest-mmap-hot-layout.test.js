@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveManifestArtifactSources } from '../../../src/shared/artifact-io/manifest.js';
 import { prepareArtifactIoTestDir } from '../../helpers/artifact-io-fixture.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = process.cwd();
 const testRoot = await prepareArtifactIoTestDir('manifest-mmap-hot-layout', { root });
 
 const hotPreferredManifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   reader: { preferMmapHotLayout: true },
   pieces: [
     { name: 'sample', path: 'sample.json.gz', format: 'json', tier: 'cold' },
@@ -33,6 +35,7 @@ assert.equal(
 );
 
 const compressedPreferredManifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   reader: { preferMmapHotLayout: false },
   pieces: [
     { name: 'sample', path: 'sample.json.gz', format: 'json', tier: 'cold' },
@@ -58,6 +61,7 @@ assert.equal(
 );
 
 const orderedShardsManifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   reader: { preferMmapHotLayout: true },
   pieces: [
     { name: 'rows', path: 'rows.parts/rows.part-000002.jsonl', format: 'jsonl', layout: { order: 2 } },

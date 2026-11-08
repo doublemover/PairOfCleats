@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["matched", "different-tool", "arguments", "variant", "unbound", "no-profile", "changed-source", "same-version-bytes", "mutated-policy", "execution-mutation", "coalesced-execution", "serialized-capability", "pending-output"]
+}

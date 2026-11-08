@@ -1,6 +1,6 @@
 import { sha1 } from './hash.js';
 import { stableStringifyForSignature } from './stable-json.js';
-import { getEnvConfig } from './env.js';
+import { getEnvConfig } from './env/runtime.js';
 import { createFifoBudgetMemo } from './cache/fifo-budget.js';
 
 export const CACHE_KEY_VERSION = 'ck1';

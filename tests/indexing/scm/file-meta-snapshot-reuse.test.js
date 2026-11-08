@@ -21,12 +21,12 @@ let changedCalls = 0;
 const batchCalls = [];
 const defaultScmRuntimeConfig = getScmRuntimeConfig();
 const providerImpl = {
-  async getChangedFiles({ fromRef, toRef }) {
+  async getHistoryAffectedFiles({ fromRef, toRef }) {
     changedCalls += 1;
     if (fromRef === 'headA' && toRef === 'headB') {
-      return { filesPosix: ['src/b.js'] };
+      return { complete: true, filesPosix: ['src/b.js'] };
     }
-    return { filesPosix: [] };
+    return { complete: true, filesPosix: [] };
   },
   async getFileMetaBatch({ filesPosix }) {
     const normalized = Array.isArray(filesPosix) ? filesPosix.slice().sort((a, b) => a.localeCompare(b)) : [];

@@ -1,166 +1,168 @@
 # PairOfCleats Roadmap
 
-Status: Active
-Last audited: 2026-10-14
-Last reconciled: 2026-10-14
+Status: all open issues in scope except Tantivy/editor work
+Last audited: 2026-11-08
+Last reconciled: 2026-11-07
+Last implementation update: 2026-11-08
 Canonical for: initiative status, execution order, and remaining work
 
-## Dependency and CI reconciliation, October 14
+## Current GitHub repair program
 
-The stack is landed on `main` at `5e0060003304138386f659acdd897d84c9cc4cf7`.
-PR #556 merged first; #558 merged into #557, then the combined #557 merged
-into main. The landed tree exactly matches tested candidate `ece2c60bd`.
-Integration-head CI runs automatically; it is not yet final-head acceptance.
-Live GitHub inspection found zero open Dependabot security alerts and twelve
-version-update PRs, now closed as superseded by #558. Their updates are pushed in `dae8ecd62`, including
-the JSON-RPC 9 Node entry point and coordinated artifact-action contract updates.
+The [intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. 23 verified closures include #131/#1597/#1701/#1682/#1646/#1654/#1657/#1699/#1272. Current reconciliation, 2026-11-07: **344 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
 
-Hosted CI on the original repair head passed gate/Rust but failed eight fixtures
-on Ubuntu/macOS and seven on Windows (one Windows skip). Those eight fixtures
-now pass locally on Windows after lifecycle repairs and current-contract fixture
-corrections. This is not a hosted rerun or cross-platform acceptance. Twenty
-dependency-focused fixtures also pass. Initial failures and environment limits
-remain in the [reconciliation receipt](archived/dependency-ci-reconciliation-2026-10-14.md).
-The final local front gate passes, including all 39 gate cases with zero
-skips, retries or timeouts. Hosted cross-platform acceptance remains pending.
+[CI repairs](archived/ci2365-failure-repairs-2026-11-07.json): CI2370 passes Windows and47 native cases. Hydration coordination and release authentication repairs are implemented. [PR572](https://github.com/doublemover/PairOfCleats/pull/572) records final candidate qualification.
 
-Execution order: dependencies, CI repairs, this status reconciliation, then
-SRC-010 cold artifact/LMDB pagination and EMB-009 representative provider
-measurements. Both follow-ups are implemented: fresh artifact/SQLite/LMDB
-processes hydrate 19,003 rows across eleven pages of a 10,000-row index;
-real fp32/q8 CPU measurements cover 24 mixed-length repository excerpts.
-The five-second full-wrapper failure was subsequently repaired in the product
-closeout below. Embedding work, including the q8 precision limit, is deferred
-by user direction. See the
-[audit continuation receipt](archived/audit-continuation-2026-10-14.md).
-Current classification is 39 bounded-verified, six qualification-limited,
-zero partial, and zero missing; the older 45-item table
-below records historical implementation rather than full current acceptance.
+[Native parity](archived/windows-onnx-runtime-parity-2026-10-30.md) records CDB attribution and ORT1.30.0. [Models](archived/windows-model-closeout-2026-11-04.md) close #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children and closes #1733.
 
-## PR 557 completion-audit follow-up
+[Tantivy build settlement](archived/windows-tantivy-build-settlement-2026-11-04.md) repairs original dispatch/result observations before activation and failure unwind; build identity2 rejects earlier meaning. [Native Tantivy qualification is deferred by user decision](archived/windows-tantivy-native-deferral-2026-11-04.json); #1627 remains open and experimental.
 
-The follow-up at `6125e534ec8a2d588688c8c3b107bad268d6cd90` confirmed substantive
-implementation across all 45 items and reproduced ten additional regressions plus
-one existing repeated-build RE2 failure. Targeted local repairs and regression
-tests now cover those findings, with independent edge-case review. See the
-[repair record](archived/pr557-completion-audit-repairs-2026-10-12.md).
-The original table below remains the prior implementation/qualification receipt;
-it is not a replacement for the follow-up's fresh evidence. Cold artifact/LMDB
-all-page loading (SRC-010) and representative provider measurements (EMB-009)
-were subsequently addressed in the October 14 continuation above. Explicit
-wrapper/platform/resource/model qualification limits remain open. No hosted CI
-or merge was performed during this follow-up.
+Completed source-bound checks are indexed in the
+[qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
+and [qualification matrix](testing/qualification-matrix.md).
 
-## Audit backlog implementation
+[Windows campaign receipts](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
+and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
+retain original failures and source identities.
 
-The current task implements all 45 items from the October 12 audit, starting at
-`bb9901ac808a24629c8004ddd2479006716498be` on
-`codex/audit-backlog-implementation-20261012`. The uploaded evidence archive's
-41 SHA-256 entries match. Attachments define evidence and scope; the user's
-implementation and validation workflow controls execution.
+[Current checks](archived/windows-issue-validation-2026-11-07.md):2,485 pass,16 fail, one Linux-only exclusion;144 serial cases pass. All18 native-search and157 Rust checks pass. CI2359 at20b92c986 passes44 native Windows cases; four revision and12 native-index local failures remain. Checkout diagnosis qualifies21 fixtures and ten actual runtime/npm controls. Package closures (#1559), consumer adoption (#1330) and full issue acceptance remain. [Semantic encoding](archived/semantic-encoding-closeout-2026-11-05.md) closes #1212 with68 cases/48 samples at5f0e2cca7.
 
-Four durable GPT-6.1 Sol agents at xhigh own embeddings, semantics, interfaces,
-and storage/runtime. The coordinator owns quality, TUI, and shared integration.
-Source, fixtures, contracts, documentation, and measurement instrumentation are
-frontloaded. During implementation, only owned formatting/lint, applicable type
-checks, syntax checks, and diff checks run. The integrated lightweight boundary
-passed; strict timeout acceptance passed first. All focused owner selections,
-native Linux TUI cleanup, and native C authority passed. Real-model and
-runtime-cost qualification passed within recorded limits. Actual browser layout and service qualification
-passed. The prescribed final front gate passed: 39 cases, zero skips/timeouts,
-retries or native redos. Initial failures remain in the detailed receipts.
+Implemented families with remaining issue acceptance: [lifetimes](contracts/semantic-scheduler-wait-ownership.md)/[observations](contracts/storage-resource-observations.md) (#1214/#1330/#1765); [catalogs](contracts/runtime-family-catalog.md), [consumer proof](contracts/consumer-proof-index.md), [embedded preparation](contracts/embedded-cache-preparation.md) (#1618/#1768/#1710); [questions](contracts/repository-questions.md) (#1534); [answers](contracts/answer-evidence.md)/[retention](contracts/answer-retention.md) (#1532); [host delivery](contracts/context-evidence-delivery.md) (#1533); [positive rules](contracts/finite-positive-rules.md)/[repair](contracts/finite-positive-repair.md) (#1516/#1524); [causal models](contracts/finite-causal-models.md)/[paired replay](contracts/paired-finite-interventions.md) (#1524/#1526); [private-oracle tasks](contracts/finite-evidence-tasks.md) (#1525); [finite feasibility](contracts/finite-feasibility.md) (#1527); [query adapters](contracts/retrieval-adaptation.md) (#1529); [policy receipts](contracts/finite-policy-qualification.md) (#1530, shadow only). [Checkout bootstrap](guides/bootstrap-prerequisites.md) binds original mutation/journal owners to readiness v3, targeted recovery, exact prior receipts, complete command logs, shared budgets, closed-file retention and awaited output (#1555/#1557). [Benchmark evidence](contracts/benchmark-diagnostic-coverage.md) (#683) requires observed parity v2. Current per-case outcomes are in the Windows receipt.
 
-Official Node 26.8.1 bootstrap and supported native repair completed. Setup assets
-include task-owned Rust 1.88, LLVM/clangd 19.1.7, Chromium 141, and verified q8/fp32
-MiniLM files. Asset availability does not establish provider/project acceptance.
-Supported native verification now passes the registered grammar activation probes
-and refreshed the real readiness receipt. Actual provider/project qualification
-is independently recorded.
+[Scheduler workload observations](contracts/scheduler-workload-observations.md) replace drained-snapshot autotune learning with bounded run/mode/stage evidence and profile version 4. Obsolete profiles are rejected; current hard limits remain binding. Architecture reports require 1.1.0, and parser degradation requires typed current receipts. Runtime acceptance remains pending.
 
-Completed order: all implementation and lightweight checks first; previewed
-focused fixtures with jobs=1, timeout=30s, retries=0; bounded measurements and
-real browser/native qualification; the prescribed integrated front gate. Failure
-corrections reran their affected cases only. There are 148 unique accepted focused
-cases plus the 39-case gate; final documentation link/USR checks also pass.
+[Dependency retirements](archived/dependency-consumer-closeout-2026-11-05.md)
+remove110 lock records and pass14 focused consumer controls, real Windows ripgrep/ast-grep, fresh native verification and43 gate fixtures. #672/#681 are closed after publication and GitHub readback.
 
-`done` means implemented; `pass` means the applicable check passed. Focused
-tests and qualification are independently recorded. Bounded qualification does
-not imply every native platform, provider, corpus or precision variant passed. [Detailed receipts and limits](archived/audit-backlog-implementation-2026-10-12.md)
-retain the implementation contracts and later acceptance results.
+[Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) is closed;
+remaining editor/platform acceptance stays excluded.
 
-| Item | Implemented | Lightweight | Focused-tested | Qualified |
-| --- | --- | --- | --- | --- |
-| EMB-001 | done | pass | pass | fp32/native-ref pass |
-| EMB-002 | done | pass | pass | fp32/native-ref pass |
-| EMB-003 | done | pass | pass | bounded pass |
-| EMB-004 | done | pass | pass | bounded pass |
-| EMB-005 | done | pass | pass | bounded pass |
-| EMB-006 | done | pass | pass | bounded pass |
-| EMB-007 | done | pass | pass | bounded pass |
-| EMB-008 | done | pass | pass | bounded pass |
-| EMB-009 | done | pass | pass | CPU pass; q8 limit |
-| EMB-010 | done | pass | pass | bounded pass |
-| EMB-011 | done | pass | pass | bounded pass |
-| QUAL-001 | done | pass | pass | bounded pass |
-| QUAL-002 | done | pass | pass | bounded pass |
-| QUAL-003 | done | pass | pass | bounded pass |
-| QUAL-004 | done | pass | pass | bounded pass |
-| QUAL-005 | done | pass | pass | bounded pass |
-| SEM-001 | done | pass | pass | bounded pass |
-| SEM-002 | done | pass | pass | bounded pass |
-| SEM-003 | done | pass | pass | bounded pass |
-| SEM-004 | done | pass | pass | bounded pass |
-| SEM-005 | done | pass | pass | bounded pass |
-| SEM-006 | done | pass | pass | bounded pass |
-| SEM-007 | done | pass | pass | bounded pass |
-| SEM-008 | done | pass | pass | bounded pass |
-| SRC-001 | done | pass | pass | bounded pass |
-| SRC-002 | done | pass | pass | bounded pass |
-| SRC-003 | done | pass | pass | bounded pass |
-| SRC-004 | done | pass | pass | bounded pass |
-| SRC-005 | done | pass | pass | bounded pass |
-| SRC-006 | done | pass | pass | bounded pass |
-| SRC-007 | done | pass | pass | bounded pass |
-| SRC-008 | done | pass | pass | Linux pass; platforms open |
-| SRC-009 | done | pass | pass | bounded pass |
-| SRC-010 | done | pass | pass | bounded pass |
-| SRC-011 | done | pass | pass | bounded pass |
-| SRC-012 | done | pass | pass | browser/software pass |
-| SRC-013 | done | pass | pass | bounded pass |
-| SRC-014 | done | pass | pass | bounded pass |
-| STO-001 | done | pass | pass | bounded pass |
-| STO-002 | done | pass | pass | bounded pass |
-| STO-003 | done | pass | pass | bounded pass |
-| STO-004 | done | pass | pass | bounded pass |
-| STO-005 | done | pass | pass | bounded pass |
-| STO-006 | done | pass | pass | bounded pass |
-| STO-007 | done | pass | pass | bounded pass |
+[Crash-log closeout](archived/crash-log-posix-qualification-2026-10-29.md) closes
+#1315 with Windows and both POSIX cohorts. [GC resource fencing](archived/windows-cache-gc-resource-fence-2026-11-05.md)
+repairs modern-session deletion. [Custom native cleanup](archived/windows-native-publication-closeout-2026-11-05.md)
+passes164 focused controls and43 gate fixtures; #1574 is closed after publication/readback,
+while broader lifecycle policy (#1267) remains.
 
+The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every captured issue; routing alone is not completion evidence. Work proceeds in this order:
 
-Qualified limits: official q8 batch/single cosine remains below the prepared 0.999
-threshold; direct native output reproduces it, while strict fp32 mechanism checks
-pass. Native Windows/macOS, hardware GPU, full-corpus quality/performance and other
-providers remain unqualified. Automatic native cost admission still lacks child
-RSS evidence. The 1024-node runtime sample refuses its 16 MiB cap; smaller/family
-cohorts qualify. Saved synthetic observations are labelled; Perfetto was optional.
+1. Storage/publication: finish [category cleanup](contracts/storage-quota-planning.md) (#1267) and semantic publication. #1574's qualified SQLite/LMDB cleanup is closed; its receipt above owns the completed scope.
+2. Dependency/parser cutovers: #672/#681 and [JSDoc ownership #668](archived/javascript-documentation-closeout-2026-11-05.md) are qualified and closed. Finish remaining parser migrations with actual consumer parity.
+3. Setup/providers: managed acquisition, executable/prerequisite identity, cancellation and original retirement. Explicit inert fixtures and actual vendor qualification remain distinct.
+4. Language/semantic consumers, retrieval and context: batch shared producer/version repairs, then run their bounded positive/negative fixtures against current source.
+5. Performance/evaluation: preserve authority/correctness before serial measurements. Keep raw samples and unchanged budgets, work bounds and latency thresholds.
 
-## Other current work and validation limits
+[Triage publication](archived/triage-publication-closeout-2026-11-05.md) closes #821 with21 coherence/source controls and restored ordered ownership. [Source retention](archived/source-retention-closeout-2026-11-05.md) and [sealed checksums](archived/sealed-checksum-closeout-2026-11-05.md) close #1240/#1234 with12/24 focused controls plus43 gate fixtures. Their receipts retain actual work reductions, independent integrity rejection and exact source identity.
 
-The audit task does not close release-wide acceptance, unrelated Windows cold-index
-EBUSY investigation, the parked Windows native crash, full-index throughput,
-optional provider/platform campaigns, or the calibrated estimator. Native C work
-is bounded to the qualified clangd authority route; other native provider and
-local/cross-file precision limits remain explicit. Perfetto remains optional.
+[Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 
-The prior roadmap's dated lineage, completed receipts, historical claims, and
-release discipline are preserved in the [pre-audit snapshot](archived/roadmap-pre-audit-2026-10-12.md).
-Contracts and executable tests own behavior; this page owns current status.
-Historical tests are not refreshed proof for this task's branch.
+Gate B1-B7 acceptance follows the [rollout policy](specs/usr-core-rollout-release-migration.md). Historical native receipts retain their source identities and ten-process crash evidence; later implementation needs current acceptance.
 
-Remaining semantic scope outside this task: JS/TS class/heap/call/completion
-frontiers beyond the supported precise subset; Worker/WASM/provider integration;
-remaining host/module precision; broader native-language analysis. Hardware
-power-loss and unrelated build-writer/global disk quotas remain separate.
+The published document security repair excludes DOCX deleted/moved-from text,
+versions extraction and bundle reuse, and corrects UNC service-root authority.
+Its focused checks/front gate passed. Existing indexes need a normal rebuild.
+
+Continue on `codex/pr557-audit-repairs-20261012` through
+[PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
+existing `main` base. Node is **26.13.0**. Publication is authorized; no merge is
+authorized. Work continues solo: validate mapped Windows cohorts, repair failures,
+and reconcile each issue against its full scope. [Current receipts](archived/windows-issue-validation-2026-11-07.md)
+separate results and blockers. Commit/push batches; refresh PR coverage every20 commits.
+
+[Revision oracles](contracts/revision-oracle.md) (#1528) cover published chunk-index/rebuild cohorts, finite models, source extraction and supplied-graph test suggestions; broader adapters remain open. [Finite views](contracts/view-composition.md) (#1516) compose selects, groups and role-ordered joins transactionally. [Symbol expiry](contracts/symbol-cache-expiry.md) (#1187) uses a bounded heap. [Token estimates](contracts/embedding-token-estimation.md)/[preparation windows](contracts/embedding-preparation-windows.md) retain original owners. Runtime checks remain pending. [Native catalog](contracts/native-command-catalog.md) repairs CI2310 discovery.
+
+The [native workflow budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
+overlaps read-only console/catalog setup while retaining full seed verification.
+[Windows Pyright](contracts/managed-node-package.md), [C#](contracts/managed-dotnet-package.md) and [native TypeScript](contracts/typescript-native-lsp.md)
+use pinned prebuilt packages and existing admission/leases. Native TypeScript adds
+an explicit source/profile route and bounded pull diagnostics; runtime checks await.
+[Compiler selection](contracts/typescript-compiler-selection.md)
+retains original failures instead of substituting ambient compilers (producer31).
+[TS7.1 API](contracts/typescript-api7-components.md) passes25 Windows cases; consumer migration remains.
+[Installer inputs](contracts/managed-install-input-ownership.md) seal intent and
+archive/Go bytes; probe/verifier reports retain original observations through
+publication. Runtime checks remain pending.
+
+### Execution order
+
+1. **P0–P4 first**, prioritizing destructive authority/data-loss and lifecycle
+   failures. Batch shared owners. Qualified security/native publication repairs
+   retain their receipts above. [Lifecycle/quota planning](contracts/storage-quota-planning.md)
+   (#1267) coordinates physical proposals, aliases and retention; policy v2 and
+   reviewed probe/repository subset quota apply (cleanup plan3) are implemented, unrun.
+   [Cleanup/diagnostic admission](contracts/storage-cleanup-admission.md) retains v2 bounds and original pending closes;
+   Other category owners and Windows allocation/pressure qualification remain pending.
+2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:
+   publication/resource ownership; source/cache identities; semantic and retrieval
+   correctness; transports/providers; operator and evaluation workflows. Read full
+   issue scopes before implementing or declaring equivalence.
+3. Perf reports after priority issues. Preserve correctness, separate bounded
+   operations from measured latency/heap claims, and measure serially later.
+4. Other work, including setup/runtime distribution and research foundations,
+   before dependent consumers. Do not create duplicate infrastructure.
+5. After source integration, refresh generated contracts, fixture inventories,
+   ordered lanes and MCP schemas/snapshots through their registered generators.
+   Prepare/verify locked dependencies, run affected regressions and the complete
+   front gate for each ready publication batch. Continue targeted failure groups;
+   do not repeat the full campaign without a new user request. Preserve
+   original assertions, 30-second limits, zero retries and native redo disabled.
+
+Current-source runtime acceptance remains pending. The
+[Windows receipt](archived/windows-post-wave-validation-2026-10-22.md) preserves
+earlier failures, focused checks and source identities. Historical setup/native
+verification does not qualify later implementation. After source integration,
+verify current dependencies and affected controls. No Linux/WSL, elevation,
+security changes, worktrees or arbitrary physical-link creation are included.
+
+### Historical source chronology
+
+The [archived source chronology](archived/roadmap-source-chronology-2026-10-25.md)
+retains earlier owner repairs, versions and qualification gaps. Its implementation
+claims remain distinct from current-source validation and accepted issue closure.
+
+## Environment and qualification boundaries
+
+Work is **Windows-only**; Linux/macOS execution is deferred. Do not launch WSL,
+change machine security settings or register a machine-wide debugger. Current
+Node is **26.13.0**, ABI 147, Windows x64. The
+[workspace/runtime receipt](archived/workspace-layout-node-2026-10-21.md) records
+a clean locked bootstrap (37 required packages/33 routes; zero warning/error
+lines), 16 focused passes and all 40 front-gate passes at checkpoint 8685a0dec.
+New behavior needs its own affected checks. Product activation is not full runtime
+or release qualification. Current contributor scratch lives under ignored
+`.tmp/dev/` and `.tmp/tasks/`; the old root scratch directory is retired.
+
+The Windows deep suite is **green** at `ffde426be` as a historical, immutable
+Windows baseline. Linux/macOS full deep execution, optional backends, real models
+and release qualification remain separate.
+
+The [qualification matrix](testing/qualification-matrix.md) and
+[Windows repair receipt](archived/windows-deep-repairs-2026-10-18.md) retain the
+historical 2982-case full Windows baseline at `ffde426be`, including 65 original
+failures and 27 timeouts. That baseline does not qualify the current source.
+The original Node 26.8.1 RealmCppGC access violation and separate Tree-sitter
+0xC0000409 repair retain their own debugger/patch evidence. Bulky author-workspace
+dumps and symbols were removed at the user's request; compact analyses, hashes
+and reproduction inputs remain historical evidence, not clean-checkout assets.
+
+The user removed physical file-symlink creation from this repair program's
+acceptance prerequisites. Preserve existing link-specific assertions as optional
+capability qualification; new guards use real ordinary-filesystem controls and
+injected link attributes. No elevation, arbitrary symlink creation or OS security
+setting change is required for ordinary repair validation. Native TUI setup/service/replay/catalog workflows, Solargraph
+startup, SQLite worker/cold-helper stalls, representative retrieval/edit freshness/
+heap evidence, real models and supported release targets remain explicit open
+work. Do not relabel unsupported, skipped or unrun cases as passed.
+
+## Existing product and semantic scope
+
+The [prior roadmap snapshot](archived/roadmap-pre-issue-reconciliation-2026-10-21.md)
+preserves all preceding initiative details, execution history and validation
+limits. JS/TS class/heap/call/completion frontiers, host/module precision,
+Worker/WASM/provider integration and broader native-language analysis remain
+within the new issue reconciliation rather than being silently declared finished.
+[Language/toolchain acceptance](guides/language-toolchain-acceptance.md) separates
+parser activation, provider initialization and real consumer-visible project facts.
+The existing USR schemas, scheduler, journal, lease and publication-recovery owners
+remain authoritative. Meaning changes must advance their shared producer versions.
 
 ## Current Initiatives
 
@@ -172,72 +174,32 @@ power-loss and unrelated build-writer/global disk quotas remain separate.
 | Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | Snapshot and IndexRef contracts include historical/cache-boundary corrections. | Refresh cross-platform and end-to-end snapshot acceptance before release. |
 | Lexicon, relation boosts, chargram enrichment, and ANN candidate safety | `implemented` | Lexicon/chargram controls, ANN filtering and semantic constraints are implemented. | Measure representative search quality and optional native backends before release. |
 | USR consolidated contract and rollout program | `implemented` | Language/framework matrices, canonical schemas and conformance surfaces are present. | Refresh technical acceptance; the former approval-lock process is archived and is not a release blocker. |
-| Shared-module reduction | `checkpoint clean` | Six ownership batches retain their authoritative backlog and boundary checks. | No known shared-module implementation batch remains open. Reopen only for a concrete ownership, correctness or measured performance signal. |
+| Shared-module reduction | `coupling audit open` | Query registry 2/2, artifact I/O 71/73 and retrieval CLI 7/60 pass; broader ownership inventory remains separate. | Retain fixes for the October 18 direct/transitive import-budget failures without raising baselines; measure remaining startup/coupling work separately. |
 | Duplicate-code reduction | `checkpoint clean` | The May refresh found no current fragments among 212 saved candidates. | A future intentional full audit refresh, not ad hoc rework of stale saved-report entries, establishes a new repository-wide baseline. |
 | Production readiness | `deferred validation` | Release tooling and bounded platform/security receipts remain revision-specific. | Run production verification and release-readiness evidence against the final candidate; later security changes require their own merge and rescan. |
 | Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change. |
 | Worklogs and benchmark JSON under `docs/worklogs/**` | `historical evidence` | Historical measurements and authored worklogs remain preserved. | Keep new execution status here; label measurements with their exact revision and environment. |
 
 
-## Current Validation Boundary
-
-Current reconciliation, 2026-10-14: all 45 audit items have implementation;
-39 are bounded-verified and six retain explicit qualification limits.
-Embedding expansion and broad cross-platform CI are deferred by user direction.
-The prescribed final front gate passed; qualification limits remain explicit.
-Hosted CI is bounded validation, not release-wide readiness. Release-wide acceptance,
-optional-backend and measured-performance campaigns remain deferred.
-
-The [October 7 closeout](guides/closeout-evidence-2026-10-07.md) and
-[ordinary integration archive](archived/ordinary-integration-roadmap-2026-10-06.md)
-retain their revision-specific results, including the incomplete historical run.
-Historical diagnostic callback failures were reproduced; warning callbacks
-cannot bypass finalization. The [bounded recovery guide](guides/recovery-low-load-2026-10-03.md)
-retains that earlier correction and its resource configuration.
-
-Gate B1-B7 technical, compatibility, matrix, conformance,
-observability, quality, and security-risk controls remain the USR acceptance surface;
-old green results have not been relabeled as fresh proof. Phases and lifecycle
-acceptance stay in the [rollout policy](specs/usr-core-rollout-release-migration.md).
-
-## Product closeout, October 14
-
-The ten agreed priorities are handled within the bounded local scope below.
-[Detailed results, initial failures, commands and release scope](archived/product-closeout-2026-10-14.md)
-are the current receipt. Earlier platform queues remain historical in the
-[October 12 roadmap archive](archived/roadmap-pre-audit-2026-10-12.md).
-
-| Priority | Current result |
-| --- | --- |
-| 1. Publish completed batch | Six commits pushed; PR #558 verified at `0efc59edc`. Follow-up publication is recorded in the closeout receipt. |
-| 2. Cold CLI startup | Narrow search imports avoid indexing/language-analysis startup; all four fresh pages pass the unchanged five-second child limit. |
-| 3. Retrieval and snapshots | Golden query intent, Boolean/phrase eligibility, memory/SQLite, ranking, federation, snapshot history/retention and generation leases pass. |
-| 4. Windows cleanup | Real cold build passes its original 15-second child limit, followed by verified descendant exit and immediate directory removal. Initial setup timeouts retain separate cleanup evidence. |
-| 5. Cancellation | Sync child-tree, tracked shutdown, Stage1 cancellation/drain and LSP cleanup checks pass. |
-| 6. Indexing budgets | Real 51-file Stage1 build, memory pressure, ordered commits, byte limits, IO backpressure and compression transfer checks pass. |
-| 7. Incremental correctness | Real edit/delete/rename rebuild equals clean artifacts; SQLite update/search and interrupted-worker recovery pass. |
-| 8. Project tooling | Real TypeScript provider/import/package-resolution and Pyright workspace-planning checks pass within the recorded sample. |
-| 9. Interactive workflows | Real supervised search/failure/recovery, cancellation, shutdown, snapshot recovery and native frame captures pass on this host. |
-| 10. Release consolidation | PR #558 is the combined repair/release candidate atop #556/#557; superseded bot updates are reconciled there. Release metadata now matches Node 26. Scoped CLI release checks pass. |
-
-The final local front gate and source-candidate identity are recorded in the
-closeout receipt. No merge, package publication, broad native/platform campaign,
-or renewed embedding qualification is authorized by this status record.
-
 
 ## Release discipline
 
-Preserve revision-specific lineage and explicit launch authority. Follow
-[release validation](roadmap-release-validation-plan.md) when scheduled; bounded
-fixtures and setup receipts do not replace its acceptance. Update the affected
-contract and this queue when behavior changes. Completed command transcripts
-belong in historical receipts. [Language/toolchain acceptance](guides/language-toolchain-acceptance.md)
-separates parser activation from provider initialization and real project proof.
+Preserve revision-specific lineage and explicit launch authority. Follow the
+[release validation plan](roadmap-release-validation-plan.md) and
+[USR rollout policy](specs/usr-core-rollout-release-migration.md) for their
+respective acceptance. Dependency PRs and live source-security/release scans
+retain separate evidence. Historical green results are not final-head acceptance.
 
+Hosted CI is bounded validation, not release-wide readiness. Release-wide acceptance,
+optional-backend and measured-performance campaigns remain deferred until the
+corresponding planned candidate. The [October 7 closeout](guides/closeout-evidence-2026-10-07.md)
+and [ordinary integration archive](archived/ordinary-integration-roadmap-2026-10-06.md)
+retain revision-specific results; old green results have not been relabeled as fresh proof.
+Historical diagnostic callback failures were reproduced; diagnostic callbacks cannot bypass
+finalization. The [bounded recovery guide](guides/recovery-low-load-2026-10-03.md)
+retains the correction and original resource settings.
 
 ## Validation Commands
-
-Documentation/status checks remain bounded and preserve existing contract/link checks:
 
 ```powershell
 node tests/run.js tooling/docs/contract-matrix tooling/docs/usr-contract-checklists ci/markdown-link-check --lane all --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false
@@ -245,4 +207,3 @@ node tools/docs/generated-surfaces.js --check-freshness
 git diff --check
 ```
 
-Status edits do not authorize full indexes, release campaigns or duplicate scans.

@@ -14,7 +14,9 @@ export const resolveRuntimeProbeProfile = ({
   cmd: String(cmd || ''),
   args: Array.isArray(args) ? args.map((entry) => String(entry)) : [],
   repoRoot: String(ctx?.repoRoot || process.cwd()),
-  toolingConfig: ctx?.toolingConfig || {}
+  toolingConfig: ctx?.toolingConfig || {},
+  signal: ctx?.signal,
+  abortSignal: ctx?.abortSignal
 });
 
 export const runtimeProbeAttempt = (profile) => {

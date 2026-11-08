@@ -5,11 +5,11 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { startMcpSdkServer } from '../../../tools/mcp/server-sdk.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { skip } from '../../helpers/skip.js';
 
 applyTestEnv();
 if (process.platform === 'win32') {
-  console.log('SKIP: POSIX SIGTERM-resistant descendant fixture; Windows requires native qualification.');
-  process.exit(0);
+  skip('POSIX SIGTERM-resistant descendant fixture; Windows requires native qualification.');
 }
 
 const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

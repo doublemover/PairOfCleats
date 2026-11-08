@@ -45,6 +45,8 @@ const resolveSpillBufferBytes = (maxJsonBytes) => {
   );
 };
 
+const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -168,7 +170,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   for (const chunk of chunks || []) {
     if (!chunk) continue;
     const meta = chunk.metaV2 || {};
-    const file = normalizeText(meta.file || chunk.file);
+    const file = normalizePathIdentity(meta.file || chunk.file);
     const chunkUid = normalizeText(meta.chunkUid || chunk.chunkUid);
     if (!file || !chunkUid) continue;
     const from = { file, chunkUid };
@@ -348,18 +350,8 @@ export const enqueueSymbolEdgesArtifacts = async ({
       trim: trimMetadata
     }
   });
-  if (!totalRows) {
-    await removeArtifacts([
-      ...buildJsonlVariantPaths({ outDir, baseName: 'symbol_edges' }),
-      path.join(outDir, 'symbol_edges.meta.json'),
-      path.join(outDir, 'symbol_edges.parts'),
-      perFileMetaPath,
-      perFileDataPath,
-      perFileOffsetsPath
-    ]);
-    if (collected?.cleanup) await collected.cleanup();
-    return;
-  }
+  // Preserve explicit zero-row publication rather than making a completed
+  // empty edge family indistinguishable from a missing producer product.
 
   const jsonlExtension = resolveJsonlExtension(compression);
   const edgesPath = path.join(outDir, `symbol_edges.${jsonlExtension}`);

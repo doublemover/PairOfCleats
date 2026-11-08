@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["falsy-task-failures", "accessor-errors", "observer-settlement", "observer-errors"]
+}

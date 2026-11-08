@@ -1,21 +1,37 @@
-const intId = { type: 'integer', minimum: 0 };
+const quantizedByte = { type: 'integer', minimum: 0, maximum: 255 };
+const quantizationProperties = {
+  quantizationVersion: { enum: [1, 2] },
+  zeroPoint: quantizedByte,
+  absence: { const: 'validity-mask' },
+  scale: { type: 'number', exclusiveMinimum: 0 },
+  minVal: { type: 'number' },
+  maxVal: { type: 'number' },
+  levels: { type: 'integer', minimum: 2, maximum: 256 }
+};
 const nullableString = { type: ['string', 'null'] };
+const embeddingBindingProperties = {
+  embeddingIdentity: { type: 'object', additionalProperties: true },
+  embeddingGeneration: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+};
+const nativeBindingProperties = {
+  ...embeddingBindingProperties,
+  backendGeneration: { type: 'string', pattern: '^\\.embeddings-backends/[a-f0-9]{64}-[a-f0-9-]{36}$' },
+  variant: { enum: ['merged', 'doc', 'code'] }
+};
 
 const denseVectorArray = {
   type: 'array',
-  items: intId
+  items: quantizedByte
 };
 
 const denseVectorsSchema = {
   type: 'object',
   required: ['dims', 'vectors'],
   properties: {
+    ...embeddingBindingProperties,
     dims: { type: 'integer', minimum: 1 },
     model: nullableString,
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 },
+    ...quantizationProperties,
     vectors: { type: 'array', items: denseVectorArray }
   },
   additionalProperties: true
@@ -25,6 +41,7 @@ const denseVectorsHnswMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'space', 'm', 'efConstruction', 'efSearch'],
   properties: {
+    ...nativeBindingProperties,
     version: { type: 'integer', minimum: 1 },
     generatedAt: nullableString,
     model: nullableString,
@@ -35,10 +52,7 @@ const denseVectorsHnswMetaSchema = {
     m: { type: 'integer', minimum: 1 },
     efConstruction: { type: 'integer', minimum: 1 },
     efSearch: { type: 'integer', minimum: 1 },
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
@@ -47,19 +61,18 @@ const denseVectorsLanceDbMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'metric', 'table', 'embeddingColumn', 'idColumn'],
   properties: {
+    ...nativeBindingProperties,
     version: { type: 'integer', minimum: 1 },
     generatedAt: nullableString,
     model: nullableString,
     dims: { type: 'integer', minimum: 1 },
     count: { type: 'integer', minimum: 0 },
+    expectedCount: { type: 'integer', minimum: 0 },
     metric: { type: 'string' },
     table: { type: 'string' },
     embeddingColumn: { type: 'string' },
     idColumn: { type: 'string' },
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
@@ -68,6 +81,7 @@ const denseVectorsSqliteVecMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'table'],
   properties: {
+    ...embeddingBindingProperties,
     version: { type: 'integer', minimum: 1 },
     generatedAt: nullableString,
     model: nullableString,
@@ -76,10 +90,7 @@ const denseVectorsSqliteVecMetaSchema = {
     table: { type: 'string' },
     embeddingColumn: nullableString,
     idColumn: nullableString,
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };
@@ -88,6 +99,7 @@ const denseVectorsBinaryMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'path'],
   properties: {
+    ...embeddingBindingProperties,
     schemaVersion: nullableString,
     artifact: nullableString,
     format: { type: 'string' },
@@ -97,10 +109,7 @@ const denseVectorsBinaryMetaSchema = {
     dims: { type: 'integer', minimum: 1 },
     count: { type: 'integer', minimum: 0 },
     bytes: { type: 'integer', minimum: 0 },
-    scale: { type: 'number' },
-    minVal: { type: 'number' },
-    maxVal: { type: 'number' },
-    levels: { type: 'integer', minimum: 2 }
+    ...quantizationProperties
   },
   additionalProperties: true
 };

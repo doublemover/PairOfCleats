@@ -1,3 +1,4 @@
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -31,7 +32,7 @@ const createPackedFixture = async (dir, {
   await fs.writeFile(packedPath, packed);
   await writeJsonObjectFile(packedMetaPath, {
     fields: {
-      format: 'u32',
+      hashIdentity: MINHASH_HASH_IDENTITY, format: 'u32',
       endian: 'le',
       dims,
       count

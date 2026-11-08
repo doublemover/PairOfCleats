@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["independent-domain-and-transport-failures", "failed-transport-stops-admission",
+    "human-projection-and-raw-byte-parity", "raw-buffer-captured-before-admission"]
+}

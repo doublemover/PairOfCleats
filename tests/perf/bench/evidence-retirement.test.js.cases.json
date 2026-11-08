@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["old", "recent", "pinned", "final", "active", "unknown", "changed", "extra", "nested", "changed-record", "copied", "shared-file", "authority", "quota", "active-quota", "changed-admission", "missing-admission", "pending", "replacement", "handled-failure", "closed", "late-child"]
+}

@@ -51,5 +51,8 @@ assert.equal(
   'same history key should compare against prior ledger history'
 );
 assert.equal(runs[2].throughputLedgerDiff?.comparedEntries, 1);
+assert.equal(runs[2].throughputLedgerDiff.regressions[0].baselineRate, 95);
+assert.equal(runs[2].throughputLedgerDiff.regressions[0].deltaRate, -15);
+assert.ok(Math.abs(runs[2].throughputLedgerDiff.regressions[0].deltaPct - (-0.15789473684210525)) < 1e-12);
 
 console.log('show-throughput ledger history key test passed');

@@ -34,6 +34,17 @@ const makeDeterminismPayload = (mode = 'code') => ({
 
 const missingRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-validate-determinism-missing-'));
 const missingIndex = await createBaseIndex({ rootDir: missingRoot });
+const legacyReport = await validateIndexArtifacts({
+  root: missingIndex.repoRoot, indexRoot: missingIndex.indexRoot,
+  userConfig: determinismConfig, modes: ['code'], strict: true, sqliteEnabled: false
+});
+assert.equal(legacyReport.ok, true, 'current determinism policy does not corrupt an older valid generation');
+assert.equal(legacyReport.modes.code.compatibility.rebuildNeeded, true);
+assert.match(legacyReport.modes.code.compatibility.reason, /determinismReport/);
+const missingManifestPath = path.join(missingIndex.indexDir, 'pieces', 'manifest.json');
+const missingManifest = JSON.parse(await fs.readFile(missingManifestPath, 'utf8'));
+missingManifest.pieces.push({ type: 'stats', name: 'determinism_report', format: 'json', path: 'determinism_report.json' });
+await fs.writeFile(missingManifestPath, JSON.stringify(missingManifest));
 const missingReport = await validateIndexArtifacts({
   root: missingIndex.repoRoot,
   indexRoot: missingIndex.indexRoot,
@@ -42,10 +53,10 @@ const missingReport = await validateIndexArtifacts({
   strict: true,
   sqliteEnabled: false
 });
-assert.equal(missingReport.ok, false, 'strict validation should fail without determinism_report when enabled');
+assert.equal(missingReport.ok, false, 'strict validation should fail when the generation declares a missing determinism_report');
 assert.ok(
-  missingReport.issues.some((issue) => issue.includes('missing determinism_report')),
-  'expected missing determinism_report issue'
+  missingReport.issues.some((issue) => /determinism_report/u.test(issue)),
+  `expected missing declared determinism_report issue: ${missingReport.issues.join('; ')}`
 );
 
 const presentRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-validate-determinism-present-'));

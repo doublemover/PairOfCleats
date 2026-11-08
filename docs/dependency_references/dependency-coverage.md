@@ -1,5 +1,10 @@
 # Dependency reference coverage
 
+> DEPRECATED — 2026-10-27, PR #572. These January counts and proposed sheet
+> additions are historical. Use [current dependency ownership](../guides/dependency-ownership.md)
+> and the manifest/lockfile; speculative reference coverage does not justify
+> retaining unused dependency roots.
+
 Snapshot date: 2026-01-26
 
 ## Sources

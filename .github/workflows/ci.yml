@@ -1,24 +1,19 @@
 name: CI
-
 permissions:
   contents: read
-
-# Hosted validation/packaging uses the bundled CPU runtime, not CUDA extras.
 env:
   ONNXRUNTIME_NODE_INSTALL: skip
-
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     tags:
-      - 'v*'
-  workflow_dispatch:
-  pull_request:
-
+      - v*
+  workflow_dispatch: null
+  pull_request: null
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 jobs:
   gate:
     name: gate
@@ -29,21 +24,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: 26.13.0
           cache: npm
-
       - name: Restore node_modules cache
         id: node-modules-cache
         uses: actions/cache@v6
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
-
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         shell: bash
         run: |
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
@@ -51,10 +52,8 @@ jobs:
           else
             node tools/setup/rebuild-native.js --verify
           fi
-
       - name: Dependency security
         run: npm audit --audit-level=low
-
       - name: Bootstrap and runtime contracts
         run: |
           node tests/ci/dependency-security-contract.test.js
@@ -64,26 +63,19 @@ jobs:
           node tests/tooling/install/postinstall-patch-enforcement.test.js
           node tests/tooling/install/postinstall-rebuild-native.test.js
           node tests/tooling/install/postinstall-signal-exit.test.js
-
       - name: Lint
         run: npm run lint
-
       - name: Config budget
         run: npm run config:budget
-
       - name: Env usage guardrail
         run: npm run env:check
-
       - name: Generated surfaces freshness
         run: node tools/docs/generated-surfaces.js --check-freshness
-
       - name: Command surface audit
         run: node tools/ci/check-command-surface.js
-
       - name: Gate lane
         run: |
           node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --junit .testLogs/junit-gate.xml --log-dir .testLogs
-
       - name: Upload gate artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -95,7 +87,6 @@ jobs:
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0
-
   rust-tui:
     name: rust-tui
     runs-on: ubuntu-latest
@@ -103,13 +94,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
+      - name: Setup Node for protocol fixtures
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26.13.0
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
           components: rustfmt, clippy
-
       - name: Restore Cargo cache
         uses: actions/cache@v6
         with:
@@ -120,303 +113,324 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('crates/pairofcleats-tui/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
-
       - name: Cargo fmt
         working-directory: crates/pairofcleats-tui
         run: cargo fmt --check
-
       - name: Cargo check
         working-directory: crates/pairofcleats-tui
         run: cargo check --locked
-
       - name: Cargo test
         working-directory: crates/pairofcleats-tui
         run: cargo test --locked
-
       - name: Cargo clippy
         working-directory: crates/pairofcleats-tui
         run: cargo clippy --locked -- -D warnings
-
+  native-inspection:
+    name: native-inspection (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: gate
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record candidate
+        run: git rev-parse HEAD
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Prepare job-owned temporary directory
+        uses: ./.github/actions/ci-temporary-root
+      - name: Restore node_modules cache
+        if: runner.os == 'Windows'
+        id: node-modules-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
+      - name: Locked bootstrap
+        if: runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'
+        env:
+          npm_config_logs_dir: ${{ github.workspace }}/.diagnostics/native-bootstrap/npm-logs
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
+        run: npm run bootstrap:ci
+      - name: Native and patch verification
+        run: node tools/setup/rebuild-native.js --verify
+      - name: Build actual native binary
+        run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
+      - name: Serial real-terminal inspection, artifacts and index workflows
+        if: runner.os != 'Windows'
+        run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions|native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial Windows terminal inspection and artifact actions
+        if: runner.os == 'Windows'
+        run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial PTY disposal and patch qualification
+        run: node tests/run.js --lane all --match '/^tooling\/install\/node-pty-(conout-disposal|patch-roundtrip|fresh-lifecycle)(\/|$)/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/lifecycle.json
+      - name: Serial parser lifecycle and exact native patches
+        run: node tests/run.js --lane all --match '/^(lang\/perl\/|tooling\/install\/(native-parser-error-contract|perl-patch-roundtrip|tree-sitter-patch-roundtrip|native-grammar-activation)$)/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/parser-lifecycle.json
+      - name: Typed index contracts and full producer qualification
+        run: node tests/run.js --lane all --match '/^(indexing\/build-state\/produced-contract|tui\/(operator-index-workflows|supervisor-index-workflows|supervisor-index-build))$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/index-contracts.json
+      - name: Upload native qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-inspection-${{ matrix.os }}
+          path: |
+            .diagnostics/native-inspection/**
+            .diagnostics/native-bootstrap/**
+            .testLogs/**
+            .tmp/dev/tests/cache/native-inspection-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-inspection-*/inspection-mode.json
+            .tmp/dev/tests/cache/native-inspection-*/terminal-receipt.json
+            .tmp/dev/tests/cache/native-inspection-*/screen-*.txt
+            .tmp/dev/tests/cache/native-inspection-*/terminal-output.ansi.log
+            .tmp/dev/tests/cache/native-inspection-*/inspection-native*.jsonl
+            .tmp/dev/tests/cache/native-inspection-*/pids.jsonl
+            .tmp/dev/tests/cache/ni-*/native-source-identity.json
+            .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
+            .tmp/dev/tests/cache/ni-*/screen-*.txt
+            .tmp/dev/tests/cache/ni-*/seed-*.json
+            .tmp/dev/tests/cache/ni-*/pids.jsonl
+            .tmp/dev/tests/cache/ni-*/fixture-phases.jsonl
+            .tmp/dev/tests/cache/ni-*/terminal-output-*.ansi.log
+            .tmp/dev/tests/cache/ni-*/index-workflow-native-*.jsonl
+            .tmp/dev/tests/cache/ni-*/produced-search.json
+            .tmp/dev/tests/cache/ni-*/fixture-settlement.json
+            .tmp/dev/tests/cache/native-artifacts-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-receipt.json
+            .tmp/dev/tests/cache/native-artifacts-*/screen-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-observation.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-output.ansi.log
+            .tmp/dev/tests/cache/native-artifacts-*/pids.jsonl
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: warn
+  native-index-workflows-windows:
+    name: native-index-workflows (windows-latest)
+    runs-on: windows-latest
+    needs: gate
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record candidate
+        run: git rev-parse HEAD
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Prepare job-owned temporary directory
+        uses: ./.github/actions/ci-temporary-root
+      - name: Restore node_modules cache
+        if: runner.os == 'Windows'
+        id: node-modules-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
+      - name: Locked bootstrap
+        if: runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'
+        env:
+          npm_config_logs_dir: ${{ github.workspace }}/.diagnostics/native-bootstrap/npm-logs
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
+        run: npm run bootstrap:ci
+      - name: Native and patch verification
+        run: node tools/setup/rebuild-native.js --verify
+      - name: Build actual native binary
+        run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
+      - name: Serial Windows native index workflows
+        run: node tests/run.js --lane all --match '/^tui\/(native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial Windows native search workflows
+        run: node tests/run.js --lane all --match '/^tui\/native-search-conpty\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-search/report.json
+      - name: Prepare exact experimental TypeScript7.1 components
+        run: node tools/ci/typescript-api7-qualification.js
+      - name: Serial Windows TypeScript7.1 request and disposal qualification
+        run: node tests/run.js --lane all --match '/^tooling\/typescript-api7-native\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/typescript-api7/report.json
+      - name: Upload native qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-index-workflows-windows
+          path: |
+            .diagnostics/typescript-api7/**
+            .diagnostics/native-inspection/**
+            .diagnostics/native-search/**
+            .diagnostics/native-bootstrap/**
+            .testLogs/**
+            .tmp/dev/tests/cache/ni-*/native-source-identity.json
+            .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
+            .tmp/dev/tests/cache/ni-*/screen-*.txt
+            .tmp/dev/tests/cache/ni-*/seed-*.json
+            .testLogs/**/native-search-*/**
+            .tmp/dev/tests/cache/ni-*/pids.jsonl
+            .tmp/dev/tests/cache/ni-*/fixture-phases.jsonl
+            .tmp/dev/tests/cache/ni-*/terminal-output-*.ansi.log
+            .tmp/dev/tests/cache/ni-*/index-workflow-native-*.jsonl
+            .tmp/dev/tests/cache/ni-*/produced-search.json
+            .tmp/dev/tests/cache/ni-*/fixture-settlement.json
+            .tmp/dev/tests/cache/native-artifacts-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-receipt.json
+            .tmp/dev/tests/cache/native-artifacts-*/screen-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-observation.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-output.ansi.log
+            .tmp/dev/tests/cache/native-artifacts-*/pids.jsonl
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: warn
   ubuntu:
     name: ubuntu
     runs-on: ubuntu-latest
-    needs: gate
-    env:
-      PAIROFCLEATS_EMBEDDINGS: stub
-      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    if: always()
+    needs:
+      - gate
+      - ubuntu-cohorts
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: '26.8.1'
-          cache: npm
-
-      - name: Restore PairOfCleats cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            .ci-cache/pairofcleats/models
-            .ci-cache/pairofcleats/dictionaries
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
-          restore-keys: |
-            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
-            pairofcleats-cache-${{ runner.os }}-
-
-      - name: Restore node_modules cache
-        id: node-modules-cache
-        uses: actions/cache@v6
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
-
-      - name: Install deps and report versions
-        shell: bash
-        run: |
-          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
-          if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
-            npm run bootstrap:ci
-          else
-            echo "node_modules cache hit; verifying native modules."
-            if ! node tools/setup/rebuild-native.js --verify; then
-              echo "native verification failed; running targeted repair:native."
-              node tools/setup/rebuild-native.js --repair
-            fi
-          fi
-          node -v
-          npm -v
-
-      - name: Install optional LSP tools (best effort)
-        shell: bash
-        run: |
-          set +e
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
-          status=$?
-          if [ $status -ne 0 ]; then
-            echo "optional tooling install had non-fatal failures (continuing)."
-          fi
-          exit 0
-
-      - name: CI Suite
-        run: |
-          node tools/ci/run-suite.js --mode ci --skip-prechecks
-
-      - name: Prune PairOfCleats cache
-        if: always()
+      - name: Require all OS cohorts
         shell: pwsh
-        run: |
-          $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
-          $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
-          node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
-
-      - name: Upload quality artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-quality-artifacts-ubuntu
-          path: |
-            .diagnostics/test-summary.json
-            .diagnostics/test-timings.json
-            .diagnostics/test-profile.json
-            .diagnostics/coverage/**
-            .testLogs/junit.xml
-          if-no-files-found: ignore
-          include-hidden-files: true
-          compression-level: 0
-
-      - name: Upload test artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-artifacts-ubuntu
-          path: |
-            .testLogs/**
-            .diagnostics/**
-          if-no-files-found: ignore
-          include-hidden-files: true
-          compression-level: 0
-
+        run: if ('${{ needs.gate.result }}' -ne 'success' -or '${{ needs.ubuntu-cohorts.result }}' -ne 'success') { throw 'Required ubuntu cohorts did not all succeed.' }
   windows:
     name: windows
     runs-on: windows-latest
+    if: always()
+    needs:
+      - gate
+      - windows-cohorts
+    steps:
+      - name: Require all OS cohorts
+        shell: pwsh
+        run: if ('${{ needs.gate.result }}' -ne 'success' -or '${{ needs.windows-cohorts.result }}' -ne 'success') { throw 'Required windows cohorts did not all succeed.' }
+  windows-authority:
+    name: windows-authority
+    runs-on: windows-latest
     needs: gate
+    timeout-minutes: 20
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
-      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
-      - name: Checkout
+      - name: Checkout qualification commit
         uses: actions/checkout@v7
-
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: 26.13.0
           cache: npm
-
-      - name: Restore PairOfCleats cache
-        uses: actions/cache@v6
-        with:
-          path: .ci-cache/pairofcleats
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
-          restore-keys: |
-            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
-            pairofcleats-cache-${{ runner.os }}-
-
+      - name: Verify qualification commit
+        shell: pwsh
+        run: |
+          $expected = '${{ github.event.pull_request.head.sha || github.sha }}'
+          $actual = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne $expected) {
+            throw "Expected checkout $expected; got $actual"
+          }
+      - name: Prepare job-owned temporary directory
+        uses: ./.github/actions/ci-temporary-root
       - name: Restore node_modules cache
         id: node-modules-cache
         uses: actions/cache@v6
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
-
-      - name: Install deps and report versions
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+      - name: Prepare and verify required dependencies
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         shell: pwsh
         run: |
-          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
+          New-Item -ItemType Directory -Path .diagnostics/windows-authority -Force | Out-Null
           if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
-            npm run bootstrap:ci
+            npm run bootstrap:ci 2>&1 | Tee-Object -FilePath .diagnostics/windows-authority/bootstrap.log
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          } else {
-            Write-Host 'node_modules cache hit; verifying native modules.'
-            node tools/setup/rebuild-native.js --verify
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host 'native verification failed; running targeted repair:native.'
-              node tools/setup/rebuild-native.js --repair
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            }
           }
-          node -v
-          npm -v
-
-      - name: Install optional LSP tools (best effort)
-        shell: pwsh
-        run: |
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host 'optional tooling install had non-fatal failures (continuing).'
+          node tools/setup/rebuild-native.js --verify 2>&1 | Tee-Object -FilePath .diagnostics/windows-authority/native-verify.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Select-String -LiteralPath .diagnostics/windows-authority/native-verify.log -Pattern '(?i)warn|error') {
+            throw 'Native verification emitted unexpected diagnostics.'
           }
-          exit 0
-
-      - name: CI Suite
-        run: |
-          node tools/ci/run-suite.js --mode ci --skip-prechecks
-
-      - name: Upload quality artifacts
+      - name: Strict Windows authority cohort
+        run: node tools/ci/run-windows-authority.js
+      - name: Upload authority qualification
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ci-quality-artifacts-windows
+          name: windows-authority-qualification
           path: |
-            .diagnostics/test-summary.json
-            .diagnostics/test-timings.json
-            .diagnostics/test-profile.json
-            .diagnostics/coverage/**
-            .testLogs/junit.xml
-          if-no-files-found: ignore
+            .diagnostics/windows-authority/**
+            .testLogs/windows-authority/**
+          if-no-files-found: error
           include-hidden-files: true
           compression-level: 0
-
-      - name: Upload test artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-artifacts-windows
-          path: |
-            .testLogs/**
-            .diagnostics/**
-          if-no-files-found: ignore
-          include-hidden-files: true
-          compression-level: 0
-
   macos:
     name: macos
     runs-on: macos-latest
-    needs: gate
-    env:
-      PAIROFCLEATS_EMBEDDINGS: stub
-      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    if: always()
+    needs:
+      - gate
+      - macos-cohorts
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: '26.8.1'
-          cache: npm
-
-      - name: Restore PairOfCleats cache
-        uses: actions/cache@v6
-        with:
-          path: .ci-cache/pairofcleats
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
-          restore-keys: |
-            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
-            pairofcleats-cache-${{ runner.os }}-
-
-      - name: Restore node_modules cache
-        id: node-modules-cache
-        uses: actions/cache@v6
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
-
-      - name: Install deps and report versions
-        shell: bash
-        run: |
-          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
-          if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
-            npm run bootstrap:ci
-          else
-            echo "node_modules cache hit; verifying native modules."
-            if ! node tools/setup/rebuild-native.js --verify; then
-              echo "native verification failed; running targeted repair:native."
-              node tools/setup/rebuild-native.js --repair
-            fi
-          fi
-          node -v
-          npm -v
-
-      - name: Install optional LSP tools (best effort)
-        shell: bash
-        run: |
-          set +e
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
-          status=$?
-          if [ $status -ne 0 ]; then
-            echo "optional tooling install had non-fatal failures (continuing)."
-          fi
-          exit 0
-
-      - name: CI Suite
-        run: |
-          node tools/ci/run-suite.js --mode ci --skip-prechecks
-
-      - name: Upload quality artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-quality-artifacts-macos
-          path: |
-            .diagnostics/test-summary.json
-            .diagnostics/test-timings.json
-            .diagnostics/test-profile.json
-            .diagnostics/coverage/**
-            .testLogs/junit.xml
-          if-no-files-found: ignore
-          include-hidden-files: true
-          compression-level: 0
-
-      - name: Upload test artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-artifacts-macos
-          path: |
-            .testLogs/**
-            .diagnostics/**
-          if-no-files-found: ignore
-          include-hidden-files: true
-          compression-level: 0
+      - name: Require all OS cohorts
+        shell: pwsh
+        run: if ('${{ needs.gate.result }}' -ne 'success' -or '${{ needs.macos-cohorts.result }}' -ne 'success') { throw 'Required macos cohorts did not all succeed.' }
+  ubuntu-cohorts:
+    name: ubuntu cohorts
+    needs: gate
+    uses: ./.github/workflows/ci-platform.yml
+    with:
+      platform: ubuntu
+      runner: ubuntu-latest
+  windows-cohorts:
+    name: windows cohorts
+    needs: gate
+    uses: ./.github/workflows/ci-platform.yml
+    with:
+      platform: windows
+      runner: windows-latest
+  macos-cohorts:
+    name: macos cohorts
+    needs: gate
+    uses: ./.github/workflows/ci-platform.yml
+    with:
+      platform: macos
+      runner: macos-latest

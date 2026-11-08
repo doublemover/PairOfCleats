@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["explicit", "arguments", "missing", "directory", "untrusted", "cancelled", "path", "fresh"]
+}

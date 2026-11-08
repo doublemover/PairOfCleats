@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sealed-archive-before-write", "sealed-index-before-parse", "pending-index-before-fields", "pending-archive-before-fields", "revoked-index-source", "invalid-index-bound", "intrinsic-buffer-view"]
+}

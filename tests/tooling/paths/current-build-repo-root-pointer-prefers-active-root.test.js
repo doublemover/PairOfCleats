@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -35,6 +36,7 @@ await fs.writeFile(path.join(activeRoot, 'index-code', 'chunk_meta.jsonl.gz'), '
 await fs.writeFile(
   path.join(buildsRoot, 'current.json'),
   JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     buildRoot: '.',
     buildRootsByMode: {
@@ -44,6 +46,12 @@ await fs.writeFile(
   'utf8'
 );
 
+assert.equal(getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' }), null,
+  'an explicit invalid mode root cannot borrow a different generation');
+await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId, buildRoot: '.',
+  buildRootsByMode: { code: path.relative(repoCacheRoot, activeRoot).replaceAll('\\', '/') }
+}));
 const currentInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' });
 assert.ok(currentInfo, 'expected current build info to resolve');
 assert.equal(

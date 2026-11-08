@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import {
   addDictionaryWordsFromText,
   collectDictionaryFileSignatures,
@@ -46,14 +47,16 @@ try {
     }
   );
   assert.equal(signatureRows.length, 2);
-  assert(signatureRows.some((row) => /^dict:dict-a\.txt:\d+:\d+(\.\d+)?$/.test(row)));
+  const sourceBytes = await fs.readFile(baseA);
+  const expectedSignature = `dict:dict-a.txt:sha256:${sourceBytes.length}:${createHash('sha256').update(sourceBytes).digest('hex')}`;
+  assert(signatureRows.includes(expectedSignature));
   assert(signatureRows.some((row) => row === 'dict:missing.txt:missing'));
   const singleSignatureRows = await collectDictionaryFileSignatures(baseA, {
     toSignaturePath: (filePath) => path.basename(filePath),
     prefix: 'dict:'
   });
   assert.equal(singleSignatureRows.length, 1);
-  assert(/^dict:dict-a\.txt:\d+:\d+(\.\d+)?$/.test(singleSignatureRows[0]));
+  assert.equal(singleSignatureRows[0], expectedSignature);
 
   const common = path.join(tmpRoot, 'code-common.txt');
   const jsWords = path.join(tmpRoot, 'code-js.txt');

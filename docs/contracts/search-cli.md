@@ -15,6 +15,7 @@ This document defines the CLI interface and output contract for **search**.
   - `search.js --mode code --return-type boolean --top 20 --json`
 
 ### Common flags
+- `--help` (alias: `-h`): display search command help
 - `--repo <path>`: repo root (defaults to current directory)
 - `--mode code|prose|extracted-prose|records|both|all`: search mode
 - `--top <n>` (alias: `-n`, `--n`): results per mode; page size for filter-only enumeration
@@ -60,6 +61,17 @@ This document defines the CLI interface and output contract for **search**.
 - `--modified-after <iso-date>`, `--modified-since <days>`, `--churn <spec>`, `--branch <name>`
 - `--branches`, `--loops`, `--breaks`, `--continues`
 
+`--branch` predicates the selected repository's current checkout branch, including
+historical/snapshot searches. It uses one bounded SCM observation of current HEAD
+and its symbolic branch; index metrics never substitute for that observation.
+Known mismatch returns no hits. Detached, unavailable or unqualified observations
+reject the requested predicate with `CAPABILITY_MISSING`. Structured results retain
+`stats.branchQualification` with requested/observed names, `current-checkout` basis,
+observed revision and verified/mismatch state. Unavailable errors retain the same
+qualification in details. Output compaction preserves the required receipt; the
+receipt describes the request's observation, not a historical branch assignment
+or a promise that the checkout cannot change afterward.
+
 ### Backend + ranking flags
 - `--backend auto|sqlite|sqlite-fts|lmdb|memory|tantivy` (alias: `fts`)
 - `--ann` / `--no-ann`
@@ -84,10 +96,58 @@ This document defines the CLI interface and output contract for **search**.
 `--filter` accepts space- or comma-separated tokens. Supported keys are `file`/`path`, `lang`, `ext`, and `type`/`kind`.
 Tokens without a key are treated as file/path filters. Unknown keys are rejected. `--filter` merges with the explicit filter flags above (ANDed).
 
+The shared grammar accepts `:` and `=` assignments. `file:src,lang:python`
+and `file:src lang:python` have the same field boundaries. An unquoted comma
+continues the current field's value list unless the next atom names a field:
+`lang:js,ts` selects either language, while `file:src,lang:python` requires both
+the file and language predicates. Whitespace starts a new atom; repeated fields
+append values. Explicit language and extension flags intersect their expression
+fields.
+
+Quote an entire atom (`"file:My File.py"`) or its value
+(`file:"My File.py"`) to preserve spaces or literal commas. For example,
+`file:"notes, old.py",lang:python` retains one filename. Apostrophes inside an
+unquoted word are literal. Inside quotes, backslash escapes the matching quote
+or another backslash; other backslashes remain literal. Outside quotes it can
+escape whitespace, commas or quotes. Unquoted Windows drive paths retain their
+drive colon and backslashes; regular expressions containing spaces can use a
+quoted value such as `file:"/My File[.]py$/"`.
+
+Empty values, unknown fields, unclosed quotes and text appended after a closing
+quote are errors. Diagnostics identify a code and the original UTF-16 start/end
+offsets; CLI messages include the failing offset. Parsing is bounded to 65,536
+UTF-16 units, 4,096 retained values and 16 diagnostics. The shared typed result
+contains `file`, `lang`, `ext`, `type`, source terms and diagnostics. Its canonical
+serializer preserves exact string values through serialization and reparsing;
+path and author arguments are not split into words afterward.
+
 ## Outputs
 
 ### Text mode
 Human readable results (ranked list, or indexed-order filter enumeration). Code entries include bounded, line-numbered working-tree excerpts when the source is available within the repo. Excerpts use lightweight lexical highlighting in a TTY. Non-TTY output, `NO_COLOR` (including an empty value), `TERM=dumb`, and `--plain` disable styles and hyperlinks. Repository-controlled escape sequences and bidi controls are sanitized before terminal display. Exact formatting may evolve.
+
+Every displayed code hit is eligible for a source preview: up to eight lines for
+the leading hit and three for later hits. A literal query-token occurrence selects
+the preview window when found; otherwise the excerpt starts at the indexed chunk
+offset. `>` marks visible, case-insensitive query text only. It does not assert why
+the retrieval engine selected or ranked the hit, and semantic matches need not
+contain query text. Use `--explain` for recorded score evidence and `--why` for
+deeper analysis details.
+
+These excerpts are current working-tree text at indexed offsets, not an indexed
+snapshot or a freshness guarantee. Their line numbers are derived from the text
+read, while the result's location remains its indexed source range. Edits can make
+those differ. The preview reader examines at most 32 distinct file paths and 2 MiB per render,
+with a 512 KiB per-file limit, and reuses a read only within that render. Preview
+selection scans at most 64 Ki characters of a chunk. Missing, outside-root,
+oversized or over-budget sources do not hide a result; only the preview is absent.
+
+The summary counts displayed hits, not the total number of possible ranked
+matches. Filter enumeration separately reports its exact indexed total and
+continuation cursor. Narrow TTY output wraps long lines without splitting
+graphemes; overflowing lines use plain text to avoid broken ANSI/link sequences.
+Opaque cursor lines remain intact for copying. Pipes remain unstyled and omit
+interactive next-step hints. JSON payloads are unaffected by these display choices.
 
 ### JSON mode
 For a successful single-repository search, the CLI emits:
@@ -175,10 +235,16 @@ Context expansion is config-driven (no CLI flags). When enabled via `retrieval.c
 
 Omit positional query text and provide filters to enumerate all matching indexed chunks. No ANN, embeddings, sparse relevance cutoff, graph reranking, or context expansion participates. Results have `scoreType: "filter"`, `score: 0`, and `rankMethod: "indexed-order"`. `--top` bounds each mode's page; it does not truncate the matching set.
 
-Repeat the same command with `--cursor <pagination.nextCursor>` until `hasMore` is false. One cursor carries independent offsets for every selected mode, including already exhausted modes. It binds the normalized filters, modes, backend/index signature, and indexed generation; changed filters or generation are errors. Relative modification dates retain the first page's cutoff. Output-budget truncation advances only over emitted hits; a budget that cannot fit any result fails explicitly. Query text with `--cursor` is rejected. Workspace/federated enumeration is not supported; use `--repo`.
+Repeat the same command with `--cursor <pagination.nextCursor>` until `hasMore` is false. One cursor carries independent offsets for every selected mode, including already exhausted modes. It binds the normalized filters, modes, backend/index signature, and indexed generation; changed filters or generation are errors. Relative modification dates retain the first page's cutoff. Output-budget truncation advances only over emitted hits; a budget that cannot fit any result fails explicitly. Query text with `--cursor` is rejected. Workspace enumeration is supported with `--workspace`: each page visits one eligible repository/mode in stable repository-ID/mode order. Its cursor binds workspace membership, filter arguments, relative-date anchor, and the workspace generation manifest. A page can be empty while `hasMore` is true. Continue until exhaustion. Unavailable modes are listed in `meta.completeness.unavailable`; `status: partial` never claims workspace-wide completeness. Strict requests reject unavailable modes. Publication during a page invalidates the request.
 
 Coverage is explicitly `indexed-metadata`: all matches in the loaded index are reachable, but missing facts do not become matches. This does not assert whole-program compiler completeness. `--return-type` uses exact case-sensitive type-expression tokens (ignoring inter-token whitespace). It excludes containing types such as `Promise<boolean>`, `boolean[]`, `boolean | string`, and nominal lookalikes from a `boolean` query. Recorded tooling facts take precedence over declaration fallbacks; heuristic inferred returns and symbolic display labels are not promoted to compiler facts. `filterEvidence.returnType` preserves the matching fact source. Alias expansion, assignability, union reordering, and structural type equivalence are not performed.
 
 `--type ClassDeclaration` selects indexed chunk kinds. `--extends Base` matches a recorded parent name exactly; `--calls target` matches the recorded callee, not the caller's own name. Relations are available only to the extent recorded by the language/tooling providers, and these name predicates do not resolve overloads or ambiguous cross-file symbol identities.
 
 Full JSON retains symbolic references in chunk metadata; `--compact` exposes the same unmodified envelope as `typeExpressions`, including its declaration provenance and interpretation. For finite-string membership or zero/one/many classification, copy its exact published reference into the existing generation-pinned [detail type query](../guides/semantic-index.md#shared-symbolic-finite-string-types). These operations do not enumerate runtime values or imply general type equivalence, and symbolic display labels are not `--return-type` facts.
+
+### Context filter preparation
+
+Context expansion evaluates exact metadata predicates only for charged candidate attempts. Its request-local memo uses the captured document-ID map and is invalidated with the metadata/relation/filter-index owners. Small context budgets do not trigger an eager whole-index matching-ID set.
+
+The existing `preparation.filterSet` diagnostic identifies `candidate-predicate-memo`, reports probed IDs, missing/evaluated/matched rows and memo hits, and leaves whole-index `selectedRows` unknown (`null`). These are attempted-work observations, not claims about unvisited metadata. Query-result cache policy includes context-expansion policy2; index and filter artifact formats are unchanged.

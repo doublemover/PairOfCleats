@@ -1,6 +1,6 @@
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
-import { normalizeSchedulerByteLimit, normalizeSchedulerMaxPending } from './scheduler-core-policy.js';
+import { normalizeSchedulerByteLimit, normalizeSchedulerMaxPending, normalizeSchedulerRequest } from './scheduler-core-policy.js';
 
 /**
  * Adapt a build scheduler queue to a PQueue-like interface used by runWithQueue.
@@ -30,12 +30,24 @@ export function createSchedulerQueueAdapter({
   const producerMaxPending = normalizeSchedulerMaxPending(maxPending);
   const producerMaxPendingBytes = normalizeSchedulerByteLimit(maxPendingBytes);
   const producerMaxInFlightBytes = normalizeSchedulerByteLimit(maxInFlightBytes);
-  const registered = scheduler.registerQueue?.(queueName, {
+  const explicitQueueCap = Number.isFinite(Number(queueConfig?.concurrency)) && Number(queueConfig.concurrency) > 0
+    ? Math.floor(Number(queueConfig.concurrency)) : null;
+  let requestedConcurrency = Number.isFinite(Number(concurrency)) && Number(concurrency) > 0
+    ? Math.floor(Number(concurrency)) : null;
+  const effectiveConcurrency = () => explicitQueueCap == null ? requestedConcurrency
+    : requestedConcurrency == null ? explicitQueueCap : Math.min(explicitQueueCap, requestedConcurrency);
+  const ownsConcurrencyLimit = typeof scheduler.registerQueueConcurrencyLimit === 'function';
+  const registration = {
     ...(maxPending != null ? { maxPending: producerMaxPending ?? 0 } : {}),
     ...(maxPendingBytes != null ? { maxPendingBytes: producerMaxPendingBytes ?? 0 } : {}),
     ...(maxInFlightBytes != null ? { maxInFlightBytes: producerMaxInFlightBytes ?? 0 } : {}),
-    ...(queueConfig || {})
-  });
+    ...(queueConfig || {}),
+    ...(!ownsConcurrencyLimit && effectiveConcurrency() != null ? { concurrency: effectiveConcurrency() } : {})
+  };
+  if (ownsConcurrencyLimit) delete registration.concurrency;
+  const registered = scheduler.registerQueue?.(queueName, registration);
+  const concurrencyLimit = ownsConcurrencyLimit
+    ? scheduler.registerQueueConcurrencyLimit(queueName, effectiveConcurrency()) : null;
   const intersectLimit = (producerLimit, schedulerLimit) => (
     producerLimit == null ? schedulerLimit
       : schedulerLimit == null ? producerLimit : Math.min(producerLimit, schedulerLimit)
@@ -90,9 +102,12 @@ export function createSchedulerQueueAdapter({
     }));
   };
   const add = async (fn, options = {}) => {
-    const bytesRaw = Number(options?.bytes);
-    const bytes = Number.isFinite(bytesRaw) && bytesRaw > 0 ? Math.floor(bytesRaw) : 0;
+    // Validate before joining the bounded producer window. Invalid bytes must
+    // not turn into an uncharged request, nor strand an admission waiter.
+    const overrides = normalizeSchedulerRequest({ bytes: options?.bytes, cpu: options?.cpu });
+    const bytes = overrides.bytes;
     const signal = isAbortSignal(options?.signal) ? options.signal : null;
+    throwIfAborted(signal);
     const generation = clearGeneration;
     const bounded = backpressure && resolvedMaxPending;
     if (bounded) {
@@ -103,8 +118,12 @@ export function createSchedulerQueueAdapter({
       } catch (error) { releaseCapacity(); throw error; }
     }
     const baseTokens = { ...(tokens || { cpu: 1 }) };
+    // Internal nested compute requests may add a CPU charge; callers cannot
+    // lower the queue's existing CPU, I/O or memory envelope.
+    if (overrides.cpu > 0) baseTokens.cpu = Math.max(baseTokens.cpu || 0, overrides.cpu);
     const tokenRequest = {
       ...baseTokens,
+      ...(options?.shadow ? { shadow: options.shadow } : {}),
       ...(bytes > 0 ? { bytes } : {}),
       ...(signal ? { signal } : {})
     };
@@ -138,6 +157,12 @@ export function createSchedulerQueueAdapter({
     maxPending: resolvedMaxPending ?? (maxPending === 0 ? 0 : undefined),
     maxPendingBytes: resolvedMaxPendingBytes ?? (maxPendingBytes === 0 ? 0 : undefined),
     maxInFlightBytes: resolvedMaxInFlightBytes ?? (maxInFlightBytes === 0 ? 0 : undefined),
-    concurrency: Number.isFinite(Number(concurrency)) ? Math.floor(Number(concurrency)) : undefined
+    get concurrency() { return (concurrencyLimit ? concurrencyLimit.get() : effectiveConcurrency()) ?? undefined; },
+    set concurrency(value) {
+      if (!Number.isSafeInteger(value) || value < 1) throw new TypeError('Queue concurrency must be a positive integer.');
+      requestedConcurrency = value;
+      if (concurrencyLimit) concurrencyLimit.set(effectiveConcurrency());
+      else scheduler.registerQueue?.(queueName, { concurrency: effectiveConcurrency() });
+    }
   };
 }

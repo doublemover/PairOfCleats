@@ -1,10 +1,13 @@
-import { splitTopLevel } from './shared.js';
+import { splitTopLevel, findTopLevelIndex, findTopLevelWord } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const RUST_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(String(value ?? '').trim());
 
-const splitParams = (value) => splitTopLevel(value, ',');
+const RUST_NESTING = Object.freeze({ rustLifetimes: true });
+const splitParams = (value) => splitTopLevel(value, ',', RUST_NESTING);
 
 const parseRustParam = (part) => {
   const cleaned = normalizeType(part);
@@ -32,12 +35,23 @@ const parseRustParam = (part) => {
 export const parseRustSignature = (detail) => {
   if (!detail || typeof detail !== 'string') return null;
   const signature = detail.trim();
-  const match = /\bfn\b[\s\S]*?\((?<params>[\s\S]*)\)\s*(?:->\s*(?<returns>[\s\S]*))?$/u.exec(signature);
-  if (!match?.groups) return null;
-  const paramsText = String(match.groups.params || '');
-  const returnsRaw = normalizeType(match.groups.returns || '');
+  const header = /\bfn\b(?:\s+(?:r#)?[A-Za-z_][A-Za-z0-9_]*)?\s*/u.exec(signature);
+  if (!header) return null;
+  let tail = signature.slice(header.index + header[0].length);
+  if (tail.startsWith('<')) {
+    const genericEnd = findTopLevelIndex(tail, '>', RUST_NESTING);
+    if (genericEnd < 0) return null;
+    tail = tail.slice(genericEnd + 1).trimStart();
+  }
+  if (!tail.startsWith('(')) return null;
+  const close = findTopLevelIndex(tail, ')', RUST_NESTING);
+  if (close < 0) return null;
+  const paramsText = tail.slice(1, close);
+  const suffix = tail.slice(close + 1).trim();
+  const returnsRaw = normalizeType(suffix.startsWith('->') ? suffix.slice(2) : '');
+  const whereIndex = findTopLevelWord(returnsRaw, 'where', RUST_NESTING);
   const returnType = returnsRaw
-    ? normalizeType(returnsRaw.replace(/\s+where\s+[\s\S]*$/u, ''))
+    ? normalizeType(whereIndex < 0 ? returnsRaw : returnsRaw.slice(0, whereIndex))
     : null;
   const paramTypes = {};
   const paramNames = [];
@@ -45,7 +59,7 @@ export const parseRustSignature = (detail) => {
     const parsed = parseRustParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return { signature, returnType, paramTypes, paramNames };

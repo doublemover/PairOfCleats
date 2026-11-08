@@ -35,6 +35,8 @@ export const LMDB_ARTIFACT_KEYS = {
   denseVectorsDoc: 'artifact:dense_vectors_doc_uint8',
   denseVectorsCode: 'artifact:dense_vectors_code_uint8',
   denseHnswMeta: 'artifact:dense_vectors_hnsw_meta',
+  denseHnswMetaDoc: 'artifact:dense_vectors_doc_hnsw_meta',
+  denseHnswMetaCode: 'artifact:dense_vectors_code_hnsw_meta',
   indexState: 'artifact:index_state'
 };
 

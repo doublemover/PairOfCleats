@@ -5,6 +5,15 @@ import { assertIndexCacheLease } from '../cache-lease.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
 const tokens = new WeakMap();
+const contexts = new WeakMap();
+export const registerSemanticReplayContext = (context, lease, isActive, bundleDir) => {
+  assertIndexCacheLease(lease); contexts.set(context, { lease, isActive, bundleDir }); return context;
+};
+export const assertSemanticReplayContext = (context, bundleDir) => {
+  const owner = contexts.get(context);
+  if (!owner || !owner.isActive() || owner.bundleDir !== bundleDir) throw new TypeError('An active original semantic replay context for this bundle is required.');
+  assertIndexCacheLease(owner.lease);
+};
 export const invalidateVerifiedReplayToken = token => { tokens.delete(token); };
 export const replayIdentity = ({ bundleDir, locator, dependencySignatures, sourceHash,
   sourcePath, repositoryNamespace }) => canonicalSemanticJson({ bundleDir, locator,

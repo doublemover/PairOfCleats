@@ -1,7 +1,41 @@
 /**
  * Simple MinHash implementation for approximate similarity.
  */
+export const MINHASH_HASH_IDENTITY = 'fnv1a32-utf16le-xor-fmix32-v2';
+
+export const assertMinhashHashIdentity = (identity) => {
+  if (identity !== MINHASH_HASH_IDENTITY) {
+    throw Object.assign(new Error('MinHash hash identity is missing or incompatible; rebuild the index.'),
+      { code: 'ERR_ARTIFACT_INVALID', rebuildRequired: true });
+  }
+  return identity;
+};
+
+// Austin Appleby's public-domain MurmurHash3 fmix32 avalanche is a bijection
+// over u32 values. XOR with distinct mixed seeds supplies distinct orderings.
+// https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
+const mix32 = (input) => {
+  let value = input >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b);
+  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35);
+  return (value ^ (value >>> 16)) >>> 0;
+};
+
+// FNV-1a on explicit UTF-16LE bytes preserves every JS code unit, including
+// unpaired surrogates, while reading each character only once across all seeds.
+// FNV is CC0: https://www.isthe.com/chongo/tech/comp/fnv/
+const hashToken = (token) => {
+  let value = 0x811c9dc5;
+  for (let index = 0; index < token.length; index += 1) {
+    const unit = token.charCodeAt(index);
+    value = Math.imul(value ^ (unit & 255), 0x01000193);
+    value = Math.imul(value ^ ((unit >>> 8) & 255), 0x01000193);
+  }
+  return value >>> 0;
+};
+
 export class SimpleMinHash {
+  #seedMixes;
   /**
    * @param {number} [numHashes]
    */
@@ -9,6 +43,15 @@ export class SimpleMinHash {
     this.numHashes = numHashes;
     this.seeds = Array.from({ length: numHashes }, (_, i) => i + 1);
     this.hashValues = Array(numHashes).fill(Infinity);
+    this.#seedMixes = this.seeds.map(mix32);
+  }
+
+  get hashIdentity() {
+    if (this.hash !== DEFAULT_TOKEN_HASH || this.seeds.length !== this.numHashes) return null;
+    for (let index = 0; index < this.numHashes; index += 1) {
+      if (this.seeds[index] !== index + 1) return null;
+    }
+    return MINHASH_HASH_IDENTITY;
   }
 
   reset() {
@@ -22,11 +65,7 @@ export class SimpleMinHash {
    * @returns {number}
    */
   hash(str, seed) {
-    let h = seed;
-    for (let i = 0; i < str.length; i++) {
-      h = (h * 31 + str.charCodeAt(i)) >>> 0;
-    }
-    return h;
+    return mix32(hashToken(str) ^ mix32(seed));
   }
 
   /**
@@ -34,20 +73,12 @@ export class SimpleMinHash {
    * @param {string} token
    */
   update(token) {
-    // h(seed, token) = seed * 31^length + h(0, token), modulo 2^32.
-    // Keep custom hash implementations and non-string inputs on the public path.
-    const factorable = typeof token === 'string' && this.hash === DEFAULT_TOKEN_HASH;
-    let multiplier = 1;
-    let polynomial = 0;
-    if (factorable && this.seeds.length) {
-      for (let i = 0; i < token.length; i += 1) {
-        multiplier = Math.imul(multiplier, 31) >>> 0;
-        polynomial = (Math.imul(polynomial, 31) + token.charCodeAt(i)) >>> 0;
-      }
-    }
+    // Cache token work, while preserving custom hash callbacks and public seeds.
+    const cacheable = typeof token === 'string' && this.hash === DEFAULT_TOKEN_HASH;
+    const tokenHash = cacheable && this.seeds.length ? hashToken(token) : null;
     this.seeds.forEach((seed, i) => {
-      const hv = factorable && Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff
-        ? (Math.imul(seed, multiplier) + polynomial) >>> 0
+      const hv = cacheable
+        ? mix32(tokenHash ^ (seed === i + 1 && i < this.#seedMixes.length ? this.#seedMixes[i] : mix32(seed)))
         : this.hash(token, seed);
       if (hv < this.hashValues[i]) {
         this.hashValues[i] = hv;

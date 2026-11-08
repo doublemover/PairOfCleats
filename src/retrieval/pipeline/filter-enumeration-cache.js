@@ -3,7 +3,10 @@ import path from 'node:path';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { withFileLock } from '../../shared/locks/file-lock.js';
-import { assertNoSymlinkPath, openContainedFile } from '../../shared/contained-file.js';
+import { assertNoSymlinkPath, withContainedFile } from '../../shared/contained-file.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { readExactAt } from '../../shared/io/read-exact.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 export const FILTER_MATCH_ENTRY_BYTES = 16 * 1024 * 1024;
 export const FILTER_MATCH_CACHE_BYTES = 64 * 1024 * 1024;
@@ -15,53 +18,63 @@ const sign = (value, key) => createHmac('sha256', key).update(value).digest();
 const directory = cacheDir => cacheDir ? path.join(cacheDir, 'filter-enumeration-v1') : null;
 const filename = identity => sha(identity) + '.bin';
 
-const readExact = async (handle, buffer, position) => {
-  let read = 0;
-  while (read < buffer.length) {
-    const result = await handle.read(buffer, read, buffer.length - read, position + read);
-    if (!result.bytesRead) throw new Error('Incomplete filter continuation cache.');
-    read += result.bytesRead;
-  }
+const readExact = async (handle, buffer, position, checkpoint = null) => {
+  const reader = checkpoint ? { read: async (...args) => {
+    checkpoint(); const result = await handle.read(...args); checkpoint(); return result;
+  } } : handle;
+  const { bytesRead } = await readExactAt(reader, buffer, 0, buffer.length, position);
+  if (bytesRead !== buffer.length) throw new Error('Incomplete filter continuation cache.');
   return buffer;
 };
-const openRegular = async (root, file) => {
-  const handle = await openContainedFile(root, file);
-  try {
-    const stat = await handle.stat();
-    if (!stat.isFile() || stat.nlink !== 1) throw new Error('Invalid filter continuation file.');
-    return { handle, stat };
-  } catch (error) { await handle.close(); throw error; }
-};
-const readKey = async (root, dir) => {
-  const { handle, stat } = await openRegular(root, path.join(dir, 'key'));
-  try {
-    if (stat.size !== 32) throw new Error('Invalid filter continuation key.');
-    return await readExact(handle, Buffer.alloc(32), 0);
-  } finally { await handle.close(); }
+const withRegular = (root, file, action) => withContainedFile(root, file, async descriptor => {
+  const before = await descriptor.stat();
+  if (!before.isFile() || before.nlink !== 1) throw new Error('Invalid filter continuation file.');
+  const value = await action(descriptor, before);
+  const after = await descriptor.stat();
+  if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs', 'nlink'].some(key => before[key] !== after[key])) {
+    throw new Error('Filter continuation file changed during its original read.');
+  }
+  descriptor.verify();
+  return value;
+});
+const readKey = (root, dir, checkpoint = null) => withRegular(root, path.join(dir, 'key'), async (descriptor, stat) => {
+  if (stat.size !== 32) throw new Error('Invalid filter continuation key.');
+  return readExact(descriptor, Buffer.alloc(32), 0, checkpoint);
+});
+
+const requireSettledCacheFailure = (error, phase, checkpoint) => {
+  const observation = observeStorageResource(error, { phase });
+  let retained, pending = false;
+  try { observation.requireSettled(); }
+  catch (failure) { retained = failure; pending = true; }
+  try { checkpoint?.(); }
+  catch (cancellation) {
+    throw addStorageFailureContext(pending ? retained : observation.primary, {}, cancellation, { secondaryPresent: true });
+  }
+  if (pending) throw retained;
 };
 
 /** Optional acceleration only: authenticate bounded metadata, then verify only
- * the opened blocks needed by this page. Failure always returns to the index. */
+ * the opened blocks needed by this page. Settled corrupt/missing data is a miss;
+ * unresolved original resources propagate before another owner can proceed. */
 export const readFilterMatchPage = async ({ cacheDir, identity, rowCount = null, offset, limit, includeRows = false, throwIfAborted }) => {
   const dir = directory(cacheDir);
   if (!dir || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1) return null;
-  let handle;
   try {
     throwIfAborted?.();
-    const key = await readKey(cacheDir, dir);
-    const opened = await openRegular(cacheDir, path.join(dir, filename(identity)));
-    handle = opened.handle;
-    if (opened.stat.size > FILTER_MATCH_ENTRY_BYTES + HEADER_BYTES + 4) return null;
-    const size = (await readExact(handle, Buffer.alloc(4), 0)).readUInt32LE();
-    if (size < 1 || size > HEADER_BYTES) return null;
-    const headerBytes = await readExact(handle, Buffer.alloc(size), 4);
-    const envelope = JSON.parse(headerBytes.toString('utf8'));
-    if (typeof envelope.data !== 'string' || !/^[a-f0-9]{64}$/.test(envelope.mac)) return null;
-    if (!timingSafeEqual(sign(envelope.data, key), Buffer.from(envelope.mac, 'hex'))) return null;
-    const header = JSON.parse(envelope.data);
-    const bodyBytes = header.version === 1 ? header.total * 4 : header.bodyBytes;
-    const hasRows = header.version === 2;
-    if (![1, 2].includes(header.version) || header.identity !== identity
+    const key = await readKey(cacheDir, dir, throwIfAborted);
+    const result = await withRegular(cacheDir, path.join(dir, filename(identity)), async (handle, stat) => {
+      if (stat.size > FILTER_MATCH_ENTRY_BYTES + HEADER_BYTES + 4) return null;
+      const size = (await readExact(handle, Buffer.alloc(4), 0, throwIfAborted)).readUInt32LE();
+      if (size < 1 || size > HEADER_BYTES) return null;
+      const headerBytes = await readExact(handle, Buffer.alloc(size), 4, throwIfAborted);
+      const envelope = JSON.parse(headerBytes.toString('utf8'));
+      if (typeof envelope.data !== 'string' || !/^[a-f0-9]{64}$/.test(envelope.mac)) return null;
+      if (!timingSafeEqual(sign(envelope.data, key), Buffer.from(envelope.mac, 'hex'))) return null;
+      const header = JSON.parse(envelope.data);
+      const bodyBytes = header.version === 1 ? header.total * 4 : header.bodyBytes;
+      const hasRows = header.version === 2;
+      if (![1, 2].includes(header.version) || header.identity !== identity
       || !Number.isSafeInteger(header.rowCount) || header.rowCount < 0 || header.rowCount > 0xffffffff
       || rowCount != null && header.rowCount !== rowCount
       || !Number.isSafeInteger(header.total) || header.total < 0 || header.total > header.rowCount
@@ -69,55 +82,60 @@ export const readFilterMatchPage = async ({ cacheDir, identity, rowCount = null,
       || hasRows && bodyBytes < header.total * 8 + 4 || header.blockBytes !== BLOCK_BYTES
       || !Array.isArray(header.hashes) || header.hashes.length !== Math.ceil(bodyBytes / BLOCK_BYTES)
       || header.hashes.some(value => !/^[a-f0-9]{64}$/.test(value))
-      || opened.stat.size !== 4 + size + bodyBytes) return null;
-    const end = Math.min(header.total, offset + limit);
-    const count = Math.max(0, end - offset), ids = new Uint32Array(count);
-    let bytes = 32 + 4 + size;
-    const blocks = new Map();
-    const readRange = async (start, length) => {
-      if (start < 0 || length < 0 || start + length > bodyBytes) throw new Error('Invalid continuation range.');
-      const result = Buffer.alloc(length);
-      for (let block = Math.floor(start / BLOCK_BYTES); length && block < Math.ceil((start + length) / BLOCK_BYTES); block++) {
-        throwIfAborted?.();
-        let buffer = blocks.get(block);
-        const blockStart = block * BLOCK_BYTES;
-        if (!buffer) {
-          buffer = await readExact(handle, Buffer.alloc(Math.min(BLOCK_BYTES, bodyBytes - blockStart)), 4 + size + blockStart);
-          bytes += buffer.length;
-          if (sha(buffer) !== header.hashes[block]) throw new Error('Corrupt continuation block.');
-          blocks.set(block, buffer);
+      || stat.size !== 4 + size + bodyBytes) return null;
+      const end = Math.min(header.total, offset + limit);
+      const count = Math.max(0, end - offset), ids = new Uint32Array(count);
+      let bytes = 32 + 4 + size;
+      const blocks = new Map();
+      const readRange = async (start, length) => {
+        if (start < 0 || length < 0 || start + length > bodyBytes) throw new Error('Invalid continuation range.');
+        const result = Buffer.alloc(length);
+        for (let block = Math.floor(start / BLOCK_BYTES); length && block < Math.ceil((start + length) / BLOCK_BYTES); block++) {
+          throwIfAborted?.();
+          let buffer = blocks.get(block);
+          const blockStart = block * BLOCK_BYTES;
+          if (!buffer) {
+            buffer = await readExact(handle, Buffer.alloc(Math.min(BLOCK_BYTES, bodyBytes - blockStart)), 4 + size + blockStart, throwIfAborted);
+            bytes += buffer.length;
+            if (sha(buffer) !== header.hashes[block]) throw new Error('Corrupt continuation block.');
+            blocks.set(block, buffer);
+          }
+          const from = Math.max(start, blockStart), to = Math.min(start + length, blockStart + buffer.length);
+          buffer.copy(result, from - start, from - blockStart, to - blockStart);
         }
-        const from = Math.max(start, blockStart), to = Math.min(start + length, blockStart + buffer.length);
-        buffer.copy(result, from - start, from - blockStart, to - blockStart);
+        return result;
+      };
+      const idBytes = count ? await readRange(offset * 4, count * 4) : Buffer.alloc(0);
+      for (let i = 0; i < count; i++) {
+        const id = idBytes.readUInt32LE(i * 4);
+        if (id >= header.rowCount || i && id <= ids[i - 1]) return null;
+        ids[i] = id;
       }
-      return result;
-    };
-    const idBytes = count ? await readRange(offset * 4, count * 4) : Buffer.alloc(0);
-    for (let i = 0; i < count; i++) {
-      const id = idBytes.readUInt32LE(i * 4);
-      if (id >= header.rowCount || i && id <= ids[i - 1]) return null;
-      ids[i] = id;
-    }
-    let rows = null;
-    if (hasRows && includeRows) {
-      rows = [];
-      if (count) {
-        const positions = await readRange(header.total * 4 + offset * 4, (count + 1) * 4);
-        const rowBase = header.total * 8 + 4;
-        for (let i = 0; i < count; i++) {
-          if (i % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); throwIfAborted?.(); }
-          const from = positions.readUInt32LE(i * 4), to = positions.readUInt32LE((i + 1) * 4);
-          if (to <= from || rowBase + to > bodyBytes) return null;
-          const row = JSON.parse((await readRange(rowBase + from, to - from)).toString('utf8'));
-          if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
-          rows.push(row);
+      let rows = null;
+      if (hasRows && includeRows) {
+        rows = [];
+        if (count) {
+          const positions = await readRange(header.total * 4 + offset * 4, (count + 1) * 4);
+          const rowBase = header.total * 8 + 4;
+          for (let i = 0; i < count; i++) {
+            if (i % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); throwIfAborted?.(); }
+            const from = positions.readUInt32LE(i * 4), to = positions.readUInt32LE((i + 1) * 4);
+            if (to <= from || rowBase + to > bodyBytes) return null;
+            const row = JSON.parse((await readRange(rowBase + from, to - from)).toString('utf8'));
+            if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+            rows.push(row);
+          }
         }
       }
-    }
+      throwIfAborted?.();
+      return { ids, rows, rowCount: header.rowCount, total: header.total, readBytes: bytes };
+    });
     throwIfAborted?.();
-    return { ids, rows, rowCount: header.rowCount, total: header.total, readBytes: bytes };
-  } catch { throwIfAborted?.(); return null; }
-  finally { await handle?.close(); }
+    return result;
+  } catch (error) {
+    requireSettledCacheFailure(error, 'filter-continuation-read', throwIfAborted);
+    return null;
+  }
 };
 
 // Rows share the existing entry, physical-byte cap, authentication and eviction
@@ -138,7 +156,10 @@ const encodeBody = async (ids, metadata, throwIfAborted) => {
       if (idBytes.length + offsets.length + bytes > FILTER_MATCH_ENTRY_BYTES) return { body: idBytes, version: 1 };
       offsets.writeUInt32LE(bytes, (i + 1) * 4); rows.push(encoded);
     }
-  } catch { throwIfAborted?.(); return { body: idBytes, version: 1 }; }
+  } catch (error) {
+    requireSettledCacheFailure(error, 'filter-continuation-row-encoding', throwIfAborted);
+    return { body: idBytes, version: 1 };
+  }
   return { body: Buffer.concat([idBytes, offsets, ...rows]), version: 2 };
 };
 
@@ -156,9 +177,10 @@ export const persistFilterMatches = async ({ cacheDir, identity, rowCount, ids, 
       assertNoSymlinkPath(cacheDir, dir);
       throwIfAborted?.();
       let key;
-      try { key = await readKey(cacheDir, dir); }
+      try { key = await readKey(cacheDir, dir, throwIfAborted); }
       catch (error) {
-        if (error.code !== 'ENOENT') return false;
+        requireSettledCacheFailure(error, 'filter-continuation-key', throwIfAborted);
+        if (error?.code !== 'ENOENT') return false;
         key = randomBytes(32);
         assertNoSymlinkPath(cacheDir, path.join(dir, 'key'), { allowMissing: true });
         await fs.writeFile(path.join(dir, 'key'), key, { flag: 'wx', mode: 0o600 });
@@ -205,5 +227,8 @@ export const persistFilterMatches = async ({ cacheDir, identity, rowCount, ids, 
       return true;
     });
     return result === true;
-  } catch { throwIfAborted?.(); return false; }
+  } catch (error) {
+    requireSettledCacheFailure(error, 'filter-continuation-persist', throwIfAborted);
+    return false;
+  }
 };

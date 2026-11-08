@@ -32,11 +32,11 @@ try {
   }
   await assert.rejects(() => downloadExtensions({ url: 'fixture=https://example.invalid/file' }), /launching user/);
   await assert.rejects(() => downloadDictionaries({ url: 'fixture=https://example.invalid/file', repoPath: process.cwd() }), /user-owned download policy/);
-  assert.throws(() => verifyExtensions({ path: file }), /launching user/);
+  await assert.rejects(() => verifyExtensions({ path: file }), /launching user/);
   await assert.rejects(() => cleanArtifacts({ all: true }), /all repository caches/);
   const prior = process.env.PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD;
   delete process.env.PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD;
-  assert.throws(() => verifyExtensions({ load: true }), /launch-time authorization/);
+  await assert.rejects(() => verifyExtensions({ load: true }), /launch-time authorization/);
   if (prior !== undefined) process.env.PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD = prior;
   for (const address of ['127.0.0.1', '10.1.2.3', '169.254.169.254', '::1', '::ffff:127.0.0.1', 'fc00::1', '2001:db8::1']) {
     assert.equal(isPublicDownloadAddress(address), false);

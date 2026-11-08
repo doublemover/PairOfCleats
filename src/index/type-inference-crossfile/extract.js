@@ -2,6 +2,9 @@ import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { collectDeclaredReturnTypes } from '../metadata/docmeta.js';
 import { RETURN_BARE_TARGET_RX, RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
 import { isTypeDeclaration } from './symbols.js';
+import { isShadowedImportCall } from './lexical-call-binding.js';
+import { normalizeLiteralInput, inspectLiteralStructure, isWholeQuotedLiteral } from '../type-inference/literal-expression.js';
+import { createReturnTypeFact } from './return-evidence.js';
 
 export const createParamTypeMap = () => Object.create(null);
 
@@ -67,6 +70,22 @@ export const extractReturnTypes = (chunk) => {
   return uniqueTypes(types);
 };
 
+export const extractReturnTypeFacts = chunk => {
+  const facts = [], seen = new Set(), docmeta = chunk?.docmeta || {};
+  const add = (type, source, confidence, evidence = null) => {
+    if (typeof type !== 'string' || !type.trim()) return;
+    const fact = createReturnTypeFact(chunk, type.trim(), source, confidence, evidence);
+    const key = JSON.stringify(fact);
+    if (!seen.has(key)) { seen.add(key); facts.push(fact); }
+  };
+  for (const type of collectDeclaredReturnTypes(docmeta)) add(type, 'annotation', null);
+  if (Array.isArray(docmeta.inferredTypes?.returns)) {
+    for (const entry of docmeta.inferredTypes.returns) add(entry?.type, entry?.source, entry?.confidence, entry?.evidence);
+  }
+  if (isTypeDeclaration(chunk?.kind) && chunk?.name) add(chunk.name, 'declaration', null);
+  return Object.freeze(facts);
+};
+
 export const extractParamTypes = (chunk) => {
   const docmeta = chunk?.docmeta || {};
   const paramNames = Array.isArray(docmeta.paramNames)
@@ -99,10 +118,32 @@ export const extractParamTypes = (chunk) => {
   return { paramNames, paramTypes };
 };
 
-export const extractReturnCalls = (chunkText, { knownCallees = null } = {}) => {
+export const extractReturnCalls = (chunkText, { knownCallees = null, chunk = null, importBindings = null, admitConstructor = null } = {}) => {
   const calls = new Set();
   const news = new Set();
-  if (!chunkText) return { calls, news };
+  if (['javascript', 'typescript', 'jsx', 'tsx'].includes(chunk?.lang)) {
+    const callSites = new Set();
+    for (const detail of chunk.codeRelations?.callDetails || []) {
+      const evidence = detail?.returnedValue;
+      if (evidence?.v !== 1 || !['call', 'construct'].includes(evidence.kind)
+        || evidence.awaited !== false || evidence.async !== false || evidence.generator !== false
+        || !Array.isArray(evidence.ownerRanges) || !Array.isArray(evidence.expression) || evidence.expression.length !== 2
+        || evidence.expression[0] !== detail.start || evidence.expression[1] !== detail.end
+        || !Number.isSafeInteger(chunk.start) || !Number.isSafeInteger(chunk.end)
+        || !Number.isSafeInteger(detail.start) || !Number.isSafeInteger(detail.end)
+        || detail.start < chunk.start || detail.end > chunk.end || detail.start >= detail.end
+        || !evidence.ownerRanges.some(range => Array.isArray(range) && range.length === 2
+          && range[0] === chunk.start && range[1] === chunk.end)
+        || typeof detail.callee !== 'string' || !detail.callee) continue;
+      if (evidence.kind === 'construct' && (isShadowedImportCall(detail)
+        || importBindings?.[detail.callee.split(/::|\./u)[0]]?.typeOnly === true
+        || admitConstructor && !admitConstructor(detail.callee))) continue;
+      (evidence.kind === 'construct' ? news : calls).add(detail.callee);
+      if (evidence.kind === 'call') callSites.add(`${detail.start}:${detail.end}`);
+    }
+    return { calls, news, callSites };
+  }
+  if (!chunkText || !chunkText.includes('return')) return { calls, news };
   RETURN_CALL_RX.lastIndex = 0;
   RETURN_NEW_RX.lastIndex = 0;
   RETURN_BARE_TARGET_RX.lastIndex = 0;
@@ -127,18 +168,23 @@ export const extractReturnCalls = (chunkText, { knownCallees = null } = {}) => {
 
 export const inferArgType = (raw) => {
   if (!raw) return null;
-  const value = String(raw).trim();
+  const value = normalizeLiteralInput(raw);
   if (!value) return null;
-  const lowered = value.toLowerCase();
-  if (lowered === 'null') return 'null';
-  if (lowered === 'undefined') return 'undefined';
-  if (lowered === 'true' || lowered === 'false') return 'boolean';
+  const structure = inspectLiteralStructure(value);
+  if (!structure) return null;
+  if (value === 'null') return 'null';
+  if (value === 'undefined') return 'undefined';
+  if (value === 'true' || value === 'false') return 'boolean';
   if (/^-?\d+(\.\d+)?$/.test(value)) return 'number';
-  if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) return 'string';
-  if (value.startsWith('[')) return 'array';
-  if (value.startsWith('{')) return 'object';
-  const newMatch = value.match(/^new\s+([A-Za-z_$][\w$.]*)/);
-  if (newMatch) return newMatch[1];
+  if (isWholeQuotedLiteral(value)) return 'string';
+  const enclosed = structure.pairs.get(0) === value.length - 1;
+  if (value.startsWith('[') && enclosed) return 'array';
+  if (value.startsWith('{') && enclosed) return 'object';
+  const newMatch = value.match(/^new\s+([\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*(?:\.[\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*)*)/u);
+  if (newMatch) {
+    const tail = value.slice(newMatch[0].length).trim(), open = value.indexOf('(', newMatch[0].length);
+    if (!tail || tail[0] === '(' && structure.pairs.get(open) === value.length - 1) return newMatch[1];
+  }
   if (value === 'fn(...)') return 'function';
   return null;
 };

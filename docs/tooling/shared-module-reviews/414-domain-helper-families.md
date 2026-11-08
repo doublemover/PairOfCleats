@@ -98,3 +98,7 @@ The main cleanup seams are concentrated in a handful of oversized files and two 
 | `src/shared/type-entry-utils.js` | `keep`, `document`, `test` | Keep as the type-entry normalization/merge helper. |
 | `src/shared/type-normalization.js` | `keep`, `document`, `test` | Keep as the type normalization contract surface. |
 | `src/shared/validation/ajv-factory.js` | `keep`, `document`, `test` | Keep as the shared Ajv factory helper. |
+
+## Current ownership inventory
+
+The JSON companion matches all 69 current ledger-owned files and their static consumer counts. Native database lifetime and delegated authority share `src/shared/storage`; production cleanup no longer imports a tooling owner. Runtime and performance acceptance are recorded in the qualification matrix.

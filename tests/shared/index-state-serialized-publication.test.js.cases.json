@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["parallel-namespaces", "queued-namespace", "patch-snapshot", "invalid-namespace", "invalid-state", "malformed-state", "manifest-failure", "manifest-recovery", "pending-mutation", "abort-before-write", "abort-during-write", "cross-process"]
+}

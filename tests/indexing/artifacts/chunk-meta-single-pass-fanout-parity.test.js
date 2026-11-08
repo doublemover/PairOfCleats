@@ -109,8 +109,10 @@ for (const job of writes) {
 
 const expectedHot = [];
 const expectedCold = [];
+const expectedCompat = [];
 const expectedBinaryRows = [];
 for (const entry of chunkMetaIterator(0, chunks.length, false)) {
+  expectedCompat.push(dropUndefinedFields(entry));
   const hotEntry = dropUndefinedFields(stripChunkMetaColdFields(entry));
   expectedHot.push(hotEntry);
 
@@ -133,7 +135,7 @@ const compat = JSON.parse(await fs.readFile(path.join(outDir, 'chunk_meta.json')
 
 assert.deepEqual(actualHot, expectedHot, 'hot JSONL rows should match canonical projection');
 assert.deepEqual(actualCold, expectedCold, 'cold JSONL rows should match canonical projection');
-assert.deepEqual(compat, expectedHot, 'compat JSON should match hot projection');
+assert.deepEqual(compat, expectedCompat, 'compat JSON retains the complete inline cold-field union');
 
 const binaryMetaRaw = JSON.parse(await fs.readFile(path.join(outDir, 'chunk_meta.binary-columnar.meta.json'), 'utf8'));
 const binaryMeta = binaryMetaRaw?.fields && typeof binaryMetaRaw.fields === 'object'

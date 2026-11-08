@@ -7,12 +7,27 @@ import {
   padVisible,
   padVisibleStart,
   splitDurationParts,
-  stripAnsi
+  displayWidth,
+  truncateLine
 } from './text.js';
 
-const BAR_MAX = 42;
-const BAR_MID = 21;
 const BAR_MIN = 7;
+
+/** All widths are display cells. Separators and bar brackets are reserved once. */
+export const resolveRowCellBudget = ({ width, fixed, suffix = 0, rate = 0, detail = 0, message = 0, policy = 'normal' }) => {
+  const available = Math.max(0, width - fixed - suffix);
+  if (available < 4) return { compact: true, showSuffix: true, showRate: false, showDetail: false, showMessage: false,
+    fields: { rate: 0, detail: 0, message: 0 }, omittedFields: ['bar', ...Object.entries({ rate, detail, message }).filter(([, size]) => size > 0).map(([name]) => name)], barWidth: 0 };
+  let remaining = Math.max(0, available - BAR_MIN);
+  const fields = { rate: 0, detail: 0, message: 0 };
+  for (const [name, size] of [['rate', rate], ['detail', policy === 'compact' ? 0 : detail], ['message', message]]) {
+    if (size > 0 && remaining >= size + 3) { fields[name] = size; remaining -= size + 3; }
+  }
+  const omittedFields = Object.entries({ rate, detail, message }).filter(([name, size]) => size > 0 && !fields[name]).map(([name]) => name);
+  return { showSuffix: true, showRate: fields.rate > 0, showDetail: fields.detail > 0,
+    showMessage: fields.message > 0, fields, omittedFields,
+    barWidth: Math.max(4, available - Object.values(fields).reduce((sum, size) => sum + (size ? size + 3 : 0), 0)) };
+};
 
 const shouldHideTask = (task) => {
   if (!task) return false;
@@ -102,26 +117,15 @@ const buildTaskLabels = (displayTasks) => displayTasks.map((task) => {
 });
 
 const resolveLabelWidth = ({ taskLabels, benchPrefixes, width }) => {
-  const baselineLabels = [
-    `${formatModeLabel('extracted-prose')} Artifacts`,
-    `${formatModeLabel('extracted-prose')} Files`,
-    `${formatModeLabel('extracted-prose')} Stage`,
-    `${formatModeLabel('extracted-prose')} Imports`,
-    `${formatModeLabel('extracted-prose')} Shard`,
-    `${formatModeLabel('records')} Files`,
-    'bench Repos',
-    'queries Queries'
-  ];
-  const baseLabelLength = [...taskLabels, ...baselineLabels]
-    .reduce((max, label) => Math.max(max, stripAnsi(label).length), 0);
+  const baseLabelLength = taskLabels.reduce((max, label) => Math.max(max, displayWidth(label)), 0);
   const benchLabelLength = taskLabels.reduce((max, label, index) => {
     const prefix = benchPrefixes[index] || '';
     if (!prefix) return max;
-    const length = stripAnsi(label).length + 1 + stripAnsi(prefix).length;
+    const length = displayWidth(label) + 1 + displayWidth(prefix);
     return Math.max(max, length);
   }, 0);
   const maxLabelLength = Math.max(baseLabelLength, benchLabelLength);
-  return Math.min(maxLabelLength, Math.max(12, Math.floor(width * 0.32)));
+  return Math.min(maxLabelLength, Math.max(3, Math.floor(width * 0.28)));
 };
 
 const buildTimeLayout = ({ displayTasks, extrasByTask }) => {
@@ -166,7 +170,7 @@ const formatTimeText = ({ task, value, parts, useAlignedUnits, layoutWidths }) =
     : formatDurationCompact(parts);
 };
 
-export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFail }) => {
+export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFail, detailPolicy = 'normal' }) => {
   const now = Date.now();
   const runningNow = Math.floor(now / 1000) * 1000;
   const extrasByTask = displayTasks.map((task) => {
@@ -191,16 +195,16 @@ export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFa
     const current = Number.isFinite(task.current) ? task.current : 0;
     return total ? `${formatCount(current)}/${formatCount(total)}` : formatCount(current);
   });
-  const maxSuffixLength = suffixes.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+  const maxSuffixLength = suffixes.reduce((max, value) => Math.max(max, displayWidth(value)), 0);
   const padSuffix = (value) => {
-    const plainLength = stripAnsi(value).length;
+    const plainLength = displayWidth(value);
     if (plainLength >= maxSuffixLength) return value;
     return `${value}${' '.repeat(maxSuffixLength - plainLength)}`;
   };
   const rateTexts = extrasByTask.map((entry) => entry?.rateText || '');
-  const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+  const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, displayWidth(value)), 0);
   const padRate = (value) => {
-    const plainLength = stripAnsi(value).length;
+    const plainLength = displayWidth(value);
     if (plainLength >= maxRateLength) return value;
     return `${value}${' '.repeat(maxRateLength - plainLength)}`;
   };
@@ -212,9 +216,9 @@ export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFa
     useAlignedUnits,
     layoutWidths
   }));
-  const detailMaxRaw = detailTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+  const detailMaxRaw = detailTexts.reduce((max, value) => Math.max(max, displayWidth(value)), 0);
   const detailPrefix = 'eta:';
-  const detailWidth = detailMaxRaw + detailPrefix.length + 1;
+  const detailWidth = detailMaxRaw > 0 ? detailMaxRaw + detailPrefix.length + 1 : 0;
   const padDetail = (task, value) => {
     if (!value) return padVisibleStart('', detailWidth);
     if (task.status === 'running') {
@@ -225,9 +229,9 @@ export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFa
   };
   const messageTexts = displayTasks.map((task) => {
     if (task?.status !== 'running') return '';
-    return formatMessage(task.message);
+    return truncateLine(formatMessage(task.message), Math.min(48, Math.max(8, Math.floor(width * 0.24))));
   });
-  const maxMessageLength = messageTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+  const maxMessageLength = messageTexts.reduce((max, value) => Math.max(max, displayWidth(value)), 0);
   const padMessage = (value) => padVisible(value || '', maxMessageLength);
   const statusWidth = Math.max(
     3,
@@ -238,63 +242,15 @@ export const resolveDisplayLayout = ({ displayTasks, width, statusDone, statusFa
         : task.status === 'failed'
           ? statusFail
           : `(${task.status})`;
-      return Math.max(max, stripAnsi(text).length);
+      return Math.max(max, displayWidth(text));
     }, 0)
   );
-  const indentWidth = stripAnsi(`${LINE_PREFIX_TRANSPARENT}${LINE_PREFIX_SHADED}`).length;
-  const tryLayout = ({ showSuffix, showRate, showDetail, showMessage, minBar }) => {
-    const suffixLen = showSuffix ? maxSuffixLength : 0;
-    const rateLen = showRate ? maxRateLength : 0;
-    const detailLen = showDetail ? detailWidth : 0;
-    const messageLen = showMessage ? maxMessageLength : 0;
-    const timePrefixLen = 0;
-    let extraLen = 0;
-    if (showRate && showDetail && showMessage) extraLen = 3 + rateLen + 3 + detailLen + 3 + messageLen;
-    else if (showRate && showDetail) extraLen = 3 + rateLen + 3 + detailLen;
-    else if (showRate) extraLen = 3 + rateLen;
-    else if (showDetail) extraLen = 3 + detailLen;
-    const barGuardWidth = 0;
-    const reserved = indentWidth + labelWidth + (timePrefixLen ? timePrefixLen + 1 : 0) + barGuardWidth + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
-    const available = width - reserved;
-    if (available < minBar) return null;
-    const barWidth = Math.min(BAR_MAX, Math.max(minBar, available));
-    return { showSuffix, showRate, showDetail, showMessage, barWidth };
-  };
-  const layout = tryLayout({
-    showSuffix: true,
-    showRate: true,
-    showDetail: true,
-    showMessage: maxMessageLength > 0,
-    minBar: BAR_MID
-  })
-    || tryLayout({
-      showSuffix: false,
-      showRate: true,
-      showDetail: true,
-      showMessage: maxMessageLength > 0,
-      minBar: BAR_MID
-    })
-    || tryLayout({
-      showSuffix: false,
-      showRate: false,
-      showDetail: true,
-      showMessage: maxMessageLength > 0,
-      minBar: Math.floor(BAR_MID * 2 / 3)
-    })
-    || tryLayout({
-      showSuffix: false,
-      showRate: false,
-      showDetail: false,
-      showMessage: false,
-      minBar: BAR_MIN
-    })
-    || {
-      showSuffix: false,
-      showRate: false,
-      showDetail: false,
-      showMessage: false,
-      barWidth: BAR_MIN
-    };
+  const indentWidth = displayWidth(`${LINE_PREFIX_TRANSPARENT}${LINE_PREFIX_SHADED}`);
+  const layout = resolveRowCellBudget({
+    width: width - 1, fixed: indentWidth + labelWidth + 2 + 1 + 1 + statusWidth,
+    suffix: maxSuffixLength, rate: maxRateLength, detail: detailWidth,
+    message: maxMessageLength, policy: detailPolicy
+  });
   return {
     now,
     extrasByTask,

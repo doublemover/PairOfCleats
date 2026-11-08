@@ -43,6 +43,8 @@ assert.equal(first.file, 'src/sample.ts');
 assert.equal(first.role, 'definition');
 assert.equal(first.startLine, 2);
 assert.equal(first.language, 'typescript');
+assert.equal(first.name, 'foo', 'LSIF tag.text is the symbol name, not an object-valued name');
+assert.equal(first.kind, 12);
 
 const metaPath = `${outPath}.meta.json`;
 const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
@@ -50,6 +52,7 @@ assert.ok(meta.stats.vertices >= 4);
 assert.ok(meta.stats.edges >= 2);
 assert.ok(meta.stats.definitions >= 1);
 assert.ok(meta.stats.references >= 1);
+assert.equal(meta.stats.errors, 0);
 
 const escapeInputPath = path.join(tempRoot, 'escape.lsif');
 const escapeOutPath = path.join(tempRoot, 'escape-lsif.jsonl');
@@ -66,9 +69,9 @@ await fsPromises.writeFile(escapeInputPath, [
   JSON.stringify({ id: 200, type: 'edge', label: 'contains', outV: 1, inVs: [10] }),
   JSON.stringify({ id: 201, type: 'edge', label: 'contains', outV: 2, inVs: [11] }),
   JSON.stringify({ id: 202, type: 'edge', label: 'contains', outV: 3, inVs: [12] }),
-  JSON.stringify({ id: 300, type: 'edge', label: 'item', outV: 10, inVs: [100] }),
-  JSON.stringify({ id: 301, type: 'edge', label: 'item', outV: 11, inVs: [101] }),
-  JSON.stringify({ id: 302, type: 'edge', label: 'item', outV: 12, inVs: [102] })
+  JSON.stringify({ id: 300, type: 'edge', label: 'item', outV: 100, inVs: [10], shard: 1 }),
+  JSON.stringify({ id: 301, type: 'edge', label: 'item', outV: 101, inVs: [11], shard: 2 }),
+  JSON.stringify({ id: 302, type: 'edge', label: 'item', outV: 102, inVs: [12], shard: 3 })
 ].join('\n'));
 const escapeResult = runNode(
   [cliPath, 'ingest', 'lsif', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],

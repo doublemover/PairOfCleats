@@ -1,0 +1,1447 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-ci-integration-repairs",
+  "date": "2026-10-29",
+  "sourceParent": "475a75b6a57eb689775611b9657f238c5a76ec39",
+  "sourceCodeHead": "db721830670951e404b4a9652a524755cb0b1072",
+  "sourceIdentity": "parent-commit-plus-working-file-sha256; receipt excluded from own hash",
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 53373,
+      "sha256": "4452f6e8b1b7877125fcd451193b389a5eae36384098581cddaf01f66fddc367"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "bytes": 19690,
+      "sha256": "07afd9c6df47b8ca7d088eb013a7a24072e0df807a3cff817142f6a3982bbb18"
+    },
+    {
+      "path": "docs/testing/qualification-matrix.md",
+      "bytes": 90107,
+      "sha256": "78eab4ca0a41a9e2f51887b71032dda56a1cf61913f817b4cc5f17b4cc3a3903"
+    },
+    {
+      "path": "src/shared/artifact-io/contained-path.js",
+      "bytes": 4616,
+      "sha256": "639494c7cc5fdbd12f5d35dd129990284a52a1b1cfd04dc28cc36bb68b0dc458"
+    },
+    {
+      "path": "tests/ci/workflow-contract.test.js",
+      "bytes": 32982,
+      "sha256": "78bbe677e28d09137afeb7aa56b7b67cf4df447f7c8cf112867f6bdf813fdcf1"
+    },
+    {
+      "path": "tests/shared/artifact-io/windows-path-alias.test.js",
+      "bytes": 2694,
+      "sha256": "48778b79714a774793dfe73dbd6e595bc6153333cda37083dda3b3dd50c50e70"
+    },
+    {
+      "path": "tests/tooling/ci/csharp-ls-provisioning.test.js",
+      "bytes": 5181,
+      "sha256": "af225a27a36e3877ec87db9ec6ca5278794d4deb804f1b98f3c31653d774eb65"
+    },
+    {
+      "path": "tests/tooling/ci/lsp-runtime-qualification.test.js",
+      "bytes": 8928,
+      "sha256": "e0b20639a9b19a9e2f892a2fdc456f9eeed168e3f5a167f5559b6aa3ff98534a"
+    },
+    {
+      "path": "tests/tooling/ci/lsp-runtime-qualification.test.js.cases.json",
+      "bytes": 331,
+      "sha256": "d1976a8af4396f5a319fdd7a09b6f213f0f744ce660020436df97f4f5785c571"
+    },
+    {
+      "path": "tests/tooling/ci/phpactor-provisioning.test.js",
+      "bytes": 4986,
+      "sha256": "8138960a0937c8d928f02174a53f7e31a9f6af2fd66dafedb33fef2e59e5b3ff"
+    },
+    {
+      "path": "tests/tui/native-artifact-actions.test.js",
+      "bytes": 11518,
+      "sha256": "6b7569b817ea063558a5993fca9446272cb22664615f8e0e7638baac5f414c49"
+    },
+    {
+      "path": "tools/ci/provision-csharp-ls.js",
+      "bytes": 5998,
+      "sha256": "9933dc1b86ece493512ac7cccd85f9e28097edac28fb3e0659ad6176e508cb81"
+    },
+    {
+      "path": "tools/ci/provision-phpactor.js",
+      "bytes": 5569,
+      "sha256": "4799169e619f3e19249872ff2037becf371d4169159fd940956cbc12b9c858be"
+    },
+    {
+      "path": "tools/ci/qualify-lsp-runtime.js",
+      "bytes": 13361,
+      "sha256": "c3865df5ab69720f7ddefc0042141477119576ca7d3cf75f0d01f3928aeaa0bd"
+    },
+    {
+      "path": "tools/tooling/csharp-ls-recipe.js",
+      "bytes": 124,
+      "sha256": "01c214c4bb4d1e170d6603d45e9ae19e3f910700d5ca9f04bcd6aa7de0f6b3da"
+    },
+    {
+      "path": "tools/tooling/utils.js",
+      "bytes": 43829,
+      "sha256": "125e3d6bbb3b634cbabbe6749c5233bc3a70699b69a591ac6527a54fbc9fdaa4"
+    }
+  ],
+  "artifactFinalControls": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl",
+    "summary": {
+      "durationMs": 1970,
+      "failed": 0,
+      "passed": 7,
+      "skipped": 0,
+      "total": 7
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 1032,
+        "exitCode": 0,
+        "id": "indexing/watch/promotion/path-identity",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\indexing_watch_promotion_path-identity.attempt-1.log"
+        ],
+        "path": "indexing/watch/promotion/path-identity.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration",
+          "watch"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 190,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-columnar-meta-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\shared_artifact-io_binary-columnar-meta-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-columnar-meta-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 180,
+        "exitCode": 0,
+        "id": "shared/artifact-io/chunk-meta-binary-columnar-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\shared_artifact-io_chunk-meta-binary-columnar-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/chunk-meta-binary-columnar-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 122,
+        "exitCode": 0,
+        "id": "shared/artifact-io/manifest-dotdot-prefix-path",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\shared_artifact-io_manifest-dotdot-prefix-path.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/manifest-dotdot-prefix-path.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 163,
+        "exitCode": 0,
+        "id": "shared/artifact-io/token-postings-binary-columnar-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\shared_artifact-io_token-postings-binary-columnar-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/token-postings-binary-columnar-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 165,
+        "exitCode": 0,
+        "id": "shared/artifact-io/token-postings-packed-offsets-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\shared_artifact-io_token-postings-packed-offsets-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/token-postings-packed-offsets-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 108,
+        "exitCode": 0,
+        "id": "shared/artifact-io/windows-path-alias",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-final-logs\\run-1793254062967-0n5prl\\shared_artifact-io_windows-path-alias.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/windows-path-alias.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "nativeOriginalRecheck": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-original-recheck-logs\\run-1793253622056-b41g53",
+    "summary": {
+      "durationMs": 18827,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 7636,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/actions",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-original-recheck-logs\\run-1793253622056-b41g53\\tui_native-artifact-actions_actions.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5771,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/cancel",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-original-recheck-logs\\run-1793253622056-b41g53\\tui_native-artifact-actions_cancel.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5413,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/missing",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-original-recheck-logs\\run-1793253622056-b41g53\\tui_native-artifact-actions_missing.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "nativeObserverRecheck": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn",
+    "summary": {
+      "durationMs": 29506,
+      "failed": 0,
+      "passed": 6,
+      "skipped": 0,
+      "total": 6
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 93,
+        "exitCode": 0,
+        "id": "tooling/terminal-screen-wrap",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn\\tooling_terminal-screen-wrap.attempt-1.log"
+        ],
+        "path": "tooling/terminal-screen-wrap.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 7591,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/actions",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn\\tui_native-artifact-actions_actions.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5685,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/cancel",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn\\tui_native-artifact-actions_cancel.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5350,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/missing",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn\\tui_native-artifact-actions_missing.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5383,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/stale",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn\\tui_native-artifact-actions_stale.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5397,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/untrusted",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-stream-recheck-logs\\run-1793253851399-2xeqzn\\tui_native-artifact-actions_untrusted.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "nativeFinalRecheck": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-final-recheck-logs\\run-1793254211479-ffccxb",
+    "summary": {
+      "durationMs": 30257,
+      "failed": 0,
+      "passed": 5,
+      "skipped": 0,
+      "total": 5
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 7665,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/actions",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-final-recheck-logs\\run-1793254211479-ffccxb\\tui_native-artifact-actions_actions.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5969,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/cancel",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-final-recheck-logs\\run-1793254211479-ffccxb\\tui_native-artifact-actions_cancel.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5394,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/missing",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-final-recheck-logs\\run-1793254211479-ffccxb\\tui_native-artifact-actions_missing.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5563,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/stale",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-final-recheck-logs\\run-1793254211479-ffccxb\\tui_native-artifact-actions_stale.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5658,
+        "exitCode": 0,
+        "id": "tui/native-artifact-actions/untrusted",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\native-artifact-final-recheck-logs\\run-1793254211479-ffccxb\\tui_native-artifact-actions_untrusted.attempt-1.log"
+        ],
+        "path": "tui/native-artifact-actions.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "hostedFailures": {
+    "jobs": [
+      {
+        "name": "ubuntu",
+        "jobId": 123275832285,
+        "headRevision": "8a79cc7c901380fd8afaa64d235d19600cf21c41",
+        "job": {
+          "id": 123275832285,
+          "head_sha": "8a79cc7c901380fd8afaa64d235d19600cf21c41",
+          "name": "ubuntu",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        "executedSource": "02e5923b401a97afa70bb9dd0a81d0e303086877",
+        "diagnosis": "Required Csharp command absent after product storage-estimate refusal"
+      },
+      {
+        "name": "macos",
+        "jobId": 123275832259,
+        "headRevision": "8a79cc7c901380fd8afaa64d235d19600cf21c41",
+        "job": {
+          "id": 123275832259,
+          "head_sha": "8a79cc7c901380fd8afaa64d235d19600cf21c41",
+          "name": "macos",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        "executedSource": "02e5923b401a97afa70bb9dd0a81d0e303086877",
+        "diagnosis": "csharp-ls_workspace_trust_required for exact generated workspace"
+      },
+      {
+        "name": "authority",
+        "jobId": 123275832241,
+        "headRevision": "8a79cc7c901380fd8afaa64d235d19600cf21c41",
+        "job": {
+          "id": 123275832241,
+          "head_sha": "8a79cc7c901380fd8afaa64d235d19600cf21c41",
+          "name": "windows-authority",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        "executedSource": null,
+        "diagnosis": "ERR_ARTIFACT_PATH for valid Windows RUNNER~1 manifest spelling"
+      }
+    ],
+    "optionalInstall": [
+      {
+        "id": "pyright",
+        "status": "already-installed",
+        "reason": null,
+        "error": null
+      },
+      {
+        "id": "csharp-ls",
+        "status": "missing-requirement",
+        "reason": "storage-estimate-unavailable",
+        "error": "The selected product recipe needs qualified storage bounds; use an already verified compatible tool or update this recipe."
+      },
+      {
+        "id": "solargraph",
+        "status": "missing-requirement",
+        "reason": "storage-estimate-unavailable",
+        "error": "The selected product recipe needs qualified storage bounds; use an already verified compatible tool or update this recipe."
+      },
+      {
+        "id": "phpactor",
+        "status": "missing-requirement",
+        "reason": "storage-estimate-unavailable",
+        "error": "The selected product recipe needs qualified storage bounds; use an already verified compatible tool or update this recipe."
+      },
+      {
+        "id": "yaml-language-server",
+        "status": "missing-requirement",
+        "reason": "storage-estimate-unavailable",
+        "error": "The selected product recipe needs qualified storage bounds; use an already verified compatible tool or update this recipe."
+      }
+    ]
+  },
+  "controls": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda",
+    "summary": {
+      "durationMs": 40323,
+      "failed": 0,
+      "passed": 22,
+      "skipped": 0,
+      "total": 22
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 1009,
+        "exitCode": 0,
+        "id": "indexing/watch/promotion/path-identity",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\indexing_watch_promotion_path-identity.attempt-1.log"
+        ],
+        "path": "indexing/watch/promotion/path-identity.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration",
+          "watch"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 200,
+        "exitCode": 0,
+        "id": "shared/artifact-io/binary-columnar-meta-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\shared_artifact-io_binary-columnar-meta-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/binary-columnar-meta-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 176,
+        "exitCode": 0,
+        "id": "shared/artifact-io/chunk-meta-binary-columnar-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\shared_artifact-io_chunk-meta-binary-columnar-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/chunk-meta-binary-columnar-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 119,
+        "exitCode": 0,
+        "id": "shared/artifact-io/manifest-dotdot-prefix-path",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\shared_artifact-io_manifest-dotdot-prefix-path.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/manifest-dotdot-prefix-path.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 168,
+        "exitCode": 0,
+        "id": "shared/artifact-io/token-postings-binary-columnar-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\shared_artifact-io_token-postings-binary-columnar-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/token-postings-binary-columnar-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 167,
+        "exitCode": 0,
+        "id": "shared/artifact-io/token-postings-packed-offsets-path-traversal",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\shared_artifact-io_token-postings-packed-offsets-path-traversal.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/token-postings-packed-offsets-path-traversal.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 109,
+        "exitCode": 0,
+        "id": "shared/artifact-io/windows-path-alias",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\shared_artifact-io_windows-path-alias.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/windows-path-alias.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 259,
+        "exitCode": 0,
+        "id": "tooling/ci/csharp-ls-provisioning",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_csharp-ls-provisioning.attempt-1.log"
+        ],
+        "path": "tooling/ci/csharp-ls-provisioning.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2206,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/diagnostics-truncated",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_diagnostics-truncated.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1512,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/fixture-without-testing",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_fixture-without-testing.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1055,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/observer-throw",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_observer-throw.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2224,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/phpactor-duplicate-info",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_phpactor-duplicate-info.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2181,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/phpactor-info",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_phpactor-info.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2298,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/phpactor-unexpected-stderr",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_phpactor-unexpected-stderr.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2224,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/success",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_success.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2220,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/unexpected-stderr",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_unexpected-stderr.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5892,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/unresponsive-initialize",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_unresponsive-initialize.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 7165,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/unresponsive-shutdown",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_unresponsive-shutdown.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1355,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/untrusted-command",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_untrusted-command.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 5990,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/version-timeout",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_version-timeout.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1628,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/workspace-not-trusted",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_lsp-runtime-qualification_workspace-not-trusted.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 150,
+        "exitCode": 0,
+        "id": "tooling/ci/phpactor-provisioning",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-feature-controls-logs\\run-1793252655624-w9reda\\tooling_ci_phpactor-provisioning.attempt-1.log"
+        ],
+        "path": "tooling/ci/phpactor-provisioning.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "initialControls": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-controls-logs\\run-1793252005330-ij4haz",
+    "summary": {
+      "durationMs": 5631,
+      "failed": 0,
+      "passed": 5,
+      "skipped": 0,
+      "total": 5
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 108,
+        "exitCode": 0,
+        "id": "shared/artifact-io/windows-path-alias",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-controls-logs\\run-1793252005330-ij4haz\\shared_artifact-io_windows-path-alias.attempt-1.log"
+        ],
+        "path": "shared/artifact-io/windows-path-alias.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 260,
+        "exitCode": 0,
+        "id": "tooling/ci/csharp-ls-provisioning",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-controls-logs\\run-1793252005330-ij4haz\\tooling_ci_csharp-ls-provisioning.attempt-1.log"
+        ],
+        "path": "tooling/ci/csharp-ls-provisioning.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2304,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/success",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-controls-logs\\run-1793252005330-ij4haz\\tooling_ci_lsp-runtime-qualification_success.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1354,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/untrusted-command",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-controls-logs\\run-1793252005330-ij4haz\\tooling_ci_lsp-runtime-qualification_untrusted-command.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1598,
+        "exitCode": 0,
+        "id": "tooling/ci/lsp-runtime-qualification/workspace-not-trusted",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\ci-followup-controls-logs\\run-1793252005330-ij4haz\\tooling_ci_lsp-runtime-qualification_workspace-not-trusted.attempt-1.log"
+        ],
+        "path": "tooling/ci/lsp-runtime-qualification.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "artifactRegressionBefore": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-before-real-logs\\run-1793251967646-sn4zo1",
+    "summary": {
+      "durationMs": 80,
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0,
+      "total": 1
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 74,
+        "exitCode": 1,
+        "id": "shared/artifact-io/windows-path-alias",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-before-real-logs\\run-1793251967646-sn4zo1\\shared_artifact-io_windows-path-alias.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-before-real-logs\\run-1793251967646-sn4zo1\\shared_artifact-io_windows-path-alias.attempt-1.failure.json"
+        ],
+        "path": "shared/artifact-io/windows-path-alias.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "failed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "authoringErrorNotDefectEvidence": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-before-logs\\run-1793251831484-unxe70",
+    "summary": {
+      "durationMs": 68,
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0,
+      "total": 1
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 62,
+        "exitCode": 1,
+        "id": "shared/artifact-io/windows-path-alias",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-before-logs\\run-1793251831484-unxe70\\shared_artifact-io_windows-path-alias.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\artifact-alias-before-logs\\run-1793251831484-unxe70\\shared_artifact-io_windows-path-alias.attempt-1.failure.json"
+        ],
+        "path": "shared/artifact-io/windows-path-alias.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "failed",
+        "tags": [
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "realShortPathControl": {
+    "root": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\alias-short-control\\index",
+    "target": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\alias-short-control\\index\\pieces\\manifest.json",
+    "shortRoot": "C:\\Users\\sneak\\DEVELO~1\\PAIROF~1\\TMP~1\\tasks\\CI-AND~1\\ALIAS-~1\\index",
+    "shortTarget": "C:\\Users\\sneak\\DEVELO~1\\PAIROF~1\\TMP~1\\tasks\\CI-AND~1\\ALIAS-~1\\index\\pieces\\MANIFE~1.JSO",
+    "observations": [
+      {
+        "root": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\alias-short-control\\index",
+        "target": "C:\\Users\\sneak\\DEVELO~1\\PAIROF~1\\TMP~1\\tasks\\CI-AND~1\\ALIAS-~1\\index\\pieces\\MANIFE~1.JSO",
+        "admitted": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\alias-short-control\\index\\pieces\\manifest.json",
+        "relativeLabel": "pieces\\manifest.json",
+        "contentsMatch": true
+      },
+      {
+        "root": "C:\\Users\\sneak\\DEVELO~1\\PAIROF~1\\TMP~1\\tasks\\CI-AND~1\\ALIAS-~1\\index",
+        "target": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\alias-short-control\\index\\pieces\\manifest.json",
+        "admitted": "C:\\Users\\sneak\\DEVELO~1\\PAIROF~1\\TMP~1\\tasks\\CI-AND~1\\ALIAS-~1\\index\\pieces\\manifest.json",
+        "relativeLabel": "pieces\\manifest.json",
+        "contentsMatch": true
+      }
+    ],
+    "distinct": true,
+    "legacyRelative": "..\\..\\..\\..\\..\\..\\..\\DEVELO~1\\PAIROF~1\\TMP~1\\tasks\\CI-AND~1\\ALIAS-~1\\index\\pieces\\MANIFE~1.JSO",
+    "longRootShortFilePassed": true,
+    "shortRootLongFilePassed": true,
+    "source": "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getshortpathnamew",
+    "newLinksCreated": false
+  },
+  "productManagedAllocationQualified": false,
+  "realVendorDeliveryAndHandshakeQualified": false,
+  "frontGate": {
+    "status": "passed",
+    "checks": [
+      {
+        "durationMs": 32210.932,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-format.log",
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "command": "npm.cmd run format",
+        "name": "format",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 1843.26,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-config-budget.log",
+        "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188",
+        "command": "npm.cmd run config:budget",
+        "name": "config-budget",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 1164.4171,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-env-check.log",
+        "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91",
+        "command": "npm.cmd run env:check",
+        "name": "env-check",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 10499.2771,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-generated-freshness.log",
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "command": "node tools/docs/generated-surfaces.js --check-freshness",
+        "name": "generated-freshness",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 2475.5907,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-command-surface.log",
+        "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577",
+        "command": "node tools/ci/check-command-surface.js",
+        "name": "command-surface",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 207.7222,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-workflow-contract.log",
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f",
+        "command": "node tests/ci/workflow-contract.test.js",
+        "name": "workflow-contract",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 6091.2334,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-gate.log",
+        "sha256": "eade87bf606e703ac05e8bfb1087fbbce5fedcd8c645d5d390240b9340f3dd51",
+        "command": "node tests/run.js --lane gate --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .tmp/tasks/ci-and-p1-20261028/ci-integration-gate.json --log-dir .tmp/tasks/ci-and-p1-20261028/ci-integration-gate-logs",
+        "name": "gate",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 82.896,
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-integration-gate-diff-check.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "command": "git diff --check",
+        "name": "diff-check",
+        "exitCode": 0
+      }
+    ]
+  },
+  "remaining": [
+    "New hosted candidate must qualify actual Csharp/PHPactor installs, handshakes and original Windows physical-link cohort",
+    "Three P1 issues and the historical 25 observed failures retain their existing owners",
+    "Cross-platform, real-model, optional-backend, performance and release acceptance remain separate"
+  ],
+  "provenance": "Absolute .tmp paths are historical author-workspace observations, not clean-checkout inputs.",
+  "postRepairChecks": [
+    {
+      "name": "format",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/ci-integration-final-format.log",
+        "bytes": 51,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+      }
+    },
+    {
+      "name": "workflow",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/ci-integration-final-workflow.log",
+        "bytes": 63,
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f"
+      }
+    },
+    {
+      "name": "freshness",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/ci-integration-final-freshness.log",
+        "bytes": 43,
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6"
+      }
+    },
+    {
+      "name": "diff",
+      "exitCode": 0,
+      "log": {
+        "path": ".tmp/tasks/ci-and-p1-20261028/ci-integration-final-diff.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

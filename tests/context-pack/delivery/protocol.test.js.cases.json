@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["full-source-manifest", "delta-reconstruction-oracle", "reset-and-consumer-isolation", "loss-order-and-eviction", "integrity-and-coordinates", "full-cost-and-cancellation"]
+}

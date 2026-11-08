@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["lmdb-initialization", "context-initialization", "tracking", "dispose-siblings"]
+}

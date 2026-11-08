@@ -9,6 +9,7 @@ import {
 } from '../../../src/retrieval/cli/normalize-options.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { resolveOperationalGuardrails } from '../../../src/retrieval/operational-guardrails.js';
 
 const rootDir = process.cwd();
 const metricsDir = resolveTestCachePath(rootDir, 'ops-config-guardrails');
@@ -103,5 +104,23 @@ assert.equal(boundaryValid.annCandidateCap, 100, 'expected equal min/max/cap bou
 assert.equal(boundaryValid.annCandidateMinDocCount, 100, 'expected min boundary to remain valid');
 assert.equal(boundaryValid.annCandidateMaxDocCount, 100, 'expected max boundary to remain valid');
 assert.equal(boundaryValid.rrfK, 1, 'expected positive boundary rrf.k to remain valid');
+
+// The editor's pure owner and the actual search normalizer use identical values
+// and reject the same default-dependent combinations; no duplicate constants.
+for (const userConfig of [{}, { retrieval: { annCandidateCap: 1000 } },
+  { retrieval: { annCandidateCap: 100, annCandidateMinDocCount: 100, annCandidateMaxDocCount: 100 } },
+  { search: { rrf: { k: 2 } } }]) {
+  const actual = normalizeWithConfig({ userConfig });
+  const admitted = resolveOperationalGuardrails({ userConfig });
+  for (const key of Object.keys(admitted)) assert.equal(actual[key], admitted[key]);
+}
+for (const userConfig of [{ retrieval: { annCandidateMaxDocCount: 1000 } },
+  { retrieval: { annCandidateMinDocCount: 1000, annCandidateMaxDocCount: 500 } }, { search: { rrf: { k: 0 } } }]) {
+  let expected;
+  assert.throws(() => resolveOperationalGuardrails({ userConfig }), error => { expected = error.guardrailCode; return true; });
+  assert.throws(() => normalizeWithConfig({ userConfig }), error => error.guardrailCode === expected);
+}
+assert.equal(resolveOperationalGuardrails({ policy: { retrieval: { rrf: { k: 3 } } } }).rrfK, 3);
+assert.equal(normalizeWithConfig({ policy: { retrieval: { rrf: { k: 3 } } } }).rrfK, 3);
 
 console.log('ops config guardrails test passed');

@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+import { observeStorageResource, describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 const require = createRequire(import.meta.url);
 
@@ -13,16 +15,21 @@ import { probeSqliteNative } from '../../src/shared/native-package-probe.js';
  * Its default loader prefers a bundled prebuild even after a source build, so
  * replace a failed host prebuild only after the new binding passes a real query.
  */
-export const rebuildSqliteNativeFromSource = (root, runNpmCommand) => {
-  const packageRoot = path.join(root, 'node_modules', 'better-sqlite3');
-  const build = runNpmCommand(['run', 'build-release'], {
-    cwd: packageRoot,
-    buildFromSource: true
+export const rebuildSqliteNativeFromSource = async (root, runNpmCommand, probeOptions = {}) => {
+  probeOptions = { signal: probeOptions.signal || null, run: probeOptions.run || null };
+  probeOptions.signal?.throwIfAborted();
+  const build = await runNpmCommand(['run', 'build-release'], {
+    cwd: path.join(root, 'node_modules', 'better-sqlite3'), buildFromSource: false
   });
-  if (!build.ok) return build;
+  probeOptions.signal?.throwIfAborted();
+  return build.ok ? promoteSqliteBuild(root, probeOptions) : build;
+};
+
+const promoteSqliteBuild = async (root, probeOptions) => {
+  const packageRoot = path.join(root, 'node_modules', 'better-sqlite3');
 
   const compiledPath = path.join(packageRoot, 'build', 'Release', 'better_sqlite3.node');
-  const compiledProbe = probeSqliteNative(root, compiledPath);
+  const compiledProbe = await probeSqliteNative(root, compiledPath, probeOptions);
   if (!compiledProbe.ok) return compiledProbe;
 
   let prebuildPath = null;
@@ -39,15 +46,19 @@ export const rebuildSqliteNativeFromSource = (root, runNpmCommand) => {
       fs.rmSync(temporaryPath, { force: true });
     }
   };
-  const restoreFailure = (message) => {
+  const restoreFailure = result => {
     if (original && promoted) {
       try {
         replacePrebuild(original);
-      } catch (error) {
-        return { ok: false, message: `${message}; could not restore prebuild: ${error?.message || error}` };
+      } catch (cleanup) {
+        const original = Object.hasOwn(result, 'error') ? result.error : new Error(result.message);
+        const error = addStorageFailureContext(original, { sqlitePromotionResult: result }, cleanup, { secondaryPresent: true });
+        observeStorageResource(error, { phase: 'sqlite-promotion-rollback' }).requireSettled();
+        return { ...result, error, message: `${result.message}; could not restore prebuild: ${describeStorageFailure(cleanup,
+          { phase: 'sqlite-promotion-rollback' }).message}` };
       }
     }
-    return { ok: false, message };
+    return result;
   };
   try {
     const binding = require(path.join(packageRoot, 'lib', 'binding.js'));
@@ -58,10 +69,18 @@ export const rebuildSqliteNativeFromSource = (root, runNpmCommand) => {
       replacePrebuild(fs.readFileSync(compiledPath));
       promoted = true;
     }
-    const defaultProbe = probeSqliteNative(root);
-    if (defaultProbe.ok) return defaultProbe;
-    return restoreFailure(defaultProbe.message);
   } catch (error) {
-    return restoreFailure(error?.message || String(error));
+    observeStorageResource(error, { phase: 'sqlite-promotion-before-rollback' }).requireSettled();
+    return restoreFailure({ ok: false, error, message: describeStorageFailure(error, { phase: 'sqlite-binding-promotion' }).message });
   }
+  let defaultProbe;
+  try { defaultProbe = await probeSqliteNative(root, null, probeOptions); }
+  catch (error) {
+    // An actual child/diagnostic callback rejection is terminal. Roll back only
+    // after its original work retires, then preserve that exact rejection.
+    observeStorageResource(error, { phase: 'sqlite-default-probe-before-rollback' }).requireSettled();
+    const restored = restoreFailure({ ok: false, error, message: describeStorageFailure(error, { phase: 'sqlite-default-probe' }).message });
+    throw restored.error;
+  }
+  return defaultProbe.ok ? defaultProbe : restoreFailure(defaultProbe);
 };

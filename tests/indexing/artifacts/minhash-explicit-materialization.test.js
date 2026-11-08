@@ -1,3 +1,4 @@
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import { buildPostings } from '../../../src/index/build/postings.js';
 
 const fail = (message) => {
@@ -8,7 +9,7 @@ const fail = (message) => {
 const chunks = new Array(5).fill(0).map((_, idx) => ({
   tokens: [],
   tokenCount: 0,
-  minhashSig: Array.from({ length: 32 }, (_value, offset) => (idx * 1000) + offset)
+  minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: Array.from({ length: 32 }, (_value, offset) => (idx * 1000) + offset)
 }));
 
 const postings = await buildPostings({

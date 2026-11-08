@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -47,7 +49,7 @@ requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw-ann test.' }
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'main.js'),
-  'export function indexItem(value) { return value + 1; }\n',
+  'export function indexItem(value) {\n  // Increment an indexed item value.\n  return value + 1;\n}\n',
   'utf8'
 );
 await fsPromises.writeFile(
@@ -63,8 +65,7 @@ const env = applyTestEnv({
     indexing: {
       embeddings: {
         hnsw: {
-          enabled: true,
-          isolate: false
+          enabled: true
         }
       },
       typeInference: false,
@@ -92,18 +93,16 @@ const userConfig = loadUserConfig(repoRoot);
 const hnswConfig = normalizeHnswConfig(userConfig.indexing?.embeddings?.hnsw || {});
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
-const codeIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
-const codeMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
-const codeDocIndex = path.join(codeDir, 'dense_vectors_doc_hnsw.bin');
-const codeDocMeta = path.join(codeDir, 'dense_vectors_doc_hnsw.meta.json');
-const codeCodeIndex = path.join(codeDir, 'dense_vectors_code_hnsw.bin');
-const codeCodeMeta = path.join(codeDir, 'dense_vectors_code_hnsw.meta.json');
-const proseIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
-const proseMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
-const proseDocIndex = path.join(proseDir, 'dense_vectors_doc_hnsw.bin');
-const proseDocMeta = path.join(proseDir, 'dense_vectors_doc_hnsw.meta.json');
-const proseCodeIndex = path.join(proseDir, 'dense_vectors_code_hnsw.bin');
-const proseCodeMeta = path.join(proseDir, 'dense_vectors_code_hnsw.meta.json');
+const codeIndex = embeddingArtifactPath(codeDir, 'dense_vectors_hnsw');
+const codeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_hnsw_meta');
+const codeDocIndex = embeddingArtifactPath(codeDir, 'dense_vectors_doc_hnsw');
+const codeDocMeta = embeddingArtifactPath(codeDir, 'dense_vectors_doc_hnsw_meta');
+const codeCodeIndex = embeddingArtifactPath(codeDir, 'dense_vectors_code_hnsw');
+const codeCodeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_code_hnsw_meta');
+const proseIndex = embeddingArtifactPath(proseDir, 'dense_vectors_hnsw');
+const proseMeta = embeddingArtifactPath(proseDir, 'dense_vectors_hnsw_meta');
+const proseCodeIndex = embeddingArtifactPath(proseDir, 'dense_vectors_code_hnsw');
+const proseCodeMeta = embeddingArtifactPath(proseDir, 'dense_vectors_code_hnsw_meta');
 
 if (!fs.existsSync(codeIndex) || !fs.existsSync(codeMeta)) {
   console.error('HNSW index missing for code mode.');
@@ -121,14 +120,20 @@ if (!fs.existsSync(proseIndex) || !fs.existsSync(proseMeta)) {
   console.error('HNSW index missing for prose mode.');
   process.exit(1);
 }
-if (!fs.existsSync(proseDocIndex) || !fs.existsSync(proseDocMeta)) {
-  console.error('HNSW doc index missing for prose mode.');
-  process.exit(1);
-}
 if (!fs.existsSync(proseCodeIndex) || !fs.existsSync(proseCodeMeta)) {
   console.error('HNSW code index missing for prose mode.');
   process.exit(1);
 }
+
+// Prose has no separate docmeta.doc channel. Its absence mask must not be
+// fabricated into a nonempty native index; the documented code fixture above
+// supplies the positive doc-channel coverage.
+const proseManifest = JSON.parse(fs.readFileSync(path.join(proseDir, 'pieces', 'manifest.json'), 'utf8'));
+for (const name of ['dense_vectors_doc_hnsw', 'dense_vectors_doc_hnsw_meta']) {
+  assert.equal(proseManifest.pieces.some(piece => piece.name === name), false, `Absent prose doc channel published ${name}`);
+}
+const proseDocVectors = JSON.parse(fs.readFileSync(path.join(proseDir, 'dense_vectors_doc_uint8.meta.json'), 'utf8'));
+assert.equal(proseDocVectors.validity.validCount, 0);
 
 const codeState = JSON.parse(fs.readFileSync(path.join(codeDir, 'index_state.json'), 'utf8'));
 const proseState = JSON.parse(fs.readFileSync(path.join(proseDir, 'index_state.json'), 'utf8'));

@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared CLI, command-registry, dispatch, capability, completions, legacy entrypoint, and tooling-bin helpers assigned to #413 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 31,
+    "ownedFileCount": 33,
     "overallAssessment": "This shared surface is mostly healthy and acts as the repo's canonical command and CLI contract layer. The P2 cleanup items from this review are complete: display state/event/layout/palette/frame responsibilities are split behind the public display facade, dispatch projection helpers are owned by command-registry query code, dispatch runtime-env resolution moved to the CLI entrypoint owner, and runtime-capability flag/surface projection moved behind the public manifest API.",
     "runtimeRisks": [
       {
@@ -47,7 +47,7 @@
   "entries": [
     {
       "path": "src/shared/capabilities.js",
-      "consumerCount": 8,
+      "consumerCount": 21,
       "classifications": [
         "keep",
         "document",
@@ -58,7 +58,7 @@
     },
     {
       "path": "src/shared/cli-options.js",
-      "consumerCount": 12,
+      "consumerCount": 16,
       "classifications": [
         "split",
         "document",
@@ -69,7 +69,7 @@
     },
     {
       "path": "src/shared/cli.js",
-      "consumerCount": 132,
+      "consumerCount": 165,
       "classifications": [
         "keep",
         "document",
@@ -80,7 +80,7 @@
     },
     {
       "path": "src/shared/cli/ansi-utils.js",
-      "consumerCount": 6,
+      "consumerCount": 19,
       "classifications": [
         "keep",
         "document",
@@ -91,7 +91,7 @@
     },
     {
       "path": "src/shared/cli/argv.js",
-      "consumerCount": 3,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -102,7 +102,7 @@
     },
     {
       "path": "src/shared/cli/display.js",
-      "consumerCount": 1,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -110,17 +110,6 @@
       ],
       "consumerNotes": "Single public createDisplay facade; task state, event routing, safe-stream handling, terminal adapter behavior, and rendering now live in display-internal owner modules.",
       "recommendation": "Keep as the public display facade and avoid moving renderer, state-store, or progress-event protocol logic back into this file."
-    },
-    {
-      "path": "src/shared/cli/display/events.js",
-      "consumerCount": 1,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Display-internal progress-event writer used by createDisplay for JSONL log and task events.",
-      "recommendation": "Keep as the display family event-emission owner so createDisplay does not depend directly on the progress protocol writer."
     },
     {
       "path": "src/shared/cli/display/bar.js",
@@ -135,7 +124,7 @@
     },
     {
       "path": "src/shared/cli/display/colors.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -145,8 +134,30 @@
       "recommendation": "Keep as the shared display color primitive layer."
     },
     {
-      "path": "src/shared/cli/display/frame.js",
+      "path": "src/shared/cli/display/cursor.js",
       "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/cli with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/cli/display/events.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display-internal progress-event writer used by createDisplay for JSONL log and task events.",
+      "recommendation": "Keep as the display family event-emission owner so createDisplay does not depend directly on the progress protocol writer."
+    },
+    {
+      "path": "src/shared/cli/display/frame.js",
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -156,8 +167,18 @@
       "recommendation": "Keep cursor movement and frame diffing here so render.js only provides row content."
     },
     {
+      "path": "src/shared/cli/display/human-log.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/cli/display.js.",
+      "recommendation": "Keep bounded human projection separate from unchanged canonical progress events."
+    },
+    {
       "path": "src/shared/cli/display/layout.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -178,19 +199,8 @@
       "recommendation": "Keep palette mutation and task color derivation here so render.js only consumes resolved colors and shades."
     },
     {
-      "path": "src/shared/cli/display/cursor.js",
-      "consumerCount": 1,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Ledger-owned shared module in src/shared/cli with 1 direct consumer(s).",
-      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
-    },
-    {
       "path": "src/shared/cli/display/progress.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -201,7 +211,7 @@
     },
     {
       "path": "src/shared/cli/display/render.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -212,7 +222,7 @@
     },
     {
       "path": "src/shared/cli/display/state.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -234,7 +244,7 @@
     },
     {
       "path": "src/shared/cli/display/terminal.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -245,7 +255,7 @@
     },
     {
       "path": "src/shared/cli/display/text.js",
-      "consumerCount": 3,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -267,7 +277,7 @@
     },
     {
       "path": "src/shared/cli/noop-task.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -277,8 +287,18 @@
       "recommendation": "Keep as the no-op task fallback rather than reimplementing null-task objects at callsites."
     },
     {
+      "path": "src/shared/cli/option-prefix.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/retrieval/cli-args.js, src/retrieval/cli/runner.js, src/retrieval/cli/search-entry.js.",
+      "recommendation": "Keep raw preflight scanning bounded by the first option terminator."
+    },
+    {
       "path": "src/shared/cli/progress-events.js",
-      "consumerCount": 6,
+      "consumerCount": 22,
       "classifications": [
         "keep",
         "document",
@@ -289,7 +309,7 @@
     },
     {
       "path": "src/shared/cli/progress-stream.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -300,7 +320,7 @@
     },
     {
       "path": "src/shared/cli/stdout-guard.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -311,7 +331,7 @@
     },
     {
       "path": "src/shared/command-aliases.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -322,7 +342,7 @@
     },
     {
       "path": "src/shared/dispatch/registry.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -344,7 +364,7 @@
     },
     {
       "path": "src/shared/runtime-capability-manifest.js",
-      "consumerCount": 7,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -377,7 +397,7 @@
     },
     {
       "path": "src/shared/tooling-bin-dirs.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -386,5 +406,11 @@
       "consumerNotes": "Shared platform-aware search path expansion for command resolution and tooling utilities.",
       "recommendation": "Keep as the canonical tooling-bin search helper and avoid reimplementing platform-specific PATH augmentation in callers."
     }
-  ]
+  ],
+  "inventoryReview": {
+    "date": "2026-11-07",
+    "scope": "Current ledger-owned files, captured static consumers and exported ownership boundaries. Runtime, performance and platform qualification remain separate.",
+    "newlyReviewedFiles": 0,
+    "evidence": "Current source census from tools/docs/shared-module-ledger.js; native command lifecycle and authority moved together into src/shared/storage."
+  }
 }

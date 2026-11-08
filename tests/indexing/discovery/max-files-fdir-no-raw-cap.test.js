@@ -2,52 +2,26 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fdir } from 'fdir';
-
 import { discoverFiles } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
+// Keep the historical test ID; assert accepted-file semantics independently of the former crawler API.
 applyTestEnv({ testing: '1' });
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'discover-max-files-fdir-no-raw-cap');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
-for (let i = 0; i < 12; i += 1) {
-  await fs.writeFile(path.join(tempRoot, 'src', `file-${String(i).padStart(2, '0')}.js`), `export const v${i} = ${i};\n`);
-}
-
-const { ignoreMatcher } = await buildIgnoreMatcher({ root: tempRoot, userConfig: {} });
-const originalWithMaxFiles = fdir.prototype.withMaxFiles;
-let withMaxFilesCalls = 0;
-fdir.prototype.withMaxFiles = function patchedWithMaxFiles(...args) {
-  withMaxFilesCalls += 1;
-  return originalWithMaxFiles.apply(this, args);
-};
-
+const root = resolveTestCachePath(process.cwd(), 'discover-max-files-no-raw-cap');
+await fs.rm(root, { recursive: true, force: true });
+await fs.mkdir(root, { recursive: true });
 try {
-  await discoverFiles({
-    root: tempRoot,
-    mode: 'code',
-    scmProvider: null,
-    scmProviderImpl: null,
-    scmRepoRoot: null,
-    ignoreMatcher,
-    skippedFiles: [],
-    maxFileBytes: null,
-    maxFiles: 1
-  });
-} finally {
-  fdir.prototype.withMaxFiles = originalWithMaxFiles;
-}
-
-assert.equal(
-  withMaxFilesCalls,
-  0,
-  'maxFiles discovery should not impose a raw fdir candidate cap'
-);
-
-console.log('discover maxFiles fdir no raw cap test passed');
+  for (let index = 0; index < 6; index += 1) await fs.writeFile(path.join(root, `a-${index}.js`), 'x'.repeat(256));
+  await fs.writeFile(path.join(root, 'z-good.js'), 'x');
+  const { ignoreMatcher } = await buildIgnoreMatcher({ root, userConfig: {} });
+  const metrics = {};
+  const skipped = [];
+  const entries = await discoverFiles({ root, mode: 'code', ignoreMatcher, skippedFiles: skipped, maxFileBytes: 32, maxFiles: 1, metrics });
+  assert.deepEqual(entries.map(entry => entry.rel), ['z-good.js']);
+  assert.equal(skipped.filter(entry => entry.reason === 'oversize').length, 6);
+  assert.equal(metrics.candidates, 7, 'raw rejection candidates never consume accepted capacity');
+  assert.equal(metrics.candidateHighWater, 1);
+} finally { await fs.rm(root, { recursive: true, force: true }); }
+console.log('discover accepted maxFiles without raw candidate cap passed');

@@ -1,3 +1,4 @@
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
 import { assertSemanticTaskAuthority } from './task-authority.js';
 import { createWasmTaskInventory, wasmTaskInventoryHash, WASM_DEPENDENCY_KEY } from './wasm/task-authority.js';
 import { prepareWasmTaskExecution, executeWasmTask } from './wasm/task-execution.js';
@@ -31,6 +32,7 @@ import { openSemanticControlStore } from './control-store.js';
 import { reopenSemanticDiskAccount } from '../build/incremental/working-set.js';
 import { normalizeSemanticConfig } from './config.js';
 import { createCompilerSourceReuse } from '../tooling/typescript/source-reuse.js';
+export { planCompilerSummaryDemand as planSemanticSummaryDemand } from './compiler-summary-demand.js';
 
 const hashBytes = bytes => createHash('sha256').update(bytes).digest('hex');
 const fail = (message, code = 'ERR_SEMANTIC_BINDING_WORK') => Object.assign(new Error(message), { code });
@@ -137,8 +139,10 @@ const prepareBindingGroup = async ({ state, runtime, policy, kind = 'bind', phas
       compilerInventory = await state.semanticCompilerPreflight;
     }
   } catch (error) {
-    throwIfAborted(signal); if (!['ERR_SEMANTIC_DEPENDENCY_UNSEALED', 'ERR_SEMANTIC_NATIVE_UNSEALED'].includes(error.code)) throw error;
-    dependencyFailure = error.message;
+    const diagnostic = describeStorageFailure(error, { phase: 'semantic-frontier-dependency' });
+    throwIfAborted(signal);
+    if (!['ERR_SEMANTIC_DEPENDENCY_UNSEALED', 'ERR_SEMANTIC_NATIVE_UNSEALED'].includes(diagnostic.code)) throw error;
+    dependencyFailure = diagnostic.message;
   }
   const authorityHash = binaryInventory ? wasmTaskInventoryHash(binaryInventory) : nativeInventory ? nativeTaskInventoryHash(nativeInventory)
     : compilerInventory ? compilerInventoryHash(compilerInventory) : null;
@@ -298,11 +302,13 @@ export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConf
           syntaxPartitions: manifest.partitions.filter(row => row.partitionId.startsWith('sy1:')) });
         const targetPath = 'semantic/' + task.targetsRef;
         const targetFile = await resolveSemanticPartPath(indexDir, targetPath);
-        const targetBytes = await fs.readFile(targetFile), targetChecksum = await checksumFile(targetFile);
+        // Frontier targets are sealed with SHA256 by the semantic writer. The
+        // generic artifact hasher uses xxh64 and cannot certify that seal.
+        const targetBytes = await fs.readFile(targetFile), targetHash = hashBytes(targetBytes);
         if (!pieces.pieces.some(piece => piece.name === 'semantic_frontier_targets' && piece.path === targetPath
-          && piece.checksum === targetChecksum.algo + ':' + targetChecksum.value)
+          && piece.checksum === 'sha256:' + targetHash && piece.bytes === targetBytes.length)
           || !manifest.frontierTargets?.some(target => target.path === task.targetsRef
-            && target.hash === hashBytes(targetBytes) && target.bytes === targetBytes.length)) throw fail('Published target set is not registered.');
+            && target.hash === targetHash && target.bytes === targetBytes.length)) throw fail('Published target set is not registered.');
         tasks.set(task.taskId, task);
       }
       if (!tasks.size && !(manifest.completedTasks || []).length) continue;

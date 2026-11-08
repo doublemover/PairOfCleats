@@ -9,7 +9,7 @@ import { normalizeServerConfig } from '../../../src/index/tooling/lsp-provider/n
 import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
 import { __testLspSessionPool } from '../../../src/integrations/tooling/providers/lsp/session-pool.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-diagnostic-only-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-diagnostic-only-')));
 const stub = path.resolve('tests/fixtures/lsp/diagnostics-only-server.js');
 const text = 'bad = missing\n';
 const uid = 'ck64:v1:test:diagnostics:only';

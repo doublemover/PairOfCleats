@@ -6,6 +6,9 @@ import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-uti
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { setRecordsIncrementalCapability } from '../../../src/storage/sqlite/build/index.js';
+import { getIncrementalPaths } from '../../../src/storage/sqlite/incremental.js';
+import { persistIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
 import {
   assertSeededDbUnchangedAfterZeroState,
   assertZeroStateSkipped,
@@ -47,22 +50,20 @@ await assertSeededDbUnchangedAfterZeroState({
 
 const userConfig = loadUserConfig(fixture.repoRoot);
 const repoCacheRoot = getRepoCacheRoot(fixture.repoRoot, userConfig);
-const recordsIncrementalDir = path.join(repoCacheRoot, 'incremental', 'records');
+const { incrementalDir: recordsIncrementalDir, manifestPath } = getIncrementalPaths(repoCacheRoot, 'records');
 const seedUnsupportedDb = new Database(fixture.outputPath);
 seedUnsupportedDb.exec('INSERT INTO chunks (id, mode) VALUES (1, \'records\');');
 seedUnsupportedDb.close();
 await fs.mkdir(path.join(recordsIncrementalDir, 'files'), { recursive: true });
 const unsupportedManifest = {
-  version: 5,
   mode: 'records',
   files: {}
 };
 setRecordsIncrementalCapability(unsupportedManifest, false);
-await fs.writeFile(
-  path.join(recordsIncrementalDir, 'manifest.json'),
-  `${JSON.stringify(unsupportedManifest, null, 2)}\n`,
-  'utf8'
-);
+await persistIncrementalManifest(manifestPath, unsupportedManifest);
+await writeSqliteArtifactManifest(fixture.sourceIndexDir, [
+  { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }
+]);
 
 const unsupportedLogs = [];
 unsupportedLogs.push(...await runZeroStateSqliteBuild({ fixture, modeArg, incremental: true }));

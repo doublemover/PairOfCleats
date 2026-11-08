@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["real-command-bytes-and-terminal-status", "late-cancellation-keeps-original-result",
+    "spawn-error-keeps-original-packet", "canonical-command-stage-owned-evidence", "annotated-diagnostic-failure-stays-terminal"]
+}

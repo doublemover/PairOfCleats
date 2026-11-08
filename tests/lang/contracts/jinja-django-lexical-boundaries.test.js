@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { createJinjaTemplateStructureParser, parseJinjaTemplateStructure, resolveJinjaTemplateDialect } from '../../../src/shared/jinja-template-structure.js';
-import { chunkJinja, createJinjaChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { chunkJinja as chunkJinjaSource, createJinjaChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { collectJinjaImports, createJinjaImportCollector } from '../../../src/index/language-registry/import-collectors/jinja.js';
 import { createJinjaManagedAdapter } from '../../../src/index/language-registry/adapters/heuristic.js';
 import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
 import { LANGUAGE_CAPS_BASELINES, TREE_SITTER_CAPS_BASELINES } from '../../../src/index/build/runtime/caps-calibration.js';
 
+const chunkJinja = (text, ...args) => sourceSections(text, chunkJinjaSource(text, ...args));
 const text = [
   '😀 header', '{%- raw -%}', '{% block Ghost %}', '{% include "raw.fake" %}',
   '{%+ endraw +%}', '{# {% include "comment.fake" %} #}',
@@ -66,14 +68,14 @@ for (const ext of ['.django', '.djhtml']) {
   assert.equal(model.dialect, 'django');
   assert.deepEqual(model.definitions.map((entry) => entry.name), ['Actual']);
   assert.deepEqual(collectLanguageImports({ text: djangoText, ext, relPath: `templates/page${ext}`, mode: 'code' }), ['django.html']);
-  const dispatched = smartChunk({ text: djangoText, ext, relPath: `templates/page${ext}`, mode: 'code' });
+  const dispatched = sourceSections(djangoText, smartChunk({ text: djangoText, ext, relPath: `templates/page${ext}`, mode: 'code' }));
   assert.deepEqual(dispatched.map((entry) => entry.name), ['block Actual', 'include "django.html"']);
   assert.ok(dispatched.every((entry) => entry.meta.templateDialect === 'django'));
   assert.deepEqual(adapter.buildRelations({ text: djangoText, ext, relPath: `templates/page${ext}`, options: {} }).exports, ['Actual']);
 }
 for (const ext of ['.jinja', '.jinja2', '.j2']) {
   assert.equal(resolveJinjaTemplateDialect({ ext }), 'jinja');
-  assert.ok(smartChunk({ text, ext, mode: 'code' }).every((entry) => entry.meta.templateDialect === 'jinja'));
+  assert.ok(sourceSections(text, smartChunk({ text, ext, mode: 'code' })).every((entry) => entry.meta.templateDialect === 'jinja'));
 }
 assert.equal(resolveJinjaTemplateDialect({ relPath: 'templates\\page.DJHTML' }), 'django');
 assert.equal(parseJinjaTemplateStructure(djangoText).reason, 'unsupported-dialect-tag', 'Django verbatim is not Jinja raw');
@@ -106,11 +108,13 @@ assert.equal(stable('{{a+b+c+d+e+f}}'.repeat(3000)).reason, 'token-limit');
 assert.equal(stable('{% if ok %}'.repeat(65) + '{% endif %}'.repeat(65)).reason, 'depth-limit');
 assert.equal(stable('{{' + '('.repeat(65) + 'x' + ')'.repeat(65) + '}}').reason, 'depth-limit');
 const source = '{% include "first" %}\n{% block Real %}{{value}}{% endblock %}\n{% include "excluded" %}';
-const lineOptions = { collectorScanBudget: { maxLines: 2, maxMs: 0 } };
-assert.deepEqual(collectJinjaImports(source, lineOptions), ['first']);
-assert.ok(!adapter.buildRelations({ text: source, options: lineOptions }).imports.includes('excluded'));
-assert.deepEqual(collectJinjaImports('{% include "first" %}{% include "second" %}', { collectorScanBudget: { maxMatches: 1, maxMs: 0 } }), ['first']);
-assert.deepEqual(collectJinjaImports('{% include "first" %}{% include "second" %}', { collectorScanBudget: { maxTokens: 1, maxMs: 0 } }), ['first']);
+const lineOptions = { collectorNow: () => 0, collectorScanBudget: { maxLines: 2, maxMs: 0 } };
+const boundedCollector = createJinjaImportCollector({ parseStructure: stable });
+const boundedAdapter = createJinjaManagedAdapter({ parseStructure: stable });
+assert.deepEqual(boundedCollector(source, lineOptions), ['first']);
+assert.ok(!boundedAdapter.buildRelations({ text: source, options: lineOptions }).imports.includes('excluded'));
+assert.deepEqual(boundedCollector('{% include "first" %}{% include "second" %}', { collectorNow: () => 0, collectorScanBudget: { maxMatches: 1, maxMs: 0 } }), ['first']);
+assert.deepEqual(boundedCollector('{% include "first" %}{% include "second" %}', { collectorNow: () => 0, collectorScanBudget: { maxTokens: 1, maxMs: 0 } }), ['first']);
 const cached = createJinjaTemplateStructureParser();
 assert.equal(cached('{% include "real" %}').reason, null);
 assert.equal(cached('{% include "real" %}', { remainingMs: () => 0 }).reason, 'time-limit');

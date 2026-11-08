@@ -2,9 +2,10 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFileSafe, readJsonFileSyncSafe } from './file-read.js';
+import { readJsonResourceText } from './file-read-resource.js';
 
 export async function readJsonFile(filePath, { reviver = undefined } = {}) {
-  const raw = await fs.readFile(filePath, 'utf8');
+  const raw = await readJsonResourceText(filePath);
   return JSON.parse(raw, reviver);
 }
 
@@ -25,7 +26,7 @@ export function readJsonFileSyncSafeResolved(filePath, fallback = null) {
 
 export async function readJsonFileResolved(filePath) {
   const resolved = path.resolve(String(filePath || ''));
-  const raw = await fs.readFile(resolved, 'utf8');
+  const raw = await readJsonResourceText(resolved);
   return JSON.parse(raw);
 }
 

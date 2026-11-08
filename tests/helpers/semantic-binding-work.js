@@ -10,7 +10,7 @@ import { createBuildScheduler } from '../../src/shared/concurrency/scheduler-cor
 import { resolveSchedulerConfig } from '../../src/index/build/runtime/scheduler.js';
 import { createSemanticCacheFixture } from './semantic-cache-fixture.js';
 import { enqueueSemanticArtifacts } from '../../src/index/build/artifacts/writers/semantic/family.js';
-import { writeArtifactPublicationRecord } from '../../src/index/build/artifact-publication.js';
+import { writeArtifactPublicationRecord, writeArtifactPublicationValidationReport } from '../../src/index/build/artifact-publication.js';
 import { checksumFile } from '../../src/shared/hash.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { seedPublishedArtifacts } from './artifact-publication.js';
@@ -23,13 +23,21 @@ export const writeBindingFixtureFamily = async ({ state, runtime, buildId }) => 
     addPieceFile: (piece, filename) => pieceEntries.push({ ...piece, path: path.relative(outDir, filename).split(path.sep).join('/') }) });
   for (const write of queue) await write();
   for (const piece of pieceEntries) {
-    const checksum = await checksumFile(path.join(outDir, piece.path));
-    piece.checksum = checksum.algo + ':' + checksum.value;
+    piece.bytes = (await fs.stat(path.join(outDir, piece.path))).size;
+    // Preserve sealed hashes supplied by the actual semantic producer.
+    if (!piece.checksum) {
+      const checksum = await checksumFile(path.join(outDir, piece.path));
+      piece.checksum = checksum.algo + ':' + checksum.value;
+    }
   }
   await fs.writeFile(manifestPath, JSON.stringify({ version: 2, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     mode: 'code', stage: 'stage2', buildId, pieces: pieceEntries }));
-  const writeRecord = () => writeArtifactPublicationRecord({ buildRoot: runtime.buildRoot,
-    outDir, mode: 'code', stage: 'stage2', buildId, pieceEntries, manifestPath });
+  const writeRecord = async () => {
+    const publicationValidation = await writeArtifactPublicationValidationReport({ buildRoot: runtime.buildRoot,
+      outDir, mode: 'code', buildId, pieceEntries, manifestPath });
+    return writeArtifactPublicationRecord({ buildRoot: runtime.buildRoot,
+      outDir, mode: 'code', stage: 'stage2', buildId, pieceEntries, manifestPath, publicationValidation });
+  };
   await writeRecord();
   return { outDir, manifestPath, writeRecord };
 };

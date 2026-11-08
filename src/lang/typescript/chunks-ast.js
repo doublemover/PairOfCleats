@@ -1,10 +1,5 @@
-import { findCLikeBodyBounds } from '../clike.js';
-import {
-  extractTypeScriptParamTypes,
-  extractTypeScriptParams,
-  extractTypeScriptReturns,
-  mergeParamTypes
-} from './signature.js';
+import { findTypeScriptBodyBounds } from './brace-bounds.js';
+import { projectCompilerCallable } from './callable-metadata.js';
 import { prepareTypeScriptSyntax } from './syntax-context.js';
 import {
   createTypeScriptChunkDeclarationSink,
@@ -42,35 +37,6 @@ function extractTypeScriptHeritage(ts, node, sourceFile) {
   return { extendsList, implementsList };
 }
 
-function collectParamDetails(ts, node, sourceFile, signature) {
-  const params = [];
-  const seen = new Set();
-  const paramTypes = {};
-  for (const param of node?.parameters || []) {
-    if (!param?.name || !ts.isIdentifier(param.name)) continue;
-    const name = param.name.text;
-    if (!name) continue;
-    if (!seen.has(name)) {
-      params.push(name);
-      seen.add(name);
-    }
-    const typeText = param.type ? param.type.getText(sourceFile).trim() : '';
-    if (typeText) paramTypes[name] = typeText;
-  }
-  const fallbackParams = extractTypeScriptParams(signature);
-  const fallbackTypes = extractTypeScriptParamTypes(signature);
-  for (const name of fallbackParams) {
-    if (!seen.has(name)) {
-      params.push(name);
-      seen.add(name);
-    }
-  }
-  return {
-    params: params.length ? params : fallbackParams,
-    paramTypes: mergeParamTypes(paramTypes, fallbackTypes)
-  };
-}
-
 export function buildTypeScriptChunksFromAst(text, options = {}) {
   let syntax;
   try { syntax = prepareTypeScriptSyntax(text, options); } catch { return null; }
@@ -81,11 +47,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
 
   const buildFunctionMeta = (node, signature, start, end) => {
     const base = buildMetaBase(start, end, signature);
-    const { params, paramTypes } = collectParamDetails(ts, node, sourceFile, signature);
-    const returns = ts.isConstructorDeclaration(node)
-      ? null
-      : (node?.type ? node.type.getText(sourceFile).trim() : extractTypeScriptReturns(signature));
-    return { ...base, params, paramTypes, returns };
+    return { ...base, ...projectCompilerCallable({ ts, node, sourceFile, text, start, end }) };
   };
 
   const buildTypeMeta = (node, signature, start, end) => {
@@ -107,7 +69,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         const start = member.getStart(sourceFile);
         const end = member.end;
         const bodyStart = member.body ? member.body.getStart(sourceFile) : -1;
-        const signature = buildSignature(start, bodyStart);
+        const signature = buildSignature(start, bodyStart, end);
         addChunk(start, end, `${qualified}.constructor`, 'ConstructorDeclaration',
           buildFunctionMeta(member, signature, start, end));
         continue;
@@ -118,7 +80,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         const start = member.getStart(sourceFile);
         const end = member.end;
         const bodyStart = member.body ? member.body.getStart(sourceFile) : -1;
-        const signature = buildSignature(start, bodyStart);
+        const signature = buildSignature(start, bodyStart, end);
         addChunk(start, end, `${qualified}.${methodName}`, 'MethodDeclaration',
           buildFunctionMeta(member, signature, start, end));
         continue;
@@ -129,7 +91,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         const start = member.getStart(sourceFile);
         const end = member.end;
         const bodyStart = member.body ? member.body.getStart(sourceFile) : -1;
-        const signature = buildSignature(start, bodyStart);
+        const signature = buildSignature(start, bodyStart, end);
         addChunk(start, end, `${qualified}.${accessorName}`, 'MethodDeclaration',
           buildFunctionMeta(member, signature, start, end));
         continue;
@@ -141,7 +103,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         const start = member.getStart(sourceFile);
         const end = member.end;
         const bodyStart = member.initializer.body ? member.initializer.body.getStart(sourceFile) : -1;
-        const signature = buildSignature(start, bodyStart);
+        const signature = buildSignature(start, bodyStart, end);
         addChunk(start, end, `${qualified}.${propName}`, 'MethodDeclaration',
           buildFunctionMeta(member.initializer, signature, start, end));
       }
@@ -150,13 +112,14 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
 
   const handleStatements = (statements, prefix = '') => {
     for (const stmt of statements || []) {
-      if (ts.isClassDeclaration(stmt) && stmt.name) {
-        const name = getTypeScriptName(ts, stmt.name, sourceFile);
+      if (ts.isClassDeclaration(stmt)) {
+        const name = getTypeScriptName(ts, stmt.name, sourceFile)
+          || (stmt.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword) ? 'default' : null);
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
-        const signature = buildSignature(start, bounds.bodyStart);
+        const bounds = findTypeScriptBodyBounds(text, start);
+        const signature = buildSignature(start, bounds.bodyStart, end);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'ClassDeclaration',
           buildTypeMeta(stmt, signature, start, end));
         handleClassMembers(prefix, name, stmt.members);
@@ -167,8 +130,8 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
-        const signature = buildSignature(start, bounds.bodyStart);
+        const bounds = findTypeScriptBodyBounds(text, start);
+        const signature = buildSignature(start, bounds.bodyStart, end);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'InterfaceDeclaration',
           buildTypeMeta(stmt, signature, start, end));
         handleClassMembers(prefix, name, stmt.members);
@@ -179,8 +142,8 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
-        const signature = buildSignature(start, bounds.bodyStart);
+        const bounds = findTypeScriptBodyBounds(text, start);
+        const signature = buildSignature(start, bounds.bodyStart, end);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'EnumDeclaration',
           buildMetaBase(start, end, signature));
         continue;
@@ -190,18 +153,19 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const signature = buildSignature(start, -1);
+        const signature = buildSignature(start, -1, end);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'TypeAliasDeclaration',
           buildMetaBase(start, end, signature));
         continue;
       }
-      if (ts.isFunctionDeclaration(stmt) && stmt.name) {
-        const name = getTypeScriptName(ts, stmt.name, sourceFile);
+      if (ts.isFunctionDeclaration(stmt)) {
+        const name = getTypeScriptName(ts, stmt.name, sourceFile)
+          || (stmt.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword) ? 'default' : null);
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
         const bodyStart = stmt.body ? stmt.body.getStart(sourceFile) : -1;
-        const signature = buildSignature(start, bodyStart);
+        const signature = buildSignature(start, bodyStart, end);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'FunctionDeclaration',
           buildFunctionMeta(stmt, signature, start, end));
         continue;
@@ -216,10 +180,17 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
           const start = useStatementStart ? stmt.getStart(sourceFile) : decl.getStart(sourceFile);
           const end = decl.initializer.end;
           const bodyStart = decl.initializer.body ? decl.initializer.body.getStart(sourceFile) : -1;
-          const signature = buildSignature(start, bodyStart);
+          const signature = buildSignature(start, bodyStart, end);
           addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'FunctionDeclaration',
             buildFunctionMeta(decl.initializer, signature, start, end));
         }
+        continue;
+      }
+      if (ts.isExportAssignment(stmt) && !stmt.isExportEquals && isFunctionInitializer(stmt.expression)) {
+        const node = stmt.expression, start = node.getStart(sourceFile), end = node.end;
+        const signature = buildSignature(start, node.body?.getStart(sourceFile) ?? -1, end);
+        addChunk(start, end, qualifyTypeScriptChunkName(prefix, node.name?.text || 'default'), 'FunctionDeclaration',
+          buildFunctionMeta(node, signature, start, end));
         continue;
       }
       if (ts.isModuleDeclaration(stmt) && stmt.name) {
@@ -227,8 +198,8 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
-        const bounds = findCLikeBodyBounds(text, start);
-        const signature = buildSignature(start, bounds.bodyStart);
+        const bounds = findTypeScriptBodyBounds(text, start);
+        const signature = buildSignature(start, bounds.bodyStart, end);
         addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'NamespaceDeclaration',
           buildMetaBase(start, end, signature));
         if (stmt.body) {

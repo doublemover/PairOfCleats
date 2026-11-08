@@ -20,6 +20,9 @@ const result = await runBuildCleanupWithTimeout({
 assert.equal(result.skipped, false, 'expected cleanup timeout test to execute cleanup');
 assert.equal(result.timedOut, true, 'expected hung cleanup to time out');
 assert.equal(result.pending, true, 'expected timed out cleanup to remain tracked as pending');
+assert.equal(result.error.cacheOwnershipPending, true, 'generic timeout must preserve unknown resource ownership');
+assert.equal(result.error.cacheOwnershipReleased, undefined,
+  'a generic timer cannot manufacture native closure from a later fulfilled cleanup promise');
 assert.equal(
   __getPendingBuildCleanupOperationCountForTests(),
   pendingBefore + 1,

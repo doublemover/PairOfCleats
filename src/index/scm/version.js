@@ -1,0 +1,1 @@
+export const SCM_METADATA_PRODUCER_VERSION = '2';

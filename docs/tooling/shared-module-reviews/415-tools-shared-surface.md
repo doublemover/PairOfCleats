@@ -75,3 +75,14 @@ These are either effectively compatibility shims or only shared by one report-st
 | `tools/shared/stats-utils.js` | `deprecate`, `document` | Too small and weakly shared to remain a standalone shared module. |
 | `tools/shared/text-utils.js` | `merge`, `document` | Merge this tiny comma-list helper into a broader input/text parsing surface. |
 | `tools/shared/tooling-gate-utils.js` | `keep`, `document`, `test` | Good tool-local gate/reporting helper surface. |
+
+## October 18 ownership inventory reconciliation
+
+The JSON companion now includes 2 later-added active modules. Static consumer evidence supports retaining these owners; it does not replace behavioral or platform qualification. The original review remains dated 2026-03-25. See the [deep audit](../../archived/deep-test-audit-2026-10-18.md) for current failures and acceptance limits.
+
+- `tools/shared/archive-extraction.js`: 3 direct consumers; retain and document the owner.
+- `tools/shared/dev-artifacts.js`: 28 direct production consumers; retain the private development-path mapping and containment checks. Destructive callers remain responsible for real-root deletion authority.
+
+## Current ownership inventory
+
+The JSON companion matches all 28 current ledger-owned files and their static consumer counts. Native database lifetime and delegated authority share `src/shared/storage`; production cleanup no longer imports a tooling owner. Runtime and performance acceptance are recorded in the qualification matrix.

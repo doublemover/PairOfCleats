@@ -225,7 +225,7 @@ const runExplicitRootNoFallbackCase = async () => {
       '--',
       'return'
     ], { emitOutput: false, exitOnError: false }),
-    /missing build root/i
+    error => error.code === 'INVALID_REQUEST' && /no code generation/i.test(error.message)
   );
 
   const latest = await runSearchCli([

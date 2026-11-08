@@ -1,6 +1,6 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import assert from 'node:assert/strict';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
@@ -14,7 +14,7 @@ const modes = ['legacy'];
 if (caps?.mcp?.sdk) modes.push('sdk');
 
 for (const mode of modes) {
-  const cacheRoot = path.join(process.cwd(), 'tests', '.cache', `mcp-capabilities-${mode}`);
+  const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', `mcp-capabilities-${mode}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
   const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot, mode });

@@ -4,6 +4,8 @@ await guardBootstrapEntry(import.meta.url);
 const {
   ensureArray,
   hashInputs,
+  USR_SOURCE_DIGEST_VERSION,
+  USR_SOURCE_DIGEST_FORMAT,
   parseBenchArgs,
   readJsonFileWithRaw,
   readJsonFromRoot,
@@ -47,7 +49,12 @@ const main = async () => {
       configuredAdvisoryScenarios: nonStrictAdvisoryIds.length,
       requiredScenarioRows: requiredScenarioRows.length
     },
-    sourceDigest: hashInputs([configRaw, matrix.raw])
+    sourceDigestVersion: USR_SOURCE_DIGEST_VERSION,
+    sourceDigestFormat: USR_SOURCE_DIGEST_FORMAT,
+    sourceDigest: hashInputs([
+      {role:'config',path:'docs/config/usr-guardrails/item-36-backcompat-matrix.json',value:configRaw},
+      {role:'backcompatMatrix',path:config.inputs.backcompatMatrix,value:matrix.raw}
+    ])
   };
 
   if (!argv.quiet) {

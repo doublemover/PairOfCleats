@@ -1,0 +1,1570 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "sourceParent": "7d827607439c9f3afdf96e002a5544853141e698",
+  "candidateIdentity": "Containing commit plus exact source hashes. This batch qualifies existing producer/consumer semantics and adds missing ordered coverage; no production publication semantics changed.",
+  "issue": 821,
+  "runtime": {
+    "node": "26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "bounds": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "sources": [
+    {
+      "path": "tools/triage/record-writer.js",
+      "sha256": "b471697baf2e1dc606f51f7493b04cb400fd6b2e70015e1a1bfc81c3bc09617a",
+      "normalizedTextSha256": "029be28c5b9645310d7446af3925ee9db3c9593f20a1cca4e10fee04a22d939b"
+    },
+    {
+      "path": "tools/triage/record-snapshot.js",
+      "sha256": "72148f661cf4033d0c85cfbe17fd98390fc2f0dac7fb7615cceaf52efdce8ccc",
+      "normalizedTextSha256": "72148f661cf4033d0c85cfbe17fd98390fc2f0dac7fb7615cceaf52efdce8ccc"
+    },
+    {
+      "path": "src/integrations/triage/record-publication.js",
+      "sha256": "0380a8a34a7a0d22e8e836276d897462aa8b02bfd418b7aeb85fb4aa66dd08a4",
+      "normalizedTextSha256": "0380a8a34a7a0d22e8e836276d897462aa8b02bfd418b7aeb85fb4aa66dd08a4"
+    },
+    {
+      "path": "src/integrations/triage/records-inventory.js",
+      "sha256": "d885de066ec2893be691a4b3af17fa75bd030effcece46c6e40411201faf2be8",
+      "normalizedTextSha256": "d885de066ec2893be691a4b3af17fa75bd030effcece46c6e40411201faf2be8"
+    },
+    {
+      "path": "src/integrations/triage/record-source.js",
+      "sha256": "136dd2edfcd150d149902036a5741b9a641aaa0ad179ac330a9683e5db621a9f",
+      "normalizedTextSha256": "136dd2edfcd150d149902036a5741b9a641aaa0ad179ac330a9683e5db621a9f"
+    },
+    {
+      "path": "src/integrations/triage/index-records.js",
+      "sha256": "8c45369b060190986509a43f3d21f609b536dbcbffc7952e59b4dee1d79a701b",
+      "normalizedTextSha256": "8c45369b060190986509a43f3d21f609b536dbcbffc7952e59b4dee1d79a701b"
+    },
+    {
+      "path": "src/integrations/triage/render.js",
+      "sha256": "7f4ff102f972a775668c13666ce7f3485bba4c5a59f29fb851a7ed6f9dc39250",
+      "normalizedTextSha256": "57d8fdca2f42c743fafaa39292ce92adaf4d61c2d91e3ae2f245fd52ad06bad8"
+    },
+    {
+      "path": "src/contracts/triage-record-publication.js",
+      "sha256": "3845cc3152952462ec9d307f55a5bbaaaf6a8a2e398da1c1fec38e47439417b4",
+      "normalizedTextSha256": "3845cc3152952462ec9d307f55a5bbaaaf6a8a2e398da1c1fec38e47439417b4"
+    },
+    {
+      "path": "src/contracts/validators/triage-record-publication.js",
+      "sha256": "6dad791aade6ba47b983d796c33b9e28e8f3491362a49dd8760497bf7d52bf06",
+      "normalizedTextSha256": "6dad791aade6ba47b983d796c33b9e28e8f3491362a49dd8760497bf7d52bf06"
+    },
+    {
+      "path": "src/index/semantic/analysis-versions.js",
+      "sha256": "11c42570bfa362c262e74d248b36f014f91c6aecdbb8f5d5cab2707f8c1fc65a",
+      "normalizedTextSha256": "11c42570bfa362c262e74d248b36f014f91c6aecdbb8f5d5cab2707f8c1fc65a"
+    },
+    {
+      "path": "tests/integrations/triage/record-source-namespace.test.js",
+      "sha256": "f294a1f949e9fb523306372caf7c41c667a02ef0628afc2d0afff382ecdab156",
+      "normalizedTextSha256": "f294a1f949e9fb523306372caf7c41c667a02ef0628afc2d0afff382ecdab156"
+    },
+    {
+      "path": "tests/integrations/triage/records-bundle-reuse-policy.test.js",
+      "sha256": "49d2a682a354af6a183ef7f8b080ae0b16921b0311bd1eca14984affb989e51e",
+      "normalizedTextSha256": "49d2a682a354af6a183ef7f8b080ae0b16921b0311bd1eca14984affb989e51e"
+    },
+    {
+      "path": "tests/integrations/triage/records-inventory-and-source-contract.test.js",
+      "sha256": "f171d96674a69e453d36788da965b7ae5d8db5b43ffc24707b04719d88c2e722",
+      "normalizedTextSha256": "f171d96674a69e453d36788da965b7ae5d8db5b43ffc24707b04719d88c2e722"
+    },
+    {
+      "path": "tests/integrations/triage/records-namespace-publication.test.js",
+      "sha256": "bab4c1f6db12e2385a9004a66e03aac05445543d0df74c16536ddfa3a57d7bfa",
+      "normalizedTextSha256": "bab4c1f6db12e2385a9004a66e03aac05445543d0df74c16536ddfa3a57d7bfa"
+    },
+    {
+      "path": "tests/tooling/triage/record-publication.test.js",
+      "sha256": "2828598749239bb5935eba35bce950edfa3513708bae9357e8841134821c1759",
+      "normalizedTextSha256": "2828598749239bb5935eba35bce950edfa3513708bae9357e8841134821c1759"
+    },
+    {
+      "path": "tests/tooling/triage/records-service-embeddings-pending-artifacts.test.js",
+      "sha256": "a282e7baf8f4cab9ffea8aa5068dd19f97a25730133bd82a9174ba7189601d80",
+      "normalizedTextSha256": "b953ee9d0a974ecc1bb13011398fe850d0409050a1d4b72a155434eb5c55fb45"
+    },
+    {
+      "path": "tests/fixtures/triage/record-publication-child.js",
+      "sha256": "1cb57e9aa247282c1f2dd232dec6f6d240c237351f1e2d72d0bde07f8c611ec8",
+      "normalizedTextSha256": "1cb57e9aa247282c1f2dd232dec6f6d240c237351f1e2d72d0bde07f8c611ec8"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "sha256": "2b26f1bfa3c36da8a509de8bef5c6a543046dfee3d9e0000d488c0986f8eb86f",
+      "normalizedTextSha256": "2b26f1bfa3c36da8a509de8bef5c6a543046dfee3d9e0000d488c0986f8eb86f"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.manifest.json",
+      "sha256": "2e9ed477cd87fa65a9bd569e1299a25d5d8c3ee8a283716451ef3f31f5468abf",
+      "normalizedTextSha256": "2e9ed477cd87fa65a9bd569e1299a25d5d8c3ee8a283716451ef3f31f5468abf"
+    }
+  ],
+  "focused": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve",
+    "summary": {
+      "durationMs": 13090,
+      "failed": 0,
+      "passed": 21,
+      "skipped": 0,
+      "total": 21
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 119,
+        "exitCode": 0,
+        "id": "integrations/triage/record-source-namespace",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\integrations_triage_record-source-namespace.attempt-1.log"
+        ],
+        "path": "integrations/triage/record-source-namespace.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1264,
+        "exitCode": 0,
+        "id": "integrations/triage/records-bundle-reuse-policy",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\integrations_triage_records-bundle-reuse-policy.attempt-1.log"
+        ],
+        "path": "integrations/triage/records-bundle-reuse-policy.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1537,
+        "exitCode": 0,
+        "id": "integrations/triage/records-inventory-and-source-contract",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\integrations_triage_records-inventory-and-source-contract.attempt-1.log"
+        ],
+        "path": "integrations/triage/records-inventory-and-source-contract.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1391,
+        "exitCode": 0,
+        "id": "integrations/triage/records-namespace-publication",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\integrations_triage_records-namespace-publication.attempt-1.log"
+        ],
+        "path": "integrations/triage/records-namespace-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 328,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/atomic-generation",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_atomic-generation.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 321,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/cancellation",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_cancellation.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 711,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/cross-process",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_cross-process.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 278,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/exact-reimport",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_exact-reimport.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 333,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/failed-after-json",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_failed-after-json.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 328,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/failed-before-commit",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_failed-before-commit.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 290,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/independent-ids",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_independent-ids.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1379,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/index-generation",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_index-generation.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 296,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/input-capture",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_input-capture.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 329,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/inventory-and-retained-source",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_inventory-and-retained-source.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 319,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/pending-resource",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_pending-resource.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 319,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/pending-resource-value",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_pending-resource-value.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 318,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/receipt-negatives",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_receipt-negatives.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 659,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/same-id-interleave",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_same-id-interleave.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 330,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/tampered-stage",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_tampered-stage.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 219,
+        "exitCode": 0,
+        "id": "tooling/triage/record-publication/unknown-namespace",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_record-publication_unknown-namespace.attempt-1.log"
+        ],
+        "path": "tooling/triage/record-publication.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1997,
+        "exitCode": 0,
+        "id": "tooling/triage/records-service-embeddings-pending-artifacts",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913781992-rdatve\\tooling_triage_records-service-embeddings-pending-artifacts.attempt-1.log"
+        ],
+        "path": "tooling/triage/records-service-embeddings-pending-artifacts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "embeddings",
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "publicationGate": {
+    "format": {
+      "exitCode": 0,
+      "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+      "historicalWorkspacePath": ".tmp/tasks/ci-lite-1104/triage-publication-format.log"
+    },
+    "checks": [
+      {
+        "durationMs": 2615,
+        "startedAt": "2026-11-05T21:25:53.3328490Z",
+        "name": "config-budget",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-config-budget.log",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 1392,
+        "startedAt": "2026-11-05T21:25:55.9756763Z",
+        "name": "env-check",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-env-check.log",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 14195,
+        "startedAt": "2026-11-05T21:25:57.3720296Z",
+        "name": "generated-freshness",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-generated-freshness.log",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 3123,
+        "startedAt": "2026-11-05T21:26:11.5697916Z",
+        "name": "command-surface",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-command-surface.log",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 316,
+        "startedAt": "2026-11-05T21:26:14.6951248Z",
+        "name": "workflow-contract",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-workflow-contract.log",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 40067,
+        "startedAt": "2026-11-05T21:26:15.0131363Z",
+        "name": "gate",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-gate.log",
+        "exitCode": 0
+      },
+      {
+        "durationMs": 93,
+        "startedAt": "2026-11-05T21:26:55.0820489Z",
+        "name": "diff-check",
+        "log": ".tmp/tasks/ci-lite-1104/triage-publication-diff-check.log",
+        "exitCode": 0
+      }
+    ],
+    "gate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp",
+      "summary": {
+        "durationMs": 39232,
+        "failed": 0,
+        "passed": 43,
+        "skipped": 0,
+        "total": 43
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 80,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 78,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 91,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 77,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 76,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 74,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 177,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 73,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 81,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 161,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1754,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 256,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 223,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 307,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 283,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 272,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 297,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 282,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 292,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 542,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 265,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 730,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 836,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 846,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 800,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 727,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 575,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 949,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1241,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 76,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1484,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 990,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1187,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 717,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2560,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1284,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 369,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 571,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1537,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1483,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 249,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 159,
+          "exitCode": 0,
+          "id": "ci/gate-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\ci_gate-policy.attempt-1.log"
+          ],
+          "path": "ci/gate-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 14078,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793913975830-t6ougp\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  },
+  "ciMembership": {
+    "added": [
+      "integrations/triage/records-bundle-reuse-policy",
+      "integrations/triage/records-inventory-and-source-contract",
+      "tooling/triage/record-publication/atomic-generation",
+      "tooling/triage/record-publication/cancellation",
+      "tooling/triage/record-publication/cross-process",
+      "tooling/triage/record-publication/exact-reimport",
+      "tooling/triage/record-publication/failed-after-json",
+      "tooling/triage/record-publication/failed-before-commit",
+      "tooling/triage/record-publication/independent-ids",
+      "tooling/triage/record-publication/index-generation",
+      "tooling/triage/record-publication/input-capture",
+      "tooling/triage/record-publication/inventory-and-retained-source",
+      "tooling/triage/record-publication/pending-resource",
+      "tooling/triage/record-publication/pending-resource-value",
+      "tooling/triage/record-publication/receipt-negatives",
+      "tooling/triage/record-publication/same-id-interleave",
+      "tooling/triage/record-publication/tampered-stage",
+      "tooling/triage/record-publication/unknown-namespace",
+      "tooling/triage/records-service-embeddings-pending-artifacts"
+    ],
+    "ciLiteCount": 2138
+  },
+  "coverage": {
+    "crossProcess": "Actual hidden Node child, per-record lock, held first publication, observed second claim, canonical selector and immutable Markdown content checked at every barrier.",
+    "indexGeneration": "Actual records inventory/index builder with captured artifact-writer boundary: staged new generation excluded, old/current content+metadata+file hash coherent, source changed after admission rejected.",
+    "negative": "Failed stages, cancellation, tampered bytes, unknown namespace, original pending resources and explicit metadata recovery preserve prior selector/generation.",
+    "legacy": "Actual source, bundle replay, namespace and service embedding controls retain compatibility."
+  },
+  "limits": [
+    "Functional Windows coherence/source qualification, not a new full-index, process-memory or cross-platform campaign.",
+    "Earlier CI2165 has two macOS bounded-consumer failures repaired/scheduled by the preceding batch; changed-head hosted acceptance remains separate.",
+    "Historical workspace paths are provenance, not clean-checkout deliverables."
+  ]
+}

@@ -32,7 +32,7 @@ jobs:
       if: matrix.language == 'rust'
       uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: 1.88.0
+        toolchain: 1.99.1
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
       with:

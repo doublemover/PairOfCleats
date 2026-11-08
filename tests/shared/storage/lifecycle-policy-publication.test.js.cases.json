@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["strict-scopes-and-budgets", "reviewed-publication-and-restart", "semantic-policy-equality", "stale-selection-preserves-current", "input-snapshot-before-publication", "obsolete-format-refusal", "cli-review-and-selector-refusal"]
+}

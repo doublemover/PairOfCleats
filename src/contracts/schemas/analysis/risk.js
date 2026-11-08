@@ -1,3 +1,4 @@
+import { CONTEXT_PACK_RISK_FIELD_SCOPES, CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT } from '../../context-pack-risk-contract.js';
 import {
   nullableNumber,
   nullableString,
@@ -43,6 +44,7 @@ const riskTopTagSchema = {
 export const riskSummarySchema = {
   type: ['object', 'null'],
   properties: {
+    inputCoverage: { type: ['object', 'null'], additionalProperties: true },
     chunkUid: nullableString,
     file: nullableString,
     languageId: nullableString,
@@ -53,6 +55,7 @@ export const riskSummarySchema = {
         alias: nullableString,
         priority: nullableNumber,
         workspaceId: nullableString,
+        attestationId: nullableString,
         base: { type: ['boolean', 'null'] }
       },
       additionalProperties: false
@@ -121,6 +124,7 @@ const riskRepoProvenanceSchema = {
     alias: nullableString,
     priority: nullableNumber,
     workspaceId: nullableString,
+    attestationId: nullableString,
     base: { type: ['boolean', 'null'] }
   },
   additionalProperties: false
@@ -334,62 +338,6 @@ export const riskPartialFlowSummarySchema = {
   additionalProperties: false
 };
 
-export const riskFederationSchema = {
-  type: ['object', 'null'],
-  properties: {
-    enabled: { type: ['boolean', 'null'] },
-    workspace: {
-      type: ['object', 'null'],
-      properties: {
-        workspaceId: nullableString,
-        name: nullableString,
-        workspacePath: nullableString
-      },
-      additionalProperties: false
-    },
-    selection: {
-      type: ['object', 'null'],
-      properties: {
-        selectedRepoIds: { type: 'array', items: { type: 'string' } },
-        selectedRepos: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              repoId: nullableString,
-              alias: nullableString,
-              priority: nullableNumber,
-              enabled: { type: ['boolean', 'null'] },
-              base: { type: ['boolean', 'null'] }
-            },
-            additionalProperties: false
-          }
-        },
-        explicitSelects: { type: 'array', items: { type: 'string' } },
-        tags: { type: 'array', items: { type: 'string' } },
-        repoFilter: { type: 'array', items: { type: 'string' } },
-        includeDisabled: { type: ['boolean', 'null'] },
-        maxRepos: nullableNumber,
-        bounded: { type: ['boolean', 'null'] }
-      },
-      additionalProperties: false
-    },
-    skippedRepos: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          repoId: nullableString,
-          alias: nullableString,
-          reason: nullableString
-        },
-        additionalProperties: false
-      }
-    }
-  },
-  additionalProperties: false
-};
-
 export const riskAnalysisStatusSchema = {
   type: ['object', 'null'],
   properties: {
@@ -552,6 +500,8 @@ export const riskProvenanceSchema = {
 export const riskStatsSchema = {
   type: ['object', 'null'],
   properties: {
+    inputCoverage: { type: ['object', 'null'], additionalProperties: true },
+    droppedRecords: { type: 'array', items: { type: 'object' } },
     status: nullableString,
     reason: nullableString,
     summaryOnly: { type: ['boolean', 'null'] },
@@ -869,6 +819,77 @@ export const RISK_DELTA_SCHEMA = {
         }
       },
       additionalProperties: false
+    }
+  },
+  additionalProperties: false
+};
+
+export const riskMemberAttestationSchema = {
+  type: 'object', additionalProperties: false,
+  required: ['attestationId', 'repoId', 'status', 'reason', 'degraded', 'provenance', 'analysisStatus', 'support', 'stats', 'caps'],
+  properties: {
+    attestationId: { type: 'string', pattern: '^rpa1:[a-f0-9]{64}$' }, repoId: { type: 'string', minLength: 1 },
+    status: { type: 'string' }, reason: nullableString, degraded: { type: 'boolean' },
+    provenance: riskProvenanceSchema, analysisStatus: riskAnalysisStatusSchema, support: riskSupportSchema,
+    stats: riskStatsSchema, caps: riskCapsSchema
+  }
+};
+
+export const riskFederationSchema = {
+  type: ['object', 'null'],
+  required: ['attestations', 'fieldScopes'],
+  properties: {
+    attestations: { type: 'array', minItems: 1, maxItems: CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT, items: riskMemberAttestationSchema },
+    fieldScopes: { type: 'object', required: Object.keys(CONTEXT_PACK_RISK_FIELD_SCOPES), additionalProperties: false,
+      properties: Object.fromEntries(Object.entries(CONTEXT_PACK_RISK_FIELD_SCOPES).map(([key, value]) => [key, { const: value }])) },
+    enabled: { type: ['boolean', 'null'] },
+    workspace: {
+      type: ['object', 'null'],
+      properties: {
+        workspaceId: nullableString,
+        name: nullableString,
+        workspacePath: nullableString
+      },
+      additionalProperties: false
+    },
+    selection: {
+      type: ['object', 'null'],
+      properties: {
+        selectedRepoIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string' } },
+        selectedRepos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              repoId: nullableString,
+              alias: nullableString,
+              priority: nullableNumber,
+              enabled: { type: ['boolean', 'null'] },
+              base: { type: ['boolean', 'null'] }
+            },
+            additionalProperties: false
+          }
+        },
+        explicitSelects: { type: 'array', items: { type: 'string' } },
+        tags: { type: 'array', items: { type: 'string' } },
+        repoFilter: { type: 'array', items: { type: 'string' } },
+        includeDisabled: { type: ['boolean', 'null'] },
+        maxRepos: nullableNumber,
+        bounded: { type: ['boolean', 'null'] }
+      },
+      additionalProperties: false
+    },
+    skippedRepos: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          repoId: nullableString,
+          alias: nullableString,
+          reason: nullableString
+        },
+        additionalProperties: false
+      }
     }
   },
   additionalProperties: false

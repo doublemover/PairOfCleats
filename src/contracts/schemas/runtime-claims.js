@@ -3,6 +3,8 @@ import { semanticObject as object, semanticHashSchema as hash, semanticNullable 
 import { RUNTIME_EVIDENCE_SCHEMA } from './runtime-evidence.js';
 import { RUNTIME_QUERY_LIMITS_SCHEMA } from './runtime-query.js';
 import { ARTIFACT_SURFACE_VERSION } from '../versioning.js';
+import { semanticInteger as integer } from './semantic-envelopes.js';
+import { RUNTIME_CLAIM_VERIFICATION_LIMITS } from '../runtime-claim-verification.js';
 const text = { type: 'string', minLength: 1, maxLength: 4096 };
 const list = (items, maxItems = 128) => ({ type: 'array', items, maxItems, uniqueItems: true });
 const source = object({ sourceUnitId: { type: 'string', pattern: '^su1:[a-f0-9]{64}$' }, byteHash: hash });
@@ -21,9 +23,19 @@ export const RUNTIME_CLAIM_MANIFEST_SCHEMA = object({ ...scope, artifactSurfaceV
   citations: { ...list(object({ generationId: hash, captureId: text, evidenceId: text, rowHash: hash })), minItems: 1 },
   rows: list(object({ evidenceId: text, hash, start: { type: 'integer', minimum: 0 }, byteLength: { type: 'integer', minimum: 1 } }), 64),
   evidenceHash: hash, offsetsHash: hash, byteLength: { type: 'integer', minimum: 0 } });
+export const RUNTIME_CLAIMS_VERIFICATION_SCHEMA = object({ schemaVersion: { const: 1 }, scope: { const: 'all-family-citations' },
+  citationsVerified: { type: 'boolean' },
+  limits: object({ ...Object.fromEntries(Object.entries(RUNTIME_CLAIM_VERIFICATION_LIMITS)
+    .map(([key, value]) => [key, { type: 'integer', minimum: 1, maximum: value }])),
+  maxMs: RUNTIME_QUERY_LIMITS_SCHEMA.properties.maxMs }),
+  cost: object(Object.fromEntries(['familyOpens', 'citationRows', 'hydratedBytes', 'rawVerificationBytes',
+    'familyVerificationBytes', 'claimVerificationBytes', 'claimRowBytes', 'responseBytes', 'elapsedMs'].map(key => [key, integer]))),
+  refusal: nullable(object({ basis: { enum: ['familyOpens', 'citationRows', 'hydratedBytes', 'rawVerificationBytes', 'responseBytes', 'elapsedMs'] },
+    consumed: integer, required: integer, limit: integer })) });
 export const RUNTIME_CLAIMS_RESULT_SCHEMA = object({ ...scope, executionAuthorized: { const: false },
   claimGeneration: hash, inputs: list(pin, 2), claims: { type: 'array', maxItems: 128, items: claim },
-  integrity: { const: 'claims-and-cited-observations-verified' }, nextCursor: nullable(text) });
+  integrity: { const: 'claims-and-cited-observations-verified' }, nextCursor: nullable(text) },
+{ verification: RUNTIME_CLAIMS_VERIFICATION_SCHEMA });
 export const RUNTIME_COMPARE_SERVICE_SCHEMA = object({ schemaVersion: { const: 1 }, repoRoot: text, destination: text,
   request: RUNTIME_COMPARE_REQUEST_SCHEMA });
 export const RUNTIME_CLAIMS_SERVICE_SCHEMA = object({ schemaVersion: { const: 1 }, repoRoot: text, destination: text,

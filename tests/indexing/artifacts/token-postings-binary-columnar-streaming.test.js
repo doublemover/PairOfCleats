@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { createArtifactPieceRegistry } from '../../../src/index/build/artifacts/piece-registry.js';
 
 import { enqueueTokenPostingsArtifacts } from '../../../src/index/build/artifacts/token-postings.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -18,6 +20,7 @@ await fs.mkdir(outDir, { recursive: true });
 
 const queued = [];
 const pieceFiles = [];
+const registry = createArtifactPieceRegistry({ outDir });
 
 const postings = {
   tokenVocab: ['alpha', 'beta', 'gamma'],
@@ -49,7 +52,9 @@ await enqueueTokenPostingsArtifacts({
   },
   addPieceFile: (entry, filePath) => {
     pieceFiles.push({ entry, filePath });
+    registry.addPieceFile(entry, filePath);
   },
+  updatePieceMetadata: registry.updatePieceMetadata,
   formatArtifactLabel: (filePath) => path.relative(outDir, filePath).replace(/\\/g, '/')
 });
 
@@ -85,6 +90,13 @@ await Promise.all([
 const meta = JSON.parse(await fs.readFile(metaPath, 'utf8'));
 assert.equal(meta.format, 'binary-columnar-v1', 'expected binary-columnar format marker');
 assert.equal(meta.count, postings.tokenVocab.length, 'expected binary-columnar row count');
+const frames = registry.listPieceEntries().filter(piece => /token_postings_binary_columnar(?:_offsets|_lengths)?$/u.test(piece.name));
+assert.equal(frames.length, 3);
+for (const piece of frames) {
+  const bytes = await fs.readFile(path.join(outDir, piece.path));
+  assert.equal(piece.bytes, bytes.length);
+  assert.equal(piece.checksum, 'sha256:' + createHash('sha256').update(bytes).digest('hex'));
+}
 
 assert.ok(
   pieceFiles.some((entry) => entry.entry?.name === 'token_postings_binary_columnar'),

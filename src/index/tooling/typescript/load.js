@@ -5,12 +5,34 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { isRepoTrusted } from '../../../shared/config-authority.js';
+import { assertTypeScriptCompatibility } from './compatibility.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 export const DEFAULT_TYPESCRIPT_RESOLVE_ORDER = Object.freeze(['repo', 'cache', 'global']);
 
 const globalRequire = createRequire(import.meta.url);
 const syncTypeScriptCache = new Map();
 const compilerLoadReceipts = new WeakMap();
+const preserveCompilerFailure = error => {
+  observeStorageResource(error, { phase: 'typescript-compiler-load' }).requireSettled();
+  throw error;
+};
+const hasFailureCode = (error, codes) => codes.includes(observeStorageResource(error,
+  { phase: 'typescript-compiler-resolution' }).read('code'));
+const compilerEntryExists = filename => {
+  try {
+    if (!fsSync.statSync(filename).isFile()) throw Object.assign(new Error('Selected TypeScript compiler entry is not a regular file: ' + filename),
+      { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED', reason: 'typescript_compiler_entry_invalid', source: filename });
+    return true;
+  } catch (error) {
+    if (!hasFailureCode(error, ['ENOENT'])) return preserveCompilerFailure(error);
+    const packageRoot = path.dirname(path.dirname(filename));
+    try { fsSync.statSync(packageRoot); }
+    catch (missing) { if (hasFailureCode(missing, ['ENOENT'])) return false; return preserveCompilerFailure(missing); }
+    throw Object.assign(new Error('Installed TypeScript at ' + packageRoot + ' has no compatible lib/typescript.js entry. Native API packages need their distinct adapter; select a compatible programmatic compiler or change tooling.typescript.resolveOrder.'),
+      { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED', reason: 'typescript_compiler_entry_missing', source: filename, cause: error });
+  }
+};
 const moduleHash = filename => createHash('sha256').update(fsSync.readFileSync(filename)).digest('hex');
 const loadCompilerWithReceipt = async url => {
   const filename = fsSync.realpathSync(fileURLToPath(url)), before = moduleHash(filename);
@@ -19,12 +41,14 @@ const loadCompilerWithReceipt = async url => {
   if (before !== after || previous && (previous.filename !== filename || previous.hash !== after)) {
     throw Object.assign(new Error('Loaded TypeScript module identity changed; restart the indexing process.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
   }
+  assertTypeScriptCompatibility(compiler, filename);
   compilerLoadReceipts.set(compiler, { filename, hash: after });
   return compiler;
 };
 const recordSyncReceipt = (compiler, filename, before) => {
   const hash = moduleHash(filename), previous = compilerLoadReceipts.get(compiler);
   if (before !== hash || previous && (previous.filename !== filename || previous.hash !== hash)) throw Object.assign(new Error('Loaded TypeScript changed; restart indexing.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
+  assertTypeScriptCompatibility(compiler, filename);
   compilerLoadReceipts.set(compiler, { filename, hash });
 };
 export const getTypeScriptLoadReceipt = compiler => compilerLoadReceipts.get(compiler) || null;
@@ -54,18 +78,21 @@ export async function loadTypeScript(toolingConfig, repoRoot) {
   for (const key of resolveOrder) {
     if (key === 'repo' && !isRepoTrusted(repoRoot)) continue;
     if (key === 'global') {
+      let resolved;
       try {
-        return await loadCompilerWithReceipt(import.meta.resolve('typescript'));
+        resolved = import.meta.resolve('typescript');
       } catch (error) {
-        if (error.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error;
-        continue;
+        if (hasFailureCode(error, ['ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND'])) continue;
+        return preserveCompilerFailure(error);
       }
+      try { return await loadCompilerWithReceipt(resolved); }
+      catch (error) { return preserveCompilerFailure(error); }
     }
     const candidate = lookup[key];
-    if (!candidate || !fsSync.existsSync(candidate)) continue;
+    if (!candidate || !compilerEntryExists(candidate)) continue;
     try {
       return await loadCompilerWithReceipt(pathToFileURL(candidate).href);
-    } catch (error) { if (error.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error; }
+    } catch (error) { return preserveCompilerFailure(error); }
   }
   return null;
 }
@@ -76,27 +103,41 @@ export function loadTypeScriptModule(rootDir) {
   if (syncTypeScriptCache.has(key)) return syncTypeScriptCache.get(key);
   let resolved = null;
   if (trusted) {
+    const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
+    let filename;
     try {
-      const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
-      const filename = fsSync.realpathSync(requireFromRoot.resolve('typescript'));
+      filename = requireFromRoot.resolve('typescript');
+    } catch (error) {
+      if (!hasFailureCode(error, ['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND'])) return preserveCompilerFailure(error);
+      // A missing package can follow the declared fallback order. A present,
+      // damaged/native-API package cannot be replaced by the global compiler.
+      compilerEntryExists(path.join(rootDir, 'node_modules', 'typescript', 'lib', 'typescript.js'));
+    }
+    if (filename) try {
+      filename = fsSync.realpathSync(filename);
       const before = moduleHash(filename);
       const mod = requireFromRoot('typescript');
       recordSyncReceipt(mod?.default || mod, filename, before);
       resolved = mod?.default || mod;
     } catch (error) {
-      if (error.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error;
-      resolved = null;
+      return preserveCompilerFailure(error);
     }
   }
   if (!resolved) {
+    let filename;
     try {
-      const filename = fsSync.realpathSync(globalRequire.resolve('typescript'));
+      filename = globalRequire.resolve('typescript');
+    } catch (error) {
+      if (!hasFailureCode(error, ['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND'])) return preserveCompilerFailure(error);
+    }
+    if (filename) try {
+      filename = fsSync.realpathSync(filename);
       const before = moduleHash(filename);
       const mod = globalRequire('typescript');
       recordSyncReceipt(mod?.default || mod, filename, before);
       resolved = mod?.default || mod;
-    } catch {
-      resolved = null;
+    } catch (error) {
+      return preserveCompilerFailure(error);
     }
   }
   syncTypeScriptCache.set(key, resolved);

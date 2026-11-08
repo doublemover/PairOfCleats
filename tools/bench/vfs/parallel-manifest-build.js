@@ -42,6 +42,8 @@ for (const concurrency of concurrencyList) {
     segments: segmentCount,
     segmentBytes,
     rows: bench.rows,
+    completedRows: bench.completedRows, completedSamples: bench.completedSamples,
+    rateScope: bench.rateScope, rawSampleDurationsMs: bench.rawSampleDurationsMs,
     stats: bench.stats,
     totalMs: bench.totalMs,
     rowsPerSec: bench.rowsPerSec
@@ -115,6 +117,7 @@ async function runBench({ samples: count, concurrency, fileText, chunks }) {
   const timings = [];
   let totalMs = 0;
   let rows = 0;
+  let completedRows = 0;
   for (let i = 0; i < count; i += 1) {
     const start = process.hrtime.bigint();
     const out = await buildVfsManifestRowsForFile({
@@ -129,8 +132,10 @@ async function runBench({ samples: count, concurrency, fileText, chunks }) {
     timings.push(elapsed);
     totalMs += elapsed;
     rows = out.length;
+    completedRows += out.length;
   }
   const stats = summarizeDurations(timings);
-  const rowsPerSec = totalMs > 0 ? rows / (totalMs / 1000) : 0;
-  return { totalMs, rows, rowsPerSec, stats };
+  const rowsPerSec = totalMs > 0 ? completedRows / (totalMs / 1000) : 0;
+  return { schemaVersion: 2, totalMs, rows, completedRows, completedSamples: timings.length,
+    rateScope: 'emitted-rows-across-all-repetitions', rawSampleDurationsMs: timings, rowsPerSec, stats };
 }

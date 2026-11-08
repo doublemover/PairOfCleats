@@ -5,6 +5,7 @@ import { readJsonFile } from './json.js';
 import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../file-paths.js';
 import { logLine } from '../progress-runtime.js';
 import { joinPathSafe } from '../path-normalize.js';
+import { assertNoSymlinkPath } from '../contained-file.js';
 
 const warnedUnsafePaths = new Set();
 
@@ -55,6 +56,15 @@ export const resolveManifestPath = (dir, relPath, strict) => {
       throw err;
     }
     warnUnsafePath(dir, relPath, 'escape');
+    return null;
+  }
+  try {
+    assertNoSymlinkPath(root, resolved, { allowMissing: true });
+  } catch (cause) {
+    if (strict) throw Object.assign(new Error(`Unsafe manifest path: ${relPath}`), {
+      code: 'ERR_MANIFEST_PATH', cause
+    });
+    warnUnsafePath(dir, relPath, 'linked');
     return null;
   }
   return resolved;

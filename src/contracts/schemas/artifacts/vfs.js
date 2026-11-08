@@ -1,3 +1,5 @@
+import { EMBEDDED_CONTENT_VIEW_SCHEMA } from '../embedded-content.js';
+
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 
@@ -31,7 +33,7 @@ const vfsManifestRow = {
     segmentEnd: intId,
     lineStart: { type: ['integer', 'null'], minimum: 0 },
     lineEnd: { type: ['integer', 'null'], minimum: 0 },
-    extensions: { type: 'object' }
+    extensions: { type: 'object', properties: { embeddedContent: EMBEDDED_CONTENT_VIEW_SCHEMA } }
   },
   additionalProperties: false
 };

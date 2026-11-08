@@ -1,5 +1,6 @@
 import Ajv from 'ajv';
 import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
 
 const AJV_DIALECTS = Object.freeze({
   default: Ajv,
@@ -18,7 +19,7 @@ export const createAjv = ({ dialect = 'default', ...options } = {}) => {
   if (!AjvConstructor) {
     throw new Error(`Unsupported Ajv dialect: ${dialect}`);
   }
-  return new AjvConstructor(options);
+  return addFormats(new AjvConstructor(options));
 };
 
 export const compileSchema = (ajv, schema, { clone = true, lazy = false } = {}) => {

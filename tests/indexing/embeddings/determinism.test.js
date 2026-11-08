@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getCacheRoot } from '../../../src/shared/cache-roots.js';
+import { getRepoCacheRoot } from '../../../src/shared/repo-paths.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { loadPiecesManifestPieces } from '../../helpers/pieces-manifest.js';
@@ -32,6 +32,7 @@ const env = applyTestEnv({
   cacheRoot: tempRoot,
   embeddings: 'stub',
   testConfig: {
+    threads: 1,
     sqlite: { use: false },
     indexing: {
       scm: { provider: 'none' },
@@ -55,15 +56,16 @@ const runNode = (label, args) => {
     stdio: 'pipe',
     allowFailure: true
   });
-  assert.equal(result.status, 0, `expected ${label} to succeed`);
+  assert.equal(result.status, 0, `expected ${label} to succeed\n${result.stderr || result.stdout}`);
 };
 
 const clearEmbeddingsCache = async () => {
-  const embeddingsCacheRoot = path.join(getCacheRoot(), 'embeddings');
+  const embeddingsCacheRoot = path.join(getRepoCacheRoot(repoRoot), 'embeddings');
   await fsPromises.rm(embeddingsCacheRoot, { recursive: true, force: true });
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
+runNode('build_index stage2', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot,
+  '--stage', 'stage2', '--mode', 'code', '--threads', '1', '--progress', 'off']);
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);

@@ -28,24 +28,37 @@ export const numbersEqual = (left, right) => Math.abs(left - right) <= 1e-9;
 
 export const extractEmbeddingIdentity = (meta) => {
   if (!meta || typeof meta !== 'object') return null;
-  const quantization = meta.quantization && typeof meta.quantization === 'object'
-    ? meta.quantization
+  const source = meta.embeddingIdentity && typeof meta.embeddingIdentity === 'object'
+    && !Array.isArray(meta.embeddingIdentity) ? meta.embeddingIdentity : meta;
+  const quantization = source.quantization && typeof source.quantization === 'object'
+    ? source.quantization
     : null;
   const identity = {};
-  const dims = normalizeIdentityNumber(meta.dims);
+  const dims = normalizeIdentityNumber(source.dims);
   if (dims != null) identity.dims = dims;
-  const model = normalizeModel(meta.model) || normalizeModel(meta.modelId);
+  const model = normalizeModel(source.model) || normalizeModel(source.modelId);
   if (model != null) identity.model = model;
-  const scale = normalizeIdentityNumber(meta.scale);
+  const scale = normalizeIdentityNumber(source.scale);
   if (scale != null) identity.scale = scale;
-  const minVal = normalizeIdentityNumber(meta.minVal ?? quantization?.minVal);
+  const minVal = normalizeIdentityNumber(source.minVal ?? quantization?.minVal);
   if (minVal != null) identity.minVal = minVal;
-  const maxVal = normalizeIdentityNumber(meta.maxVal ?? quantization?.maxVal);
+  const maxVal = normalizeIdentityNumber(source.maxVal ?? quantization?.maxVal);
   if (maxVal != null) identity.maxVal = maxVal;
-  const levels = normalizeIdentityNumber(meta.levels ?? quantization?.levels);
+  const levels = normalizeIdentityNumber(source.levels ?? quantization?.levels);
   if (levels != null) identity.levels = levels;
-  const inputFormatting = normalizeIdentityInputFormatting(meta.inputFormatting);
+  const inputFormatting = normalizeIdentityInputFormatting(source.inputFormatting);
   if (inputFormatting) identity.inputFormatting = inputFormatting;
+  for (const field of ['provider', 'mode', 'pooling', 'truncation', 'fingerprint']) {
+    const value = normalizeModel(source[field]);
+    if (value != null) identity[field] = value;
+  }
+  for (const field of ['normalize', 'stub']) {
+    if (typeof source[field] === 'boolean') identity[field] = source[field];
+  }
+  if (source.maxLength != null) identity.maxLength = normalizeIdentityNumber(source.maxLength);
+  for (const field of ['modelArtifact', 'modelProfile', 'onnx']) {
+    if (source[field] && typeof source[field] === 'object' && !Array.isArray(source[field])) identity[field] = source[field];
+  }
   return identity;
 };
 

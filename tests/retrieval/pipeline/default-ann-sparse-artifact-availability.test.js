@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { runSearchSession } from '../../../src/retrieval/cli/run-search-session.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 import { __setAdapterFactoryForTests } from '../../../src/shared/embedding-adapter.js';
-import { SimpleMinHash } from '../../../src/index/minhash.js';
+import { MINHASH_HASH_IDENTITY, SimpleMinHash } from '../../../src/index/minhash.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { buildAnnPipelineFixture } from './helpers/ann-scenarios.js';
 
@@ -33,7 +33,7 @@ try {
   const { context, idx, stageTracker } = buildAnnPipelineFixture();
   idx.denseVec = null;
   idx.state = { embeddings: { enabled: false, ready: false, embeddingIdentity: identity } };
-  idx.minhash = { signatures: [signature(['alpha']), signature(['alpha', 'beta'])] };
+  idx.minhash = { hashIdentity: MINHASH_HASH_IDENTITY, signatures: [signature(['alpha']), signature(['alpha', 'beta'])] };
   let probes = 0;
   idx.loadDenseVectors = async () => { probes++; return null; };
   const sparse = await run(context, idx);

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { readSegmentContent } from '../../../shared/embedded-content.js';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { throwIfAborted } from '../../../shared/abort.js';
@@ -402,7 +403,7 @@ export const executeTreeSitterSchedulerPlan = async ({
           );
         }
 
-        const segmentText = currentText.slice(segmentStart, segmentEnd);
+        const segmentText = segment ? readSegmentContent(currentText, segment) : currentText.slice(segmentStart, segmentEnd);
         const segmentStartLine = offsetToLine(currentLineIndex, segmentStart);
         const endOffset = segmentEnd > segmentStart ? segmentEnd - 1 : segmentStart;
         const segmentEndLine = offsetToLine(currentLineIndex, endOffset);
@@ -456,7 +457,8 @@ export const executeTreeSitterSchedulerPlan = async ({
           segmentEnd,
           segmentStartLine,
           segmentEndLine,
-          embeddingContext
+          embeddingContext,
+          lineIndex: currentLineIndex
         }));
         const normalizedContainerPath = coercePosix(containerPath);
         const segmentMetaKey = [

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import { resolveInstalledOnnxPath } from '../onnx-installation.js';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../file-paths.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 
 const GRAPH_LEVELS = new Set(['disabled', 'basic', 'extended', 'all']);
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on', 'enabled']);
@@ -109,13 +111,18 @@ export const LARGE_MODEL_BYTES = Math.floor(1.5 * 1024 * 1024 * 1024);
 export const statSize = (filePath) => {
   try {
     return fs.statSync(filePath).size;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'onnx-model-size' }).requireSettled();
     return null;
   }
 };
 
 export function normalizeOnnxConfig(raw = {}) {
   const config = raw && typeof raw === 'object' ? raw : {};
+  if (config.modelPath != null && (typeof config.modelPath !== 'string'
+    || config.modelPath.length > 0 && !config.modelPath.trim())) {
+    throw Object.assign(new Error('Explicit ONNX modelPath must name a nonempty selected file or directory.'), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+  }
   const executionProviders = normalizeProviders(config.executionProviders);
   const prewarmTokenizer = resolveBooleanOption(config.prewarmTokenizer, false);
   const prewarmModel = resolveBooleanOption(config.prewarmModel, false);
@@ -171,12 +178,24 @@ export function normalizeEmbeddingProvider(raw, { strict = false } = {}) {
 
 export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId }) {
   const root = rootDir ? path.resolve(rootDir) : process.cwd();
+  if (modelPath != null && (typeof modelPath !== 'string' || modelPath.length > 0 && !modelPath.trim())) {
+    throw Object.assign(new Error('Explicit ONNX modelPath is not a usable selected path.'), { code: 'ERR_EMBEDDING_MODEL_PATH' });
+  }
   const trimmed = typeof modelPath === 'string' ? modelPath.trim() : '';
-  const tryPath = (candidate) => {
-    if (!candidate || !fs.existsSync(candidate)) return null;
+  const readableFile = (candidate) => {
+    const stat = fs.statSync(candidate);
+    if (!stat.isFile() || stat.size === 0) throw new Error('Expected a nonempty regular ONNX file.');
+    fs.accessSync(candidate, fs.constants.R_OK);
+    return candidate;
+  };
+  const tryPath = (candidate, authoritative = false) => {
+    if (!candidate) return null;
     try {
+      const installed = resolveInstalledOnnxPath(candidate);
+      if (installed) return readableFile(installed);
       const stat = fs.statSync(candidate);
       if (stat.isDirectory()) {
+        if (/\.onnx$/iu.test(path.basename(candidate))) throw new Error('The selected ONNX graph is a directory, not a regular file.');
         const nested = [
           path.join(candidate, 'model.onnx'),
           path.join(candidate, 'model_quantized.onnx'),
@@ -184,19 +203,25 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
           path.join(candidate, 'onnx', 'model_quantized.onnx')
         ];
         for (const entry of nested) {
-          if (fs.existsSync(entry)) return entry;
+          try { return readableFile(entry); }
+          catch (error) { observeStorageResource(error, { phase: 'onnx-directory-candidate' }).requireSettled(); }
         }
-        return null;
+        throw new Error('The selected directory has no readable nonempty ONNX graph.');
       }
-    } catch {
+      return readableFile(candidate);
+    } catch (cause) {
+      observeStorageResource(cause, { phase: 'onnx-model-selection' }).requireSettled();
+      if (authoritative) {
+        throw Object.assign(new Error(`Selected ONNX model path "${candidate}" is unavailable or unusable. Download/verify that graph or correct indexing.embeddings.onnx.modelPath.`, { cause }), {
+          code: 'ERR_EMBEDDING_MODEL_PATH', modelPath: candidate
+        });
+      }
       return null;
     }
-    return candidate;
   };
   if (trimmed) {
     const resolved = isAbsolutePathNative(trimmed) ? trimmed : path.join(root, trimmed);
-    const stat = tryPath(resolved);
-    if (stat) return stat;
+    return tryPath(resolved, true);
   }
   const modelRoot = modelId && modelsDir ? path.join(modelsDir, modelId) : null;
   const candidates = [

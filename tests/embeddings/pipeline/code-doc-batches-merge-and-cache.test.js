@@ -83,7 +83,8 @@ assert.equal(usage[0].cacheHits, 0);
 assert.equal(usage[0].batchDedupHits, 2);
 assert.equal(usage[1].requested, 5);
 assert.equal(usage[1].embedded, 0);
-assert.equal(usage[1].cacheHits, 5);
+assert.equal(usage[1].cacheHits, 3, 'cache lookups follow batch deduplication');
+assert.equal(usage[1].batchDedupHits, 2);
 assert.equal(textCacheStore.size, 3);
 assert.equal(processed, 2);
 

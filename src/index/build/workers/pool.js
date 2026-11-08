@@ -1,10 +1,15 @@
+import { decodeFileAnalysisInput, FILE_ANALYSIS_MAX_INPUT_BYTES } from './file-analysis-contract.js';
+import { validateTokenizeBatch } from './tokenize-batch.js';
 import { IndexerProcessPool, getProcessMemoryAccount } from './process-pool.js';
+import { createIndexerThreadPool } from './thread-pool.js';
+import { projectWorkerError } from './observation.js';
 import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { createWorkerCleanupGroup } from './pool/cleanup-group.js';
+import { awaitWithKeepalive } from '../../../shared/promise-keepalive.js';
+import { isQueueRecoveryUnsafe } from '../../../shared/concurrency/queue-recovery.js';
 import os from 'node:os';
-import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../../shared/progress-runtime.js';
 import {
@@ -52,6 +57,28 @@ export {
   resolveMemoryPressureState,
   resolveLanguageThrottleLimit,
   evictDeterministicPressureCacheEntries
+};
+
+/** Process cancellation rejects the request before the original child closes.
+ * Keep facade dispatch/throttle ownership until that backend's exact settlement;
+ * no CPU suspension is valid while the child can still compute.
+ */
+const awaitBackendFailureSettlement = async error => {
+  if (error === null || !['object', 'function'].includes(typeof error)) return;
+  const descriptor = Object.getOwnPropertyDescriptor(error, 'workerSettlement');
+  if (!descriptor) return;
+  try {
+    if (!(descriptor.value instanceof Promise)) throw new Error('Worker settlement is not an owned promise.');
+    const released = Object.getOwnPropertyDescriptor(error, 'workerOwnershipReleased')?.value;
+    if (typeof released !== 'function') throw new Error('Worker settlement has no original release observer.');
+    await awaitWithKeepalive(descriptor.value);
+    if (released.call(error) !== true) throw new Error('Worker settlement did not confirm original child release.');
+  } catch (cleanupError) {
+    throw Object.assign(new AggregateError([error, cleanupError],
+      'Worker request failed before backend ownership could be retired.', { cause: error }), {
+      code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+    });
+  }
 };
 
 export const destroyWorkerPoolLifecycleWithTimeout = async ({
@@ -203,6 +230,10 @@ export async function createIndexerWorkerPool(input = {}) {
     };
 
     let activeTasks = 0;
+    let backendTasks = 0;
+    let cleanupConfirmed = false;
+    let waitingForThrottle = 0;
+    let completedRequests = 0;
     let quantizeTypedTempBuffers = 0;
 
     const workerExecArgv = buildWorkerExecArgv();
@@ -261,7 +292,9 @@ export async function createIndexerWorkerPool(input = {}) {
       pressureCacheMaxEntries,
       languageThrottleConfig,
       maxGlobalRssBytes,
-      readOwnedRssBytes: () => process.memoryUsage().rss + (lifecycle?.getPool()?.stats?.().sampledChildRssBytes || 0)
+      readDrainState: () => ({ draining: backendTasks }),
+      requestPressureRelief: sample => lifecycle?.maybeReduceWorkersOnPressure({ rssPressure: sample.rssPressure, gcPressure: sample.heapUtilization }),
+      readOwnedRssBytes: parentRss => Number(parentRss || 0) + (lifecycle?.getPool()?.stats?.().sampledChildRssBytes || 0)
     });
 
     const workerCoordinator = createWorkerProcessCoordinator({
@@ -281,6 +314,11 @@ export async function createIndexerWorkerPool(input = {}) {
       onRuntimeObservation: (observation) => {
         if (observation.resourceLimitAcknowledged === false && lifecycle) {
           void lifecycle.disablePermanently('worker heap acknowledgement rejected').catch(() => {});
+        }
+      },
+      onFatalWorker: () => {
+        if (lifecycle && !lifecycle.isDisabled()) {
+          void lifecycle.scheduleRestart('fatal worker generation retired', { terminateActive: true, fatal: true }).catch(() => {});
         }
       },
       maybeReduceWorkersOnPressure: async (sample) => {
@@ -343,11 +381,16 @@ export async function createIndexerWorkerPool(input = {}) {
           budgetAccount: getProcessMemoryAccount(memoryPolicy),
           maxMessageBytes: Math.max(4096, Math.min(32 * 1024 * 1024, Math.floor(maxGlobalRssBytes * 0.025))) });
       }
-      return new Piscina({
+      return createIndexerThreadPool(Piscina, {
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
+        // Tiny/inline-only builds need no idle worker startup. Preserve the
+        // admitted ceiling and create native workers when actual tasks arrive.
+        minThreads: 0,
         maxThreads: maxWorkers,
         idleTimeout: poolConfig.idleTimeoutMs,
         taskTimeout: poolConfig.taskTimeoutMs,
+        // Dedicated observation acknowledgments must progress between tasks.
+        atomics: 'async',
         recordTiming: true,
         execArgv: workerExecArgv,
         ...(currentResourceLimits ? { resourceLimits: currentResourceLimits } : {}),
@@ -372,7 +415,7 @@ export async function createIndexerWorkerPool(input = {}) {
       upscaleRssThreshold,
       upscaleGcThreshold,
       shouldDownscaleWorkersForPressure,
-      getActiveTasks: () => activeTasks,
+      getActiveTasks: () => backendTasks,
       incWorkerRetries,
       cleanupTimeoutMs: poolConfig?.cleanupTimeoutMs,
       createPool,
@@ -423,14 +466,6 @@ export async function createIndexerWorkerPool(input = {}) {
       return { detail, opaqueFailure, isCloneError, reason };
     };
 
-    const formatWorkerNestedError = (err) => ({
-      message: err?.message || String(err),
-      stack: err?.stack || null,
-      name: err?.name || null,
-      code: err?.code || null,
-      raw: util.inspect(err, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-    });
-
     const logWorkerPoolUnavailable = ({
       payload,
       payloadMetaPool,
@@ -439,7 +474,7 @@ export async function createIndexerWorkerPool(input = {}) {
       task
     }) => {
       if (!crashLogger?.enabled) return;
-      withPooledPayloadMeta(payloadMetaPool, (meta) => {
+      try { withPooledPayloadMeta(payloadMetaPool, (meta) => {
         assignPayloadMeta(meta, payload);
       }, (payloadMeta) => {
         crashLogger.logError({
@@ -451,7 +486,7 @@ export async function createIndexerWorkerPool(input = {}) {
           task,
           payloadMeta: payload ? payloadMeta : null
         });
-      });
+      }); } catch { /* diagnostics cannot change an unavailable outcome */ }
     };
 
     const logWorkerTaskError = ({
@@ -464,24 +499,24 @@ export async function createIndexerWorkerPool(input = {}) {
       err
     }) => {
       if (!crashLogger?.enabled) return;
-      withPooledPayloadMeta(payloadMetaPool, (meta) => {
+      const detail = projectWorkerError(err);
+      try { withPooledPayloadMeta(payloadMetaPool, (meta) => {
         assignPayloadMeta(meta, payload);
       }, (payloadMeta) => {
         crashLogger.logError({
           phase,
-          message,
-          stack: err?.stack || null,
-          name: err?.name || null,
-          code: err?.code || null,
+          message: detail.message || message,
+          stack: detail.stack || null,
+          name: detail.name || null,
+          code: detail.code || null,
           task,
           payloadMeta: payload ? payloadMeta : null,
-          raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
-          errors: Array.isArray(err?.errors)
-            ? err.errors.map((inner) => formatWorkerNestedError(inner))
-            : null,
-          cause: err?.cause ? formatWorkerNestedError(err.cause) : null
+          raw: null,
+          cause: detail.cause || null,
+          diagnosticCapture: { retainedTextBytes: detail.retainedTextBytes,
+            truncatedFields: detail.truncatedFields, droppedFields: detail.droppedFields }
         });
-      });
+      }); } catch { /* diagnostics cannot replace a task failure */ }
     };
 
     const handleWorkerTaskError = async ({
@@ -494,12 +529,14 @@ export async function createIndexerWorkerPool(input = {}) {
       preferDetailMessage = false
     }) => {
       const { detail, opaqueFailure, isCloneError, reason } = classifyWorkerRunError(err);
-      if (isCloneError) {
-        await lifecycle.disablePermanently(reason || 'data-clone error');
-      } else if (opaqueFailure) {
-        await lifecycle.disablePermanently(reason || 'worker failure');
-      } else {
-        await lifecycle.scheduleRestart(reason);
+      if (!['ERR_WORKER_FATAL', 'ERR_PROCESS_TASK_EXIT'].includes(err?.code) || !lifecycle.isDisabled()) {
+        if (isCloneError) {
+          await lifecycle.disablePermanently(reason || 'data-clone error');
+        } else if (opaqueFailure) {
+          await lifecycle.disablePermanently(reason || 'worker failure');
+        } else {
+          await lifecycle.scheduleRestart(reason, { fatal: ['ERR_WORKER_FATAL', 'ERR_PROCESS_TASK_EXIT'].includes(err?.code) });
+        }
       }
       // Existing pressure waiters also belong to an unrecoverable pool. Let
       // them release active counters so its idle shutdown can finish.
@@ -517,6 +554,11 @@ export async function createIndexerWorkerPool(input = {}) {
       });
       return null;
     };
+    const rejectFatalTask = async error => {
+      if (!['ERR_WORKER_FATAL', 'ERR_PROCESS_TASK_EXIT'].includes(error?.code)) return;
+      if (!lifecycle.isDisabled()) await lifecycle.scheduleRestart('fatal execution owner retired', { fatal: true });
+      throw error;
+    };
 
     return {
       config,
@@ -528,8 +570,9 @@ export async function createIndexerWorkerPool(input = {}) {
         const pool = lifecycle.getPool();
         const queued = Number.isFinite(pool?.queueSize) ? pool.queueSize : 0;
         const maxWorkers = lifecycle.getEffectiveMaxWorkers();
+        const busy = workerCoordinator.busyStats(pool);
         const queueUtilization = maxWorkers > 0
-          ? Math.max(0, Math.min(1, (activeTasks + queued) / maxWorkers))
+          ? Math.max(0, Math.min(1, busy.actuallyRunning / maxWorkers))
           : null;
         const pressureSnapshot = queueController.snapshot();
         const numaPinningPlan = workerCoordinator.getNumaPlan();
@@ -539,6 +582,15 @@ export async function createIndexerWorkerPool(input = {}) {
           backend: processBackend ? 'process' : 'worker',
           process: pool?.stats?.() || null,
           activeTasks,
+          outstandingRequests: activeTasks,
+          dispatchedTasks: backendTasks,
+          waitingForThrottle,
+          actuallyRunning: busy.actuallyRunning,
+          awaitingBackendObservation: Math.max(0, activeTasks - waitingForThrottle - queued - busy.actuallyRunning),
+          completedRequests,
+          busy,
+          requestPressure: maxWorkers > 0 ? activeTasks / maxWorkers : null,
+          utilizationScope: 'observed-busy-worker-wall-occupancy; not CPU-time',
           queuedTasks: queued,
           maxWorkers,
           configuredMaxWorkers: lifecycle.getConfiguredMaxWorkers(),
@@ -581,8 +633,17 @@ export async function createIndexerWorkerPool(input = {}) {
         };
       },
       dictConfig: sanitizeDictConfig(dictConfig),
+      getExecutionBackend: () => processBackend ? 'process' : 'worker',
+      getRoutingReason(sizeBytes) {
+        if (heapLaunchContract?.supported === false && !processBackend) return 'heap-contract';
+        if (config.enabled === false) return 'disabled-config';
+        if ((lifecycle.isDisabled() && !lifecycle.isPressureReconfigurePending()) || lifecycle.isPermanentlyDisabled()) return 'pool-unavailable';
+        if (config.enabled === 'auto' && ((config.minFileBytes > 0 && sizeBytes < config.minFileBytes)
+          || (config.maxFileBytes != null && sizeBytes > config.maxFileBytes))) return 'size';
+        return 'eligible';
+      },
       shouldUseForFile(sizeBytes) {
-        if (lifecycle.isDisabled() || lifecycle.isPermanentlyDisabled()) return false;
+        if ((lifecycle.isDisabled() && !lifecycle.isPressureReconfigurePending()) || lifecycle.isPermanentlyDisabled()) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
           const normalizedSizeBytes = Number.isFinite(sizeBytes) ? sizeBytes : 0;
@@ -597,55 +658,184 @@ export async function createIndexerWorkerPool(input = {}) {
         }
         return false;
       },
+      async tokenizeBatch(payload, { signal = null } = {}) {
+        const { items } = validateTokenizeBatch(payload);
+        // One language/policy per batch preserves the existing per-language throttle charge.
+        const first = items[0];
+        return this.tokenizeChunk({ ...first, items }, { signal });
+      },
       async tokenizeChunk(payload, { signal = null } = {}) {
         throwIfAborted(signal);
+        const batchItems = Array.isArray(payload?.items) ? validateTokenizeBatch(payload).items : null;
+        const task = batchItems ? 'tokenizeBatch' : 'tokenizeChunk';
         activeTasks += 1;
         updatePoolMetrics();
         let throttleSlot = null;
+        let primaryFailure;
+        let hasPrimaryFailure = false;
+        let dispatched = false;
+        let dispatchedFailure;
         try {
+          if (queueController.isClosed()) return null;
+          // Pressure-driven reconfiguration must not turn zero-slot heavy work
+          // into inline fallback merely because relief disabled the backend.
+          // Admission retains authority until pressure recovers or terminates.
+          queueController.recordPressureCacheEntry(payload);
+          waitingForThrottle += 1;
+          try { throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal }); }
+          finally { waitingForThrottle -= 1; }
+          if (queueController.isClosed()) return null;
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             logWorkerPoolUnavailable({
               payload,
               payloadMetaPool: tokenizePayloadMetaPool,
               assignPayloadMeta: assignTokenizePayloadMeta,
               phase: 'worker-tokenize',
-              task: 'tokenizeChunk'
+              task
             });
             return null;
           }
-          queueController.recordPressureCacheEntry(payload);
-          throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal });
-          if (queueController.isClosed()) return null;
+          const executionPayload = batchItems ? { items: batchItems.map(item => sanitizePoolPayload(item, sanitizeDictConfig(item.dictConfig))) }
+            : sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig));
+          backendTasks += 1;
+          dispatched = true;
           const result = await lifecycle.getPool().run(
-            sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
-            { name: 'tokenizeChunk', signal }
+            executionPayload,
+            { name: task, signal }
           );
+          throwIfAborted(signal);
           updatePoolMetrics();
           return result;
         } catch (err) {
-          if (isAbortError(err) && signal?.aborted) throw err;
-          if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
-          if (queueController.isClosed() && isAbortError(err)) return null;
-          return handleWorkerTaskError({
-            err,
-            payload,
-            payloadMetaPool: tokenizePayloadMetaPool,
-            assignPayloadMeta: assignTokenizePayloadMeta,
-            phase: 'worker-tokenize',
-            task: 'tokenizeChunk',
-            preferDetailMessage: true
-          });
+          dispatchedFailure = err;
+          primaryFailure = err;
+          hasPrimaryFailure = true;
+          if (isQueueRecoveryUnsafe(err) || err instanceof AggregateError) throw err;
+          throwIfAborted(signal);
+          // Closing our admission queue settles undispatched callers with the
+          // same unavailable result as the checks before/after acquisition.
+          // Caller cancellation and dispatched backend failures still reject.
+          if (!dispatched && queueController.isClosed() && isAbortError(err)) return null;
+          if (isAbortError(err)) throw err;
+          if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
+          await rejectFatalTask(err);
+          try {
+            return await handleWorkerTaskError({
+              err, payload, payloadMetaPool: tokenizePayloadMetaPool,
+              assignPayloadMeta: assignTokenizePayloadMeta,
+              phase: 'worker-tokenize', task, preferDetailMessage: true
+            });
+          } catch (recoveryError) {
+            primaryFailure = Object.assign(new AggregateError([err, recoveryError],
+              'Tokenize worker recovery did not settle.', { cause: err }), {
+              code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+            });
+            throw primaryFailure;
+          }
         } finally {
-          queueController.releaseLanguageThrottleSlot(throttleSlot);
+          if (dispatched) await awaitBackendFailureSettlement(dispatchedFailure);
+          if (dispatched) backendTasks = Math.max(0, backendTasks - 1);
+          const cleanupFailures = [];
+          try { queueController.releaseLanguageThrottleSlot(throttleSlot); }
+          catch (error) { cleanupFailures.push(error); }
           activeTasks = Math.max(0, activeTasks - 1);
-          updatePoolMetrics();
-          await lifecycle.handleTaskDrained();
+          completedRequests += 1;
+          try { updatePoolMetrics(); }
+          catch (error) { cleanupFailures.push(error); }
+          try { await lifecycle.handleTaskDrained(); }
+          catch (error) { cleanupFailures.push(error); }
+          if (cleanupFailures.length) {
+            throw Object.assign(new AggregateError([
+              ...(hasPrimaryFailure ? [primaryFailure] : []), ...cleanupFailures
+            ], 'Tokenize worker cleanup did not settle.', {
+              cause: hasPrimaryFailure ? primaryFailure : cleanupFailures[0]
+            }), { code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true });
+          }
+        }
+      },
+      async analyzeFile(payload, { signal = null } = {}) {
+        throwIfAborted(signal);
+        // Copy the bounded transport before hashing/decoding. A caller cannot
+        // replace header fields or mutate shared input bytes after admission.
+        const body = payload?.body;
+        const request = { version: payload?.version, identity: payload?.identity,
+          mode: payload?.mode, ext: payload?.ext, languageId: payload?.languageId,
+          file: payload?.file, size: payload?.size,
+          body: ArrayBuffer.isView(body) && body.BYTES_PER_ELEMENT === 1 && body.byteLength <= FILE_ANALYSIS_MAX_INPUT_BYTES
+            ? Buffer.from(Buffer.from(body.buffer, body.byteOffset, body.byteLength)) : body };
+        decodeFileAnalysisInput(request);
+        Object.freeze(request);
+        activeTasks += 1;
+        updatePoolMetrics();
+        let throttleSlot = null;
+        let primaryFailure;
+        let hasPrimaryFailure = false;
+        let dispatched = false;
+        let dispatchedFailure;
+        try {
+          if (queueController.isClosed()) return null;
+          queueController.recordPressureCacheEntry(request);
+          waitingForThrottle += 1;
+          try { throttleSlot = await queueController.acquireLanguageThrottleSlot(request, { signal }); }
+          finally { waitingForThrottle -= 1; }
+          throwIfAborted(signal);
+          if (queueController.isClosed()) return null;
+          if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) return null;
+          // Once dispatched, a failed or uncertain operation cannot become a
+          // successful inline retry. Its original task and cleanup stay visible.
+          backendTasks += 1;
+          dispatched = true;
+          return await lifecycle.getPool().run(request, { name: 'analyzeFile', signal });
+        } catch (error) {
+          dispatchedFailure = error;
+          primaryFailure = error;
+          hasPrimaryFailure = true;
+          let skipRecovery;
+          try {
+            skipRecovery = isQueueRecoveryUnsafe(error) || isAbortError(error) || signal?.aborted
+              || error instanceof AggregateError;
+            if (!skipRecovery) await handleWorkerTaskError({ err: error, payload: request,
+              payloadMetaPool: tokenizePayloadMetaPool, assignPayloadMeta: assignTokenizePayloadMeta,
+              phase: 'worker-file-analysis', task: 'analyzeFile', preferDetailMessage: true });
+          } catch (recoveryError) {
+            primaryFailure = Object.assign(new AggregateError([error, recoveryError],
+              'File analysis worker recovery did not settle.', { cause: error }), {
+              code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+            });
+            throw primaryFailure;
+          }
+          throw error;
+        } finally {
+          if (dispatched) await awaitBackendFailureSettlement(dispatchedFailure);
+          if (dispatched) backendTasks = Math.max(0, backendTasks - 1);
+          const cleanupFailures = [];
+          try { queueController.releaseLanguageThrottleSlot(throttleSlot); }
+          catch (error) { cleanupFailures.push(error); }
+          activeTasks = Math.max(0, activeTasks - 1);
+          try { queueController.recordWorkSettled(); }
+          catch (error) { cleanupFailures.push(error); }
+          completedRequests += 1;
+          try { updatePoolMetrics(); }
+          catch (error) { cleanupFailures.push(error); }
+          try { await lifecycle.handleTaskDrained(); }
+          catch (error) { cleanupFailures.push(error); }
+          if (cleanupFailures.length) {
+            throw Object.assign(new AggregateError([
+              ...(hasPrimaryFailure ? [primaryFailure] : []), ...cleanupFailures
+            ], 'File analysis worker cleanup did not settle.', {
+              cause: hasPrimaryFailure ? primaryFailure : cleanupFailures[0]
+            }), { code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true });
+          }
         }
       },
       async runQuantize(payload, { signal = null } = {}) {
         throwIfAborted(signal);
         activeTasks += 1;
         updatePoolMetrics();
+        let primaryFailure;
+        let hasPrimaryFailure = false;
+        let dispatched = false;
+        let dispatchedFailure;
         try {
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             logWorkerPoolUnavailable({
@@ -667,34 +857,61 @@ export async function createIndexerWorkerPool(input = {}) {
           const runOptions = transferList.length
             ? { name: 'quantizeVectors', ...(processBackend ? {} : { transferList }), signal }
             : { name: 'quantizeVectors', signal };
+          backendTasks += 1;
+          dispatched = true;
           const result = await lifecycle.getPool().run(runPayload, runOptions);
           updatePoolMetrics();
           return result;
         } catch (err) {
-          if (isAbortError(err) && signal?.aborted) throw err;
-          if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
-          return handleWorkerTaskError({
-            err,
-            payload,
-            payloadMetaPool: quantizePayloadMetaPool,
-            assignPayloadMeta: assignQuantizePayloadMeta,
-            phase: 'worker-quantize',
-            task: 'quantizeVectors'
-          });
+          dispatchedFailure = err;
+          primaryFailure = err;
+          hasPrimaryFailure = true;
+          if (isQueueRecoveryUnsafe(err) || err instanceof AggregateError || isAbortError(err)
+            || err?.code === 'ERR_EMBEDDING_QUANTIZATION') throw err;
+          await rejectFatalTask(err);
+          try { throwIfAborted(signal); }
+          catch (abortError) { primaryFailure = abortError; throw abortError; }
+          try {
+            return await handleWorkerTaskError({
+              err,
+              payload,
+              payloadMetaPool: quantizePayloadMetaPool,
+              assignPayloadMeta: assignQuantizePayloadMeta,
+              phase: 'worker-quantize',
+              task: 'quantizeVectors'
+            });
+          } catch (cleanupError) {
+            primaryFailure = Object.assign(new AggregateError([err, cleanupError], 'Quantize worker recovery did not settle.', { cause: err }), {
+              code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+            });
+            throw primaryFailure;
+          }
         } finally {
+          if (dispatched) await awaitBackendFailureSettlement(dispatchedFailure);
+          if (dispatched) backendTasks = Math.max(0, backendTasks - 1);
           activeTasks = Math.max(0, activeTasks - 1);
+          queueController.recordWorkSettled();
+          completedRequests += 1;
           updatePoolMetrics();
-          await lifecycle.handleTaskDrained();
+          try { await lifecycle.handleTaskDrained(); }
+          catch (cleanupError) {
+            throw Object.assign(new AggregateError(hasPrimaryFailure ? [primaryFailure, cleanupError] : [cleanupError],
+              'Quantize worker cleanup did not settle.', { cause: hasPrimaryFailure ? primaryFailure : cleanupError }), {
+              code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+            });
+          }
         }
       },
+      isSettled: () => cleanupConfirmed,
       async destroy() {
-        queueController.close();
-        await destroyWorkerPoolLifecycleWithTimeout({
+        const reliefDrain = queueController.close();
+        await Promise.all([reliefDrain, destroyWorkerPoolLifecycleWithTimeout({
           lifecycle,
           poolLabel,
           timeoutMs: resolvedCleanupTimeoutMs,
           log
-        });
+        })]);
+        cleanupConfirmed = true;
       }
     };
   } catch (err) {
@@ -735,16 +952,12 @@ export async function createIndexerWorkerPools(input = {}) {
   } };
   const baseConfig = input.config;
   if (!baseConfig || baseConfig.enabled === false) {
-    return { runtimeEvidence, tokenizePool: null, quantizePool: null, destroy: async () => {} };
+    return { runtimeEvidence, tokenizePool: null, quantizePool: null, destroy: async () => {}, isSettled: () => true };
   }
   if (!baseConfig.splitByTask) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
-    const destroy = async () => {
-      if (pool?.destroy) {
-        await pool.destroy();
-      }
-    };
-    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, destroy };
+    const cleanup = createWorkerCleanupGroup(pool?.destroy ? [{ close: () => pool.destroy(), isSettled: pool.isSettled }] : []);
+    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, ...cleanup };
   }
 
   // When splitting work across pools, treat maxWorkers as a TOTAL thread budget.
@@ -757,12 +970,8 @@ export async function createIndexerWorkerPools(input = {}) {
   // If there is no room to split, fall back to a single pool.
   if (totalBudget <= 1) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
-    const destroy = async () => {
-      if (pool?.destroy) {
-        await pool.destroy();
-      }
-    };
-    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, destroy };
+    const cleanup = createWorkerCleanupGroup(pool?.destroy ? [{ close: () => pool.destroy(), isSettled: pool.isSettled }] : []);
+    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, ...cleanup };
   }
 
   const requestedQuantize = Number.isFinite(baseConfig.quantizeMaxWorkers)
@@ -776,13 +985,8 @@ export async function createIndexerWorkerPools(input = {}) {
     config: { ...baseConfig, maxWorkers: tokenizeBudget },
     poolName: 'tokenize'
   });
-  // Register ownership as each pool becomes available. The shared lifecycle
-  // owner attempts every cleanup even when another fails, including partial
-  // initialization. Its reverse-order close matches acquisition order.
-  const lifecycle = createLifecycleRegistry({ name: 'indexer-worker-pools' });
-  if (tokenizePool?.destroy) {
-    lifecycle.registerCleanup(() => tokenizePool.destroy(), { label: 'tokenize' });
-  }
+  const owners = [];
+  if (tokenizePool?.destroy) owners.push({ close: () => tokenizePool.destroy(), isSettled: tokenizePool.isSettled });
   let quantizePool;
   try {
     quantizePool = await createIndexerWorkerPool({
@@ -791,11 +995,11 @@ export async function createIndexerWorkerPools(input = {}) {
       poolName: 'quantize'
     });
     if (quantizePool?.destroy && quantizePool !== tokenizePool) {
-      lifecycle.registerCleanup(() => quantizePool.destroy(), { label: 'quantize' });
+      owners.unshift({ close: () => quantizePool.destroy(), isSettled: quantizePool.isSettled });
     }
   } catch (error) {
     try {
-      await lifecycle.close();
+      await createWorkerCleanupGroup(owners).destroy();
     } catch (cleanupError) {
       throw new AggregateError([error, cleanupError], 'Worker pool initialization and cleanup failed.');
     }
@@ -803,15 +1007,11 @@ export async function createIndexerWorkerPools(input = {}) {
   }
   const finalTokenizePool = tokenizePool || quantizePool;
   const finalQuantizePool = quantizePool || tokenizePool;
-  let destroyPromise = null;
-  const destroy = () => {
-    if (!destroyPromise) destroyPromise = lifecycle.close();
-    return destroyPromise;
-  };
+  const { destroy, isSettled } = createWorkerCleanupGroup(owners);
   return {
     runtimeEvidence,
     tokenizePool: finalTokenizePool,
     quantizePool: finalQuantizePool,
-    destroy
+    destroy, isSettled
   };
 }

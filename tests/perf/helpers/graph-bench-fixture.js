@@ -7,6 +7,7 @@ import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/jso
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = process.cwd();
 
@@ -122,7 +123,7 @@ export const createGraphBenchFixture = async ({
   await writeJsonObjectFile(path.join(indexDir, 'graph_relations_csr.json'), { fields: graphRelationsCsr, atomic: true });
   await writeJsonObjectFile(path.join(indexDir, 'index_state.json'), {
     fields: {
-      artifactSurfaceVersion: 'test',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId: 'bench-contract',
       mode: 'code',
       compatibilityKey: 'compat-test'
@@ -133,7 +134,7 @@ export const createGraphBenchFixture = async ({
     fields: {
       fields: {
         version: 2,
-        artifactSurfaceVersion: 'test',
+        artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         compatibilityKey: 'compat-test',
         generatedAt: new Date().toISOString(),
         mode: 'code',

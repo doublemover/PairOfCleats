@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { createSemanticDiskAccount } from '../artifacts/writers/semantic/partition.js';
+import { withStorageDirectory } from '../../../shared/storage/directory.js';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 
 /** Reopen the existing cache/staging footprint before granting new disk credits.
  * Count physical files once across overlapping roots and hard links. Do not
@@ -18,18 +20,29 @@ export const reopenSemanticDiskAccount = async ({ limit, roots, signal = null })
     const filename = pending.pop();
     if (seenPaths.has(filename)) continue;
     seenPaths.add(filename);
+    // NTFS file IDs exceed Number precision; distinct objects must stay distinct.
     let stat;
-    try { stat = await fs.lstat(filename); }
-    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    try { stat = await fs.lstat(filename, { bigint: true }); }
+    catch (error) {
+      const diagnostic = describeStorageFailure(error, { phase: 'semantic-working-set-inventory' });
+      if (diagnostic.code === 'ENOENT') continue;
+      throw error;
+    }
     if (stat.isSymbolicLink()) throw Object.assign(new Error('Semantic working-set roots cannot contain symbolic links: ' + filename), { code: 'ERR_SEMANTIC_INTEGRITY' });
     if (stat.isDirectory()) {
-      const directory = await fs.opendir(filename);
-      for await (const entry of directory) pending.push(path.join(filename, entry.name));
+      await withStorageDirectory(filename, async directory => {
+        for (;;) {
+          throwIfAborted(signal);
+          const entry = await directory.read();
+          if (!entry) break;
+          pending.push(path.join(filename, entry.name));
+        }
+      });
     } else if (stat.isFile()) {
       const key = stat.ino ? stat.dev + ':' + stat.ino : filename;
       if (seenFiles.has(key)) continue;
       seenFiles.add(key);
-      account.reserve(stat.size);
+      account.reserve(Number(stat.size));
       files += 1;
     }
   }

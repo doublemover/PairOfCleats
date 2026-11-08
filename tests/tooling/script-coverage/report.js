@@ -90,6 +90,8 @@ export const applyDefaultSkips = (state) => {
   state.markSkipped('api-server', 'service runs until interrupted');
   state.markSkipped('indexer-service', 'service runs until interrupted');
   state.markSkipped('bootstrap:ci', 'ci bootstrap wrapper command');
+  state.markSkipped('bootstrap', 'installation and patch readiness are qualified by the locked bootstrap receipt');
+  state.markSkipped('verify', 'suite orchestrator is qualified by its contract tests and explicitly selected lanes');
   state.markSkipped('patch', 'patch-package wrapper command');
   state.markSkipped('rebuild:native', 'native rebuild wrapper command');
   state.markSkipped('postinstall', 'npm lifecycle hook');

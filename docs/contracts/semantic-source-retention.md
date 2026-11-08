@@ -1,0 +1,7 @@
+# Semantic source retention receipts
+
+A producer-owned immutable source capability may reuse a completed source verification only within the same disk-account owner, exact retained filename/hash/length and unchanged regular-file/root authority. Receipts are bounded to256 entries per account, stored under a weak account key and contain only identity metadata. They retain neither source buffers nor capabilities; dropping the account releases its receipt ownership. No process-global pathname cache or cross-build stat-only proof is introduced.
+
+Raw mutable buffers are privately captured and hashed before any writer wait. Different content, unrecognized capabilities, cancellation and replaced/corrupt storage remain rejected. A successful verification and original physical descriptor close precede receipt installation. Unknown native work cannot publish a hit; explicit close recovery does not repeat accepted reads or install a successful receipt from a failed operation. Independent publication integrity validation remains unchanged.
+
+The actual partition sink forwards its existing metrics object. The [qualification](../archived/source-retention-closeout-2026-11-05.md) measures real partition finalization at1/4/16 shared/distinct1MiB sources and compares actual read/copy/hash work, retaining raw-buffer and original-close controls. Source snapshot preparation is outside that measurement. It is a work-bound qualification, not a general latency promise.

@@ -1,0 +1,10 @@
+# CI settings dispatch repair
+
+Date: 2026-11-05. Baseline: `dcdbec34755db57c1e389f4d07b9378f3d8d8fb8`.
+The [durable receipt](ci-lite-settings-dispatch-repair-2026-11-05.json) retains the original authority failure and real before/after process checks.
+
+Windows authority [job127099532887](https://github.com/doublemover/PairOfCleats/actions/runs/41983475628/job/127099532887) passes40/41 cases. The settings inspector's config-dump child reaches its10-second timeout with empty stdout/stderr; its direct close and descendant cleanup settle. There is no captured child stack. The result does not demonstrate an authority bypass or native crash.
+
+Inspection unnecessarily launches the general CLI, which launches another Node command for the canonical dump. A real-process preload deterministically observes two command entries before repair, failing the new one-entry invariant. The private replacement worker enforces the existing bootstrap gate before dynamically importing the unchanged dump parser/producer. It preserves subprocess/environment isolation, signal handling,10-second child/30-second fixture limits,1MiB output admission and incomplete-output rejection. It removes one proven startup hop; this is not an attribution of the silent child's exact stalled phase or an application-wide latency claim.
+
+Every original source/symlink/backup/lock, trust, secret-redaction, stale/schema, cancellation, reset and explicit-confirmation assertion remains. Seven portable settings/configuration controls pass, including actual saved-value consumption and effective-configuration authority. The one-command process invariant passes without substituting a fixture response. The dedicated bootstrap regression verifies rejection before leaf linking in an unprepared checkout. All eight publication checks pass, including43/43 gate cases; the guarded unprepared-checkout control passes in13.8seconds. Capable hosted file-symlink authority results are recorded as they complete; no local symlink acceptance is claimed. The original failure remains historical and retries do not count as repair evidence.

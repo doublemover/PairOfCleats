@@ -37,3 +37,11 @@ indexing/contracts/semantic-foundations
 indexing/contracts/semantic-handoff-contracts
 indexing/contracts/runtime-evidence
 indexing/contracts/index-format-cutover
+ci/windows-authority-cohort
+ci/ordered-lane-discovery
+ci/platform-cohort-contract
+ci/gate-policy
+tooling/ci/run-suite-api-plan/ci
+tooling/ci/run-suite-api-plan/nightly
+# Native discovery must remain usable when public commands are added.
+tui/operator-command-dispositions

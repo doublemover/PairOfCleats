@@ -1,0 +1,1805 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-comment-and-handoff-failure-repairs",
+  "date": "2026-10-28",
+  "sourceHead": "5b3eac58e0a2a1e16192fa05918217c256cf06b1",
+  "tree": "4aa11ba3e24b90ae5c940d480b65fd1214fa3e0f",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "runtime": {
+    "node": "v26.12.1",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "fullSuiteRerun": false
+  },
+  "commits": [
+    "1e7e4577d199687b2ab55b486890bb0529d69aea",
+    "a258798648839c49de9c9c4d3d409560447a88a9",
+    "38847da102635f54f50928decaacaac3d74ec06e",
+    "eb4cd0c681ae7113b6dbbf0bd4aaa4a2c5d9b245",
+    "5b3eac58e0a2a1e16192fa05918217c256cf06b1"
+  ],
+  "sourceFiles": [
+    {
+      "path": "src/index/comments-policy.js",
+      "sha256": "74cbe97ba3beac0409a46774b496881e915229cf2516a479a875871dc48ff9ac"
+    },
+    {
+      "path": "src/index/comments.js",
+      "sha256": "c44c88efa35edf18b313052b4121842a759e31b9ca209a4d3605ba6ef517c3aa"
+    },
+    {
+      "path": "src/index/language-registry/import-collectors/json.js",
+      "sha256": "aa0dc1ef9c1472417c5c6bf6ac7866269b592332431619b3e39529f676e1f1bc"
+    },
+    {
+      "path": "src/integrations/core/build-index/stages.js",
+      "sha256": "117226b486c99b860f422f8fb3a29debab004548241f86d570f1effc13d023dd"
+    },
+    {
+      "path": "src/lang/javascript/doc-comments.js",
+      "sha256": "f49db4e88797c4c670b3725696a5de621977544772a48ab5c1bd88736e0a1a69"
+    },
+    {
+      "path": "src/lang/javascript/version.js",
+      "sha256": "e047da244fdf54f18023997ec56ed3627e1b080223af415972e5854f3b48ed59"
+    },
+    {
+      "path": "tests/indexing/tokenization/file-stream-punctuation-parity.test.js",
+      "sha256": "079e0b18513629a312d1fdf9db3e7e2ff0d6d70f1111ae216f116123bd30627b"
+    },
+    {
+      "path": "tests/integrations/core/embedding-plan-handoff.test.js",
+      "sha256": "684b4bd34a6caf8a4c1c5c7d9f1ed73e5644516d7f692e799babe3d9a730fd1f"
+    },
+    {
+      "path": "tests/integrations/core/embedding-plan-late-binding.test.js",
+      "sha256": "58a005bf9d84ce3a9cf713f639434a45d63e0cb01394c05dccd5c6234b80e33b"
+    },
+    {
+      "path": "tests/lang/contracts/html-prepared-source.test.js",
+      "sha256": "a7b1ee093acf984d4444bb7e0a8ab16a598de39f063dbf9b91f04d348113ce3e"
+    },
+    {
+      "path": "tests/lang/contracts/jsonc-structure-boundaries.test.js",
+      "sha256": "5fdc7c2a8be8a4e5b7d4c0c517455194afb0b2a86099e2a6f2f11c4ea3c8115c"
+    },
+    {
+      "path": "tests/lang/javascript/jsdoc-comment-ownership.test.js",
+      "sha256": "85032d7d6d8e0eba81310d16f7cc75029883b8e974664e402904b47fd084f00d"
+    }
+  ],
+  "groups": [
+    {
+      "name": "comments-language-tokenization",
+      "sourceHead": "38847da102635f54f50928decaacaac3d74ec06e",
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused.json",
+        "sha256": "516eba094654e1728e27e8664fe5c29659711103772223583922dd382dd298c2"
+      },
+      "summary": {
+        "durationMs": 32977,
+        "failed": 0,
+        "passed": 56,
+        "skipped": 0,
+        "total": 56
+      },
+      "tests": [
+        {
+          "id": "indexing/file-processor/demanded-line-token-cache/production-cleanup",
+          "status": "passed",
+          "durationMs": 1046,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_file-processor_demanded-line-token-cache_production-cleanup.attempt-1.log",
+              "sha256": "1143d6c1ff6062865f8b04a6707c71c51f4a775259c2cec802ea3cec650acc25"
+            }
+          ]
+        },
+        {
+          "id": "indexing/file-processor/demanded-line-token-cache/production-fallback",
+          "status": "passed",
+          "durationMs": 1022,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_file-processor_demanded-line-token-cache_production-fallback.attempt-1.log",
+              "sha256": "419357a74573dcbaac47107e59239c4f4557e64222ddc49512509492bce56d00"
+            }
+          ]
+        },
+        {
+          "id": "indexing/file-processor/demanded-line-token-cache/production-parity",
+          "status": "passed",
+          "durationMs": 990,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_file-processor_demanded-line-token-cache_production-parity.attempt-1.log",
+              "sha256": "64f3f27759e3bddaca4dc9d885a510088b6d66d0302eac22bb7093738ca9f20e"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/comment-marker-prefilter",
+          "status": "passed",
+          "durationMs": 140,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_comment-marker-prefilter.attempt-1.log",
+              "sha256": "ac5ee47bf05921e2d24b1f968572566bba47d3865d97e28b46a7c7c3e15f3d1d"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/cache-profile",
+          "status": "passed",
+          "durationMs": 209,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_cache-profile.attempt-1.log",
+              "sha256": "ff6bf4897afbc16081c16f3ed72e69b918282acc864992a0d491c681c6d8b4cf"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/cr",
+          "status": "passed",
+          "durationMs": 194,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_cr.attempt-1.log",
+              "sha256": "67f3c46291fe826d879d82e6c58440085758dae2420e1641518be11122eca126"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/division",
+          "status": "passed",
+          "durationMs": 228,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_division.attempt-1.log",
+              "sha256": "71664c88d2ffa52e8a4b50211afde1cf6c06bdb130447f54c0c7a440e0b1bf87"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/ls",
+          "status": "passed",
+          "durationMs": 213,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_ls.attempt-1.log",
+              "sha256": "bef93977ada173f85aa9f719a51e0b8848c2a9fec1cb696c3a362308c60b8b47"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/malformed",
+          "status": "passed",
+          "durationMs": 218,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_malformed.attempt-1.log",
+              "sha256": "8ce479a4c50608f82e983315c14ae6434c64f0bacd66c4b96eed514096dbf0f5"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/parser-reuse",
+          "status": "passed",
+          "durationMs": 195,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_parser-reuse.attempt-1.log",
+              "sha256": "48312c38abc4f1bdf81da9ce03d8d54a36dce2aff021da08bfc0caf40c7b65ec"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/ps",
+          "status": "passed",
+          "durationMs": 205,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_ps.attempt-1.log",
+              "sha256": "d4a4695243d83ff35e056ea76f6f25a40dbf85973410ee375af80ca72df49d30"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/regex",
+          "status": "passed",
+          "durationMs": 230,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_regex.attempt-1.log",
+              "sha256": "8bd7b0d38e7b6db8b01de744f948d5f132a74977c3e2dad6b80b2b5cdae83826"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/regex-markers",
+          "status": "passed",
+          "durationMs": 202,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_regex-markers.attempt-1.log",
+              "sha256": "f716fd0200aa7e25d53029a52d9c462461f7f34df523f318ecee7fbf9c643229"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/source-mismatch",
+          "status": "passed",
+          "durationMs": 198,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_source-mismatch.attempt-1.log",
+              "sha256": "a2cbd66cbfbb619180a8a8d263fb0c5764174b37e482db0291a1ee2e9170088a"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/template",
+          "status": "passed",
+          "durationMs": 193,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_template.attempt-1.log",
+              "sha256": "1e1e6d5102987f7eb26eebea4bac864b8dc9adf703d36cef78e3809e01c1dc84"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/parser-comment-occurrences/typescript",
+          "status": "passed",
+          "durationMs": 200,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_parser-comment-occurrences_typescript.attempt-1.log",
+              "sha256": "a4396206e669373e3cba52a6e595b06c890a869101d26f67b88ac15fe7aa3e11"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/characters",
+          "status": "passed",
+          "durationMs": 161,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_characters.attempt-1.log",
+              "sha256": "0e4fa522778e91e25a06d0223efddbdd86815b4f5b5f3f253ce7fab860be22bc"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/doc-bare-cr",
+          "status": "passed",
+          "durationMs": 199,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_doc-bare-cr.attempt-1.log",
+              "sha256": "88fd6a6f7113d3063c133f71ee1b5efc0a04d074af42e3e79c8c9713492349b0"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/doc-crlf",
+          "status": "passed",
+          "durationMs": 168,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_doc-crlf.attempt-1.log",
+              "sha256": "872ecf2dc2317a582431efd46b259e089b90789775877514911b96cfba4b246d"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/doc-roles",
+          "status": "passed",
+          "durationMs": 173,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_doc-roles.attempt-1.log",
+              "sha256": "4cb4229d8ea395be8e905ef1eca6e1dd106912edb72be077ee35b0cf4e7d0efa"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/lifetimes",
+          "status": "passed",
+          "durationMs": 151,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_lifetimes.attempt-1.log",
+              "sha256": "74b677e8e456b601b360f044b3ff1bf6e2ec8692f9cb3268d5d1de50b29bbd0f"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/line-endings",
+          "status": "passed",
+          "durationMs": 161,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_line-endings.attempt-1.log",
+              "sha256": "61ab1bb7828c3cf32efdc9ba011d1a72d63036c44a494bdf9a1cfd5839405625"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/nested",
+          "status": "passed",
+          "durationMs": 158,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_nested.attempt-1.log",
+              "sha256": "98feb558d8d58cab397d3240d4d846efce89d838a1aa86da00334926ae8266c7"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/nesting-budget",
+          "status": "passed",
+          "durationMs": 149,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_nesting-budget.attempt-1.log",
+              "sha256": "de0085d8e75b334d0fb8850bb9073e4fca2e3719de07f1c0b67eec153c0d670b"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/raw-hash-budget",
+          "status": "passed",
+          "durationMs": 155,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_raw-hash-budget.attempt-1.log",
+              "sha256": "b287fae0b00ac81af03c13392a572d8869f0c2715a9d7f680e5f6e35253ad7b4"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/raw-identifier",
+          "status": "passed",
+          "durationMs": 160,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_raw-identifier.attempt-1.log",
+              "sha256": "820a6a0973ca174772ea37a815a0b7d7d1194cbd5efd55ee4c891acf7d30c1b8"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/raw-strings",
+          "status": "passed",
+          "durationMs": 158,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_raw-strings.attempt-1.log",
+              "sha256": "e08def2cdf11ee241905852b0c0ae37432107cf3132e39966e9c58ef5609a51e"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/unterminated-block",
+          "status": "passed",
+          "durationMs": 169,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_unterminated-block.attempt-1.log",
+              "sha256": "18a341f34b0cc611dfabfcada8c25be64c35d5fb9d10bad2e5a3021bb586f86c"
+            }
+          ]
+        },
+        {
+          "id": "indexing/segments/rust-comment-occurrences/unterminated-raw",
+          "status": "passed",
+          "durationMs": 160,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_segments_rust-comment-occurrences_unterminated-raw.attempt-1.log",
+              "sha256": "afc82721e8d869624e043716ee09d915307a1ab33a3d110c97f8f9513eb366e5"
+            }
+          ]
+        },
+        {
+          "id": "indexing/stage1/comment-policy-extras-cache",
+          "status": "passed",
+          "durationMs": 858,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_stage1_comment-policy-extras-cache.attempt-1.log",
+              "sha256": "4de9e19c1146e42c0a85d03fc4ac1c45a6d01790196d35ec158e68e1f964dd50"
+            }
+          ]
+        },
+        {
+          "id": "indexing/tokenization/file-stream-punctuation-parity",
+          "status": "passed",
+          "durationMs": 1244,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\indexing_tokenization_file-stream-punctuation-parity.attempt-1.log",
+              "sha256": "434b990524b04ac43df74de0dd72497d16e37b1960d898b0b97aa6e4a874bc83"
+            }
+          ]
+        },
+        {
+          "id": "lang/contracts/html-prepared-source",
+          "status": "passed",
+          "durationMs": 557,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_contracts_html-prepared-source.attempt-1.log",
+              "sha256": "53b62af65e8f998d361437538f4ebd8a32a300a5784ccc9680a5302cae4bf8f3"
+            }
+          ]
+        },
+        {
+          "id": "lang/contracts/jsonc-structure-boundaries",
+          "status": "passed",
+          "durationMs": 274,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_contracts_jsonc-structure-boundaries.attempt-1.log",
+              "sha256": "0636d8e023aeb5692428419ee8c1b85a6fb8e00d0318994ab18f4ae6447548d3"
+            }
+          ]
+        },
+        {
+          "id": "lang/contracts/literal-dialect-evidence",
+          "status": "passed",
+          "durationMs": 735,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_contracts_literal-dialect-evidence.attempt-1.log",
+              "sha256": "161511931a0fef5891788c990d4628d9674f045ed97f34f2c337cf1eab7a61c8"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/documentation-artifact-contract",
+          "status": "passed",
+          "durationMs": 703,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_documentation-artifact-contract.attempt-1.log",
+              "sha256": "46087cb84e3500061e9c212ef242bf9ff1e7090e501b51f2bbef6a901542f259"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/acorn",
+          "status": "passed",
+          "durationMs": 1036,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_acorn.attempt-1.log",
+              "sha256": "fd0d54c1c42abc624061ce081fee20c36c2f19d6cf3bc0bc3b47ff12015ffa1d"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/ast-precedence",
+          "status": "passed",
+          "durationMs": 1016,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_ast-precedence.attempt-1.log",
+              "sha256": "22b64739bd119121425361ad2ae78a7a1f8a21907cdf157d999ce48f3877d262"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/babel",
+          "status": "passed",
+          "durationMs": 1042,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_babel.attempt-1.log",
+              "sha256": "3a2698a7bd934ea64417b1683d4289a74e353995759452f4ff3b3142b0a4ff4e"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/body-comment",
+          "status": "passed",
+          "durationMs": 1002,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_body-comment.attempt-1.log",
+              "sha256": "4a0613e3551c9078b10d97ba58413aac435b427864402590adefdacdd14466d5"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/byte-budget",
+          "status": "passed",
+          "durationMs": 991,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_byte-budget.attempt-1.log",
+              "sha256": "f14d601be6782ea21070edeef2b9cdf461c256dff3bcf863a0256054b3df3959"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/comment-tamper",
+          "status": "passed",
+          "durationMs": 960,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_comment-tamper.attempt-1.log",
+              "sha256": "49cdc2970251ed6d49dbfb5b5b4c98cdf98f4edce34c94da5bcb049e4a9a833e"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/dotted",
+          "status": "passed",
+          "durationMs": 989,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_dotted.attempt-1.log",
+              "sha256": "47962743686cf4dbdd4889334afd1f5c82115535fa1590c40339e74b3be8e44f"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/embedded-offset",
+          "status": "passed",
+          "durationMs": 1016,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_embedded-offset.attempt-1.log",
+              "sha256": "12fc141f18157778dc2dac9d24c9f4e679bf63ef0163a9b9fe159e79530d41c3"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/empty",
+          "status": "passed",
+          "durationMs": 987,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_empty.attempt-1.log",
+              "sha256": "aaee3642e9a213f345ea4e7d0d5e7301f84aeadae403e997e50a80b20ee9d247"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/esprima",
+          "status": "passed",
+          "durationMs": 1019,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_esprima.attempt-1.log",
+              "sha256": "a95f859e7518f617c498b64f3919f76c7a187152ae970bbf82b7f17c2dced863"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/generic-union",
+          "status": "passed",
+          "durationMs": 978,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_generic-union.attempt-1.log",
+              "sha256": "3d12b1b12115c00871c5a697b7549110d80c8e01e0d30c67f46dc99b1cde0f4a"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/leading-outside",
+          "status": "passed",
+          "durationMs": 1004,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_leading-outside.attempt-1.log",
+              "sha256": "223fab67285825f1031db63e6ce042d9d6c31e940ee1e3e9f5b1e148fc4e0f37"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/malformed",
+          "status": "passed",
+          "durationMs": 979,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_malformed.attempt-1.log",
+              "sha256": "0a2bab0e95dd1a0e21e6d13238fb1cf6a8fca57170a453d2f0a124a27b1cba15"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/nested-records",
+          "status": "passed",
+          "durationMs": 994,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_nested-records.attempt-1.log",
+              "sha256": "11c5c1ada7cffc8c9321c7ed97e30ed90ec067917ad8ce8508333dfbef6586aa"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/optional-default",
+          "status": "passed",
+          "durationMs": 978,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_optional-default.attempt-1.log",
+              "sha256": "6beb5e20b5626e4f22e6f9270f63e1334992942b3991c702c408193677dfa9e6"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/prototype-key",
+          "status": "passed",
+          "durationMs": 1000,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_prototype-key.attempt-1.log",
+              "sha256": "6de2e4f60214e8c76b111a7ffa0c7c7b0d1733ce853c735b34fb568a34e95efa"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/rest",
+          "status": "passed",
+          "durationMs": 981,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_rest.attempt-1.log",
+              "sha256": "a8c6d9b4d96fd7f8c16359ae8e2f28fdc65b3d71fc60cd2a82c9540928b1398b"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/source-unavailable",
+          "status": "passed",
+          "durationMs": 959,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_source-unavailable.attempt-1.log",
+              "sha256": "8d4992a0b2be660dc0b12afaffd241591ffd4be718e609e913744077268b258a"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/string-template",
+          "status": "passed",
+          "durationMs": 930,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_string-template.attempt-1.log",
+              "sha256": "d27363e73683a2e6fd86bf631dba71e04a2b6656dbd1ce12d28fdb6b1c3f7987"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/type-depth",
+          "status": "passed",
+          "durationMs": 959,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_type-depth.attempt-1.log",
+              "sha256": "708f56d8929c3bad5db08cca72d53ef439d9e21bd2207e2d653535386a68da88"
+            }
+          ]
+        },
+        {
+          "id": "lang/javascript/jsdoc-comment-ownership/unrelated-leading",
+          "status": "passed",
+          "durationMs": 939,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\focused-logs\\run-1793241795045-1ko2de\\lang_javascript_jsdoc-comment-ownership_unrelated-leading.attempt-1.log",
+              "sha256": "1eb1892b877ae211c50b4b93018d4e96980cca89520141479f0fdd54a36fe290"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "canonical-embedding-binding",
+      "sourceHead": "eb4cd0c681ae7113b6dbbf0bd4aaa4a2c5d9b245",
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff.json",
+        "sha256": "8e734d67ebff6fd05daca56ca048292b02782d885c4653f9e0d0fb969b7214fd"
+      },
+      "selectedPassing": 6,
+      "tests": [
+        {
+          "id": "integrations/core/embedding-plan-late-binding/generation-scope",
+          "status": "passed",
+          "durationMs": 235,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-late-binding_generation-scope.attempt-1.log",
+              "sha256": "798a6214faaf9ebb2a7a5957b8d8fae6734c056e59b15518a51cec3e64ca1eb2"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-late-binding/immutable",
+          "status": "passed",
+          "durationMs": 219,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-late-binding_immutable.attempt-1.log",
+              "sha256": "19dc6e0347d12a6307bebe850b89a25b79b0e502c61d44b513b2186b43fdd497"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-late-binding/inactive",
+          "status": "passed",
+          "durationMs": 219,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-late-binding_inactive.attempt-1.log",
+              "sha256": "351231ccfe4b743a99a4a07cef3d4b2a01fc4bed7226a3a37a43682a98b03dab"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-late-binding/mode-scope",
+          "status": "passed",
+          "durationMs": 221,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-late-binding_mode-scope.attempt-1.log",
+              "sha256": "73dd73e492aef096995df15924bf98605d07a2214c1b1e79e7d112825b925414"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-late-binding/profile",
+          "status": "passed",
+          "durationMs": 222,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-late-binding_profile.attempt-1.log",
+              "sha256": "4c3b7c7e55104c62686dc1fa663bf9493bab112176e4e8a1d8ef75d427518390"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-late-binding/selection",
+          "status": "passed",
+          "durationMs": 247,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-late-binding_selection.attempt-1.log",
+              "sha256": "9124fd5c52c74cd0c7181195f731d35b06236f28c57d577dd00e548f45e00875"
+            }
+          ]
+        }
+      ],
+      "retainedFailure": [
+        {
+          "id": "integrations/core/embedding-plan-handoff",
+          "status": "failed",
+          "durationMs": 2614,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-handoff.attempt-1.log",
+              "sha256": "b68fbc8bfa01d3519ef21574612ac45f50ceda41c2b802897e963a10f485cf73"
+            },
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-logs\\run-1793241966735-fbre4o\\integrations_core_embedding-plan-handoff.attempt-1.failure.json",
+              "sha256": "9d0e137844a1d54e2413ad255c9da1d1556575d439f9e6be14e25463ad2f4324"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "launch-environment-handoff",
+      "sourceHeadDuringRun": "eb4cd0c681ae7113b6dbbf0bd4aaa4a2c5d9b245",
+      "workingSourceVerifiedMatchingCommit": "5b3eac58e0a2a1e16192fa05918217c256cf06b1",
+      "workingFiles": [
+        {
+          "path": "src/integrations/core/build-index/stages.js",
+          "sha256": "117226b486c99b860f422f8fb3a29debab004548241f86d570f1effc13d023dd"
+        },
+        {
+          "path": "tests/integrations/core/embedding-plan-handoff.test.js",
+          "sha256": "684b4bd34a6caf8a4c1c5c7d9f1ed73e5644516d7f692e799babe3d9a730fd1f"
+        }
+      ],
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-recheck.json",
+        "sha256": "4504ac5d75c2944aa486e218596e1022eb833509bfc8ada589a222ca04b4770a"
+      },
+      "summary": {
+        "durationMs": 3706,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "id": "integrations/core/embedding-plan-handoff",
+          "status": "passed",
+          "durationMs": 3702,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\handoff-recheck-logs\\run-1793242040071-tdz1qd\\integrations_core_embedding-plan-handoff.attempt-1.log",
+              "sha256": "5e9d1c28e652e329e6b898fc353da122141a0f7d9fc15b9346018c576179218a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stage3-preflight-and-single-queue-controls",
+      "sourceHead": "5b3eac58e0a2a1e16192fa05918217c256cf06b1",
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls.json",
+        "sha256": "e4308cf77b03f0490379a22347d0066243932cec143d20e09adc18caa3c8a1a1"
+      },
+      "summary": {
+        "durationMs": 16531,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "id": "indexing/build/service-embedding-queue-ownership",
+          "status": "passed",
+          "durationMs": 14374,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\indexing_build_service-embedding-queue-ownership.attempt-1.log",
+              "sha256": "ec319da8c17f5ad7dc0a3403559989959301bb5a386a70a0087deab43caf8e2c"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/cancel",
+          "status": "passed",
+          "durationMs": 231,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_cancel.attempt-1.log",
+              "sha256": "97e54a9080d85d09aec80917a0e5cf75918d076824e83ea7bdd30ae3b6a8874d"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/deferred",
+          "status": "passed",
+          "durationMs": 240,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_deferred.attempt-1.log",
+              "sha256": "28b8423c55a2ed8f0a352bb3d7f0b92982447bb5faf1f42788c61bdc636b1469"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/evidence",
+          "status": "passed",
+          "durationMs": 228,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_evidence.attempt-1.log",
+              "sha256": "77c125b74f1d7336d7ad47f0f53fd9d5017ed69801c4886fd34bfaf30aa76e8a"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/inactive",
+          "status": "passed",
+          "durationMs": 227,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_inactive.attempt-1.log",
+              "sha256": "ca9f2fe4e463ec7cde4a755d35d26a29a9a939865664fddef75d9deeee44dbb4"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/missing-default",
+          "status": "passed",
+          "durationMs": 242,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_missing-default.attempt-1.log",
+              "sha256": "5465812fdf24c8795b1c0c62c5cabc2ba96384858810665597cdd34d2c470a7f"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/missing-selected",
+          "status": "passed",
+          "durationMs": 228,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_missing-selected.attempt-1.log",
+              "sha256": "52456ab8e81bb6423faecef8fa95d05d31b429ab1d303e2a046720157912edca"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/pinned-graph",
+          "status": "passed",
+          "durationMs": 251,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_pinned-graph.attempt-1.log",
+              "sha256": "f8fee696b882e5211fc45fe7c0f0ffab43261083ba8658a7b3bfad290a8b5dc5"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/present",
+          "status": "passed",
+          "durationMs": 250,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_present.attempt-1.log",
+              "sha256": "b9f5ce3a23f597de70795b0451f62e09ef0e1b463811d3540d740a9551bd7b61"
+            }
+          ]
+        },
+        {
+          "id": "integrations/core/embedding-plan-preflight/provider",
+          "status": "passed",
+          "durationMs": 245,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "skipReason": null,
+          "logs": [
+            {
+              "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\stage3-controls-logs\\run-1793242121345-y882t8\\integrations_core_embedding-plan-preflight_provider.attempt-1.log",
+              "sha256": "79346e947009839ffbe4a58f55c48c939eb458c6ad91ebc6746ba34a5e0e8d4a"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "passingUniqueChecks": 73,
+  "additionalOriginalFailures": [
+    {
+      "cohort": "041-correctness-indexing-16",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238570464-zzw5sb\\indexing_segments_rust-comment-occurrences_raw-hash-budget.attempt-1.log",
+          "sha256": "5c788160a6c8004c12131d6fe42706793f7fa8c73ac00a9366afaa637fa72d1a"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793238570464-zzw5sb\\indexing_segments_rust-comment-occurrences_raw-hash-budget.attempt-1.failure.json",
+          "sha256": "02ebfde010cf3be2f1f031b579486c740317c8a52ba5beb63646b0292b832e88"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "indexing/segments/rust-comment-occurrences/raw-hash-budget",
+      "excerpt": "TypeError: Cannot read properties of undefined (reading 'state')"
+    },
+    {
+      "cohort": "045-correctness-indexing-20",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239064259-ur1bn7\\indexing_tokenization_file-stream-punctuation-parity.attempt-1.log",
+          "sha256": "98cd8bf6515aff6fa88ba4df8b6451808fcaaca3754de74af96277e474304d1c"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239064259-ur1bn7\\indexing_tokenization_file-stream-punctuation-parity.attempt-1.failure.json",
+          "sha256": "5a6dcab5c8085d4d4ff3e191ee59e576dcbcd005b4ad36ac71280bcd93875d47"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "indexing/tokenization/file-stream-punctuation-parity",
+      "excerpt": "AssertionError [ERR_ASSERTION]: exercise the actual exact-span file-stream selection\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-handoff.attempt-1.log",
+          "sha256": "9e19b17364cc43b65b1b180d2c8fe37b29657fbc7af48412d727f74ec75ce196"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-handoff.attempt-1.failure.json",
+          "sha256": "d6ce374648fc198adf9a5e0ca7203220ac5312484441352ebc4904f0655a3433"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-handoff",
+      "excerpt": "const selectionError = message => Object.assign(new Error(message), { code: 'ERR_INDEX_STORAGE_SELECTION' });\nError: Index writer root differs from its canonical launch-selected repository namespace.\n  code: 'ERR_INDEX_STORAGE_SELECTION'"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_generation-scope.attempt-1.log",
+          "sha256": "5ead50e06a47b890df23d7bf9b9ba8f2ab6cf5a7fc8d7cdc546b1d1986a564a9"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_generation-scope.attempt-1.failure.json",
+          "sha256": "ede87c092d019bc58d5fba3f86c3694859717207cdac89c7f6daa79502f20a31"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-late-binding/generation-scope",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_immutable.attempt-1.log",
+          "sha256": "c5ec4e1923d1ed72aba1c54db333ee415c31c60d2374d25c52eac03f28f2fc73"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_immutable.attempt-1.failure.json",
+          "sha256": "81471e195f863426ef1ea30d9d80f7108c527a6b7ddbd93553f12c5138f7cd6a"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-late-binding/immutable",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_inactive.attempt-1.log",
+          "sha256": "11f8bd46bad8f7b3ae76e015d852b5a813149f1974ba4dfd8b8ea3631e28a1c0"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_inactive.attempt-1.failure.json",
+          "sha256": "9c0f3194d9545119a0fb374e33ac2bf70cb02991dcf637da04d2d789a169272d"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-late-binding/inactive",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_mode-scope.attempt-1.log",
+          "sha256": "38fa4b87a09f351b5aa50c3597d862a473cc2ac197e9bbbd021a5959902dcc96"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_mode-scope.attempt-1.failure.json",
+          "sha256": "7fa3945464e68385d45996f796380121c973fa038442eded0c0e108d407b744e"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-late-binding/mode-scope",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_profile.attempt-1.log",
+          "sha256": "a743f6287523e477ebe2120e0d9a8d51335aac6e80ed1c0fddb47655bfffc86d"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_profile.attempt-1.failure.json",
+          "sha256": "4c7e33446b64efbe2f1588af6c49a68c7c3145f99c3c04f2f2b43df3683fb70a"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-late-binding/profile",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "055-correctness-integrations-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_selection.attempt-1.log",
+          "sha256": "dd25ac893dc78608e2ad48bcd8e836b97c3a58c9169d81e540d191ec57cc380c"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239578102-qizklk\\integrations_core_embedding-plan-late-binding_selection.attempt-1.failure.json",
+          "sha256": "4f46f7e1c7e4e31b48101d042d5ded5bc009a705a7ba0ba78edc23b21b576b52"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "integrations/core/embedding-plan-late-binding/selection",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "058-correctness-lang-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239639778-pf2k14\\lang_contracts_html-prepared-source.attempt-1.log",
+          "sha256": "2baaeb628c5a674adb82b6957fd53b91beb04982330e4c1bf47570c44ed699e6"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239639778-pf2k14\\lang_contracts_html-prepared-source.attempt-1.failure.json",
+          "sha256": "73f572453b8d6585edf136afcdd0a44391ad318b057adfeb69f8413ba3b09dc6"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "lang/contracts/html-prepared-source",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "058-correctness-lang-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239639778-pf2k14\\lang_contracts_jsonc-structure-boundaries.attempt-1.log",
+          "sha256": "8bf1057b07c2d8ef783874ce838f51a2c96deca730aa2d68e508cecbac7cce76"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239639778-pf2k14\\lang_contracts_jsonc-structure-boundaries.attempt-1.failure.json",
+          "sha256": "903ea24a0851aa19cc7422ed336b1cf4b2da226e01d07467d934a92276813ccd"
+        }
+      ],
+      "timedOut": false,
+      "kind": "correctness",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "lang/contracts/jsonc-structure-boundaries",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n  code: 'ERR_ASSERTION',"
+    },
+    {
+      "cohort": "060-native-lifecycle-lang-0",
+      "logs": [
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239689277-5u2k7y\\lang_javascript_jsdoc-comment-ownership_byte-budget.attempt-1.log",
+          "sha256": "bb2d2d21352e2f078c889d0ee463893d722d0633cde3a70c2e55822fb616fb0a"
+        },
+        {
+          "historicalPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-validation-305-20261028\\cohort-logs\\run-1793239689277-5u2k7y\\lang_javascript_jsdoc-comment-ownership_byte-budget.attempt-1.failure.json",
+          "sha256": "ea62dbfaf69da22d5eac2944109ff3f3d2daae3a50d08884b8f9fea541025cbd"
+        }
+      ],
+      "timedOut": false,
+      "kind": "native-lifecycle",
+      "signal": null,
+      "status": "failed",
+      "exitCode": 1,
+      "id": "lang/javascript/jsdoc-comment-ownership/byte-budget",
+      "excerpt": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  code: 'ERR_ASSERTION',"
+    }
+  ],
+  "remainingObservedFailures": [
+    "indexing/build/stage4-mixed-mode-generations",
+    "indexing/chunk-id/backend-parity",
+    "indexing/chunking/formats/format-fidelity",
+    "indexing/incremental/document-extraction-receipt",
+    "indexing/policy/shared-module-review-files",
+    "indexing/postings/vector-only-service-embeddings-pending-artifacts",
+    "indexing/registry-borrowed-lock-capability",
+    "indexing/risk/rules/external-policy-admission",
+    "indexing/semantic/runtime-query-pagination",
+    "indexing/semantic/ssr-snapshot-witness-incremental",
+    "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+    "indexing/state/patch-queue-contract-matrix",
+    "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+    "indexing/semantic/native-flow-pull-writer",
+    "indexing/tree-sitter/scheduler-native-language-contract",
+    "indexing/tree-sitter/scheduler-native-smoke",
+    "indexing/workers/coarse-file-analysis-facade/worker",
+    "indexing/workers/process-pool-lifecycle",
+    "indexing/workers/quantize-cleanup-failure-admission",
+    "indexing/workers/worker-pool-gc-pressure-telemetry",
+    "perf/bench/artifact-report-admission/actual-report",
+    "perf/bench/embedding-bakeoff-phase-lifecycle",
+    "perf/bench/language-lock",
+    "perf/bench/language-query-capabilities",
+    "perf/bench/language-sqlite-zero-mode-status"
+  ],
+  "priorFocusedReceipt": "windows-focused-failure-repairs-2026-10-28.json",
+  "originalCampaign": "windows-partial-validation-checkpoint-305-2026-10-28.json",
+  "frontGate": {
+    "format": {
+      "command": "npm run format",
+      "exitCode": 0,
+      "log": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\format-publication.log",
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+      }
+    },
+    "checks": [
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\config-budget.log",
+          "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188"
+        },
+        "name": "config-budget",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "exitCode": 0,
+        "command": "npm"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\env-check.log",
+          "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91"
+        },
+        "name": "env-check",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "exitCode": 0,
+        "command": "npm"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\generated-freshness-recheck.log",
+          "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6"
+        },
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated-freshness-recheck",
+        "exitCode": 0,
+        "command": "node"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\command-surface.log",
+          "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577"
+        },
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface",
+        "exitCode": 0,
+        "command": "node"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\workflow-contract.log",
+          "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f"
+        },
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow-contract",
+        "exitCode": 0,
+        "command": "node"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\gate.log",
+          "sha256": "f8421aec9cbb3dd0a6301f2b810462d1b54cd6fedc0a010645b8fd28f818e19e"
+        },
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          ".tmp/tasks/windows-focused-comment-repairs-310-20261028/gate.json",
+          "--log-dir",
+          ".tmp/tasks/windows-focused-comment-repairs-310-20261028/gate-logs"
+        ],
+        "name": "gate",
+        "exitCode": 0,
+        "command": "node"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\docs-contract.log",
+          "sha256": "93a8f456c2fffe0901762e3771a057abdc408a1bdc687f8ded1cee340474e164"
+        },
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "all",
+          "--match",
+          "/^tooling\\/docs\\/contract-matrix$/",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          ".tmp/tasks/windows-focused-comment-repairs-310-20261028/docs.json",
+          "--log-dir",
+          ".tmp/tasks/windows-focused-comment-repairs-310-20261028/docs-logs"
+        ],
+        "name": "docs-contract",
+        "exitCode": 0,
+        "command": "node"
+      },
+      {
+        "log": {
+          "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\diff-check.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff-check",
+        "exitCode": 0,
+        "command": "git"
+      }
+    ],
+    "originalGeneratedFailure": {
+      "report": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\front-gate.json",
+        "sha256": "d64412727368c9bb5b8ddcc607bf968f1493448e7ddf5222bbd91628387d6d19"
+      },
+      "log": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\generated-freshness.log",
+        "sha256": "111ccf7868d918d364c59cb2e6300a3203a116cbf1f30526b0e5fc568a739c70"
+      },
+      "cause": "JAVASCRIPT_RELATIONS_VERSION changed the canonical artifact schema fingerprint; regenerated the existing schema index with its registered owner.",
+      "refresh": {
+        "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\schema-refresh.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "gateReport": {
+      "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\gate.json",
+      "sha256": "974944964e68386384a95478705f68d7dfb91a8437288f4172e2c04f2f71a13f"
+    },
+    "gateSummary": {
+      "durationMs": 4513,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    },
+    "documentationReport": {
+      "historicalPath": ".tmp\\tasks\\windows-focused-comment-repairs-310-20261028\\docs.json",
+      "sha256": "a6e7c7e839707b87861a4a3dcd52087324439ad7deaca7806911fa282dacb12c"
+    },
+    "documentationSummary": {
+      "durationMs": 646,
+      "failed": 0,
+      "passed": 1,
+      "skipped": 0,
+      "total": 1
+    }
+  },
+  "interveningFilesAfterLanguageChecks": [
+    "src/integrations/core/build-index/stages.js",
+    "tests/integrations/core/embedding-plan-handoff.test.js",
+    "tests/integrations/core/embedding-plan-late-binding.test.js"
+  ],
+  "roadmapCRLFBytes": 19723,
+  "interpretation": [
+    "Twelve additional original failures qualify; 21 of the partial campaign original 46 have passing focused rechecks across the two repair receipts.",
+    "These are source-bound focused groups, not a single final-head full-suite pass.",
+    "The language/comment group was not rerun after unrelated embedding fixture and Stage3 changes. Intervening files are enumerated.",
+    "Stage3 now uses captured API launch environment for storage admission; conflicting ambient cache and unselected-root negative remain tested.",
+    "No public knob, format relaxation, skip, deadline increase or crash-status retry.",
+    "Raw .tmp paths are historical author-workspace evidence, not files promised in clean checkouts."
+  ]
+}

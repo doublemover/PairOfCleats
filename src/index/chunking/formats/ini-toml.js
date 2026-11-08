@@ -1,5 +1,5 @@
 import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
-import { buildChunksFromLineHeadings } from '../helpers.js';
+import { buildChunksFromLineHeadings, preserveChunkPreamble } from '../helpers.js';
 import { parseTomlStructure } from '../../../shared/toml-structure.js';
 
 export const createTomlChunker = ({ parseStructure = parseTomlStructure } = {}) => (text, context = {}) => {
@@ -11,10 +11,10 @@ export const createTomlChunker = ({ parseStructure = parseTomlStructure } = {}) 
   if (structure.reason) return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
   // Source-line sections are application-owned ranges, not vendor AST nodes.
   // Semantic values validate the corresponding decoded table path.
-  return structure.headings.length ? structure.headings.map((heading, index) => ({ start: heading.sectionStart,
+  return structure.headings.length ? preserveChunkPreamble(source, structure.headings.map((heading, index) => ({ start: heading.sectionStart,
     end: structure.headings[index + 1]?.sectionStart ?? source.length, name: heading.name, kind: 'ConfigSection',
     meta: { title: heading.name, ...meta, tablePath: heading.path, arrayTable: heading.arrayTable,
-      headerRange: { start: heading.start, end: heading.end } } }))
+      headerRange: { start: heading.start, end: heading.end } } })), { kind: 'ConfigSection', format: 'toml' })
     : [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
 };
 

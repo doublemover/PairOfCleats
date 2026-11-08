@@ -1,0 +1,294 @@
+diff --git a/node_modules/node-pty/lib/windowsPtyAgent.js b/node_modules/node-pty/lib/windowsPtyAgent.js
+index a358ffb17..4426241df 100644
+--- a/node_modules/node-pty/lib/windowsPtyAgent.js
++++ b/node_modules/node-pty/lib/windowsPtyAgent.js
+@@ -138,5 +138,17 @@ var WindowsPtyAgent = /** @class */ (function () {
+                 this._inSocket.readable = false;
+                 this._outSocket.readable = false;
++                // The original exit monitor already confirmed this shell is gone.
++                // Its console cannot be attached, but native/bridge owners still close.
++                if (this._exitCode !== undefined) {
++                  this._ptyNative.kill(this._pty, this._useConptyDll);
++                  this._conoutSocketWorker.dispose();
++                  return;
++                }
+                 this._getConsoleProcessList().then(function (consoleProcessList) {
++                    // Capture the console while it still exists. Destroying it
++                    // before the helper attaches races AttachConsole and leaks
++                    // the fallback timer after an otherwise completed cancel.
++                    _this._ptyNative.kill(_this._pty, _this._useConptyDll);
++                    _this._conoutSocketWorker.dispose();
+                     consoleProcessList.forEach(function (pid) {
+                         try {
+@@ -148,6 +160,4 @@ var WindowsPtyAgent = /** @class */ (function () {
+                     });
+                 });
+-                this._ptyNative.kill(this._pty, this._useConptyDll);
+-                this._conoutSocketWorker.dispose();
+             }
+             else {
+@@ -244,4 +254,6 @@ var WindowsPtyAgent = /** @class */ (function () {
+         this._outSocket.readable = false;
+         this._outSocket.destroy();
++        this._inSocket.destroy();
++        this._conoutSocketWorker.dispose();
+     };
+     return WindowsPtyAgent;
+@@ -318,3 +330,3 @@ function xOr(arg1, arg2) {
+     return ((arg1 && !arg2) || (!arg1 && arg2));
+ }
+-//# sourceMappingURL=windowsPtyAgent.js.map
+\ No newline at end of file
++//# sourceMappingURL=windowsPtyAgent.js.map
+diff --git a/node_modules/node-pty/src/windowsPtyAgent.ts b/node_modules/node-pty/src/windowsPtyAgent.ts
+index d70544495..0848bbec0 100644
+--- a/node_modules/node-pty/src/windowsPtyAgent.ts
++++ b/node_modules/node-pty/src/windowsPtyAgent.ts
+@@ -145,5 +145,17 @@ export class WindowsPtyAgent {
+         this._inSocket.readable = false;
+         this._outSocket.readable = false;
++        // The original exit monitor already confirmed this shell is gone.
++        // Its console cannot be attached, but native/bridge owners still close.
++        if (this._exitCode !== undefined) {
++          (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
++          this._conoutSocketWorker.dispose();
++          return;
++        }
+         this._getConsoleProcessList().then(consoleProcessList => {
++          // Capture the console while it still exists. Destroying it
++          // before the helper attaches races AttachConsole and leaks
++          // the fallback timer after an otherwise completed cancel.
++          (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
++          this._conoutSocketWorker.dispose();
+           consoleProcessList.forEach((pid: number) => {
+             try {
+@@ -154,6 +166,4 @@ export class WindowsPtyAgent {
+           });
+         });
+-        (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
+-        this._conoutSocketWorker.dispose();
+       } else {
+         // Close the input write handle to signal the end of session.
+@@ -247,4 +257,6 @@ export class WindowsPtyAgent {
+     this._outSocket.readable = false;
+     this._outSocket.destroy();
++    this._inSocket.destroy();
++    this._conoutSocketWorker.dispose();
+   }
+ }
+diff --git a/node_modules/node-pty/scripts/prebuild.js b/node_modules/node-pty/scripts/prebuild.js
+index 17f1d980e..6d96cb0d2 100644
+--- a/node_modules/node-pty/scripts/prebuild.js
++++ b/node_modules/node-pty/scripts/prebuild.js
+@@ -32,3 +32,13 @@
+ }
+-
+-process.exit(0);
++
++// The 1.1.0 tarball omits executable bits from its macOS spawn helpers.
++if (process.platform === 'darwin') {
++  const spawnHelper = path.join(PREBUILD_DIR, 'spawn-helper');
++  const helperStat = fs.lstatSync(spawnHelper);
++  if (!helperStat.isFile()) {
++    throw new Error('node-pty spawn-helper must be a regular file');
++  }
++  fs.chmodSync(spawnHelper, helperStat.mode | 0o111);
++}
++
++process.exit(0); // Prebuilt artifacts, including the helper, are ready.
+diff --git a/node_modules/node-pty/lib/worker/conoutSocketWorker.js b/node_modules/node-pty/lib/worker/conoutSocketWorker.js
+index 0451e2c6b..76fb8456d 100644
+--- a/node_modules/node-pty/lib/worker/conoutSocketWorker.js
++++ b/node_modules/node-pty/lib/worker/conoutSocketWorker.js
+@@ -12,4 +12,24 @@ conoutSocket.setEncoding('utf8');
+ conoutSocket.connect(conoutPipeName, function () {
+     var server = net_1.createServer(function (workerSocket) {
++        var detached = false;
++        var detachReader = function () {
++            if (detached) {
++                return;
++            }
++            detached = true;
++            conoutSocket.unpipe(workerSocket);
++            // ClosePseudoConsole may still be waiting for output to drain.
++            // Keep reading after the terminal has closed its output reader.
++            conoutSocket.resume();
++            server.close();
++        };
++        workerSocket.once('end', detachReader);
++        workerSocket.once('close', detachReader);
++        workerSocket.on('error', function (error) {
++            detachReader();
++            if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') {
++                throw error;
++            }
++        });
+         conoutSocket.pipe(workerSocket);
+     });
+@@ -20,3 +40,3 @@ conoutSocket.connect(conoutPipeName, function () {
+     worker_threads_1.parentPort.postMessage(1 /* READY */);
+ });
+-//# sourceMappingURL=conoutSocketWorker.js.map
+\ No newline at end of file
++//# sourceMappingURL=conoutSocketWorker.js.map
+diff --git a/node_modules/node-pty/src/worker/conoutSocketWorker.ts b/node_modules/node-pty/src/worker/conoutSocketWorker.ts
+index 79a4148dd..3ba96db96 100644
+--- a/node_modules/node-pty/src/worker/conoutSocketWorker.ts
++++ b/node_modules/node-pty/src/worker/conoutSocketWorker.ts
+@@ -13,4 +13,24 @@ conoutSocket.setEncoding('utf8');
+ conoutSocket.connect(conoutPipeName, () => {
+   const server = createServer(workerSocket => {
++    let detached = false;
++    const detachReader = () => {
++      if (detached) {
++        return;
++      }
++      detached = true;
++      conoutSocket.unpipe(workerSocket);
++      // ClosePseudoConsole may still be waiting for output to drain.
++      // Keep reading after the terminal has closed its output reader.
++      conoutSocket.resume();
++      server.close();
++    };
++    workerSocket.once('end', detachReader);
++    workerSocket.once('close', detachReader);
++    workerSocket.on('error', (error: NodeJS.ErrnoException) => {
++      detachReader();
++      if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') {
++        throw error;
++      }
++    });
+     conoutSocket.pipe(workerSocket);
+   });
+diff --git a/node_modules/node-pty/src/win/conpty_console_list.cc b/node_modules/node-pty/src/win/conpty_console_list.cc
+index 4c8ab3932..f297ea04e 100644
+--- a/node_modules/node-pty/src/win/conpty_console_list.cc
++++ b/node_modules/node-pty/src/win/conpty_console_list.cc
+@@ -6,4 +6,7 @@
+ #include <napi.h>
+ #include <windows.h>
++#include <tlhelp32.h>
++#include <string>
++#include <exception>
+-
++
+ static Napi::Value ApiConsoleProcessList(const Napi::CallbackInfo& info) {
+@@ -37,5 +40,55 @@ static Napi::Value ApiConsoleProcessList(const Napi::CallbackInfo& info) {
+ }
+-
++
++
++// Read lineage without attaching to or detaching from any console. The caller
++// runs this leaf operation in its original bounded helper process.
++static Napi::Value ApiProcessSnapshot(const Napi::CallbackInfo& info) {
++  Napi::Env env(info.Env());
++  if (info.Length() > 1 || (info.Length() == 1 && !info[0].IsBoolean())) {
++    throw Napi::TypeError::New(env, "Usage: getProcessSnapshot([invalidNextHandle])");
++  }
++  const bool invalidNextHandle = info.Length() == 1 && info[0].As<Napi::Boolean>().Value();
++  HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
++  DWORD failureCode = snapshot == INVALID_HANDLE_VALUE ? GetLastError() : ERROR_SUCCESS;
++  DWORD cleanupCode = ERROR_SUCCESS;
++  bool closed = snapshot == INVALID_HANDLE_VALUE;
++  std::string rows;
++  uint32_t count = 0;
++  if (snapshot != INVALID_HANDLE_VALUE) {
++    try {
++      PROCESSENTRY32W entry = {};
++      entry.dwSize = sizeof(entry);
++      BOOL more = Process32FirstW(snapshot, &entry);
++      while (more) {
++        if (count == 1048576) { failureCode = ERROR_INSUFFICIENT_BUFFER; break; }
++        rows.append(std::to_string(entry.th32ProcessID)).append(" ")
++          .append(std::to_string(entry.th32ParentProcessID)).append("\n");
++        ++count;
++        more = Process32NextW(invalidNextHandle ? INVALID_HANDLE_VALUE : snapshot, &entry);
++      }
++      if (failureCode == ERROR_SUCCESS) failureCode = GetLastError();
++    } catch (const std::exception&) {
++      failureCode = ERROR_NOT_ENOUGH_MEMORY;
++    }
++    closed = CloseHandle(snapshot) != FALSE;
++    if (!closed) cleanupCode = GetLastError();
++  }
++  if (failureCode != ERROR_NO_MORE_FILES || !closed) {
++    Napi::Error error = Napi::Error::New(env, "Incomplete native Windows process snapshot");
++    error.Value().Set("code", "ERR_WINDOWS_PROCESS_SNAPSHOT_NATIVE");
++    error.Value().Set("win32Error", Napi::Number::New(env, failureCode));
++    error.Value().Set("cleanupWin32Error", Napi::Number::New(env, cleanupCode));
++    error.Value().Set("resourcesClosed", Napi::Boolean::New(env, closed));
++    throw error;
++  }
++  Napi::Object result = Napi::Object::New(env);
++  result.Set("rows", Napi::String::New(env, rows));
++  result.Set("count", Napi::Number::New(env, count));
++  result.Set("resourcesClosed", Napi::Boolean::New(env, true));
++  return result;
++}
++
+ Napi::Object init(Napi::Env env, Napi::Object exports) {
++  exports.Set("getProcessSnapshot", Napi::Function::New(env, ApiProcessSnapshot));
+   exports.Set("getConsoleProcessList", Napi::Function::New(env, ApiConsoleProcessList));
+   return exports;
+diff --git a/node_modules/node-pty/src/windowsConoutConnection.ts b/node_modules/node-pty/src/windowsConoutConnection.ts
+index fa2d62de1..6fdf98d90 100644
+--- a/node_modules/node-pty/src/windowsConoutConnection.ts
++++ b/node_modules/node-pty/src/windowsConoutConnection.ts
+@@ -32,6 +32,7 @@
+   private _worker: Worker;
+   private _drainTimeout: NodeJS.Timeout | undefined;
+   private _isDisposed: boolean = false;
++  private _workerExited: boolean = false;
+-
++
+   private _onReady = new EventEmitter2<void>();
+   public get onReady(): IEvent<void> { return this._onReady.event; }
+@@ -45,6 +46,11 @@
+     };
+     const scriptPath = __dirname.replace('node_modules.asar', 'node_modules.asar.unpacked');
+     this._worker = new Worker(join(scriptPath, 'worker/conoutSocketWorker.js'), { workerData });
++    this._worker.once('exit', () => {
++      this._workerExited = true;
++      if (this._drainTimeout) clearTimeout(this._drainTimeout);
++      this._drainTimeout = undefined;
++    });
+     this._worker.on('message', (message: ConoutWorkerMessage) => {
+       switch (message) {
+         case ConoutWorkerMessage.READY:
+@@ -72,4 +78,5 @@
+   private _drainDataAndClose(): void {
++    if (this._workerExited) return;
+     if (this._drainTimeout) {
+       clearTimeout(this._drainTimeout);
+     }
+diff --git a/node_modules/node-pty/lib/windowsConoutConnection.js b/node_modules/node-pty/lib/windowsConoutConnection.js
+index 1be15ca06..f97de9c5d 100644
+--- a/node_modules/node-pty/lib/windowsConoutConnection.js
++++ b/node_modules/node-pty/lib/windowsConoutConnection.js
+@@ -68,12 +68,18 @@
+         this._conoutPipeName = _conoutPipeName;
+         this._useConptyDll = _useConptyDll;
+         this._isDisposed = false;
++        this._workerExited = false;
+         this._onReady = new eventEmitter2_1.EventEmitter2();
+         var workerData = {
+             conoutPipeName: _conoutPipeName
+         };
+         var scriptPath = __dirname.replace('node_modules.asar', 'node_modules.asar.unpacked');
+         this._worker = new worker_threads_1.Worker(path_1.join(scriptPath, 'worker/conoutSocketWorker.js'), { workerData: workerData });
++        this._worker.once('exit', function () {
++            _this._workerExited = true;
++            if (_this._drainTimeout) clearTimeout(_this._drainTimeout);
++            _this._drainTimeout = undefined;
++        });
+         this._worker.on('message', function (message) {
+             switch (message) {
+                 case 1 /* READY */:
+@@ -102,6 +108,7 @@
+     };
+     ConoutConnection.prototype._drainDataAndClose = function () {
+         var _this = this;
++        if (this._workerExited) return;
+         if (this._drainTimeout) {
+             clearTimeout(this._drainTimeout);
+         }

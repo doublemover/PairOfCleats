@@ -12,6 +12,9 @@ const clampOutputLines = (lines, limit = OUTPUT_SNIPPET_MAX_LINES) => {
 };
 
 export const extractSkipReason = (stdout, stderr) => {
+  const explicit = normalizeEol(`${stdout || ''}\n${stderr || ''}`).split('\n')
+    .map(line => /^SKIP_REASON:\s*(.+)$/.exec(line.trim())?.[1]).filter(Boolean);
+  if (explicit.length) return explicit[explicit.length - 1];
   const pickLine = (text) => {
     if (!text) return '';
     return normalizeEol(text)

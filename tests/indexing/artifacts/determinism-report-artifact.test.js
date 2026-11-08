@@ -8,8 +8,8 @@ import { getCurrentBuildInfo } from '../../../tools/shared/dict-utils.js';
 import { validateArtifact } from '../../../src/contracts/artifact-schemas.js';
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
-  fixtureName: 'languages',
-  cacheName: 'language-fixture-determinism-report',
+  fixtureName: 'sample',
+  cacheName: 'sample-fixture-determinism-report',
   cacheScope: 'shared',
   requiredModes: ['code']
 });

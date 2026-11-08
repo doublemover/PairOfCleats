@@ -6,19 +6,9 @@ import { resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { projectCliRiskDeltaRequest } from './risk-request.js';
-import {
-  REPORT_FORMAT_OPTIONS,
-  RISK_FILTER_OPTIONS,
-  RISK_PARTIAL_FLOW_OPTIONS,
-  mergeCliOptions
-} from '../../src/shared/cli-options.js';
+import { RISK_DELTA_OPTIONS } from '../shared/operator-cli-options.js';
 
-const RISK_DELTA_OPTIONS = Object.freeze(mergeCliOptions({
-  repo: { type: 'string' },
-  from: { type: 'string' },
-  to: { type: 'string' },
-  seed: { type: 'string' }
-}, RISK_PARTIAL_FLOW_OPTIONS, RISK_FILTER_OPTIONS, REPORT_FORMAT_OPTIONS));
+
 
 const renderRiskDeltaMarkdown = (payload) => {
   const lines = [

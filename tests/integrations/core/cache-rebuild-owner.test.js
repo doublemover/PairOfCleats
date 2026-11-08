@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { consumeBuildCacheRebuild, rebuildRepoCache } from '../../../src/integrations/core/build-index/cache-rebuild.js';
 import { getRepoCacheRoot } from '../../../src/shared/repo-paths.js';
 import { acquireIndexLock } from '../../../src/index/build/lock.js';
@@ -46,11 +47,11 @@ try {
   assert.equal(await fs.readFile(lockMetadata, 'utf8'), 'keep');
   assert.equal(await fs.readFile(path.join(other, 'output'), 'utf8'), 'keep');
   await fs.writeFile(sentinel, 'fresh');
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e',
-    "import { getCacheRoot, getCacheTempRoot } from './src/shared/cache-roots.js'; getCacheRoot(); getCacheTempRoot();"], {
+  const child = runNodeFixture(['--input-type=module', '-e',
+    "import { getCacheRoot, getCacheTempRoot } from './src/shared/cache-roots.js'; getCacheRoot(); getCacheTempRoot();"], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
     cwd: process.cwd(), encoding: 'utf8', timeout: 5000,
     env: { ...env, PAIROFCLEATS_CACHE_ROOT: path.dirname(config.cache.root), PAIROFCLEATS_CACHE_REBUILD: '1' }
-  });
+  } });
   assert.equal(child.status, 0, child.stderr);
   assert.equal(await fs.readFile(sentinel, 'utf8'), 'fresh');
   await assert.rejects(rebuildRepoCache({ root: repo, userConfig: config, argv: { stage: 'stage3' } }), /new indexing build/);

@@ -24,21 +24,13 @@ import { resolveOutputPaths } from '../output-paths.js';
 import { resolveExpectedDenseCount } from '../../utils.js';
 import { createAdaptiveBatchPlanner, probeSqliteTargetRuntime } from './build.js';
 import { resolveChunkMetaTotalRecords, resolveChunkMetaTotalRecordsFromSources } from './chunk-meta.js';
-import { loadSqliteBundleWorkerProfile } from './config.js';
+import { loadSqliteBundleWorkerProfile, resolveSqliteBundleWorkerProfilePath } from './config.js';
 import { resolveModeExecutionPlan } from './mode-plan.js';
-
-const resolveThreadLimits = (envelope) => ({
-  cpuCount: envelope.concurrency.cpuCount,
-  maxConcurrencyCap: envelope.concurrency.maxConcurrencyCap,
-  threads: envelope.concurrency.threads.value,
-  fileConcurrency: envelope.concurrency.fileConcurrency.value,
-  importConcurrency: envelope.concurrency.importConcurrency.value,
-  ioConcurrency: envelope.concurrency.ioConcurrency.value,
-  cpuConcurrency: envelope.concurrency.cpuConcurrency.value,
-  procConcurrency: envelope.queues?.proc?.concurrency ?? null,
-  source: envelope.concurrency.threads.source,
-  sourceDetail: envelope.concurrency.threads.detail
-});
+import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest.js';
+import { loadJsonObjectArtifact } from '../../../../shared/artifact-io/loaders/core.js';
+import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
+import { withSqliteStorageOperation, getSqliteStorageOperation } from '../storage-operation.js';
+import { projectSqliteThreadLimits as resolveThreadLimits } from '../bundle-budget.js';
 
 const loadModeIndexPieces = async (modeList, modeIndexDirs) => {
   const indexPieces = {};
@@ -46,16 +38,27 @@ const loadModeIndexPieces = async (modeList, modeIndexDirs) => {
   const pieceResults = await Promise.all(
     modeList.map(async (mode) => {
       try {
+        const manifest = loadPiecesManifest(modeIndexDirs[mode], { strict: true });
+        const hasState = manifest ? manifest.pieces.some(piece => piece.name === 'index_state')
+          : fsSync.existsSync(path.join(modeIndexDirs[mode], 'index_state.json'));
+        const state = hasState ? await loadJsonObjectArtifact(modeIndexDirs[mode], 'index_state', { manifest, strict: true }) : null;
+        for (const declared of [manifest?.mode, state?.fields?.mode, state?.mode].filter(Boolean)) {
+          if (declared !== mode) throw Object.assign(new Error(`SQLite ${mode} source declares mode ${declared}.`), { code: 'ERR_SQLITE_SOURCE_MODE' });
+        }
+        if (manifest?.buildId && state?.buildId && manifest.buildId !== state.buildId) {
+          throw Object.assign(new Error('SQLite source manifest and state generations differ.'), { code: 'ERR_SQLITE_SOURCE_GENERATION' });
+        }
         const pieces = await loadIndexPieces(modeIndexDirs[mode]);
-        return { mode, pieces, error: null };
+        if (!pieces) throw Object.assign(new Error(`SQLite ${mode} source has no chunk artifacts.`), { code: 'ERR_SQLITE_SOURCE_UNAVAILABLE' });
+        return { mode, pieces, error: null, failed: false };
       } catch (error) {
-        return { mode, pieces: null, error };
+        return { mode, pieces: null, error, failed: true };
       }
     })
   );
   for (const result of pieceResults) {
     if (result?.pieces) indexPieces[result.mode] = result.pieces;
-    if (result?.error) indexPieceErrors[result.mode] = result.error;
+    if (result?.failed) indexPieceErrors[result.mode] = result.error;
   }
   return { indexPieces, indexPieceErrors };
 };
@@ -103,7 +106,9 @@ export const resolveRunnerSelectionPlan = async ({
   argv,
   modeArg,
   parsedRawArgs,
-  options = {}
+  options = {},
+  onSelected = selection => selection,
+  onFinalized = () => {}
 }) => {
   const runtime = options.runtime && typeof options.runtime === 'object'
     ? options.runtime
@@ -111,115 +116,157 @@ export const resolveRunnerSelectionPlan = async ({
   const root = runtime?.root ? path.resolve(runtime.root) : resolveRepoRootArg(options.root || argv.repo);
   const envConfig = getEnvConfig();
   const userConfig = runtime?.userConfig || options.userConfig || loadUserConfig(root);
-  const metricsDir = options.metricsDir || getMetricsDir(root, userConfig);
-  const modePlan = resolveModeExecutionPlan({
-    modeArg,
-    root,
-    argv,
-    options,
-    runtime,
-    userConfig
-  });
-  if (modePlan.errorMessage) {
-    return { errorMessage: modePlan.errorMessage };
-  }
+  return withSqliteStorageOperation({ repoRoot: root, userConfig }, [], async () => {
+    let primary, failed = false;
+    try {
+      const metricsDir = options.metricsDir || getMetricsDir(root, userConfig);
+      const modePlan = resolveModeExecutionPlan({
+        modeArg,
+        root,
+        argv,
+        options,
+        runtime,
+        userConfig
+      });
+      if (modePlan.errorMessage) {
+        return await onSelected({ errorMessage: modePlan.errorMessage });
+      }
 
-  const {
-    modeList,
-    indexRoot,
-    modeIndexDirs
-  } = modePlan;
-  const buildStatePath = resolveBuildStatePath(indexRoot);
-  const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  const envelope = options.envelope || runtime?.envelope || resolveCurrentProcessRuntimeEnvelope({
-    argv,
-    rawArgv: parsedRawArgs,
-    userConfig,
-    env: process.env,
-    toolVersion: getToolVersion()
-  });
-  const threadLimits = options.threadLimits || resolveThreadLimits(envelope);
-  const modelConfig = getModelConfig(root, userConfig);
-  const vectorExtension = getVectorExtensionConfig(root, userConfig);
-  const vectorAnnEnabled = vectorExtension.enabled;
-  const vectorConfig = {
-    enabled: vectorAnnEnabled,
-    extension: vectorExtension,
-    encodeVector,
-    hasVectorTable,
-    ensureVectorTable,
-    loadVectorExtension
-  };
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
-  const sqliteSharedDb = Boolean(
-    sqlitePaths?.codePath
-    && sqlitePaths?.prosePath
-    && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath)
-  );
-  const outArg = argv.out || options.out || null;
-  const { outPath, codeOutPath, proseOutPath, extractedProseOutPath, recordsOutPath } = resolveOutputPaths({
-    modeArg,
-    outArg,
-    sqlitePaths
-  });
-  const logPrefix = modeArg === 'all' ? '[sqlite]' : `[sqlite:${modeArg}]`;
-  const repoCacheRoot = options.repoCacheRoot || runtime?.repoCacheRoot || getRepoCacheRoot(root, userConfig);
-  const {
-    profilePath: bundleWorkerProfilePath,
-    profile: bundleWorkerProfile
-  } = await loadSqliteBundleWorkerProfile(repoCacheRoot);
-  const incrementalRequested = argv.incremental === true;
-  const requestedBatchSize = Number(argv['batch-size'] ?? options.batchSize);
-  const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
-    ? Math.floor(requestedBatchSize)
-    : null;
-  const resolveAdaptiveBatchConfig = createAdaptiveBatchPlanner();
-  const modeOutputPaths = {
-    code: codeOutPath,
-    prose: proseOutPath,
-    'extracted-prose': extractedProseOutPath,
-    records: recordsOutPath
-  };
-  const {
-    indexPieces,
-    indexPieceErrors
-  } = await loadModeIndexPieces(modeList, modeIndexDirs);
-  const modeChunkCountHints = resolveModeChunkCountHints({
-    modeList,
-    modeIndexDirs,
-    indexPieces
-  });
-  const compactMode = argv.compact === true || (argv.compact == null && argv['no-compact'] !== true);
+      const {
+        modeList,
+        indexRoot,
+        modeIndexDirs,
+        modeIndexRoots,
+        modeStateRoots,
+        executionGroups
+      } = modePlan;
+      getSqliteStorageOperation()?.admitTargets([...Object.values(modeIndexDirs), ...Object.values(modeIndexRoots)]);
+      // Admit selected source metadata before state updates, target creation or
+      // backend work. A captured source error cannot be reduced to a late message.
+      const { indexPieces, indexPieceErrors } = await loadModeIndexPieces(modeList, modeIndexDirs);
+      const sourceErrors = Object.values(indexPieceErrors);
+      if (sourceErrors.length) {
+        let failure = sourceErrors[0];
+        for (const error of sourceErrors.slice(1)) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+        throw failure;
+      }
+      const envelope = options.envelope || runtime?.envelope || resolveCurrentProcessRuntimeEnvelope({
+        argv,
+        rawArgv: parsedRawArgs,
+        userConfig,
+        env: process.env,
+        toolVersion: getToolVersion()
+      });
+      const threadLimits = options.threadLimits || resolveThreadLimits(envelope);
+      const modelConfig = getModelConfig(root, userConfig);
+      const vectorExtension = getVectorExtensionConfig(root, userConfig);
+      const vectorAnnEnabled = vectorExtension.enabled;
+      const vectorConfig = {
+        enabled: vectorAnnEnabled,
+        extension: vectorExtension,
+        encodeVector,
+        hasVectorTable,
+        ensureVectorTable,
+        loadVectorExtension
+      };
+      const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+      const outputKeys = { code: 'codePath', prose: 'prosePath',
+        'extracted-prose': 'extractedProsePath', records: 'recordsPath' };
+      for (const mode of modeList) {
+        const selectedPaths = resolveSqlitePaths(root, userConfig, { indexRoot: modeIndexRoots[mode] });
+        sqlitePaths[outputKeys[mode]] = selectedPaths[outputKeys[mode]];
+      }
+      const sqliteSharedDb = Boolean(
+        sqlitePaths?.codePath
+        && sqlitePaths?.prosePath
+        && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath)
+      );
+      const outArg = argv.out || options.out || null;
+      const { outPath, codeOutPath, proseOutPath, extractedProseOutPath, recordsOutPath } = resolveOutputPaths({
+        modeArg,
+        outArg,
+        sqlitePaths
+      });
+      const logPrefix = modeArg === 'all' ? '[sqlite]' : `[sqlite:${modeArg}]`;
+      const repoCacheRoot = options.repoCacheRoot || runtime?.repoCacheRoot || getRepoCacheRoot(root, userConfig);
+      getSqliteStorageOperation()?.admitTargets([resolveSqliteBundleWorkerProfilePath(repoCacheRoot)]);
+      const {
+        profilePath: bundleWorkerProfilePath,
+        profile: bundleWorkerProfile
+      } = await loadSqliteBundleWorkerProfile(repoCacheRoot);
+      const incrementalRequested = argv.incremental === true;
+      const requestedBatchSize = Number(argv['batch-size'] ?? options.batchSize);
+      const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
+        ? Math.floor(requestedBatchSize)
+        : null;
+      const resolveAdaptiveBatchConfig = createAdaptiveBatchPlanner();
+      const modeOutputPaths = {
+        code: codeOutPath,
+        prose: proseOutPath,
+        'extracted-prose': extractedProseOutPath,
+        records: recordsOutPath
+      };
+      if (modeArg !== 'all' && outPath) modeOutputPaths[modeArg] = outPath;
+      getSqliteStorageOperation()?.admitTargets(Object.values(modeOutputPaths));
+      for (const mode of modeList) {
+        if (!modeStateRoots[mode]) continue;
+        const expected = resolveSqlitePaths(root, userConfig, { indexRoot: modeStateRoots[mode] })[outputKeys[mode]];
+        const actual = modeOutputPaths[mode];
+        const identity = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+        if (!actual || identity(actual) !== identity(expected)) modeStateRoots[mode] = null;
+      }
+      const buildStateRoots = [...new Set(Object.values(modeStateRoots).filter(Boolean))]
+        .filter(buildRoot => {
+          const buildStatePath = resolveBuildStatePath(buildRoot);
+          return buildStatePath && fsSync.existsSync(buildStatePath);
+        });
+      const hasBuildState = buildStateRoots.length > 0;
+      const modeChunkCountHints = resolveModeChunkCountHints({
+        modeList,
+        modeIndexDirs,
+        indexPieces
+      });
+      const compactMode = argv.compact === true || (argv.compact == null && argv['no-compact'] !== true);
 
-  return {
-    modeList,
-    indexRoot,
-    modeIndexDirs,
-    outPath,
-    modeOutputPaths,
-    hasBuildState,
-    root,
-    envConfig,
-    userConfig,
-    metricsDir,
-    threadLimits,
-    modelConfig,
-    vectorExtension,
-    vectorAnnEnabled,
-    vectorConfig,
-    sqliteSharedDb,
-    logPrefix,
-    repoCacheRoot,
-    bundleWorkerProfilePath,
-    bundleWorkerProfile,
-    incrementalRequested,
-    batchSizeOverride,
-    resolveAdaptiveBatchConfig,
-    indexPieces,
-    indexPieceErrors,
-    modeChunkCountHints,
-    compactMode
-  };
+      return await onSelected({
+        modeList,
+        indexRoot,
+        modeIndexDirs,
+        modeIndexRoots,
+        modeStateRoots,
+        executionGroups,
+        outPath,
+        modeOutputPaths,
+        hasBuildState,
+        buildStateRoots,
+        root,
+        envConfig,
+        userConfig,
+        metricsDir,
+        threadLimits,
+        modelConfig,
+        vectorExtension,
+        vectorAnnEnabled,
+        vectorConfig,
+        sqliteSharedDb,
+        logPrefix,
+        repoCacheRoot,
+        bundleWorkerProfilePath,
+        bundleWorkerProfile,
+        incrementalRequested,
+        batchSizeOverride,
+        resolveAdaptiveBatchConfig,
+        indexPieces,
+        indexPieceErrors,
+        modeChunkCountHints,
+        compactMode
+      });
+    } catch (error) { primary = error; failed = true; getSqliteStorageOperation()?.retainFailure(error); throw error; }
+    finally {
+      try { await onFinalized(); }
+      catch (cleanup) { throw failed && cleanup !== primary ? addStorageFailureContext(primary, {}, cleanup, { secondaryPresent: true }) : cleanup; }
+    }
+  });
 };
 
 /**
@@ -240,6 +287,7 @@ export const resolveRunnerSelectionPlan = async ({
  */
 export const resolveModeSelectionPlan = ({
   repoRoot = process.cwd(),
+  userConfig = null,
   mode,
   modeIndexDirs,
   modeOutputPaths,
@@ -267,6 +315,7 @@ export const resolveModeSelectionPlan = ({
     outputExists,
     sqliteRuntime: probeSqliteTargetRuntime({
       repoRoot,
+      userConfig,
       Database,
       dbPath: outputPath
     })

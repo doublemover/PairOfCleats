@@ -5,7 +5,6 @@ import path from 'node:path';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { stripAnsi } from '../../../src/shared/cli/ansi-utils.js';
-import { SEARCH_VALUE_FLAGS } from '../../../src/retrieval/cli-args.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -38,14 +37,14 @@ delete helpEnv.CI;
 const source = await fsPromises.readFile(searchEntryPath, 'utf8');
 const helpIndex = source.indexOf('hasHelpArg(args)');
 const versionIndex = source.indexOf('hasVersionArg(args)');
-const importIndex = source.indexOf("await import('../../integrations/core/index.js')");
+const importIndex = source.indexOf("await import('../../integrations/core/search.js')");
 
 assert.notEqual(helpIndex, -1);
 assert.notEqual(versionIndex, -1);
 assert.notEqual(importIndex, -1);
 assert.ok(helpIndex < importIndex && versionIndex < importIndex);
-assert.ok(!/from ['"]\.\.\/\.\.\/integrations\/core\/index\.js['"]/.test(source));
-assert.ok(/import\(['"]\.\.\/\.\.\/integrations\/core\/index\.js['"]\)/.test(source));
+assert.ok(!/from ['"]\.\.\/\.\.\/integrations\/core\/search\.js['"]/.test(source));
+assert.ok(/import\(['"]\.\.\/\.\.\/integrations\/core\/search\.js['"]\)/.test(source));
 
 const version = runCli(['--version']);
 assert.equal(version.status, 0);
@@ -73,14 +72,10 @@ assert.match(stripAnsi(invalidMode.stderr), /Invalid --mode wat/);
 const removedFlag = runCli(['--human', '--', 'alpha'], { allowFailure: true });
 assert.equal(removedFlag.status, 1);
 assert.match(stripAnsi(removedFlag.stderr), /Search Error/);
-assert.match(stripAnsi(removedFlag.stderr), /flag --human/);
-assert.match(stripAnsi(removedFlag.stderr), /next switch to --json/);
-
-for (const flag of [...SEARCH_VALUE_FLAGS].sort()) {
-  const result = runLegacySearch(['test', flag], env, { allowFailure: true });
-  assert.notEqual(result.status, 0, `expected non-zero exit for ${flag}`);
-  assert.match(`${result.stdout || ''}${result.stderr || ''}`, new RegExp(`Missing value for ${flag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}`));
-}
+assert.match(stripAnsi(removedFlag.stderr), /code invalid_request/);
+assert.match(stripAnsi(removedFlag.stderr), /--human was removed/);
+assert.match(stripAnsi(removedFlag.stderr), /readable output is the default/);
+assert.match(stripAnsi(removedFlag.stderr), /Use --json only for machine-readable output/);
 
 for (const flag of ['--human', '--headline']) {
   const result = runLegacySearch(['test', flag], helpEnv, { allowFailure: true });
@@ -106,6 +101,8 @@ const missingIndex = runNode(
   { stdio: 'pipe', allowFailure: true }
 );
 assert.notEqual(missingIndex.status, 0);
+assert.match(stripAnsi(`${missingIndex.stdout || ''}\n${missingIndex.stderr || ''}`), /code index not found/i);
+assert.doesNotMatch(`${missingIndex.stdout || ''}\n${missingIndex.stderr || ''}`, /ERR_INDEX_FORMAT_UNSUPPORTED/);
 assert.match(stripAnsi(`${missingIndex.stdout || ''}\n${missingIndex.stderr || ''}`), /pairofcleats index build/i);
 
 console.log('non-result search surfaces test passed');

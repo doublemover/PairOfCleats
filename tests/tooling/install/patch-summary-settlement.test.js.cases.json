@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-callback-after-publication", "independent-publication-and-logging-failures"]
+}

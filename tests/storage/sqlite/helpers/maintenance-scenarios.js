@@ -132,10 +132,10 @@ export const runCompactScenario = async () => {
 export const runSidecarCleanupScenario = async () => {
   const { repoRoot, run } = await createFixture('sqlite-maintenance-sidecar-cleanup');
   run([path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot], 'build index');
-  await runSqliteBuild(repoRoot, { mode: 'code' });
+  const initial = await runSqliteBuild(repoRoot, { mode: 'code' });
 
-  const userConfig = loadUserConfig(repoRoot);
-  let sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+  let sqlitePaths = { codePath: initial.outputPaths.code };
+  await fsPromises.access(sqlitePaths.codePath);
   let walPath = `${sqlitePaths.codePath}-wal`;
   let shmPath = `${sqlitePaths.codePath}-shm`;
   await fsPromises.writeFile(walPath, 'stale-wal');
@@ -156,7 +156,12 @@ export const runSidecarCleanupScenario = async () => {
     [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
     'build index (incremental)'
   );
-  sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+  // Stage1 can select another generation. Create its real main database before
+  // adding sidecars; an orphan WAL belongs to the separate recovery-negative
+  // owner and must never be silently discarded by this maintenance positive.
+  const nextGeneration = await runSqliteBuild(repoRoot, { mode: 'code' });
+  sqlitePaths = { codePath: nextGeneration.outputPaths.code };
+  await fsPromises.access(sqlitePaths.codePath);
   walPath = `${sqlitePaths.codePath}-wal`;
   shmPath = `${sqlitePaths.codePath}-shm`;
   await fsPromises.mkdir(path.dirname(walPath), { recursive: true });

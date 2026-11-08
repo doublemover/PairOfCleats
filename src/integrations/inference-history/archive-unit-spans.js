@@ -13,6 +13,32 @@ const requireProjection = metadata => {
   }
 };
 
+/** Build once per bounded immutable run; query overlaps without rescanning its spans. */
+export const createArchiveSpanIndex = spans => {
+  const ordered = spans.map((span, index) => ({ span, index, start: span.start, end: span.end }))
+    .sort((a, b) => a.start - b.start || a.index - b.index);
+  const build = (low, high) => {
+    if (low >= high) return null;
+    const middle = (low + high) >>> 1;
+    const row = ordered[middle], left = build(low, middle), right = build(middle + 1, high);
+    return { row, left, right, minimumStart: ordered[low].start,
+      maximumEnd: Math.max(row.end, left?.maximumEnd ?? -Infinity, right?.maximumEnd ?? -Infinity) };
+  };
+  const root = build(0, ordered.length);
+  return (start, end) => {
+    const found = [];
+    const visit = node => {
+      if (!node || node.maximumEnd <= start || node.minimumStart >= end) return;
+      visit(node.left);
+      if (node.row.start < end && node.row.end > start) found.push(node.row);
+      visit(node.right);
+    };
+    visit(root);
+    found.sort((a, b) => a.index - b.index);
+    return found.map(row => row.span);
+  };
+};
+
 /** One immutable, bounded source plan. Its owner must discard it when leaving the group. */
 export function createArchiveSourcePlan(siblings, config) {
   if (siblings.length > 5000) throw sourceLimit('Archive structural fragment budget exceeded.');
@@ -56,7 +82,8 @@ export function createArchiveSourcePlan(siblings, config) {
       maxSpanChars: ARCHIVE_SOURCE_PLAN_MAX_CHARS - inputChars });
     spanCount += spans.length;
     inputChars += spans.reduce((sum, span) => sum + span.text.length + span.title.length + 23, 0);
-    prepared.set(run, { base: first.sourceDetails.sanitizedStart, spans: Object.freeze(spans.map(span => Object.freeze(span))) });
+    const immutableSpans = Object.freeze(spans.map(span => Object.freeze(span)));
+    prepared.set(run, { base: first.sourceDetails.sanitizedStart, overlaps: createArchiveSpanIndex(immutableSpans) });
   }
   const dependencies = Object.freeze(siblings.map(row => Object.freeze({ id: row.id, hash: digest(JSON.stringify([row.text, row.metadata])) })));
   return Object.freeze({
@@ -70,8 +97,7 @@ export function createArchiveSourcePlan(siblings, config) {
       const details = entry.row.parsed.sourceDetails, plan = prepared.get(entry.group);
       const start = details.sanitizedStart - plan.base, end = details.sanitizedEnd - plan.base;
       const spans = [], ranges = new Set();
-      for (const span of plan.spans) {
-        if (span.start >= end || span.end <= start) continue;
+      for (const span of plan.overlaps(start, end)) {
         const localStart = Math.max(start, span.start) - start, localEnd = Math.min(end, span.end) - start;
         const range = localStart + ':' + localEnd;
         if (localStart >= localEnd || ranges.has(range)) continue;

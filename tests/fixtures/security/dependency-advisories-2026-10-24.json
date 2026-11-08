@@ -1,0 +1,39 @@
+{
+  "description": "Reviewed advisory ranges from the October 24 hosted gate failure. Earlier baselines and the full-graph live audit remain required.",
+  "capturedAt": "2026-10-24",
+  "packages": {
+    "@azure/msal-node": {
+      "range": ">=5.0.0-beta.0 <7.1.0",
+      "advisories": ["https://github.com/advisories/GHSA-xcx6-jx8p-x3h5"]
+    },
+    "body-parser": {
+      "range": ">=2.0.0 <2.4.0",
+      "advisories": ["https://github.com/advisories/GHSA-27r3-jxmh-p828"]
+    },
+    "fast-uri": {
+      "range": ">=3.0.0 <3.1.9",
+      "advisories": [
+        "https://github.com/advisories/GHSA-w74x-v6f9-j3xg",
+        "https://github.com/advisories/GHSA-xhq7-xmqj-769h",
+        "https://github.com/advisories/GHSA-wjr9-j795-jxcr",
+        "https://github.com/advisories/GHSA-333x-w4r6-6crp"
+      ]
+    },
+    "happy-dom": {
+      "range": ">=17.0.0 <=21.0.3",
+      "advisories": ["https://github.com/advisories/GHSA-834v-8h66-3h79"]
+    },
+    "undici": {
+      "range": ">=8.0.0 <8.12.2",
+      "advisories": [
+        "https://github.com/advisories/GHSA-4qv8-2p9j-2685",
+        "https://github.com/advisories/GHSA-f72v-6w45-q472",
+        "https://github.com/advisories/GHSA-xjj6-f33q-929c"
+      ]
+    },
+    "zod": {
+      "range": "<4.6.6",
+      "advisories": ["https://github.com/advisories/GHSA-mrhx-c7xc-m3w5"]
+    }
+  }
+}

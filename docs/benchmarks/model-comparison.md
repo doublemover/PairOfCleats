@@ -13,6 +13,10 @@ Compare search latency and ranking differences across embedding models.
 - The harness isolates per-model indexes under `<cache>/model-compare/<modelId>` by default.
 - If `cache.root` is set in `.pairofcleats.json`, caches are shared; use `--build` to rebuild per model.
 - SQLite backends require sqlite artifacts per model cache. Use `--build-sqlite` when those artifacts are missing; otherwise prebuilt sqlite artifacts are reused.
+- Report version 2 retains observed execution and per-cohort comparison coverage.
+  Missing/failed cohorts or hit omissions cannot become empty successful runs;
+  unavailable comparisons and missing measurements remain null. See the
+  [response admission contract](../contracts/retrieval-comparison-admission.md).
 
 ## Options
 - `--models`: Comma-separated list of models to compare.
@@ -27,7 +31,10 @@ Compare search latency and ranking differences across embedding models.
 - `--incremental`: Reuse incremental caches when building.
 - `--stub-embeddings`: Use stub embeddings (no model download).
 - `--cache-root`: Base cache root for model comparison runs.
-- `--queries`: Path to the query list (alias `-q`).
+- `--queries`: Path to a text query list or JSON string array (alias `-q`).
+  Blank/invalid JSON entries and unreadable/malformed explicit files fail before
+  build or search. Repeated strings remain distinct weighted cases. Reports
+  retain the frozen [query input plan](../contracts/query-input-plans.md).
 - `--repo`: Repo root to benchmark (defaults to CWD).
 - `--ann` / `--no-ann`: toggle ANN during comparisons.
 - `--json`: Print the full JSON report to stdout.

@@ -2,6 +2,19 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { findSchedulerSignalViolations } from '../helpers/scheduler-signal-guard.js';
+
+for (const [source, count] of [
+  ['scheduler.schedule(queue, { cpu: 1, signal }, work)', 0],
+  ['scheduler.schedule(queue, { signal: effectiveSignal }, work)', 0],
+  ['const tokens = { signal }; runtime.scheduler.schedule(queue, tokens, work)', 0],
+  ['const other = { signal }; scheduler.schedule(queue, { cpu: 1 }, work)', 1],
+  ['const tokens = { signal }; { const tokens = { cpu: 1 }; scheduler.schedule(queue, tokens, work); }', 1],
+  ['const tokens = { signal }; function run(tokens) { scheduler.schedule(queue, tokens, work); }', 1],
+  ['scheduler.schedule(queue, { cpu: 1 }, () => ({ signal }))', 1],
+  ['let scheduler; scheduler = createDebouncedScheduler({}); scheduler?.schedule()', 0],
+  ['let scheduler; scheduler = createBuildScheduler({}); scheduler.schedule()', 1]
+]) assert.equal(findSchedulerSignalViolations(source).length, count, source);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TARGET_ROOTS = [
@@ -49,6 +62,9 @@ const checkFile = async (filePath) => {
   const content = await fs.readFile(filePath, 'utf8');
   const lines = content.split(/\r?\n/);
   const violations = [];
+  for (const lineNo of findSchedulerSignalViolations(content)) {
+    violations.push(`${rel}:${lineNo} scheduler.schedule(...) missing signal propagation.`);
+  }
   let inBlockComment = false;
 
   lines.forEach((line, index) => {
@@ -66,13 +82,6 @@ const checkFile = async (filePath) => {
 
     if (/await\s+once\s*\(/.test(line)) {
       violations.push(`${rel}:${lineNo} raw await once(...) is forbidden; use shared timeout-safe stream/event waits.`);
-    }
-
-    if (line.includes('scheduler.schedule(')) {
-      const window = buildWindow(lines, index - 10, 50);
-      if (!/\bsignal\s*:/.test(window)) {
-        violations.push(`${rel}:${lineNo} scheduler.schedule(...) missing signal propagation.`);
-      }
     }
 
     if (line.includes('abortSignal') && /\.\.\.\s*\(\s*abortSignal/.test(line) && /\?\s*\{\s*signal\s*:\s*abortSignal\s*\}/.test(line)) {

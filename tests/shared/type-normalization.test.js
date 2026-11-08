@@ -21,7 +21,7 @@ assert.equal(
 );
 
 for (const languageId of ['javascript', 'typescript', 'tsx', 'jsx']) {
-  assert.equal(canonicalizeTypeText('boolean | Boolean', { languageId }).displayText, 'boolean | boolean',
-    'lowercase boolean is preserved and the boxed alias is normalized');
+  assert.equal(canonicalizeTypeText('boolean | Boolean', { languageId }).displayText, 'boolean | Boolean',
+    'primitive and boxed type expressions retain distinct identity');
 }
 console.log('shared type normalization test passed');
