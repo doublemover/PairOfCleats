@@ -37,8 +37,9 @@ async function main() {
   const mode = String(argv.mode || 'clangd').toLowerCase();
   const scheme = argv.scheme === 'poc-vfs' ? 'poc-vfs' : 'file';
 
-  const tempRoot = path.join(os.tmpdir(), `poc-vfs-partial-lsp-${Date.now()}`);
-  await fs.mkdir(tempRoot, { recursive: true });
+  // Each launch owns a unique physical root. System temp aliases cannot become
+  // unreadable publication-coordination paths, and clocks cannot share roots.
+  const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-vfs-partial-lsp-')));
 
   const serverPath = path.join(process.cwd(), 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
   const documents = buildDocuments(docsCount);

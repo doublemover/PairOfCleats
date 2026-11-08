@@ -366,6 +366,8 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne $expected) {
             throw "Expected checkout $expected; got $actual"
           }
+      - name: Prepare job-owned temporary directory
+        uses: ./.github/actions/ci-temporary-root
       - name: Restore node_modules cache
         id: node-modules-cache
         uses: actions/cache@v6

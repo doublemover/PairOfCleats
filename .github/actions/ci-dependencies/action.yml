@@ -17,6 +17,8 @@ runs:
       with:
         node-version: 26.13.0
         cache: npm
+    - name: Prepare job-owned temporary directory
+      uses: ./.github/actions/ci-temporary-root
     - name: Restore verified dependency inputs
       id: node-modules-cache
       uses: actions/cache/restore@v6

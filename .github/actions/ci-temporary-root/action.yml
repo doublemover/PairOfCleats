@@ -1,0 +1,30 @@
+name: Prepare job-owned Windows temporary root
+description: Keep Windows transient work on the runner temporary volume with one physical path and runner-owned cleanup.
+runs:
+  using: composite
+  steps:
+    - name: Select runner-owned temporary directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        const declaredRoot = process.env.RUNNER_TEMP, environmentFile = process.env.GITHUB_ENV;
+        for (const value of [declaredRoot, environmentFile]) assert.ok(typeof value === "string" && path.isAbsolute(value) && !/[\r\n]/u.test(value));
+        const runnerRoot = fs.realpathSync.native(declaredRoot);
+        const environmentParent = fs.realpathSync.native(path.dirname(environmentFile));
+        const relative = path.relative(runnerRoot, environmentParent);
+        assert.ok(!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(".." + path.sep), "GITHUB_ENV must stay in the runner temporary namespace");
+        const entry = fs.lstatSync(environmentFile);
+        assert.ok(entry.isFile() && !entry.isSymbolicLink() && entry.nlink === 1);
+        const selected = fs.realpathSync.native(fs.mkdtempSync(path.join(runnerRoot, "poc-ci-temp-")));
+        const receipt = { schemaVersion: 1, source: process.env.GITHUB_SHA, platform: process.platform,
+          previous: { TEMP: process.env.TEMP || null, TMP: process.env.TMP || null }, runnerRoot, selected,
+          cleanupOwner: "GitHub Actions RUNNER_TEMP job lifetime", operationBoundsChanged: false };
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/temporary-root.json", JSON.stringify(receipt, null, 2) + "\n");
+        fs.appendFileSync(environmentFile, "TEMP=" + selected + "\nTMP=" + selected + "\n");
+        console.log(JSON.stringify(receipt));
+        '
