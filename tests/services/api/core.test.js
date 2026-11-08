@@ -28,6 +28,7 @@ applyTestEnv({ cacheRoot, embeddings: 'stub', testConfig: null });
 const startedAt = Date.now();
 const buildLogFile = path.join(cacheRoot, 'core-build.jsonl');
 await buildIndex(fixtureRoot, {
+  threads: 1,
   stage: 'stage2',
   mode: 'code',
   sqlite: false,

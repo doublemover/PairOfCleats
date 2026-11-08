@@ -74,6 +74,8 @@ const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation',
 // Qualify cold compiler and full build work serially before the parallel correctness lane;
 // they are not latency samples and do not belong to the measured budget report.
 const SERIAL_CLI_CONTRACT_IDS = [
+  ...['code', 'prose'].map(id => `indexing/build/stage4-mixed-mode-generations/${id}`),
+  ...['memory', 'sqlite', 'sqlite-fts'].map(id => `retrieval/backend/boolean-complement-cli/${id}`),
   'tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report',
   ...['js-report', 'ts-report', 'js-fail', 'ts-fail',
     'js-default-anonymous', 'js-default-arrow', 'js-default-class',

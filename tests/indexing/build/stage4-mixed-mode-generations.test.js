@@ -2,18 +2,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { buildIndex } from '../../../src/integrations/core/index.js';
+import { buildIndex } from '../../../src/integrations/core/build-index.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { getRepoCacheRoot, getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const selectedMode = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/build/stage4-mixed-mode-generations/')[1];
 assert.ok(['code', 'prose'].includes(selectedMode));
-const { dir } = await prepareIsolatedTestCacheDir(`stage4-mixed-mode-generations-${selectedMode}`);
+const dir = await makeTempDir('poc-s4-');
+console.log(JSON.stringify({ phase: 'fixture-root', mode: selectedMode, root: dir }));
 const repoRoot = path.join(dir, 'repo'), cacheRoot = path.join(dir, 'cache');
 await fs.mkdir(repoRoot, { recursive: true });
 await fs.writeFile(path.join(repoRoot, 'code.js'), 'export function answer() { return 1; }\n');
@@ -67,6 +68,8 @@ for (const modeBuildRoots of [{ code: outside }, {}, { code: 42 },
   assert.equal(await fs.readFile(pointer, 'utf8'), current, 'rejected mode authority cannot partially republish current.json');
 }
 console.log('Stage4 follows mixed mode roots, preserves generation authority, and rejects outside-root publication');
+assert.equal(await fs.realpath(dir), dir);
+await rmDirRecursive(dir, { retries: 0 });
 console.log(JSON.stringify({ phase: 'settlement-observation', processElapsedMs: performance.now(),
   activeResources: process.getActiveResourcesInfo(),
   activeHandleKinds: process._getActiveHandles().map(handle => handle.constructor?.name || 'unknown') }));

@@ -11,6 +11,8 @@ const root = process.cwd(), env = applyTestEnv({ syncProcess: false, extraEnv: {
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['ci', 'nightly'].includes(mode), 'select one independently bounded CI or nightly plan case');
 const providerAndParityIds = ['tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report'];
+const buildConsumerIds = [...['code', 'prose'].map(id => `indexing/build/stage4-mixed-mode-generations/${id}`),
+  ...['memory', 'sqlite', 'sqlite-fts'].map(id => `retrieval/backend/boolean-complement-cli/${id}`)];
 const publicationIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/native-publication-cleanup/${id}`);
 const reuseIds = ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-control-replacement-accounting'].flatMap(family =>
@@ -114,7 +116,7 @@ const listScheduledCohort = (selectors, exclusions = []) => {
           .map(id => `tooling/api-contracts/${family}/${id}`)).sort();
       const outcomeIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/indexing/runtime/build-cli-selected-outcome.test.js.cases.json'), 'utf8')).cases
         .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`);
-      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds, ...providerAndParityIds, ...sourceAuthorityIds].sort()
+      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds, ...providerAndParityIds, ...sourceAuthorityIds, ...buildConsumerIds].sort()
         : line === native ? ['storage/sqlite/build/cancellation', ...publicationIds].sort()
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', ...['automatic-admission', 'memory-fallback', 'sqlite-fallback']
@@ -156,7 +158,7 @@ const listScheduledCohort = (selectors, exclusions = []) => {
         const orderedCompiler = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci-lite/ci-lite.manifest.json'), 'utf8')).tests
           .map(test => test.id).filter(id => compilerFamilies.some(family =>
             id.startsWith(`tooling/api-contracts/${family}/`)) || outcomeIds.includes(id) || providerAndParityIds.includes(id)
-            || sourceAuthorityIds.includes(id)).sort();
+            || sourceAuthorityIds.includes(id) || buildConsumerIds.includes(id)).sort();
         assert.deepEqual(selected, orderedCompiler, 'every original ordered case retains its serial execution owner');
       }
     }
