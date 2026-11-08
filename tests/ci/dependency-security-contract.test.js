@@ -120,22 +120,34 @@ assert.match(bootstrap.run, /if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE 
 // commands. This qualifies exit propagation, not real dependency readiness.
 const temporary = await makeTempDir('ci-bootstrap-status-');
 try {
-  for (const [hit, verifyStatus, bootstrapStatus, expected, calls] of [
+  const cases = [
     ['false', 0, 17, 17, 1], ['true', 19, 17, 17, 1], ['false', 0, 0, 0, 1],
     ['true', 0, 17, 0, 0], ['true', 19, 0, 0, 1]
-  ]) {
-    const script = path.join(temporary, 'bootstrap-status.ps1');
-    fs.writeFileSync(script, `$ErrorActionPreference = 'Stop'
+  ];
+  const invocations = cases.map(([hit, verifyStatus, bootstrapStatus, expected, calls], index) => {
+    fs.writeFileSync(path.join(temporary, `case-${index}.ps1`),
+      bootstrap.run.replaceAll('${{ steps.node-modules-cache.outputs.cache-hit }}', hit) + '\n$global:ReachedTail = $true\n');
+    // The call operator gives each actual script its own exit boundary while
+    // sharing one PowerShell startup. Verify exit and the unreachable tail.
+    return `$global:BootstrapCalls = 0; $global:ReachedTail = $false
+$global:BootstrapStatus = ${bootstrapStatus}; $global:VerifyStatus = ${verifyStatus}
+& (Join-Path $PSScriptRoot 'case-${index}.ps1')
+if ($LASTEXITCODE -ne ${expected}) { throw 'Unexpected native status in case${index}' }
+if ($global:BootstrapCalls -ne ${calls}) { throw 'Unexpected bootstrap dispatch in case${index}' }
+if ($global:ReachedTail -ne $${expected === 0 ? 'true' : 'false'}) { throw 'Bootstrap exit fell through in case${index}' }
+`;
+  });
+  const script = path.join(temporary, 'bootstrap-status.ps1');
+  fs.writeFileSync(script, `$ErrorActionPreference = 'Stop'
 $global:BootstrapCalls = 0
-function global:npm { $global:BootstrapCalls++; 'fixture bootstrap'; $global:LASTEXITCODE = ${bootstrapStatus} }
-function global:node { 'fixture verification'; $global:LASTEXITCODE = ${verifyStatus} }
-${bootstrap.run.replaceAll('${{ steps.node-modules-cache.outputs.cache-hit }}', hit)}
-if ($global:BootstrapCalls -ne ${calls}) { throw 'Unexpected bootstrap dispatch' }
+function global:npm { $global:BootstrapCalls++; 'fixture bootstrap'; $global:LASTEXITCODE = $global:BootstrapStatus }
+function global:node { 'fixture verification'; $global:LASTEXITCODE = $global:VerifyStatus }
+${invocations.join('\n')}
+exit 0
 `);
-    const result = spawnSync('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', script],
-      { cwd: temporary, encoding: 'utf8', windowsHide: true, timeout: 5000 });
-    assert.equal(result.error, undefined, result.error?.message);
-    assert.equal(result.status, expected, `${hit}/${verifyStatus}/${bootstrapStatus}: ${result.stderr}`);
-  }
+  const result = spawnSync('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', script],
+    { cwd: temporary, encoding: 'utf8', windowsHide: true, timeout: Math.max(1, Math.floor(30000 - (Date.now() - performance.timeOrigin))) });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
 } finally { await rmDirRecursive(temporary); }
 console.log('dependency security and engine contract passed');

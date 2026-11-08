@@ -1597,5 +1597,66 @@
     ],
     "formatExitCode": 0,
     "hostedQualification": "Next candidate pending; local passing controls do not qualify hosted provisioning or full cohort execution."
+  },
+  "hostedBootstrapSingleHost": {
+    "sourceBase": "b4b78967b6f65702ee9ef7bce60d85eaa5d0e555",
+    "originalHostedFailure": {
+      "run": 2364,
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42431356654",
+      "job": 128580746586,
+      "observation": "A newly added PowerShell control exceeded its five-second per-launch cap. This does not identify which PowerShell phase consumed that time."
+    },
+    "repair": "One PowerShell host replaces five launches. The call operator retains five separate actual script exit boundaries, with exact native statuses, dispatch counts and unreachable-tail assertions. The original30-second whole-case limit includes startup; no retry or skip is used.",
+    "intermediateLocalFailure": "The initial remaining-time calculation was fractional; spawnSync requires an integer. Flooring the remaining budget fixes the control without changing its bound.",
+    "sourceBlob": {
+      "file": "tests/ci/dependency-security-contract.test.js",
+      "blob": "006ed9f98e3e45e4b6cb5c4d2fc0add2f08a5c0e"
+    },
+    "formatExitCode": 0,
+    "observations": [
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/bootstrap-single-host-report.json",
+        "sha256": "effe663bb116421b5f0b9baac63b66bc9918f5608154b95a5e42e5519a86d568",
+        "summary": {
+          "durationMs": 415,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "ci/dependency-security-contract",
+            "status": "failed",
+            "durationMs": 408,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/bootstrap-single-host-final-report.json",
+        "sha256": "0c9d7d68862a72840d986a177e3df991ac2fd196d67138cb38f503a19df50fd9",
+        "summary": {
+          "durationMs": 928,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "ci/dependency-security-contract",
+            "status": "passed",
+            "durationMs": 920,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      }
+    ],
+    "hostedQualification": "Pending next candidate; no whole-suite pass is claimed."
   }
 }
