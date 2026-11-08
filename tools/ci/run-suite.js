@@ -89,7 +89,7 @@ const sourceAuthorityCases = JSON.parse(await fsPromises.readFile(
   path.join(ROOT, 'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8'));
 SERIAL_CLI_CONTRACT_IDS.push(...sourceAuthorityCases.cases.map(id => `storage/semantic/runtime-source-reference-authority/${id}`));
 SERIAL_CLI_CONTRACT_IDS.push('storage/semantic/runtime-source-reference-foreign-generation');
-const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
+const API_CONTRACT_IDS = ['services/api/router-contract-matrix',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
   'services/api/search-stream-outcomes', 'services/api/graph-evidence-pages', 'services/api/runtime-evidence'];
@@ -302,6 +302,13 @@ export const buildSuitePlan = async (argv) => {
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
     },
     {
+      label: 'Tooling provider API integration',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(['services/api/core']),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'tooling-provider-api.json')]
+    },
+    {
       label: 'Tooling doctor gate',
       command: process.execPath,
       args: ['tools/ci/tooling-doctor-gate.js', '--mode', mode, '--json', toolingDoctorJson]
@@ -430,7 +437,7 @@ export const buildSuitePlan = async (argv) => {
       label: 'API contract cohort',
       command: process.execPath,
       args: ['tests/run.js', '--lane', 'all', ...(mode === 'nightly'
-        ? ['--match', '/^services\\/api\\//'] : exactSelectors(API_CONTRACT_IDS)),
+        ? ['--match', '/^services\\/api\\//', '--exclude', '/^services\\/api\\/core$/'] : exactSelectors(API_CONTRACT_IDS)),
       '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
       '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'api-contracts.json')]
     },

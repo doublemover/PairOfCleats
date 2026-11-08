@@ -52,9 +52,10 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
 // and retains all of its exact-selection and ownership assertions.
 const cohortSelections = new Map();
 let cohortChecks = 0;
-const listScheduledCohort = selectors => {
+const listScheduledCohort = (selectors, exclusions = []) => {
   cohortChecks++;
-  const args = ['tests/run.js', '--lane', 'all', ...selectors.flatMap(value => ['--match', value]), '--list'];
+  const args = ['tests/run.js', '--lane', 'all', ...selectors.flatMap(value => ['--match', value]),
+    ...exclusions.flatMap(value => ['--exclude', value]), '--list'];
   const key = JSON.stringify(args);
   if (!cohortSelections.has(key)) {
     const selected = runNode(args, 'list exact scheduled cohort', root, env, { stdio: 'pipe' })
@@ -69,6 +70,10 @@ const listScheduledCohort = selectors => {
   const lines = String(plan.stderr).split(/\r?\n/);
   const api = lines.find(line => line.startsWith('[dry-run] API contract cohort:'));
   assert.ok(api, `${mode}: portable API authorization and search require a scheduled owner`);
+  const providerApi = lines.find(line => line.startsWith('[dry-run] Tooling provider API integration:'));
+  assert.ok(providerApi && providerApi.includes('--report-file') && providerApi.includes('tooling-provider-api.json'));
+  assert.deepEqual(listScheduledCohort([...providerApi.matchAll(/--match (\/\S+\/)/g)].map(match => match[1])),
+    ['services/api/core'], 'normal provider selection runs beside its actual SDK/LSP installation owner');
   const serial = lines.find(line => line.startsWith('[dry-run] Serial runtime budgets:'));
   assert.ok(serial);
   assert.ok(lines.indexOf(serial) < lines.findIndex(line => line.startsWith('[dry-run] CI test lane:')),
@@ -86,14 +91,17 @@ const listScheduledCohort = selectors => {
       '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(option), `${option}: ${line}`);
     const selectors = [...line.matchAll(/--match (\/\S+\/)/g)].map(match => match[1]);
     assert.ok(selectors.length > 0);
-    const selected = listScheduledCohort(selectors);
+    const exclusions = [...line.matchAll(/--exclude (\/\S+\/)/g)].map(match => match[1]);
+    const selected = listScheduledCohort(selectors, exclusions);
     assert.ok(selected.length > 0);
     assert.equal(new Set(selected).size, selected.length);
     if (line === api) {
       const orderedApiIds = ['ci-lite', 'ci', 'ci-long'].flatMap(lane =>
         JSON.parse(fs.readFileSync(path.join(root, `tests/${lane}/${lane}.manifest.json`), 'utf8')).tests
           .map(test => test.id).filter(id => id.startsWith('services/api/')));
-      for (const id of orderedApiIds) assert.ok(selected.includes(id), `${mode}: ordered API case ${id} cannot disappear behind a family exclusion`);
+      for (const id of orderedApiIds) assert.ok(selected.includes(id) || id === 'services/api/core',
+        `${mode}: ordered API case ${id} cannot disappear behind a family exclusion`);
+      assert.equal(selected.includes('services/api/core'), false, 'SDK-dependent provider integration has one tooling owner');
       for (const id of ['services/api/repo-authorization', 'services/api/search-contract-matrix',
         'services/api/federated-search-validation-matrix', 'services/api/search-stream-outcomes']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);

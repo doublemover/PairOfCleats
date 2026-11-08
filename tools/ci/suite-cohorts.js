@@ -4,6 +4,7 @@ export const CORRECTNESS_SHARDS = 4;
 export const STEP_COHORTS = Object.freeze({
   'Capability gate': 'tooling',
   'Tooling doctor gate': 'tooling',
+  'Tooling provider API integration': 'tooling',
   'Tooling LSP SLO gate': 'tooling',
   'Tooling LSP replay gate': 'tooling',
   'Tooling LSP default-enable gate': 'tooling',

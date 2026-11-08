@@ -10,7 +10,9 @@ preparation job freezes one source/runtime-bound test plan. Four correctness job
 partition the original CI-lite selection; compiler/build, API, runtime budgets,
 ANN generation, native lifecycle, USR, LSP shutdown and crash-log checks run as
 independent serial jobs. Windows subprocess ownership has its own Windows-only
-job. SDK delivery and actual provider qualification stay in the tooling job.
+job. SDK delivery, actual provider qualification and the core API integration
+that requires installed language servers stay in the tooling job. Portable API
+authorization, search and runtime-evidence contracts use the separate API job.
 
 Every job restores dependency inputs and verifies current native/patch readiness;
 the OS preparation job alone may populate the dependency cache. Fixture caches,
@@ -35,6 +37,8 @@ coverage. Compact range receipts avoid transferring raw V8 directories. The
 existing coverage-policy owner evaluates the merged coverage, and release keeps
 the `ci-quality-artifacts-<os>` artifact names. Original cohort evidence remains
 under `.diagnostics/cohorts/` and `.testLogs/cohorts/`.
+Full crash-log latency samples are written there before threshold assertions;
+runner stdout limits cannot truncate the retained operation timings.
 
 | Existing runtime exclusion | Applies on | Coverage owner |
 | --- | --- | --- |
@@ -58,6 +62,8 @@ statuses and output instead of hiding progress until the aggregate completes.
 
 The CI and nightly plan contracts also run as separate complete cases, preserving
 all actual CLI selections and ownership checks inside the30-second bound.
+The bakeoff resume controller has separate publication, query-policy and held-input
+cases, retaining all checkpoint, receipt, counter and input-refusal assertions.
 
 - Required: `node tests/run.js --lane ci-lite` using `tests/ci-lite/ci-lite.order.txt`.
 - The runner ignores `tests/run.config.jsonc` excludes for `ci-lite`, so the order file must list only core tests.

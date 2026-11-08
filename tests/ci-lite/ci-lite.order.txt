@@ -1683,7 +1683,9 @@ lang/contracts/native-call-frontier-admission
 map/member-join-work-consumer/durable
 map/member-join-work-consumer/measure
 map/member-join-work-consumer/mixed
-perf/bench/embedding-bakeoff-observed-resume
+perf/bench/embedding-bakeoff-observed-resume/publication
+perf/bench/embedding-bakeoff-observed-resume/query-policy
+perf/bench/embedding-bakeoff-observed-resume/held-dataset
 perf/bench/representative-workload-consumers/graph-skewed-first-half
 perf/bench/representative-workload-consumers/graph-skewed-second-half
 perf/bench/representative-workload-consumers/graph-skewed-independent-first-half

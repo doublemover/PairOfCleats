@@ -13,6 +13,8 @@ import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { withBakeoffCheckpoint } from '../../../tools/bench/embeddings/bakeoff-checkpoint.js';
 import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
 
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('perf/bench/embedding-bakeoff-observed-resume/')[1];
+assert.ok(['publication', 'query-policy', 'held-dataset'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir('bakeoff-observed-resume'), repo = path.join(dir, 'repo');
 await fs.mkdir(path.join(repo, 'src'), { recursive: true });
 await fs.writeFile(path.join(repo, 'src/a.js'), 'export const independentFixture = 1;\n');
@@ -55,47 +57,49 @@ try {
     const controlPath = path.join(root, 'control.json'); await fs.writeFile(controlPath, JSON.stringify(control));
     return { root, control, controlPath, checkpoint: path.join(root, 'checkpoint.json') };
   };
-  const publication = await setup('publication', 'publication');
-  const first = invoke(publication.checkpoint, { control: publication.controlPath });
-  assert.equal(first.models[0].eval.mrr, 1);
-  assert.equal(first.models[0].eval.executionEvidence.receipts[0].receipt.generations.code.buildId, 'generation-a');
-  assert.equal(first.models[0].resumeIdentity.generation, null, 'the actual controller cannot stamp later B onto A metrics');
-  assert.match(await fs.readFile(publication.control.publishedMarker, 'utf8'), /after A child returned/);
-  const underB = invoke(publication.checkpoint, { control: publication.controlPath });
-  assert.equal(underB.progress.resumedModels, 0);
-  assert.equal(underB.models[0].eval.executionEvidence.receipts[0].receipt.generations.code.buildId, 'generation-b');
-  const unchanged = invoke(publication.checkpoint, { control: publication.controlPath });
-  assert.equal(unchanged.progress.resumedModels, 1);
-  assert.equal(await fs.readFile(publication.control.counter, 'utf8'), '2');
-
-  const policy = await setup('query-policy', 'none');
-  const original = invoke(policy.checkpoint, { control: policy.controlPath });
-  const changedEnv = { ...env, PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ ...baseConfig, search: { fieldWeights: { name: 9 } } }) };
-  const changed = invoke(policy.checkpoint, { control: policy.controlPath, runEnv: changedEnv });
-  assert.equal(changed.progress.resumedModels, 0);
-  assert.equal(changed.progress.resume.state, 'compatible-partial');
-  assert.equal(changed.progress.resume.excludedModels[0].reason, 'effective-evaluation-query-plan-changed-or-unknown');
-  assert.equal(changed.models[0].resumeIdentity.generation, original.models[0].resumeIdentity.generation);
-  assert.notEqual(changed.models[0].eval.evaluationSearchPlan.key, original.models[0].eval.evaluationSearchPlan.key);
-  const stable = invoke(policy.checkpoint, { control: policy.controlPath, runEnv: changedEnv });
-  assert.equal(stable.progress.resumedModels, 1); assert.equal(await fs.readFile(policy.control.counter, 'utf8'), '2');
-  const legacyPath = path.join(policy.root, 'legacy.json'), legacy = structuredClone(stable);
-  delete legacy.models[0].eval.evaluationSearchPlan;
-  await withBakeoffCheckpoint({ root: process.cwd(), checkpointPath: legacyPath,
-    receiptRoot: path.join(policy.root, 'legacy-receipts'), settings: stable.settings }, owner => owner.write(legacy, { final: true }));
-  const legacyRun = invoke(legacyPath, { control: policy.controlPath, runEnv: changedEnv });
-  assert.equal(legacyRun.progress.resumedModels, 0);
-  assert.equal(legacyRun.progress.resume.excludedModels[0].reason, 'effective-evaluation-query-plan-changed-or-unknown');
-
-  const held = await setup('held-dataset', 'dataset-held');
-  invoke(held.checkpoint, { control: held.controlPath, build: true, failure: true });
-  assert.match(await fs.readFile(held.control.heldMarker, 'utf8'), /while the original child remained pending/);
-  const refused = JSON.parse(await fs.readFile(held.checkpoint, 'utf8'));
-  assert.equal(refused.progress.status, 'failed'); assert.equal(refused.models.length, 0);
-  assert.equal(refused.progress.phases.some(row => row.phase === 'eval' && row.state === 'failed'), true);
-  await fs.unlink(datasetPath);
-  const before = await fs.readFile(policy.checkpoint, 'utf8');
-  invoke(policy.checkpoint, { control: policy.controlPath, failure: true });
-  assert.equal(await fs.readFile(policy.checkpoint, 'utf8'), before, 'missing input cannot relabel or replace a prior complete checkpoint');
+  if (selected === 'publication') {
+    const publication = await setup('publication', 'publication');
+    const first = invoke(publication.checkpoint, { control: publication.controlPath });
+    assert.equal(first.models[0].eval.mrr, 1);
+    assert.equal(first.models[0].eval.executionEvidence.receipts[0].receipt.generations.code.buildId, 'generation-a');
+    assert.equal(first.models[0].resumeIdentity.generation, null, 'the actual controller cannot stamp later B onto A metrics');
+    assert.match(await fs.readFile(publication.control.publishedMarker, 'utf8'), /after A child returned/);
+    const underB = invoke(publication.checkpoint, { control: publication.controlPath });
+    assert.equal(underB.progress.resumedModels, 0);
+    assert.equal(underB.models[0].eval.executionEvidence.receipts[0].receipt.generations.code.buildId, 'generation-b');
+    const unchanged = invoke(publication.checkpoint, { control: publication.controlPath });
+    assert.equal(unchanged.progress.resumedModels, 1);
+    assert.equal(await fs.readFile(publication.control.counter, 'utf8'), '2');
+  } else if (selected === 'query-policy') {
+    const policy = await setup('query-policy', 'none');
+    const original = invoke(policy.checkpoint, { control: policy.controlPath });
+    const changedEnv = { ...env, PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ ...baseConfig, search: { fieldWeights: { name: 9 } } }) };
+    const changed = invoke(policy.checkpoint, { control: policy.controlPath, runEnv: changedEnv });
+    assert.equal(changed.progress.resumedModels, 0);
+    assert.equal(changed.progress.resume.state, 'compatible-partial');
+    assert.equal(changed.progress.resume.excludedModels[0].reason, 'effective-evaluation-query-plan-changed-or-unknown');
+    assert.equal(changed.models[0].resumeIdentity.generation, original.models[0].resumeIdentity.generation);
+    assert.notEqual(changed.models[0].eval.evaluationSearchPlan.key, original.models[0].eval.evaluationSearchPlan.key);
+    const stable = invoke(policy.checkpoint, { control: policy.controlPath, runEnv: changedEnv });
+    assert.equal(stable.progress.resumedModels, 1); assert.equal(await fs.readFile(policy.control.counter, 'utf8'), '2');
+    const legacyPath = path.join(policy.root, 'legacy.json'), legacy = structuredClone(stable);
+    delete legacy.models[0].eval.evaluationSearchPlan;
+    await withBakeoffCheckpoint({ root: process.cwd(), checkpointPath: legacyPath,
+      receiptRoot: path.join(policy.root, 'legacy-receipts'), settings: stable.settings }, owner => owner.write(legacy, { final: true }));
+    const legacyRun = invoke(legacyPath, { control: policy.controlPath, runEnv: changedEnv });
+    assert.equal(legacyRun.progress.resumedModels, 0);
+    assert.equal(legacyRun.progress.resume.excludedModels[0].reason, 'effective-evaluation-query-plan-changed-or-unknown');
+    await fs.unlink(datasetPath);
+    const before = await fs.readFile(policy.checkpoint, 'utf8');
+    invoke(policy.checkpoint, { control: policy.controlPath, failure: true });
+    assert.equal(await fs.readFile(policy.checkpoint, 'utf8'), before, 'missing input cannot relabel or replace a prior complete checkpoint');
+  } else {
+    const held = await setup('held-dataset', 'dataset-held');
+    invoke(held.checkpoint, { control: held.controlPath, build: true, failure: true });
+    assert.match(await fs.readFile(held.control.heldMarker, 'utf8'), /while the original child remained pending/);
+    const refused = JSON.parse(await fs.readFile(held.checkpoint, 'utf8'));
+    assert.equal(refused.progress.status, 'failed'); assert.equal(refused.models.length, 0);
+    assert.equal(refused.progress.phases.some(row => row.phase === 'eval' && row.state === 'failed'), true);
+  }
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log('Actual bakeoff controller/checkpoints bind independently specified inert eval receipts to selected input, policy and generation; no native model or corpus qualification is claimed.');
