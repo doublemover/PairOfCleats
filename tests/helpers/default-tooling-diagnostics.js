@@ -19,6 +19,9 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
   const clangdDocuments = platform === 'darwin' ? 3 : 2;
   const filename = path.join(repoCacheRoot, 'tooling-cache', 'diagnostics', 'tooling.json');
   const report = JSON.parse(await fs.readFile(filename, 'utf8'));
+  const retained = path.resolve(process.env.PAIROFCLEATS_TEST_LOG_DIR || '.testLogs', `default-tooling-diagnostics-${process.pid}.json`);
+  await fs.mkdir(path.dirname(retained), { recursive: true });
+  await fs.writeFile(retained, JSON.stringify(report, null, 2) + '\n');
   assert.equal(report.schemaVersion, 1);
   assert.ok(Date.parse(report.generatedAt) >= startedAt, 'provider evidence was written by this build');
   assert.equal(report.truncated, false);
@@ -28,7 +31,7 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
   const degraded = [], reasons = new Set();
   for (const record of report.providers) {
     assert.equal(record.preflight?.timedOut, false);
-    assert.ok(['ready', 'blocked'].includes(record.preflight.state));
+    assert.ok(['ready', 'blocked'].includes(record.preflight.state), JSON.stringify(record));
     const warnings = record.checks.filter(check => check.status === 'warn');
     if (record.providerId === 'clangd') {
       const contexts = record.checks.filter(check => check.name === 'clangd_compilation_context');

@@ -211,11 +211,31 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
     let effective = null;
     let diagnostics = [];
     if (validation.ok) {
-      const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'tools/tui/operator/config-worker.js'),
-        '--repo', selected.configRoot, '--json'], {
-        cwd: selected.configRoot, env, signal, timeoutMs: 10000,
-        stdio: ['ignore', 'pipe', 'pipe'], maxOutputBytes: MAX_CONFIG_BYTES, rejectOnNonZeroExit: true
-      });
+      const began = performance.now(), phases = [];
+      let child;
+      try {
+        child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'tools/tui/operator/config-worker.js'),
+          '--repo', selected.configRoot, '--json'], {
+          cwd: selected.configRoot, env, signal, timeoutMs: 10000,
+          stdio: ['ignore', 'pipe', 'pipe', 'ipc'], maxOutputBytes: MAX_CONFIG_BYTES, rejectOnNonZeroExit: true,
+          onSpawn: worker => {
+            const observe = message => {
+              if (phases.length < 16 && message?.type === 'poc.config-preview-phase'
+              && ['entry', 'bootstrap-ready', 'dump-loading', 'dump-complete'].includes(message.phase)) {
+                phases.push({ phase: message.phase, elapsedMs: performance.now() - began });
+              }
+            };
+            worker.on('message', observe);
+            worker.once('close', () => worker.off('message', observe));
+          }
+        });
+      } catch (error) {
+        // This is the original subprocess owner's error, not a fabricated
+        // configuration response. Only bounded phase names/timings are added;
+        // private config values never enter the internal diagnostic channel.
+        error.configPreviewPhases = Object.freeze(phases.map(row => Object.freeze(row)));
+        throw error;
+      }
       if (child.outputCapture?.stdout?.truncated || child.outputCapture?.stdout?.encodingLoss) {
         fail('ERR_TUI_SETTINGS_OUTPUT', 'Configuration preview output was incomplete.');
       }

@@ -8,6 +8,8 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import { parseJsoncText } from '../../src/shared/jsonc.js';
 import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { initGitRepo } from '../helpers/git-fixture.js';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 
 const root = process.cwd();
 const { dir } = await prepareIsolatedTestCacheDir('tui-settings');
@@ -128,6 +130,35 @@ await session.commit({ scopeId: resetScope.id, previewId: reset.previewId, confi
 assert.equal(await fs.readFile(`${fileA}.bak`, 'utf8'), external);
 assert.deepEqual(parseJsoncText(await fs.readFile(fileA, 'utf8')), { quality: 'auto' });
 await assert.rejects(fs.stat(`${fileA}.edit.lock`), { code: 'ENOENT' });
+const originalSpawn = childProcess.spawn, cancellation = new AbortController();
+let workerClosed = false;
+childProcess.spawn = function (command, args, options) {
+  const child = originalSpawn.call(this, command, args, options);
+  if (args?.[0] === path.join(root, 'tools/tui/operator/config-worker.js')) {
+    child.on('message', message => {
+      if (message?.phase === 'bootstrap-ready') cancellation.abort(new Error('original settings inspection cancellation'));
+    });
+    child.once('close', () => { workerClosed = true; });
+  }
+  return child;
+};
+syncBuiltinESMExports();
+try {
+  await assert.rejects(session.inspectConfig({ scopeId: resetScope.id }, { signal: cancellation.signal }), error => {
+    assert.equal(error.code, 'ABORT_ERR');
+    assert.ok(error.configPreviewPhases.some(row => row.phase === 'bootstrap-ready'));
+    assert.ok(error.configPreviewPhases.length <= 16);
+    assert.ok(error.configPreviewPhases.every(row => Object.keys(row).sort().join(',') === 'elapsedMs,phase'
+      && Number.isFinite(row.elapsedMs) && row.elapsedMs >= 0));
+    assert.equal(JSON.stringify(error.configPreviewPhases).includes(secret), false);
+    return true;
+  });
+  assert.equal(workerClosed, true, 'phase diagnostics cannot replace the original child-close boundary');
+  assert.deepEqual(parseJsoncText(await fs.readFile(fileA, 'utf8')), { quality: 'auto' });
+} finally {
+  childProcess.spawn = originalSpawn;
+  syncBuiltinESMExports();
+}
 session.dispose();
 await assert.rejects(session.selectScope({ kind: 'repo', target: repoA }), { code: 'ERR_TUI_SESSION_CLOSED' });
 console.log('TUI settings schema, real canonical preview/persistence, scope, cancellation and stale/reset contracts passed');
