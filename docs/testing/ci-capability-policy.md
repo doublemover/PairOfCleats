@@ -31,6 +31,12 @@ Tooling provisions a fresh standalone clangd through the existing official stabl
 release, SHA256, target-header and executable-version owners. Its exact SDK receipt
 is retained, and the core API fixture still requires successful normal provider
 preflight and real protocol requests. Ambient OS launchers do not supply this SDK.
+CI authenticates only the exact vendor release-metadata endpoint with its existing
+read-only `GITHUB_TOKEN`, following [GitHub's CI authentication guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+The transport removes authorization on asset/redirect requests, and the setup
+process removes the token before extraction or SDK children can inherit it.
+HTTP403 still fails after its original response closes; it never triggers a retry
+or an anonymous fallback. Product downloads remain anonymous by default.
 
 The final OS job requires every declared cohort and original test/step assignment.
 Missing/foreign reports, unexpected skips, retries, timeouts, duplicate cases or

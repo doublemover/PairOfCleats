@@ -1,16 +1,16 @@
 # PairOfCleats Roadmap
 
 Status: all open issues in scope except Tantivy/editor work
-Last audited: 2026-11-07
+Last audited: 2026-11-08
 Last reconciled: 2026-11-07
-Last implementation update: 2026-11-07
+Last implementation update: 2026-11-08
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
 The [intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. 23 verified closures include #131/#1597/#1701/#1682/#1646/#1654/#1657/#1699/#1272. Current reconciliation, 2026-11-07: **344 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
 
-[CI repairs](archived/ci2365-failure-repairs-2026-11-07.json): CI2369 passes Ubuntu/macOS and47 Windows native cases. Registry identity and answer-budget repairs are implemented. [PR572](https://github.com/doublemover/PairOfCleats/pull/572) records the frozen candidate's final CI qualification.
+[CI repairs](archived/ci2365-failure-repairs-2026-11-07.json): CI2370 passes Windows and47 native cases. Hydration coordination and release authentication repairs are implemented. [PR572](https://github.com/doublemover/PairOfCleats/pull/572) records final candidate qualification.
 
 [Native parity](archived/windows-onnx-runtime-parity-2026-10-30.md) records CDB attribution and ORT1.30.0. [Models](archived/windows-model-closeout-2026-11-04.md) close #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children and closes #1733.
 
