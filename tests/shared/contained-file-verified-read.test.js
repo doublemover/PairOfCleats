@@ -33,17 +33,24 @@ try {
     // These are actual files and reads, with only native admission held. Four
     // independent existing readers must reach the same original probe before
     // any is released; a synchronous ancestry walk cannot satisfy this.
-    const lstat = fs.promises.lstat, gate = Promise.withResolvers();
-    let holding = true, admitted = 0;
+    const lstat = fs.promises.lstat, gate = Promise.withResolvers(), allAdmitted = Promise.withResolvers();
+    let holding = true, admitted = 0, admissionWatchdog;
     fs.promises.lstat = async (...args) => {
-      if (holding && args[0] === root) { admitted++; await gate.promise; }
-      return lstat.call(fs.promises, ...args);
+      const stat = await lstat.call(fs.promises, ...args);
+      if (holding && args[0] === root) {
+        if (++admitted === 4) allAdmitted.resolve();
+        await gate.promise;
+      }
+      return stat;
     };
     const reads = Array.from({ length: 4 }, () => readVerifiedContainedFile(root, file, { expectedHash: hash }));
     try {
-      await new Promise(resolve => setImmediate(resolve));
+      await Promise.race([allAdmitted.promise, new Promise((_, reject) => {
+        admissionWatchdog = setTimeout(() => reject(new Error('Concurrent original ancestry probes were not observed')), 1000);
+      })]);
       assert.equal(admitted, 4, 'Windows asynchronous ancestry admission must not serialize existing readers');
     } finally {
+      clearTimeout(admissionWatchdog);
       holding = false; gate.resolve();
       const results = await Promise.allSettled(reads);
       fs.promises.lstat = lstat;

@@ -71,17 +71,20 @@ try {
       await protectedAt(namespace, true); await protectedAt(secondNamespace, false);
     });
   } else if (selected === 'ignored-child') {
-    let settle;
-    const pending = new Promise(resolve => { settle = resolve; });
-    let child;
-    const parent = withSqliteStorageOperation(context, [target], async () => {
-      child = withSqliteStorageOperation(null, [target + '-wal'], async () => { await pending; });
-    });
-    // The child announces entry through the real accepted-work owner before the
-    // parent may finish. A known event-loop turn observes the retained lease.
-    await new Promise(resolve => setImmediate(resolve));
-    try { await protectedAt(namespace, true); } finally { settle(); }
-    await parent; await child;
+    const pending = Promise.withResolvers(), entered = Promise.withResolvers();
+    let child, parentSettled = false;
+    const parent = withSqliteStorageOperation(context, [target], async outer => {
+      child = withSqliteStorageOperation(null, [target + '-wal'], async inner => {
+        assert.equal(inner, outer, 'an ignored child must join its original namespace owner');
+        entered.resolve(true); await pending.promise;
+      });
+    }).finally(() => { parentSettled = true; });
+    try {
+      assert.equal(await Promise.race([entered.promise, parent.then(() => false)]), true,
+        'the original accepted child must enter before its parent settles');
+      await protectedAt(namespace, true);
+      assert.equal(parentSettled, false, 'the parent must retain its namespace lease until its ignored child settles');
+    } finally { pending.resolve(); await parent; await child; }
   } else {
     const staging = path.join(namespace, 'run-owned-staging.db');
     const paths = selected === 'batch-order' ? [staging, target + '-wal', target]
