@@ -22,10 +22,22 @@ try {
       options: { lock }, worker() { assert.fail('cross-root borrowed lock cannot enter mutation'); } }), { code: 'ERR_REGISTRY_LOCK_OWNERSHIP' });
     const lockPath = resolveRegistryLockPath(root, 'snapshots');
     const original = await fs.readFile(lockPath);
+    const originalIdentity = await fs.lstat(lockPath, { bigint: true });
     const replaced = { ...JSON.parse(original.toString('utf8')), lockId: 'replacement-owner' };
     await fs.writeFile(lockPath, JSON.stringify(replaced));
     try { await assert.rejects(use(lock), { code: 'ERR_REGISTRY_LOCK_OWNERSHIP' }); }
-    finally { await fs.writeFile(lockPath, original); }
+    finally {
+      // Restoring bytes in place can also restore every observed timestamp on
+      // a coarse native clock. Replace the object and prove its new identity;
+      // rejection must not depend on two writes landing in different ticks.
+      const replacement = path.join(root, 'restored-lock.json');
+      await fs.writeFile(replacement, original, { flag: 'wx' });
+      const replacementIdentity = await fs.lstat(replacement, { bigint: true });
+      assert.notEqual(replacementIdentity.ino, originalIdentity.ino);
+      await fs.rename(replacement, lockPath);
+      assert.equal((await fs.lstat(lockPath, { bigint: true })).ino, replacementIdentity.ino);
+      assert.deepEqual(await fs.readFile(lockPath), original);
+    }
   }
   finally {
     // Restoring bytes cannot restore the sealed native metadata identity.
