@@ -36,8 +36,8 @@ const create = ({ join = 2, holdBeforeReader = false } = {}) => {
     if (!holdBeforeReader) { entered.resolve(); await gate.promise; }
     return readRetainedSemanticSourceSnapshot(options);
   } });
-  // Coalescing coordination is queue work, outside the unchanged250ms physical
-  // read budget. Cancellation/cleanup cases still hold the admitted snapshot
+  // Admission coordination is queue work, outside the unchanged250ms physical
+  // read budget. Cancellation of active readers and cleanup still hold the admitted snapshot
   // read below, retaining their original live-resource and close assertions.
   const readSource = holdBeforeReader ? async (...args) => { entered.resolve(); await gate.promise; return reader(...args); } : reader;
   const pool = createRetainedSourceHydrationPool({ boundary, readSource, resolveIndexDir: async options => {
@@ -75,11 +75,12 @@ try {
     assert.equal(state.pool.snapshot().activeEntries, 0); assert.equal(state.pool.snapshot().reservedBytes, 0);
   } else if (mode === 'scope-and-revocation') {
     contexts.get(b).scopeDigest = 'c'.repeat(64);
-    const state = create(); pools.push(state);
+    const state = create({ holdBeforeReader: true }); pools.push(state);
     const first = captured(state.pool.read(request, a)), second = captured(state.pool.read(request, b));
     await state.resolved.promise; await tick(); assert.equal(state.pool.snapshot().createdReads, 2); assert.equal(state.pool.snapshot().coalescedWaiters, 0);
     allowed.set(b, false); state.gate.resolve();
     const [left, right] = await Promise.all([first, second]); assert.equal(left.ok, true); assert.equal(right.ok, false); assert.equal(right.error.reason, 'ScopeDenied');
+    assert.equal(sourceReads, 2); assert.equal(sourceBytes, 2 * fixture.bytes.length);
     const before = sourceReads; await assert.rejects(state.pool.read(request, 'copied-consumer-name'), { code: 'ERR_CONTEXT_DELIVERY_SCOPE_DENIED' });
     assert.equal(sourceReads, before, 'an unbound identity cannot start or join physical source work');
     await assert.rejects(state.pool.read({ ...request, sourceUnitId: 'su1:' + '0'.repeat(64) }, a), { reason: 'ScopeDenied' });
@@ -93,13 +94,16 @@ try {
     let finished = false; second.then(() => { finished = true; }); right.abort(); await tick(); assert.equal(finished, false, 'last waiter waits for original shared work and storage cleanup');
     state.gate.resolve(); assert.equal((await second).error.name, 'AbortError');
     assert.equal(state.pool.snapshot().activeEntries, 0); assert.equal(state.pool.snapshot().reservedBytes, 0);
-    const queued = create({ join: 3 }); pools.push(queued); const queuedAbort = new AbortController();
+    const readsBeforeQueue = sourceReads, bytesBeforeQueue = sourceBytes;
+    const queued = create({ join: 3, holdBeforeReader: true }); pools.push(queued); const queuedAbort = new AbortController();
     const running = [captured(queued.pool.read(request, a)), captured(queued.pool.read({ ...request, maxBytes: 4097 }, b))];
     const waiting = captured(queued.pool.read({ ...request, maxBytes: 4098 }, a, { signal: queuedAbort.signal }));
     await queued.resolved.promise; await tick(); assert.equal(queued.pool.snapshot().queuedReads, 1);
     queuedAbort.abort(); assert.equal((await waiting).error.name, 'AbortError', 'queued cancellation does not wait for unrelated active readers');
     assert.equal(queued.pool.snapshot().occupiedReadSlots, 2);
     queued.gate.resolve(); assert.ok((await Promise.all(running)).every(result => result.ok));
+    assert.equal(sourceReads - readsBeforeQueue, 2);
+    assert.equal(sourceBytes - bytesBeforeQueue, 2 * fixture.bytes.length);
     const next = create({ join: 1 }); pools.push(next); const reading = captured(next.pool.read(request, a));
     await next.entered.promise; let disposed = false;
     const disposal = next.pool.dispose().then(value => { disposed = true; return value; }); await tick(); assert.equal(disposed, false);
@@ -131,11 +135,17 @@ try {
     assert.equal(state.pool.snapshot().activeEntries, 0); assert.equal(state.pool.snapshot().reservedBytes, 0);
     await tick(); assert.equal(state.pool.snapshot().occupiedReadSlots, 0);
   } else {
-    const state = create({ join: 4 }); pools.push(state);
+    const state = create({ join: 4, holdBeforeReader: true }); pools.push(state);
     const reads = Array.from({ length: 4 }, (_, index) => captured(state.pool.read({ ...request, maxBytes: 4096 + index }, a)));
     await state.resolved.promise; await tick(); assert.equal(state.pool.snapshot().activeEntries, 4);
+    assert.equal(state.pool.snapshot().createdReads, 4);
+    assert.equal(state.pool.snapshot().occupiedReadSlots, 2);
+    assert.equal(state.pool.snapshot().queuedReads, 2);
+    assert.equal(sourceReads, 0, 'quota coordination cannot consume the bounded physical read interval');
     await assert.rejects(state.pool.read({ ...request, maxBytes: 8192 }, a), { reason: 'MandatoryOverflow' });
     state.gate.resolve(); assert.ok((await Promise.all(reads)).every(result => result.ok));
+    assert.equal(sourceReads, 4, 'every admitted work entry executes its original real source read');
+    assert.equal(sourceBytes, 4 * fixture.bytes.length);
     assert.equal(state.pool.snapshot().reservedBytes, 0);
     const admissionGate = deferred(), allBound = deferred(); let bindings = 0;
     const limited = createRetainedSourceHydrationPool({ boundary: { bind: async (...args) => {
