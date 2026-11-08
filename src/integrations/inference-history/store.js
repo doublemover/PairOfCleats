@@ -88,7 +88,11 @@ function initializeHistoryStore(db,partitionKey,lexical = DEFAULT_ARCHIVE_ANALYZ
   }
   db.pragma('journal_mode = DELETE');
   db.pragma('secure_delete = ON');
-  db.exec(`
+  // Schema, derived indexes and private reference identity form one admission
+  // unit. A later DDL failure must not leave an unopenable partial vault, and
+  // each initial table/trigger must not incur its own durable commit.
+  db.transaction(() => {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS vault_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS imports (id TEXT PRIMARY KEY, summary TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS members (
@@ -187,13 +191,14 @@ function initializeHistoryStore(db,partitionKey,lexical = DEFAULT_ARCHIVE_ANALYZ
       DELETE FROM units_fts WHERE id=old.id;
     END;
   `);
-  installHistoryDiscoveryIndex(db);
-  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('lexical_identity', lexical.identity);
-  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
-  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', HISTORY_STORE_FORMAT);
-  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));
-  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('generation', '0');
-  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('updated_at', new Date().toISOString());
+    installHistoryDiscoveryIndex(db);
+    db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('lexical_identity', lexical.identity);
+    db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
+    db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', HISTORY_STORE_FORMAT);
+    db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));
+    db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('generation', '0');
+    db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('updated_at', new Date().toISOString());
+  })();
 }
 
 export function openMemoryHistoryStore(partitionKey,{lexical = DEFAULT_ARCHIVE_ANALYZER} = {}) {
