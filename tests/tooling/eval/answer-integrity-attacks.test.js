@@ -14,7 +14,8 @@ const create = (options = {}) => {
 if (mode === 'sealed-semantic-attacks') {
   const adapter = await getOfflineEvaluationAdapter('retained-answer-integrity-v1'), input = create(), before = structuredClone(input);
   const result = adapter.evaluate(input);
-  assert.equal(result.complete, true); assert.equal(result.allExpectedResultsObserved, true); assert.deepEqual(input, before);
+  assert.equal(result.complete, true, JSON.stringify(result));
+  assert.equal(result.allExpectedResultsObserved, true, JSON.stringify(result)); assert.deepEqual(input, before);
   assert.equal(result.results.length, 8); assert.equal(result.results.filter(row => row.actual === 'rejected').length, 6);
   for (const row of result.results) {
     assert.equal(row.status, 'checked'); assert.equal(row.envelope, 'public-digest-and-byte-counters-recomputed');

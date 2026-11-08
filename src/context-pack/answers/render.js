@@ -150,8 +150,10 @@ export const compileAdmittedQueryAnswer = (input, { maxBytes = ANSWER_MAX_BYTES,
  * no current source authority and cannot replace fresh provider admission. */
 export const inspectAnswerRevision = (input, options = {}) => {
   const report = captureSemanticRequest(input, ANSWER_REVISION_SCHEMA); assertAnswerEvidence('revision', report);
-  canonicalSemanticJson(report, { maxBytes: ANSWER_MAX_BYTES });
+  // Admission owns a deeply frozen snapshot. Retain its bounded canonical form
+  // for the comparison rather than traversing that same report twice.
+  const canonicalReport = canonicalSemanticJson(report, { maxBytes: ANSWER_MAX_BYTES });
   const rebuilt = compileAdmittedQueryAnswer(report.inputs, options);
-  if (canonicalSemanticJson(rebuilt, { maxBytes: ANSWER_MAX_BYTES }) !== canonicalSemanticJson(report, { maxBytes: ANSWER_MAX_BYTES })) throw fail('Answer text, claims, source maps, costs or digest differ from deterministic recomputation.');
+  if (canonicalSemanticJson(rebuilt, { maxBytes: ANSWER_MAX_BYTES }) !== canonicalReport) throw fail('Answer text, claims, source maps, costs or digest differ from deterministic recomputation.');
   return rebuilt;
 };

@@ -1,13 +1,12 @@
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
-import { canonicalSemanticJson, semanticHash } from '../../index/semantic/identity.js';
+import { semanticHash } from '../../index/semantic/identity.js';
 import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { ANSWER_INTEGRITY_EVALUATION_SCHEMA } from '../../contracts/schemas/answer-integrity-evaluation.js';
 import { assertAnswerIntegrityEvaluation } from '../../contracts/validators/answer-integrity-evaluation.js';
 import { inspectAnswerRevision, compileAdmittedQueryAnswer, ANSWER_MAX_BYTES } from '../../context-pack/answers/render.js';
 
-const key = value => canonicalSemanticJson(value, { maxBytes: 2 * ANSWER_MAX_BYTES });
 const digest = value => semanticHash('answer-integrity.v1', value, { maxBytes: 2 * ANSWER_MAX_BYTES });
 const textHash = value => createHash('sha256').update(value).digest('hex');
 const replaceText = (candidate, start, end, text) => {
@@ -90,7 +89,8 @@ export const evaluateAnswerIntegrityAttacks = (input, { signal = null, maxMs = 2
   const began = performance.now(); throwIfAborted(signal);
   if (!Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 250 || !Number.isSafeInteger(maxOutputBytes)
     || maxOutputBytes < 1024 || maxOutputBytes > 131072) throw new TypeError('Invalid answer attack work/output allowance.');
-  input = captureSemanticRequest(input, ANSWER_INTEGRITY_EVALUATION_SCHEMA); assertAnswerIntegrityEvaluation(input); key(input);
+  input = captureSemanticRequest(input, ANSWER_INTEGRITY_EVALUATION_SCHEMA); assertAnswerIntegrityEvaluation(input);
+  const inputId = digest(input);
   const original = inspectAnswerRevision(input.revision, { signal }), results = [];
   let next = 0;
   for (const id of input.cases) {
@@ -111,7 +111,7 @@ export const evaluateAnswerIntegrityAttacks = (input, { signal = null, maxMs = 2
       envelope: 'public-digest-and-byte-counters-recomputed', currentSourceAuthority: false, verificationMs: performance.now() - checkBegan });
   }
   const complete = next === input.cases.length;
-  const result = { schemaVersion: 1, kind: 'retained-answer-integrity-evaluation', inputId: digest(input), baseDigest: original.digest,
+  const result = { schemaVersion: 1, kind: 'retained-answer-integrity-evaluation', inputId, baseDigest: original.digest,
     complete, reason: complete ? null : 'deadline', results, remainingCases: input.cases.slice(next),
     allExpectedResultsObserved: complete ? results.every(row => row.satisfied) : null,
     checkedInputAuthority: 'supplied-historical-report-integrity-only', currentSourceAuthority: false,
