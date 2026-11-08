@@ -1,0 +1,4872 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-07",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "implementationCommit": "2bb2f1c259bf9892d1850f5f94651b3e819c4bdd",
+  "sourceParent": "6d53ad37e418dd891de11b479edf06615772e7fb",
+  "scope": "Repair CI2365 failure families with unchanged authority, positive witnesses, operation limits and production backend settings.",
+  "evidenceScope": "Focused observations at recorded repair checkpoints. Historical workspace paths are author receipts, not clean-checkout inputs. No whole-suite or final-head hosted pass is claimed.",
+  "baseline": {
+    "workflow": "https://github.com/doublemover/PairOfCleats/actions/runs/42431804562",
+    "testedMerge": "df19829bc0c9b6797a665bd49ba3ff54831f6bfe",
+    "successfulJobs": 35,
+    "failedJobs": 21,
+    "downstreamFailureJobs": 6,
+    "failedFixtureObservations": 172,
+    "uniqueFailedFixtureIds": 136,
+    "timedOutObservations": 3,
+    "linuxCorrectnessPasses": 2940,
+    "failures": [
+      {
+        "jobId": 128582670346,
+        "job": "native-index-workflows (windows-latest)",
+        "id": "tui/native-search-conpty/empty-error",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:20.0861501Z FAIL [ 10.6s] tui/native-search-conpty/empty-error exit 1"
+      },
+      {
+        "jobId": 128582883140,
+        "job": "ubuntu cohorts / Serial crash-log",
+        "id": "perf/crash-log-error-latency/long-log",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T00:58:05.4811602Z FAIL [ 2.91s] perf/crash-log-error-latency/long-log exit 1"
+      },
+      {
+        "jobId": 128583000733,
+        "job": "windows cohorts / Correctness 1/4",
+        "id": "tooling/providers/provider-catalog-execution",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:02:12.1346760Z FAIL [ 586ms] tooling/providers/provider-catalog-execution exit 1"
+      },
+      {
+        "jobId": 128583000733,
+        "job": "windows cohorts / Correctness 1/4",
+        "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:03:16.8494953Z FAIL [ 113ms] indexing/artifacts/unpublished-copy-native-metadata/work exit 1"
+      },
+      {
+        "jobId": 128583000750,
+        "job": "windows cohorts / Correctness 4/4",
+        "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:01.6952341Z FAIL [ 144ms] indexing/artifacts/unpublished-copy-native-metadata/original-method exit 1"
+      },
+      {
+        "jobId": 128583000750,
+        "job": "windows cohorts / Correctness 4/4",
+        "id": "tooling/install/ast-grep-managed-recipe",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:06:13.4438302Z FAIL [ 566ms] tooling/install/ast-grep-managed-recipe exit 1"
+      },
+      {
+        "jobId": 128583000750,
+        "job": "windows cohorts / Correctness 4/4",
+        "id": "context-pack/delivery/hydration/shared-physical-read",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:17.3841571Z FAIL [ 2.19s] context-pack/delivery/hydration/shared-physical-read exit 1"
+      },
+      {
+        "jobId": 128583000794,
+        "job": "windows cohorts / Serial api",
+        "id": "services/api/core",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T00:59:42.3812340Z FAIL [ 21.8s] services/api/core exit 1"
+      },
+      {
+        "jobId": 128583000794,
+        "job": "windows cohorts / Serial api",
+        "id": "services/api/runtime-evidence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:00:21.7422440Z FAIL [ 5.13s] services/api/runtime-evidence exit 1"
+      },
+      {
+        "jobId": 128583000807,
+        "job": "windows cohorts / Correctness 2/4",
+        "id": "tui/operator-artifact-file-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:38.9912913Z FAIL [ 292ms] tui/operator-artifact-file-authority exit 1"
+      },
+      {
+        "jobId": 128583000807,
+        "job": "windows cohorts / Correctness 2/4",
+        "id": "indexing/publication/integrity-stream-ownership/equivalent",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:34.0731927Z FAIL [ 300ms] indexing/publication/integrity-stream-ownership/equivalent exit 1"
+      },
+      {
+        "jobId": 128583000807,
+        "job": "windows cohorts / Correctness 2/4",
+        "id": "perf/bench/embedding-bakeoff-observed-resume",
+        "outcome": "TIME",
+        "originalLine": "2026-11-08T01:08:00.8066399Z TIME [ 30.4s] perf/bench/embedding-bakeoff-observed-resume - timeout (timed_out_with_failure)"
+      },
+      {
+        "jobId": 128583000807,
+        "job": "windows cohorts / Correctness 2/4",
+        "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:49.4323922Z FAIL [ 357ms] shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/interrupted",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:48.8431744Z FAIL [ 12.1s] storage/semantic/runtime-claims-reuse/interrupted exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/new-content",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:00.8889029Z FAIL [ 12.0s] storage/semantic/runtime-claims-reuse/new-content exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/pointer-missing",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:13.1476283Z FAIL [ 12.3s] storage/semantic/runtime-claims-reuse/pointer-missing exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:25.2929724Z FAIL [ 12.1s] storage/semantic/runtime-claims-reuse/pointer-older exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/adapter-change",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:41.8250200Z FAIL [ 2.87s] storage/semantic/runtime-import-reuse/adapter-change exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-evidence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:44.6515111Z FAIL [ 2.82s] storage/semantic/runtime-import-reuse/corrupt-evidence exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-manifest",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:47.5212438Z FAIL [ 2.87s] storage/semantic/runtime-import-reuse/corrupt-manifest exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-offsets",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:50.3434734Z FAIL [ 2.82s] storage/semantic/runtime-import-reuse/corrupt-offsets exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-query-index",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:53.1613075Z FAIL [ 2.82s] storage/semantic/runtime-import-reuse/corrupt-query-index exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-raw",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:55.9552048Z FAIL [ 2.79s] storage/semantic/runtime-import-reuse/corrupt-raw exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-receipt",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:58.7862465Z FAIL [ 2.83s] storage/semantic/runtime-import-reuse/corrupt-receipt exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:09.3792080Z FAIL [ 10.6s] storage/semantic/runtime-import-reuse/foreign-generation exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/fresh-process",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:12.2047890Z FAIL [ 2.82s] storage/semantic/runtime-import-reuse/fresh-process exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/interrupted",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:15.0064484Z FAIL [ 2.80s] storage/semantic/runtime-import-reuse/interrupted exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/invalid-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:17.8209879Z FAIL [ 2.81s] storage/semantic/runtime-import-reuse/invalid-authority exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/missing-family",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:20.6283264Z FAIL [ 2.81s] storage/semantic/runtime-import-reuse/missing-family exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/parser-change",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:23.4372583Z FAIL [ 2.81s] storage/semantic/runtime-import-reuse/parser-change exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/pointer-missing",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:26.3194904Z FAIL [ 2.86s] storage/semantic/runtime-import-reuse/pointer-missing exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/pointer-older",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:29.1703552Z FAIL [ 2.85s] storage/semantic/runtime-import-reuse/pointer-older exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/raw-change",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:31.9872859Z FAIL [ 2.81s] storage/semantic/runtime-import-reuse/raw-change exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/receipt-missing",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:34.8042799Z FAIL [ 2.81s] storage/semantic/runtime-import-reuse/receipt-missing exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:37.6283527Z FAIL [ 2.82s] storage/semantic/runtime-import-reuse/receipt-stale exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/repeat",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:40.4495213Z FAIL [ 2.82s] storage/semantic/runtime-import-reuse/repeat exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/repointed-qualification",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:51.0769414Z FAIL [ 10.6s] storage/semantic/runtime-import-reuse/repointed-qualification exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/repointed-receipt",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:53.9054047Z FAIL [ 2.83s] storage/semantic/runtime-import-reuse/repointed-receipt exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/source-qualification",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:04.4235123Z FAIL [ 10.5s] storage/semantic/runtime-import-reuse/source-qualification exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/delete-file",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:20.1252789Z FAIL [ 11.5s] tooling/eval/published-index-revision-oracle/delete-file exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:31.5469751Z FAIL [ 11.4s] tooling/eval/published-index-revision-oracle/edit-delete-rename exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/edit-only",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:44.4407810Z FAIL [ 12.9s] tooling/eval/published-index-revision-oracle/edit-only exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/original-world-rechecks",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:56.0326724Z FAIL [ 11.6s] tooling/eval/published-index-revision-oracle/original-world-rechecks exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/pending-reader-retirement",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:14:07.5136065Z FAIL [ 11.5s] tooling/eval/published-index-revision-oracle/pending-reader-retirement exit 1"
+      },
+      {
+        "jobId": 128583000836,
+        "job": "windows cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/restore-file",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:14:18.8400015Z FAIL [ 11.3s] tooling/eval/published-index-revision-oracle/restore-file exit 1"
+      },
+      {
+        "jobId": 128583000952,
+        "job": "windows cohorts / Correctness 3/4",
+        "id": "tooling/sublime/behavior-contract-matrix",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:05.8111667Z FAIL [ 4.66s] tooling/sublime/behavior-contract-matrix exit 1"
+      },
+      {
+        "jobId": 128583000952,
+        "job": "windows cohorts / Correctness 3/4",
+        "id": "shared/storage/inspection-phase-admission/exact-revalidation-deadline",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:16.2671888Z FAIL [ 182ms] shared/storage/inspection-phase-admission/exact-revalidation-deadline exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "indexing/build/promotion-timing-contract",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:18.1994810Z FAIL [ 722ms] indexing/build/promotion-timing-contract exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/install/go-sdk-cache-recipe",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:21.4048230Z FAIL [ 111ms] tooling/install/go-sdk-cache-recipe exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/cache/gc-contract-matrix",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:45.9181570Z FAIL [ 4.15s] tooling/cache/gc-contract-matrix exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "ci/tooling-lsp-replay-gate.smoke",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:55.6153720Z FAIL [ 724ms] ci/tooling-lsp-replay-gate.smoke exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "lang/contracts/misc-buildfiles",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:20.9270510Z FAIL [ 11.6s] lang/contracts/misc-buildfiles exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/lsp/configuration-pull-and-delayed-diagnostics",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:33.4489530Z FAIL [ 333ms] tooling/lsp/configuration-pull-and-delayed-diagnostics exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "cli/general/unknown-workflow-options",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:47.2419190Z FAIL [ 1.96s] cli/general/unknown-workflow-options exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/reports/object-cache-isolation",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:47.2465540Z FAIL [ 1.48s] tooling/reports/object-cache-isolation exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/service/background-retry-policy",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:58.2270170Z FAIL [ 1.69s] tooling/service/background-retry-policy exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "shared/cache/repo-access",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:59.7914960Z FAIL [ 1.56s] shared/cache/repo-access exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "indexing/runtime/initialization-resource-unwind",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:15.6597070Z FAIL [ 1.14s] indexing/runtime/initialization-resource-unwind exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "indexing/watch/native-backend-source-consumer/parcel",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:08:14.4695340Z FAIL [ 7.21s] indexing/watch/native-backend-source-consumer/parcel exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "indexing/watch/source-observation-replay/chokidar",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:08:29.7848760Z FAIL [ 7.04s] indexing/watch/source-observation-replay/chokidar exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/cache/gc-modern-resource-ownership/live",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:48.3233520Z FAIL [ 264ms] tooling/cache/gc-modern-resource-ownership/live exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:50.6377740Z FAIL [  88ms] shared/artifact-io/binary-frame-producer-resource-lifetime exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "semantic/questions/answer-retention/immutable-shared-graph",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:07.4428950Z FAIL [ 687ms] semantic/questions/answer-retention/immutable-shared-graph exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "semantic/questions/answer-retention/quotas-and-leases",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:07.5128160Z FAIL [ 809ms] semantic/questions/answer-retention/quotas-and-leases exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/install/checkout-inspection-replacement/journal",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:21.4291870Z FAIL [ 426ms] tooling/install/checkout-inspection-replacement/journal exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "shared/storage/write-reservation-receipt-observation/pending-field-value",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:35.5907220Z FAIL [  85ms] shared/storage/write-reservation-receipt-observation/pending-field-value exit 1"
+      },
+      {
+        "jobId": 128583013769,
+        "job": "macos cohorts / Correctness 2/4",
+        "id": "tooling/install/install-action-original-observation/revoked-during-reservation-read",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:35.6326770Z FAIL [ 117ms] tooling/install/install-action-original-observation/revoked-during-reservation-read exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/install/postinstall-patch-enforcement",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:55.4021970Z FAIL [ 3.48s] tooling/install/postinstall-patch-enforcement exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/vfs/io-batch-consistency",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:06:01.9308830Z FAIL [ 384ms] tooling/vfs/io-batch-consistency exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/watch/atomicity",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:11.8514180Z FAIL [ 2.38s] indexing/watch/atomicity exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/scm/index-build-no",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:33.8990480Z FAIL [ 4.88s] indexing/scm/index-build-no exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "retrieval/cli/search-backend-finally",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:33.9878350Z FAIL [ 1.38s] retrieval/cli/search-backend-finally exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/tree-sitter/persistent-cache-memory-bounds",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:08:14.4408720Z FAIL [ 115ms] indexing/tree-sitter/persistent-cache-memory-bounds exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/watch/cancel-before-publication",
+        "outcome": "TIME",
+        "originalLine": "2026-11-08T01:08:54.5868580Z TIME [ 30.0s] indexing/watch/cancel-before-publication - timeout (timed_out_with_failure)"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "shared/storage/write-admission-inventory-resource",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:43.6498540Z FAIL [ 157ms] shared/storage/write-admission-inventory-resource exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/artifacts/compaction-generation-publication",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:51.6042830Z FAIL [ 2.53s] indexing/artifacts/compaction-generation-publication exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/index/clean-artifacts-reader-exclusion",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:14.6471900Z FAIL [ 2.69s] tooling/index/clean-artifacts-reader-exclusion exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/discovery/root-markdown-build-watch-consumer",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:29.4304470Z FAIL [ 2.40s] indexing/discovery/root-markdown-build-watch-consumer exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/scm/jj-native-read-sessions",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:55.4720710Z FAIL [ 1.22s] indexing/scm/jj-native-read-sessions exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "indexing/watch/source-observation-replay/parcel",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:57.1285200Z FAIL [ 6.96s] indexing/watch/source-observation-replay/parcel exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "perf/bench/vfs-producer-accounting/lsp",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:01.6773040Z FAIL [ 775ms] perf/bench/vfs-producer-accounting/lsp exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/cache/gc-modern-resource-ownership/admission-race",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:53.2182070Z FAIL [ 434ms] tooling/cache/gc-modern-resource-ownership/admission-race exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/install/ast-grep-managed-recipe",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:53.2650760Z FAIL [ 214ms] tooling/install/ast-grep-managed-recipe exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "semantic/questions/answer-retention/interruption-and-resume",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:10.5045290Z FAIL [ 513ms] semantic/questions/answer-retention/interruption-and-resume exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/install/checkout-evidence-retention/producer-byte-proof-required",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:21.0591360Z FAIL [  78ms] tooling/install/checkout-evidence-retention/producer-byte-proof-required exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "shared/storage/write-reservation-receipt-observation/revoked-resource-id",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:32.0430840Z FAIL [  65ms] shared/storage/write-reservation-receipt-observation/revoked-resource-id exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "shared/storage/write-reservation-receipt-observation/independent-callback-inspection",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:32.0440100Z FAIL [  73ms] shared/storage/write-reservation-receipt-observation/independent-callback-inspection exit 1"
+      },
+      {
+        "jobId": 128583013796,
+        "job": "macos cohorts / Correctness 4/4",
+        "id": "tooling/install/install-action-original-observation/independent-inspection",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:32.0449800Z FAIL [  78ms] tooling/install/install-action-original-observation/independent-inspection exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "indexing/watch/attempts",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:50.0212270Z FAIL [ 103ms] indexing/watch/attempts exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "indexing/watch/shutdown",
+        "outcome": "TIME",
+        "originalLine": "2026-11-08T01:09:52.4842600Z TIME [ 30.1s] indexing/watch/shutdown - timeout (timed_out_with_failure)"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "security/rust-workspace-execution-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:52.5235600Z FAIL [ 642ms] security/rust-workspace-execution-authority exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "security/zig-workspace-execution-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:52.5245710Z FAIL [ 435ms] security/zig-workspace-execution-authority exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "tooling/lsp/diagnostics-only-capability-lifecycle",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:52.5256990Z FAIL [ 380ms] tooling/lsp/diagnostics-only-capability-lifecycle exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "security/java-workspace-execution-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:52.5296310Z FAIL [ 680ms] security/java-workspace-execution-authority exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "indexing/watch/generated-cache-guard",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:59.7582180Z FAIL [ 7.08s] indexing/watch/generated-cache-guard exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "indexing/discovery/generated-records-precedence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:04.1013630Z FAIL [ 6.51s] indexing/discovery/generated-records-precedence exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "indexing/build/promotion-cancellation",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:23.5832690Z FAIL [ 1.11s] indexing/build/promotion-cancellation exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "shared/storage/write-admission-retains-pending",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:25.9263150Z FAIL [ 132ms] shared/storage/write-admission-retains-pending exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "tooling/providers/provider-catalog-execution",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:11:45.6011990Z FAIL [ 565ms] tooling/providers/provider-catalog-execution exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "indexing/watch/native-backend-source-consumer/chokidar",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:46.7166660Z FAIL [ 6.95s] indexing/watch/native-backend-source-consumer/chokidar exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "tooling/cache/gc-modern-resource-ownership/exclusion-barrier",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:14:23.9094170Z FAIL [ 534ms] tooling/cache/gc-modern-resource-ownership/exclusion-barrier exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "semantic/questions/answer-retention/corruption-and-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:14:51.4318660Z FAIL [ 754ms] semantic/questions/answer-retention/corruption-and-authority exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "semantic/questions/answer-retention/native-failure-ownership",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:14:51.5442800Z FAIL [ 758ms] semantic/questions/answer-retention/native-failure-ownership exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "tooling/install/checkout-mutation-owner/late-borrowed-retirement-fence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:15:01.1960200Z FAIL [ 146ms] tooling/install/checkout-mutation-owner/late-borrowed-retirement-fence exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "tooling/install/checkout-evidence-retention/protected-quota-before-mutation",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:15:02.4208680Z FAIL [ 150ms] tooling/install/checkout-evidence-retention/protected-quota-before-mutation exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "shared/storage/write-reservation-receipt-observation/original-before-fields",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:15:16.7575110Z FAIL [  98ms] shared/storage/write-reservation-receipt-observation/original-before-fields exit 1"
+      },
+      {
+        "jobId": 128583013805,
+        "job": "macos cohorts / Correctness 1/4",
+        "id": "tooling/install/install-action-original-observation/returned-pending-result",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:15:16.7749310Z FAIL [ 109ms] tooling/install/install-action-original-observation/returned-pending-result exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "tooling/vfs/doc-hash-skip-rewrite",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:30.7666540Z FAIL [ 137ms] tooling/vfs/doc-hash-skip-rewrite exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "indexing/build/stage-progression-contract",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:04:43.6407430Z FAIL [ 739ms] indexing/build/stage-progression-contract exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "indexing/watch/e2e-promotion",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:30.6832980Z FAIL [ 6.40s] indexing/watch/e2e-promotion exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "tooling/sublime/behavior-contract-matrix",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:05:32.9795830Z FAIL [ 2.29s] tooling/sublime/behavior-contract-matrix exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "indexing/artifacts/minhash-sampled-stream-publication",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:06:17.1249680Z FAIL [ 1.17s] indexing/artifacts/minhash-sampled-stream-publication exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "services/mcp/cache-gc-repo-scope",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:06:51.1409400Z FAIL [ 1.88s] services/mcp/cache-gc-repo-scope exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "indexing/contracts/python-html-registry",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:07:32.2703860Z FAIL [ 3.37s] indexing/contracts/python-html-registry exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "indexing/semantic/runtime-claim-citation-closure",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:08:26.3946420Z FAIL [ 2.84s] indexing/semantic/runtime-claim-citation-closure exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "indexing/watch/source-observation-replay/ownership",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:08:43.8222830Z FAIL [ 6.68s] indexing/watch/source-observation-replay/ownership exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "tooling/cache/gc-modern-resource-ownership/unknown",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:29.9134120Z FAIL [ 1.55s] tooling/cache/gc-modern-resource-ownership/unknown exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "semantic/questions/answer-retention/intent-and-base-conflicts",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:45.2002570Z FAIL [ 518ms] semantic/questions/answer-retention/intent-and-base-conflicts exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "tooling/install/checkout-inspection-replacement/receipt",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:09:55.7761120Z FAIL [ 384ms] tooling/install/checkout-inspection-replacement/receipt exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "shared/storage/embedding-delta-reference-inventory",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:04.2671060Z FAIL [  93ms] shared/storage/embedding-delta-reference-inventory exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "shared/storage/write-reservation-receipt-observation/revoked-after-record-close",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:06.2791820Z FAIL [  66ms] shared/storage/write-reservation-receipt-observation/revoked-after-record-close exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:06.2919540Z FAIL [  68ms] shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid exit 1"
+      },
+      {
+        "jobId": 128583013820,
+        "job": "macos cohorts / Correctness 3/4",
+        "id": "tooling/install/install-action-original-observation/function-failure",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:10:06.3738230Z FAIL [  91ms] tooling/install/install-action-original-observation/function-failure exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-generation-only",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:22.7187850Z FAIL [ 2.17s] storage/semantic/runtime-source-reference-authority/cli-generation-generation-only exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-pin",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:25.1675070Z FAIL [ 2.44s] storage/semantic/runtime-source-reference-authority/cli-generation-pin exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-repo-only",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:27.6931530Z FAIL [ 2.52s] storage/semantic/runtime-source-reference-authority/cli-generation-repo-only exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-stale",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:29.7796140Z FAIL [ 2.08s] storage/semantic/runtime-source-reference-authority/cli-generation-stale exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:31.9889370Z FAIL [ 2.20s] storage/semantic/runtime-source-reference-authority/projection-order-forward exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:34.3632160Z FAIL [ 2.37s] storage/semantic/runtime-source-reference-authority/projection-order-reverse exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:36.4632930Z FAIL [ 2.09s] storage/semantic/runtime-source-reference-authority/source-authority exit 1"
+      },
+      {
+        "jobId": 128583013853,
+        "job": "macos cohorts / Serial compiler",
+        "id": "storage/semantic/runtime-source-reference-foreign-generation",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:13:38.3285900Z FAIL [ 1.86s] storage/semantic/runtime-source-reference-foreign-generation exit 1"
+      },
+      {
+        "jobId": 128583013860,
+        "job": "macos cohorts / Serial api",
+        "id": "services/api/runtime-evidence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:12:29.7305330Z FAIL [ 2.33s] services/api/runtime-evidence exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "indexing/semantic/compiler-single-cpu-lifecycle",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:14:56.7512530Z FAIL [ 1.99s] indexing/semantic/compiler-single-cpu-lifecycle exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-evidence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:26.4807060Z FAIL [ 3.07s] storage/semantic/runtime-claims-reuse/corrupt-evidence exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-manifest",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:29.6249780Z FAIL [ 3.12s] storage/semantic/runtime-claims-reuse/corrupt-manifest exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-offsets",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:32.4889970Z FAIL [ 2.86s] storage/semantic/runtime-claims-reuse/corrupt-offsets exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-support",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:35.7188000Z FAIL [ 3.22s] storage/semantic/runtime-claims-reuse/corrupt-support exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/fresh-process",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:38.8107600Z FAIL [ 3.08s] storage/semantic/runtime-claims-reuse/fresh-process exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/interrupted",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:42.6414860Z FAIL [ 3.82s] storage/semantic/runtime-claims-reuse/interrupted exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/new-content",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:45.9220270Z FAIL [ 3.27s] storage/semantic/runtime-claims-reuse/new-content exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/pointer-missing",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:48.9388650Z FAIL [ 3.01s] storage/semantic/runtime-claims-reuse/pointer-missing exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:52.0344610Z FAIL [ 3.09s] storage/semantic/runtime-claims-reuse/pointer-older exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-claims-reuse/repeat",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:54.9473740Z FAIL [ 2.91s] storage/semantic/runtime-claims-reuse/repeat exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/adapter-change",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:21:59.0022360Z FAIL [ 2.51s] storage/semantic/runtime-import-reuse/adapter-change exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-evidence",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:01.3074870Z FAIL [ 2.30s] storage/semantic/runtime-import-reuse/corrupt-evidence exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-manifest",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:03.5674490Z FAIL [ 2.25s] storage/semantic/runtime-import-reuse/corrupt-manifest exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-offsets",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:05.7894460Z FAIL [ 2.21s] storage/semantic/runtime-import-reuse/corrupt-offsets exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-query-index",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:07.7618080Z FAIL [ 1.97s] storage/semantic/runtime-import-reuse/corrupt-query-index exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-raw",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:09.9836260Z FAIL [ 2.22s] storage/semantic/runtime-import-reuse/corrupt-raw exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/corrupt-receipt",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:12.5315440Z FAIL [ 2.54s] storage/semantic/runtime-import-reuse/corrupt-receipt exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:14.8736340Z FAIL [ 2.33s] storage/semantic/runtime-import-reuse/foreign-generation exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/fresh-process",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:17.4951400Z FAIL [ 2.62s] storage/semantic/runtime-import-reuse/fresh-process exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/interrupted",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:19.8216000Z FAIL [ 2.32s] storage/semantic/runtime-import-reuse/interrupted exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/invalid-authority",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:21.7314860Z FAIL [ 1.90s] storage/semantic/runtime-import-reuse/invalid-authority exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/missing-family",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:24.0697390Z FAIL [ 2.33s] storage/semantic/runtime-import-reuse/missing-family exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/parser-change",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:26.4660840Z FAIL [ 2.39s] storage/semantic/runtime-import-reuse/parser-change exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/pointer-missing",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:28.8510800Z FAIL [ 2.38s] storage/semantic/runtime-import-reuse/pointer-missing exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/pointer-older",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:31.4572390Z FAIL [ 2.60s] storage/semantic/runtime-import-reuse/pointer-older exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/raw-change",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:34.3226140Z FAIL [ 2.86s] storage/semantic/runtime-import-reuse/raw-change exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/receipt-missing",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:36.4123590Z FAIL [ 2.08s] storage/semantic/runtime-import-reuse/receipt-missing exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:39.0353450Z FAIL [ 2.62s] storage/semantic/runtime-import-reuse/receipt-stale exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/repeat",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:41.4444480Z FAIL [ 2.40s] storage/semantic/runtime-import-reuse/repeat exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/repointed-qualification",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:43.6055250Z FAIL [ 2.15s] storage/semantic/runtime-import-reuse/repointed-qualification exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/repointed-receipt",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:45.8673840Z FAIL [ 2.26s] storage/semantic/runtime-import-reuse/repointed-receipt exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "storage/semantic/runtime-import-reuse/source-qualification",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:47.9276360Z FAIL [ 2.05s] storage/semantic/runtime-import-reuse/source-qualification exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/delete-file",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:52.8748150Z FAIL [ 966ms] tooling/eval/published-index-revision-oracle/delete-file exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:53.6955220Z FAIL [ 802ms] tooling/eval/published-index-revision-oracle/edit-delete-rename exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/edit-only",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:54.2925960Z FAIL [ 587ms] tooling/eval/published-index-revision-oracle/edit-only exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/original-world-rechecks",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:54.8617630Z FAIL [ 557ms] tooling/eval/published-index-revision-oracle/original-world-rechecks exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/pending-reader-retirement",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:55.4028890Z FAIL [ 527ms] tooling/eval/published-index-revision-oracle/pending-reader-retirement exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/eval/published-index-revision-oracle/restore-file",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:55.9072250Z FAIL [ 491ms] tooling/eval/published-index-revision-oracle/restore-file exit 1"
+      },
+      {
+        "jobId": 128583013879,
+        "job": "macos cohorts / Serial runtime",
+        "id": "tooling/reports/summary/report",
+        "outcome": "FAIL",
+        "originalLine": "2026-11-08T01:22:57.5784050Z FAIL [ 1.66s] tooling/reports/summary/report exit 1"
+      }
+    ]
+  },
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64",
+    "dependencyInputsChanged": false,
+    "existingReadinessExercisedByGuardedEntries": true,
+    "bootstrapRebuilt": false
+  },
+  "repairs": [
+    {
+      "area": "Physical fixture roots",
+      "change": "Canonicalize only newly created fixture-owned temporary roots. macOS /var and Windows short-name aliases cannot impersonate different storage authority or escape exact instrumentation. Explicit alias and linked-root negatives remain.",
+      "owners": [
+        "tests/helpers/temp.js",
+        "tests/helpers/runtime-import-fixture.js",
+        "tests/helpers/json-gate.js",
+        "tests/indexing/watch/helpers.js",
+        "tests/helpers/sublime/runtime_harness.py"
+      ],
+      "proof": "Actual runtime import/claims, source authority, watch replay, provider/install, cleanup and API positive/negative cases retain their original assertions."
+    },
+    {
+      "area": "Windows asynchronous containment observation",
+      "change": "Instrument both async containment and original sync descriptor paths; exclude unrelated optionless ancestor probes from exact BigInt owner counts and clock injection.",
+      "owners": [
+        "tests/tui/operator-artifact-file-authority.test.js",
+        "tests/indexing/artifacts/unpublished-copy-native-metadata.test.js",
+        "tests/indexing/publication/integrity-stream-ownership.test.js",
+        "tests/shared/storage/cleanup-admission-boundaries.test.js",
+        "tests/shared/storage/inspection-phase-admission.test.js"
+      ],
+      "proof": "Original zero-open authority, exact native metadata, same-stream integrity, failure drain, cleanup admission and final revalidation assertions remain."
+    },
+    {
+      "area": "Installed-provider API ownership",
+      "change": "Schedule services/api/core exclusively beside actual SDK and language-server setup in tooling, in CI and nightly; retain portable API selection separately.",
+      "owners": [
+        "tools/ci/run-suite.js",
+        "tools/ci/suite-cohorts.js",
+        "tests/tooling/ci/run-suite-api-plan.test.js"
+      ],
+      "proof": "Actual core API integration passes in19.1 seconds; both complete CLI plan cases pass and assert no ordered API case disappears."
+    },
+    {
+      "area": "Hydration coordination",
+      "change": "Hold coalescing queue coordination before the physical reader in shared-physical-read only. Cancellation, disposal and native close tests still hold the admitted real snapshot read.",
+      "owners": [
+        "tests/context-pack/delivery/hydration.test.js"
+      ],
+      "proof": "All five hydration cases pass with the original250ms read budget and live-resource assertions."
+    },
+    {
+      "area": "Bakeoff wrapper execution boundaries",
+      "change": "Replace the aggregate controller fixture with independently bounded publication, query-policy and held-dataset cases; preserve all original real child commands, input/refusal, counters, resume, receipt and generation assertions.",
+      "owners": [
+        "tests/perf/bench/embedding-bakeoff-observed-resume.test.js",
+        "tests/perf/bench/embedding-bakeoff-observed-resume.test.js.cases.json",
+        "tests/ci-lite/ci-lite.order.txt",
+        "tests/ci-lite/ci-lite.manifest.json"
+      ],
+      "replacementCoverage": {
+        "publication": "Original A-to-B publication race, actual A receipt, B rerun and unchanged resume counter.",
+        "query-policy": "Effective query-policy invalidation, compatible-partial result, obsolete checkpoint rejection and missing-input refusal.",
+        "held-dataset": "Original held-build dataset mutation, mutation witness, zero stale evaluation, changed dataset regeneration and bounded original status."
+      },
+      "proof": "All three cases pass below30 seconds, with unchanged10-second child limits, one indexing thread and zero retries. Ordered CI-lite membership rises3225 to3227."
+    },
+    {
+      "area": "Incremental semantic fixture preparation",
+      "change": "Use the build-specific production import and preserve unchanged tsconfig/package bytes and filesystem identity between real compiler generations.",
+      "owners": [
+        "tests/helpers/published-semantic-witness.js",
+        "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js"
+      ],
+      "proof": "The formerly timed-out case passes28.395 seconds, verifies unchanged configuration inode/timestamps/bytes, requires actual compiler bindings in both generations, authorizes its own function and rejects the foreign generation."
+    },
+    {
+      "area": "Isolated Python helper imports",
+      "change": "api_server.py adds its own helper directory to sys.path, as the other portable helpers already do; test-created roots use their physical spelling.",
+      "owners": [
+        "tests/helpers/sublime/api_server.py",
+        "tests/helpers/sublime/runtime_harness.py"
+      ],
+      "proof": "All14 behavior helpers pass under the installed isolated Python3.15.2 runtime without launching an editor."
+    },
+    {
+      "area": "Retained timing and build evidence",
+      "change": "Persist full latency samples before unchanged assertions, bounded native seed phases and original revision child logs before fixture retirement. This is diagnostic improvement, not a production timing fix.",
+      "owners": [
+        "tests/perf/crash-log-error-latency.test.js",
+        "tests/tui/native-search-conpty.test.js",
+        "tests/tooling/eval/published-index-revision-oracle.test.js"
+      ],
+      "proof": "Actual Windows native empty-error case passes24.625 seconds; its original seed completes8276.7166ms within10000ms. Both serial Windows latency cases pass; all20 samples per case are retained."
+    }
+  ],
+  "checks": {
+    "fixtureJobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "reports": [
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/focused-report.json",
+        "sha256": "448446e6c7908afc73934cf7ff69c40adac5a71966044a1b61a829cd4cf3f3a5",
+        "summary": {
+          "durationMs": 1071240,
+          "failed": 6,
+          "passed": 129,
+          "skipped": 0,
+          "total": 135
+        },
+        "tests": [
+          {
+            "id": "ci/tooling-lsp-replay-gate.smoke",
+            "status": "passed",
+            "durationMs": 3158,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "cli/general/unknown-workflow-options",
+            "status": "passed",
+            "durationMs": 9920,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "context-pack/delivery/hydration/shared-physical-read",
+            "status": "passed",
+            "durationMs": 1944,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/compaction-generation-publication",
+            "status": "passed",
+            "durationMs": 4997,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/minhash-sampled-stream-publication",
+            "status": "passed",
+            "durationMs": 2224,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
+            "status": "passed",
+            "durationMs": 176,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
+            "status": "passed",
+            "durationMs": 190,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/build/promotion-cancellation",
+            "status": "passed",
+            "durationMs": 1827,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/build/promotion-timing-contract",
+            "status": "passed",
+            "durationMs": 1656,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/build/stage-progression-contract",
+            "status": "passed",
+            "durationMs": 1786,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/python-html-registry",
+            "status": "passed",
+            "durationMs": 11714,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/discovery/generated-records-precedence",
+            "status": "passed",
+            "durationMs": 3283,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/discovery/root-markdown-build-watch-consumer",
+            "status": "passed",
+            "durationMs": 9381,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/publication/integrity-stream-ownership/equivalent",
+            "status": "passed",
+            "durationMs": 251,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/runtime/initialization-resource-unwind",
+            "status": "passed",
+            "durationMs": 3283,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/scm/index-build-no",
+            "status": "passed",
+            "durationMs": 9921,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/scm/jj-native-read-sessions",
+            "status": "passed",
+            "durationMs": 9507,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/semantic/compiler-single-cpu-lifecycle",
+            "status": "passed",
+            "durationMs": 23236,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/semantic/runtime-claim-citation-closure",
+            "status": "passed",
+            "durationMs": 18388,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/tree-sitter/persistent-cache-memory-bounds",
+            "status": "passed",
+            "durationMs": 207,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/atomicity",
+            "status": "passed",
+            "durationMs": 3038,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/attempts",
+            "status": "passed",
+            "durationMs": 671,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/cancel-before-publication",
+            "status": "passed",
+            "durationMs": 4637,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/e2e-promotion",
+            "status": "passed",
+            "durationMs": 2998,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/generated-cache-guard",
+            "status": "passed",
+            "durationMs": 2871,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/native-backend-source-consumer/chokidar",
+            "status": "passed",
+            "durationMs": 3194,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/native-backend-source-consumer/parcel",
+            "status": "passed",
+            "durationMs": 3496,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/shutdown",
+            "status": "passed",
+            "durationMs": 3145,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-replay/chokidar",
+            "status": "passed",
+            "durationMs": 3981,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-replay/ownership",
+            "status": "passed",
+            "durationMs": 4055,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-replay/parcel",
+            "status": "passed",
+            "durationMs": 6461,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "lang/contracts/misc-buildfiles",
+            "status": "passed",
+            "durationMs": 28846,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "perf/bench/embedding-bakeoff-observed-resume/held-dataset",
+            "status": "passed",
+            "durationMs": 8591,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "perf/bench/embedding-bakeoff-observed-resume/publication",
+            "status": "passed",
+            "durationMs": 16519,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "perf/bench/embedding-bakeoff-observed-resume/query-policy",
+            "status": "passed",
+            "durationMs": 23356,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "perf/bench/vfs-producer-accounting/lsp",
+            "status": "passed",
+            "durationMs": 7604,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "retrieval/cli/search-backend-finally",
+            "status": "passed",
+            "durationMs": 1940,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "security/java-workspace-execution-authority",
+            "status": "passed",
+            "durationMs": 4979,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "security/rust-workspace-execution-authority",
+            "status": "passed",
+            "durationMs": 1056,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "security/zig-workspace-execution-authority",
+            "status": "passed",
+            "durationMs": 940,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "semantic/questions/answer-retention/corruption-and-authority",
+            "status": "passed",
+            "durationMs": 1070,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "semantic/questions/answer-retention/immutable-shared-graph",
+            "status": "passed",
+            "durationMs": 1590,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "semantic/questions/answer-retention/intent-and-base-conflicts",
+            "status": "passed",
+            "durationMs": 1419,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "semantic/questions/answer-retention/interruption-and-resume",
+            "status": "passed",
+            "durationMs": 3922,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "semantic/questions/answer-retention/native-failure-ownership",
+            "status": "passed",
+            "durationMs": 1222,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "semantic/questions/answer-retention/quotas-and-leases",
+            "status": "passed",
+            "durationMs": 2334,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "services/api/runtime-evidence",
+            "status": "passed",
+            "durationMs": 16055,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "services/mcp/cache-gc-repo-scope",
+            "status": "passed",
+            "durationMs": 3126,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+            "status": "passed",
+            "durationMs": 293,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/cache/repo-access",
+            "status": "passed",
+            "durationMs": 4314,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
+            "status": "passed",
+            "durationMs": 559,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/embedding-delta-reference-inventory",
+            "status": "passed",
+            "durationMs": 2889,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/inspection-phase-admission/exact-revalidation-deadline",
+            "status": "passed",
+            "durationMs": 427,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-admission-inventory-resource",
+            "status": "passed",
+            "durationMs": 1067,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-admission-retains-pending",
+            "status": "passed",
+            "durationMs": 472,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid",
+            "status": "passed",
+            "durationMs": 225,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-reservation-receipt-observation/independent-callback-inspection",
+            "status": "passed",
+            "durationMs": 263,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-reservation-receipt-observation/original-before-fields",
+            "status": "passed",
+            "durationMs": 262,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-reservation-receipt-observation/pending-field-value",
+            "status": "passed",
+            "durationMs": 279,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-reservation-receipt-observation/revoked-after-record-close",
+            "status": "passed",
+            "durationMs": 251,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/write-reservation-receipt-observation/revoked-resource-id",
+            "status": "passed",
+            "durationMs": 267,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-evidence",
+            "status": "passed",
+            "durationMs": 23763,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-manifest",
+            "status": "passed",
+            "durationMs": 20320,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-offsets",
+            "status": "passed",
+            "durationMs": 21768,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/corrupt-support",
+            "status": "passed",
+            "durationMs": 19715,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/fresh-process",
+            "status": "passed",
+            "durationMs": 19874,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/interrupted",
+            "status": "passed",
+            "durationMs": 17817,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/new-content",
+            "status": "passed",
+            "durationMs": 17388,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/pointer-missing",
+            "status": "passed",
+            "durationMs": 19085,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+            "status": "passed",
+            "durationMs": 17287,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-claims-reuse/repeat",
+            "status": "passed",
+            "durationMs": 18388,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/adapter-change",
+            "status": "passed",
+            "durationMs": 4613,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-evidence",
+            "status": "passed",
+            "durationMs": 4422,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-manifest",
+            "status": "passed",
+            "durationMs": 4475,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-offsets",
+            "status": "passed",
+            "durationMs": 4684,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-query-index",
+            "status": "passed",
+            "durationMs": 4423,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-raw",
+            "status": "passed",
+            "durationMs": 4427,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/corrupt-receipt",
+            "status": "passed",
+            "durationMs": 4329,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+            "status": "passed",
+            "durationMs": 16070,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/fresh-process",
+            "status": "passed",
+            "durationMs": 6958,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/interrupted",
+            "status": "passed",
+            "durationMs": 5013,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/invalid-authority",
+            "status": "passed",
+            "durationMs": 4759,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/missing-family",
+            "status": "passed",
+            "durationMs": 4899,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/parser-change",
+            "status": "passed",
+            "durationMs": 5053,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/pointer-missing",
+            "status": "passed",
+            "durationMs": 5256,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/pointer-older",
+            "status": "passed",
+            "durationMs": 5476,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/raw-change",
+            "status": "passed",
+            "durationMs": 5233,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/receipt-missing",
+            "status": "passed",
+            "durationMs": 4902,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+            "status": "passed",
+            "durationMs": 4875,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repeat",
+            "status": "passed",
+            "durationMs": 4901,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repointed-qualification",
+            "status": "passed",
+            "durationMs": 17024,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/repointed-receipt",
+            "status": "passed",
+            "durationMs": 5013,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-import-reuse/source-qualification",
+            "status": "passed",
+            "durationMs": 17992,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-generation-only",
+            "status": "passed",
+            "durationMs": 22703,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-pin",
+            "status": "passed",
+            "durationMs": 23032,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-repo-only",
+            "status": "passed",
+            "durationMs": 23459,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/cli-generation-stale",
+            "status": "passed",
+            "durationMs": 22107,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+            "status": "passed",
+            "durationMs": 19425,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+            "status": "passed",
+            "durationMs": 19804,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+            "status": "passed",
+            "durationMs": 19294,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-foreign-generation",
+            "status": "failed",
+            "durationMs": 30518,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": true
+          },
+          {
+            "id": "tooling/cache/gc-contract-matrix",
+            "status": "passed",
+            "durationMs": 10396,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/cache/gc-modern-resource-ownership/admission-race",
+            "status": "passed",
+            "durationMs": 2384,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/cache/gc-modern-resource-ownership/exclusion-barrier",
+            "status": "passed",
+            "durationMs": 1538,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/cache/gc-modern-resource-ownership/live",
+            "status": "passed",
+            "durationMs": 5135,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/cache/gc-modern-resource-ownership/unknown",
+            "status": "passed",
+            "durationMs": 5056,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/eval/published-index-revision-oracle/delete-file",
+            "status": "failed",
+            "durationMs": 27199,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+            "status": "failed",
+            "durationMs": 27527,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/eval/published-index-revision-oracle/edit-only",
+            "status": "failed",
+            "durationMs": 27394,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/eval/published-index-revision-oracle/original-world-rechecks",
+            "status": "passed",
+            "durationMs": 22139,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/eval/published-index-revision-oracle/pending-reader-retirement",
+            "status": "passed",
+            "durationMs": 18220,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/eval/published-index-revision-oracle/restore-file",
+            "status": "failed",
+            "durationMs": 27157,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/index/clean-artifacts-reader-exclusion",
+            "status": "passed",
+            "durationMs": 3410,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/ast-grep-managed-recipe",
+            "status": "passed",
+            "durationMs": 3471,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/checkout-evidence-retention/producer-byte-proof-required",
+            "status": "passed",
+            "durationMs": 178,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/checkout-evidence-retention/protected-quota-before-mutation",
+            "status": "passed",
+            "durationMs": 180,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/checkout-inspection-replacement/journal",
+            "status": "passed",
+            "durationMs": 1260,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/checkout-inspection-replacement/receipt",
+            "status": "passed",
+            "durationMs": 1227,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/checkout-mutation-owner/late-borrowed-retirement-fence",
+            "status": "passed",
+            "durationMs": 198,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/go-sdk-cache-recipe",
+            "status": "passed",
+            "durationMs": 865,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/install-action-original-observation/function-failure",
+            "status": "passed",
+            "durationMs": 325,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/install-action-original-observation/independent-inspection",
+            "status": "passed",
+            "durationMs": 306,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/install-action-original-observation/returned-pending-result",
+            "status": "passed",
+            "durationMs": 292,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/install-action-original-observation/revoked-during-reservation-read",
+            "status": "passed",
+            "durationMs": 289,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/install/postinstall-patch-enforcement",
+            "status": "passed",
+            "durationMs": 8732,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/lsp/configuration-pull-and-delayed-diagnostics",
+            "status": "passed",
+            "durationMs": 906,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/lsp/diagnostics-only-capability-lifecycle",
+            "status": "passed",
+            "durationMs": 6118,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/providers/provider-catalog-execution",
+            "status": "passed",
+            "durationMs": 1438,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/reports/object-cache-isolation",
+            "status": "passed",
+            "durationMs": 24144,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/reports/summary/report",
+            "status": "passed",
+            "durationMs": 12823,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/service/background-retry-policy",
+            "status": "passed",
+            "durationMs": 12174,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/sublime/behavior-contract-matrix",
+            "status": "failed",
+            "durationMs": 4631,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/vfs/doc-hash-skip-rewrite",
+            "status": "passed",
+            "durationMs": 427,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/vfs/io-batch-consistency",
+            "status": "passed",
+            "durationMs": 944,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tui/operator-artifact-file-authority",
+            "status": "passed",
+            "durationMs": 277,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/compiler-python-recheck.json",
+        "sha256": "dce77e5d8938df5ced5a937c9b25b362a1da8191b18f0b3cbb9df18aa61a6727",
+        "summary": {
+          "durationMs": 32762,
+          "failed": 0,
+          "passed": 2,
+          "skipped": 0,
+          "total": 2
+        },
+        "tests": [
+          {
+            "id": "storage/semantic/runtime-source-reference-foreign-generation",
+            "status": "passed",
+            "durationMs": 28395,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/sublime/behavior-contract-matrix",
+            "status": "passed",
+            "durationMs": 4358,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/revision-diagnostic.json",
+        "sha256": "12dc38c932034078487ea499968fcad115fa7c5bbaebfca8f6f90c5c37bf51c5",
+        "summary": {
+          "durationMs": 26825,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "tooling/eval/published-index-revision-oracle/edit-only",
+            "status": "failed",
+            "durationMs": 26811,
+            "attempts": 1,
+            "exitCode": 1,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/affected-recheck.json",
+        "sha256": "e60c34ed98a2442d5df707536a7162186c73fc5687c62f327192340591c6f7dd",
+        "summary": {
+          "durationMs": 210118,
+          "failed": 1,
+          "passed": 76,
+          "skipped": 0,
+          "total": 77
+        },
+        "tests": [
+          {
+            "id": "ci/tooling-lsp-replay-gate.smoke",
+            "status": "passed",
+            "durationMs": 3075,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "context-pack/delivery/hydration/native-cleanup-retention",
+            "status": "passed",
+            "durationMs": 1460,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "context-pack/delivery/hydration/scope-and-revocation",
+            "status": "passed",
+            "durationMs": 1573,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "context-pack/delivery/hydration/shared-physical-read",
+            "status": "passed",
+            "durationMs": 1618,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "context-pack/delivery/hydration/waiter-cancellation-and-dispose",
+            "status": "passed",
+            "durationMs": 1667,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "context-pack/delivery/hydration/work-and-waiter-bounds",
+            "status": "passed",
+            "durationMs": 1861,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/native-eacces",
+            "status": "passed",
+            "durationMs": 148,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/native-pending",
+            "status": "passed",
+            "durationMs": 147,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/ordinary",
+            "status": "passed",
+            "durationMs": 159,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
+            "status": "passed",
+            "durationMs": 153,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
+            "status": "passed",
+            "durationMs": 182,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/discovery/generated-records-precedence",
+            "status": "passed",
+            "durationMs": 3091,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/discovery/root-markdown-build-watch-consumer",
+            "status": "passed",
+            "durationMs": 8474,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/publication/integrity-stream-ownership/equivalent",
+            "status": "passed",
+            "durationMs": 263,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/publication/integrity-stream-ownership/failure-drain",
+            "status": "passed",
+            "durationMs": 203,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/publication/integrity-stream-ownership/mixed-snapshot",
+            "status": "passed",
+            "durationMs": 179,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/atomicity",
+            "status": "passed",
+            "durationMs": 3363,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/attempts",
+            "status": "passed",
+            "durationMs": 696,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/backend-selection",
+            "status": "passed",
+            "durationMs": 3156,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/build-state",
+            "status": "passed",
+            "durationMs": 236,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/cache-writer-drain-ownership",
+            "status": "passed",
+            "durationMs": 3843,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/cancel-before-publication",
+            "status": "passed",
+            "durationMs": 5226,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/consistency-state",
+            "status": "passed",
+            "durationMs": 3320,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/continuous-edit-deadline",
+            "status": "passed",
+            "durationMs": 5059,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/debounce",
+            "status": "passed",
+            "durationMs": 3617,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/default-depth",
+            "status": "passed",
+            "durationMs": 309,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/e2e-promotion",
+            "status": "passed",
+            "durationMs": 3248,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/edit-to-search",
+            "status": "passed",
+            "durationMs": 10154,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/filter",
+            "status": "passed",
+            "durationMs": 3011,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/generated-cache-guard",
+            "status": "passed",
+            "durationMs": 3174,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/index-lock",
+            "status": "passed",
+            "durationMs": 305,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/index-lock-lazy-storage-context",
+            "status": "passed",
+            "durationMs": 141,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/index-lock-signal-cleanup",
+            "status": "passed",
+            "durationMs": 154,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/index-lock-signal-listeners",
+            "status": "passed",
+            "durationMs": 148,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/lock-backoff",
+            "status": "passed",
+            "durationMs": 3081,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/native-backend-source-consumer/chokidar",
+            "status": "passed",
+            "durationMs": 3407,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/native-backend-source-consumer/parcel",
+            "status": "passed",
+            "durationMs": 3331,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/pinned-attempt-retention",
+            "status": "passed",
+            "durationMs": 1683,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/post-commit-retention",
+            "status": "passed",
+            "durationMs": 3683,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/promotion/path-identity",
+            "status": "passed",
+            "durationMs": 1682,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/promotion/safety",
+            "status": "passed",
+            "durationMs": 1491,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/retained-reader-attempts",
+            "status": "passed",
+            "durationMs": 3378,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/retention-native-close",
+            "status": "passed",
+            "durationMs": 903,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/retry-after-lock-exhaustion",
+            "status": "passed",
+            "durationMs": 3318,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/retry-on-failed-cycle",
+            "status": "passed",
+            "durationMs": 3289,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/root-normalization",
+            "status": "passed",
+            "durationMs": 271,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/shutdown",
+            "status": "passed",
+            "durationMs": 3181,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-owner",
+            "status": "passed",
+            "durationMs": 97,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-replay/chokidar",
+            "status": "passed",
+            "durationMs": 3606,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-replay/ownership",
+            "status": "passed",
+            "durationMs": 3758,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/source-observation-replay/parcel",
+            "status": "passed",
+            "durationMs": 6073,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/stability-checks",
+            "status": "passed",
+            "durationMs": 146,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/stability-guard",
+            "status": "passed",
+            "durationMs": 3465,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/stability-requeue",
+            "status": "passed",
+            "durationMs": 4297,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/startup-close-settlement",
+            "status": "passed",
+            "durationMs": 2938,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/startup-lifetime",
+            "status": "passed",
+            "durationMs": 3020,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/structured-progress",
+            "status": "passed",
+            "durationMs": 3391,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/watch/update-queue-no-loss",
+            "status": "passed",
+            "durationMs": 3342,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "security/java-workspace-execution-authority",
+            "status": "passed",
+            "durationMs": 4572,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "security/rust-workspace-execution-authority",
+            "status": "passed",
+            "durationMs": 1145,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "security/zig-workspace-execution-authority",
+            "status": "passed",
+            "durationMs": 951,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "services/api/core",
+            "status": "passed",
+            "durationMs": 19117,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/cancel-between-unlinks",
+            "status": "passed",
+            "durationMs": 557,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/cancelled-reader-still-closes",
+            "status": "passed",
+            "durationMs": 558,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply",
+            "status": "passed",
+            "durationMs": 758,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
+            "status": "passed",
+            "durationMs": 569,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/deadline-before-probe-read",
+            "status": "passed",
+            "durationMs": 548,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/cleanup-admission-boundaries/pre-cancelled-plan-and-apply",
+            "status": "passed",
+            "durationMs": 548,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/inspection-phase-admission/exact-directory-close",
+            "status": "passed",
+            "durationMs": 366,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/inspection-phase-admission/exact-revalidation-deadline",
+            "status": "passed",
+            "durationMs": 379,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/inspection-phase-admission/exact-root-deadline",
+            "status": "passed",
+            "durationMs": 339,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "shared/storage/inspection-phase-admission/exact-stop-observation",
+            "status": "passed",
+            "durationMs": 546,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+            "status": "passed",
+            "durationMs": 19020,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/cohort-artifact-aggregation",
+            "status": "passed",
+            "durationMs": 394,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/cohort-plan-and-acceptance",
+            "status": "passed",
+            "durationMs": 629,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/ci",
+            "status": "passed",
+            "durationMs": 14677,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/nightly",
+            "status": "failed",
+            "durationMs": 4092,
+            "attempts": 1,
+            "exitCode": 2,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/api-plan-recheck.json",
+        "sha256": "e33982faf295bfd50d172420d35eae35ab38ff3a3bf3f0a21a2f46cdacb5ae0f",
+        "summary": {
+          "durationMs": 24476,
+          "failed": 0,
+          "passed": 2,
+          "skipped": 0,
+          "total": 2
+        },
+        "tests": [
+          {
+            "id": "tooling/ci/run-suite-api-plan/ci",
+            "status": "passed",
+            "durationMs": 12449,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/nightly",
+            "status": "passed",
+            "durationMs": 12019,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/native-latency-recheck.json",
+        "sha256": "cc2fcfd6a94d41600b3da2bc84504f335bccd5c0d7a8f5563c80f25a7dbe90a2",
+        "summary": {
+          "durationMs": 26829,
+          "failed": 0,
+          "passed": 3,
+          "skipped": 0,
+          "total": 3
+        },
+        "tests": [
+          {
+            "id": "perf/crash-log-error-latency/long-log",
+            "status": "passed",
+            "durationMs": 1137,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "perf/crash-log-error-latency/small-log",
+            "status": "passed",
+            "durationMs": 1058,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tui/native-search-conpty/empty-error",
+            "status": "passed",
+            "durationMs": 24625,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      },
+      {
+        "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/gate-report.json",
+        "sha256": "f797f0ef6960136258dcd094bd742bd8d4b02aa7ba4810272fcee746d1b4901f",
+        "summary": {
+          "durationMs": 67023,
+          "failed": 0,
+          "passed": 46,
+          "skipped": 0,
+          "total": 46
+        },
+        "tests": [
+          {
+            "id": "indexing/policy/hotpath-membership-guard",
+            "status": "passed",
+            "durationMs": 123,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/module-cache-boundedness-contract",
+            "status": "passed",
+            "durationMs": 124,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/generated-matrix",
+            "status": "passed",
+            "durationMs": 133,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/artifact-surface-version",
+            "status": "passed",
+            "durationMs": 112,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/n-minus-one-adapter",
+            "status": "passed",
+            "durationMs": 138,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/public-artifact-surface-doc",
+            "status": "passed",
+            "durationMs": 120,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/index-compatibility-key-generation",
+            "status": "passed",
+            "durationMs": 487,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/semver-policy-enforced",
+            "status": "passed",
+            "durationMs": 126,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/index-state-dense-sidecars-present",
+            "status": "passed",
+            "durationMs": 134,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "contracts/manifest-max-bytes-validation",
+            "status": "passed",
+            "durationMs": 230,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/repo-inventory",
+            "status": "passed",
+            "durationMs": 2518,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/shared-module-cycle-guard",
+            "status": "passed",
+            "durationMs": 369,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/loader-matrix-parity",
+            "status": "passed",
+            "durationMs": 325,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/analysis-schema",
+            "status": "passed",
+            "durationMs": 520,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/snapshots",
+            "status": "passed",
+            "durationMs": 501,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/builds-current-repo-head-schema",
+            "status": "passed",
+            "durationMs": 509,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/call-sites-schema",
+            "status": "passed",
+            "durationMs": 541,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/diffs",
+            "status": "passed",
+            "durationMs": 524,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/additional-properties-policy",
+            "status": "passed",
+            "durationMs": 531,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+            "status": "passed",
+            "durationMs": 726,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/schema-registry-single-source",
+            "status": "passed",
+            "durationMs": 481,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/api-contracts/caps",
+            "status": "passed",
+            "durationMs": 944,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/api-contracts/schema-validate",
+            "status": "passed",
+            "durationMs": 1085,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/api-contracts/fail-on-warn",
+            "status": "passed",
+            "durationMs": 1078,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/api-contracts/optional-params",
+            "status": "passed",
+            "durationMs": 1113,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/api-contracts/large-call-sites",
+            "status": "passed",
+            "durationMs": 989,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/embedding-identity-gating-on-load",
+            "status": "passed",
+            "durationMs": 764,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "ci/capability-gate.smoke",
+            "status": "passed",
+            "durationMs": 1182,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/index-compatibility-key-federation-block",
+            "status": "passed",
+            "durationMs": 1675,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/stable-entrypoints",
+            "status": "passed",
+            "durationMs": 109,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/optional-deps",
+            "status": "passed",
+            "durationMs": 1853,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/policy/analysis-gating",
+            "status": "passed",
+            "durationMs": 1030,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "ci/tooling-doctor-gate.smoke",
+            "status": "passed",
+            "durationMs": 1586,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/api-contracts/basic",
+            "status": "passed",
+            "durationMs": 1003,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "contracts/module-export-surface-compat",
+            "status": "passed",
+            "durationMs": 3438,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/semantic-foundations",
+            "status": "passed",
+            "durationMs": 1786,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/semantic-handoff-contracts",
+            "status": "passed",
+            "durationMs": 542,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/runtime-evidence",
+            "status": "passed",
+            "durationMs": 875,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "indexing/contracts/index-format-cutover",
+            "status": "passed",
+            "durationMs": 2078,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "ci/windows-authority-cohort",
+            "status": "passed",
+            "durationMs": 2286,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "ci/ordered-lane-discovery",
+            "status": "passed",
+            "durationMs": 448,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "ci/platform-cohort-contract",
+            "status": "passed",
+            "durationMs": 287,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "ci/gate-policy",
+            "status": "passed",
+            "durationMs": 251,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/ci",
+            "status": "passed",
+            "durationMs": 16364,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/nightly",
+            "status": "passed",
+            "durationMs": 14571,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          },
+          {
+            "id": "tui/operator-command-dispositions",
+            "status": "passed",
+            "durationMs": 335,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false
+          }
+        ]
+      }
+    ],
+    "latencySamples": [
+      {
+        "historicalWorkspaceReceipt": ".testLogs/crash-log-latency-small-log-17896.json",
+        "sha256": "651418fbf10630827cdd64e438ad596b4772bef24e8fd72a2f53738b28630263",
+        "selected": "small-log",
+        "sampleCount": 20,
+        "warmups": 3,
+        "syncP95Ms": 17.064599999999984,
+        "syncP95LimitMs": 250,
+        "settledP95Ms": 24.097399999999993,
+        "settledP95LimitMs": 1000,
+        "platform": "win32"
+      },
+      {
+        "historicalWorkspaceReceipt": ".testLogs/crash-log-latency-long-log-19224.json",
+        "sha256": "354ca5c80be24c140393aacb15d705b71ef26ebed85fb4bed5302683d9a40462",
+        "selected": "long-log",
+        "sampleCount": 20,
+        "warmups": 3,
+        "syncP95Ms": 12.545500000000061,
+        "syncP95LimitMs": 250,
+        "settledP95Ms": 19.935299999999984,
+        "settledP95LimitMs": 1000,
+        "platform": "win32"
+      }
+    ],
+    "publicationFrontGate": {
+      "format": {
+        "command": "npm run format -- --cache --cache-location .tmp/tasks/ci-sharding-20261107/eslint-cache",
+        "exitCode": 0
+      },
+      "checks": [
+        {
+          "id": "config-budget",
+          "command": "npm",
+          "arguments": [
+            "run",
+            "config:budget"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-config-budget.log",
+          "exitCode": 0,
+          "durationMs": 3549.6458
+        },
+        {
+          "id": "env-check",
+          "command": "npm",
+          "arguments": [
+            "run",
+            "env:check"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-env-check.log",
+          "exitCode": 0,
+          "durationMs": 5211.821
+        },
+        {
+          "id": "generated-freshness",
+          "command": "node",
+          "arguments": [
+            "tools/docs/generated-surfaces.js",
+            "--check-freshness"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-generated-freshness.log",
+          "exitCode": 0,
+          "durationMs": 19902.8549
+        },
+        {
+          "id": "command-surface",
+          "command": "node",
+          "arguments": [
+            "tools/ci/check-command-surface.js"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-command-surface.log",
+          "exitCode": 0,
+          "durationMs": 4731.6416
+        },
+        {
+          "id": "workflow-contract",
+          "command": "node",
+          "arguments": [
+            "tests/ci/workflow-contract.test.js"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-workflow-contract.log",
+          "exitCode": 0,
+          "durationMs": 337.2096
+        },
+        {
+          "id": "gate-lane",
+          "command": "node",
+          "arguments": [
+            "tests/run.js",
+            "--lane",
+            "gate",
+            "--timeout-ms",
+            "30000",
+            "--retries",
+            "0",
+            "--jobs",
+            "1",
+            "--pairofcleats-threads",
+            "1",
+            "--native-status-redo=false",
+            "--report-file",
+            ".tmp/tasks/ci2365-repairs-20261107/gate-report.json",
+            "--log-dir",
+            ".tmp/tasks/ci2365-repairs-20261107/gate-logs"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-gate-lane.log",
+          "exitCode": 0,
+          "durationMs": 68297.9764
+        },
+        {
+          "id": "diff-check",
+          "command": "git",
+          "arguments": [
+            "diff",
+            "--check"
+          ],
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-diff-check.log",
+          "exitCode": 0,
+          "durationMs": 211.8637
+        }
+      ],
+      "status": "passed"
+    }
+  },
+  "remaining": [
+    {
+      "ids": [
+        "tooling/eval/published-index-revision-oracle/edit-only",
+        "tooling/eval/published-index-revision-oracle/delete-file",
+        "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+        "tooling/eval/published-index-revision-oracle/restore-file"
+      ],
+      "status": "Local failures remain at the original25000ms adapter limit; no deadline increase, synthetic generation, backend disablement or retry is accepted.",
+      "evidence": "Retained original-world timings show the first pair of actual CLI builds consumes about17-20 seconds; the transition pair is aborted at the same shared operation deadline."
+    },
+    {
+      "ids": [
+        "perf/crash-log-error-latency/long-log"
+      ],
+      "status": "Windows local pass is not Ubuntu qualification. Ubuntu original p95 remains262.281886ms against250ms.",
+      "evidence": "Only13 complete original stdout samples survived hosted truncation. The retained slow samples are dominated by actual fsync waits, not CPU. No durable sync was removed and no production latency repair is claimed."
+    },
+    {
+      "ids": [
+        "tui/native-search-conpty/empty-error"
+      ],
+      "status": "Local native pass retains the original10-second seed and actual terminal assertions; the hosted seed overrun still needs source-bound requalification with the new phase receipt."
+    },
+    {
+      "status": "New exact-source Ubuntu, Windows and macOS hosted cohort execution remains pending. Optional Tantivy native qualification and excluded editor work remain separate."
+    }
+  ],
+  "originalFailureCoverage": {
+    "originalUniqueIds": 136,
+    "afterWrapperReplacementIds": 138,
+    "unexplainedOmissions": [],
+    "mostRecentSourceCheckpointOutcomes": [
+      {
+        "id": "ci/tooling-lsp-replay-gate.smoke",
+        "status": "passed",
+        "durationMs": 3075,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "cli/general/unknown-workflow-options",
+        "status": "passed",
+        "durationMs": 9920,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "context-pack/delivery/hydration/shared-physical-read",
+        "status": "passed",
+        "durationMs": 1618,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/artifacts/compaction-generation-publication",
+        "status": "passed",
+        "durationMs": 4997,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/artifacts/minhash-sampled-stream-publication",
+        "status": "passed",
+        "durationMs": 2224,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
+        "status": "passed",
+        "durationMs": 153,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
+        "status": "passed",
+        "durationMs": 182,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/build/promotion-cancellation",
+        "status": "passed",
+        "durationMs": 1827,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/build/promotion-timing-contract",
+        "status": "passed",
+        "durationMs": 1656,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/build/stage-progression-contract",
+        "status": "passed",
+        "durationMs": 1786,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/python-html-registry",
+        "status": "passed",
+        "durationMs": 11714,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/discovery/generated-records-precedence",
+        "status": "passed",
+        "durationMs": 3091,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/discovery/root-markdown-build-watch-consumer",
+        "status": "passed",
+        "durationMs": 8474,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/publication/integrity-stream-ownership/equivalent",
+        "status": "passed",
+        "durationMs": 263,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/runtime/initialization-resource-unwind",
+        "status": "passed",
+        "durationMs": 3283,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/scm/index-build-no",
+        "status": "passed",
+        "durationMs": 9921,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/scm/jj-native-read-sessions",
+        "status": "passed",
+        "durationMs": 9507,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/semantic/compiler-single-cpu-lifecycle",
+        "status": "passed",
+        "durationMs": 23236,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/semantic/runtime-claim-citation-closure",
+        "status": "passed",
+        "durationMs": 18388,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/tree-sitter/persistent-cache-memory-bounds",
+        "status": "passed",
+        "durationMs": 207,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/atomicity",
+        "status": "passed",
+        "durationMs": 3363,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/attempts",
+        "status": "passed",
+        "durationMs": 696,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/cancel-before-publication",
+        "status": "passed",
+        "durationMs": 5226,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/e2e-promotion",
+        "status": "passed",
+        "durationMs": 3248,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/generated-cache-guard",
+        "status": "passed",
+        "durationMs": 3174,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/native-backend-source-consumer/chokidar",
+        "status": "passed",
+        "durationMs": 3407,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/native-backend-source-consumer/parcel",
+        "status": "passed",
+        "durationMs": 3331,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/shutdown",
+        "status": "passed",
+        "durationMs": 3181,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/source-observation-replay/chokidar",
+        "status": "passed",
+        "durationMs": 3606,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/source-observation-replay/ownership",
+        "status": "passed",
+        "durationMs": 3758,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/watch/source-observation-replay/parcel",
+        "status": "passed",
+        "durationMs": 6073,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "lang/contracts/misc-buildfiles",
+        "status": "passed",
+        "durationMs": 28846,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "perf/bench/embedding-bakeoff-observed-resume/publication",
+        "status": "passed",
+        "durationMs": 16519,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "perf/bench/embedding-bakeoff-observed-resume/query-policy",
+        "status": "passed",
+        "durationMs": 23356,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "perf/bench/embedding-bakeoff-observed-resume/held-dataset",
+        "status": "passed",
+        "durationMs": 8591,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "perf/bench/vfs-producer-accounting/lsp",
+        "status": "passed",
+        "durationMs": 7604,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "perf/crash-log-error-latency/long-log",
+        "status": "passed",
+        "durationMs": 1137,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "retrieval/cli/search-backend-finally",
+        "status": "passed",
+        "durationMs": 1940,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "security/java-workspace-execution-authority",
+        "status": "passed",
+        "durationMs": 4572,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "security/rust-workspace-execution-authority",
+        "status": "passed",
+        "durationMs": 1145,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "security/zig-workspace-execution-authority",
+        "status": "passed",
+        "durationMs": 951,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "semantic/questions/answer-retention/corruption-and-authority",
+        "status": "passed",
+        "durationMs": 1070,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "semantic/questions/answer-retention/immutable-shared-graph",
+        "status": "passed",
+        "durationMs": 1590,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "semantic/questions/answer-retention/intent-and-base-conflicts",
+        "status": "passed",
+        "durationMs": 1419,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "semantic/questions/answer-retention/interruption-and-resume",
+        "status": "passed",
+        "durationMs": 3922,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "semantic/questions/answer-retention/native-failure-ownership",
+        "status": "passed",
+        "durationMs": 1222,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "semantic/questions/answer-retention/quotas-and-leases",
+        "status": "passed",
+        "durationMs": 2334,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "services/api/core",
+        "status": "passed",
+        "durationMs": 19117,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "services/api/runtime-evidence",
+        "status": "passed",
+        "durationMs": 16055,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "services/mcp/cache-gc-repo-scope",
+        "status": "passed",
+        "durationMs": 3126,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+        "status": "passed",
+        "durationMs": 293,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/cache/repo-access",
+        "status": "passed",
+        "durationMs": 4314,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
+        "status": "passed",
+        "durationMs": 569,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/embedding-delta-reference-inventory",
+        "status": "passed",
+        "durationMs": 2889,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/inspection-phase-admission/exact-revalidation-deadline",
+        "status": "passed",
+        "durationMs": 379,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-admission-inventory-resource",
+        "status": "passed",
+        "durationMs": 1067,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-admission-retains-pending",
+        "status": "passed",
+        "durationMs": 472,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid",
+        "status": "passed",
+        "durationMs": 225,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-reservation-receipt-observation/independent-callback-inspection",
+        "status": "passed",
+        "durationMs": 263,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-reservation-receipt-observation/original-before-fields",
+        "status": "passed",
+        "durationMs": 262,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-reservation-receipt-observation/pending-field-value",
+        "status": "passed",
+        "durationMs": 279,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-reservation-receipt-observation/revoked-after-record-close",
+        "status": "passed",
+        "durationMs": 251,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "shared/storage/write-reservation-receipt-observation/revoked-resource-id",
+        "status": "passed",
+        "durationMs": 267,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-evidence",
+        "status": "passed",
+        "durationMs": 23763,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-manifest",
+        "status": "passed",
+        "durationMs": 20320,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-offsets",
+        "status": "passed",
+        "durationMs": 21768,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/corrupt-support",
+        "status": "passed",
+        "durationMs": 19715,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/fresh-process",
+        "status": "passed",
+        "durationMs": 19874,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/interrupted",
+        "status": "passed",
+        "durationMs": 17817,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/new-content",
+        "status": "passed",
+        "durationMs": 17388,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/pointer-missing",
+        "status": "passed",
+        "durationMs": 19085,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+        "status": "passed",
+        "durationMs": 17287,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-claims-reuse/repeat",
+        "status": "passed",
+        "durationMs": 18388,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/adapter-change",
+        "status": "passed",
+        "durationMs": 4613,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/corrupt-evidence",
+        "status": "passed",
+        "durationMs": 4422,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/corrupt-manifest",
+        "status": "passed",
+        "durationMs": 4475,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/corrupt-offsets",
+        "status": "passed",
+        "durationMs": 4684,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/corrupt-query-index",
+        "status": "passed",
+        "durationMs": 4423,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/corrupt-raw",
+        "status": "passed",
+        "durationMs": 4427,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/corrupt-receipt",
+        "status": "passed",
+        "durationMs": 4329,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+        "status": "passed",
+        "durationMs": 16070,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/fresh-process",
+        "status": "passed",
+        "durationMs": 6958,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/interrupted",
+        "status": "passed",
+        "durationMs": 5013,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/invalid-authority",
+        "status": "passed",
+        "durationMs": 4759,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/missing-family",
+        "status": "passed",
+        "durationMs": 4899,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/parser-change",
+        "status": "passed",
+        "durationMs": 5053,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/pointer-missing",
+        "status": "passed",
+        "durationMs": 5256,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/pointer-older",
+        "status": "passed",
+        "durationMs": 5476,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/raw-change",
+        "status": "passed",
+        "durationMs": 5233,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/receipt-missing",
+        "status": "passed",
+        "durationMs": 4902,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+        "status": "passed",
+        "durationMs": 4875,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/repeat",
+        "status": "passed",
+        "durationMs": 4901,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/repointed-qualification",
+        "status": "passed",
+        "durationMs": 17024,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/repointed-receipt",
+        "status": "passed",
+        "durationMs": 5013,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-import-reuse/source-qualification",
+        "status": "passed",
+        "durationMs": 17992,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-generation-only",
+        "status": "passed",
+        "durationMs": 22703,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-pin",
+        "status": "passed",
+        "durationMs": 23032,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-repo-only",
+        "status": "passed",
+        "durationMs": 23459,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/cli-generation-stale",
+        "status": "passed",
+        "durationMs": 22107,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+        "status": "passed",
+        "durationMs": 19425,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+        "status": "passed",
+        "durationMs": 19804,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+        "status": "passed",
+        "durationMs": 19020,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-foreign-generation",
+        "status": "passed",
+        "durationMs": 28395,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/cache/gc-contract-matrix",
+        "status": "passed",
+        "durationMs": 10396,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/cache/gc-modern-resource-ownership/admission-race",
+        "status": "passed",
+        "durationMs": 2384,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/cache/gc-modern-resource-ownership/exclusion-barrier",
+        "status": "passed",
+        "durationMs": 1538,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/cache/gc-modern-resource-ownership/live",
+        "status": "passed",
+        "durationMs": 5135,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/cache/gc-modern-resource-ownership/unknown",
+        "status": "passed",
+        "durationMs": 5056,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/eval/published-index-revision-oracle/delete-file",
+        "status": "failed",
+        "durationMs": 27199,
+        "attempts": 1,
+        "exitCode": 1,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+        "status": "failed",
+        "durationMs": 27527,
+        "attempts": 1,
+        "exitCode": 1,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/eval/published-index-revision-oracle/edit-only",
+        "status": "failed",
+        "durationMs": 26811,
+        "attempts": 1,
+        "exitCode": 1,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/eval/published-index-revision-oracle/original-world-rechecks",
+        "status": "passed",
+        "durationMs": 22139,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/eval/published-index-revision-oracle/pending-reader-retirement",
+        "status": "passed",
+        "durationMs": 18220,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/eval/published-index-revision-oracle/restore-file",
+        "status": "failed",
+        "durationMs": 27157,
+        "attempts": 1,
+        "exitCode": 1,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/index/clean-artifacts-reader-exclusion",
+        "status": "passed",
+        "durationMs": 3410,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/ast-grep-managed-recipe",
+        "status": "passed",
+        "durationMs": 3471,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/checkout-evidence-retention/producer-byte-proof-required",
+        "status": "passed",
+        "durationMs": 178,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/checkout-evidence-retention/protected-quota-before-mutation",
+        "status": "passed",
+        "durationMs": 180,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/checkout-inspection-replacement/journal",
+        "status": "passed",
+        "durationMs": 1260,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/checkout-inspection-replacement/receipt",
+        "status": "passed",
+        "durationMs": 1227,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/checkout-mutation-owner/late-borrowed-retirement-fence",
+        "status": "passed",
+        "durationMs": 198,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/go-sdk-cache-recipe",
+        "status": "passed",
+        "durationMs": 865,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/install-action-original-observation/function-failure",
+        "status": "passed",
+        "durationMs": 325,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/install-action-original-observation/independent-inspection",
+        "status": "passed",
+        "durationMs": 306,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/install-action-original-observation/returned-pending-result",
+        "status": "passed",
+        "durationMs": 292,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/install-action-original-observation/revoked-during-reservation-read",
+        "status": "passed",
+        "durationMs": 289,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-patch-enforcement",
+        "status": "passed",
+        "durationMs": 8732,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/lsp/configuration-pull-and-delayed-diagnostics",
+        "status": "passed",
+        "durationMs": 906,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/lsp/diagnostics-only-capability-lifecycle",
+        "status": "passed",
+        "durationMs": 6118,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/providers/provider-catalog-execution",
+        "status": "passed",
+        "durationMs": 1438,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/reports/object-cache-isolation",
+        "status": "passed",
+        "durationMs": 24144,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/reports/summary/report",
+        "status": "passed",
+        "durationMs": 12823,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/service/background-retry-policy",
+        "status": "passed",
+        "durationMs": 12174,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/sublime/behavior-contract-matrix",
+        "status": "passed",
+        "durationMs": 4358,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/vfs/doc-hash-skip-rewrite",
+        "status": "passed",
+        "durationMs": 427,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/vfs/io-batch-consistency",
+        "status": "passed",
+        "durationMs": 944,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tui/native-search-conpty/empty-error",
+        "status": "passed",
+        "durationMs": 24625,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tui/operator-artifact-file-authority",
+        "status": "passed",
+        "durationMs": 277,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ],
+    "limitation": "Most-recent focused observations remain bound to their recorded repair checkpoint. They are not one final-tree full-suite execution, and Windows latency results do not qualify Ubuntu."
+  },
+  "implementationBlobs": {
+    "docs/config/inventory.json": "2c2405039ed73bb19b1903f5298c7ced1d381410",
+    "docs/config/inventory.md": "b6f77aebb61d508f2363c1cb01c7f0b62a0bcf86",
+    "docs/testing/ci-capability-policy.md": "01d071ab56665cbfb53a56d46840d90dea6ea1b0",
+    "tests/ci-lite/ci-lite.manifest.json": "73a59f8679ebe7df6056764920806d8bdaad50d6",
+    "tests/ci-lite/ci-lite.order.txt": "a6580759136828445713e518cac59372c780a36a",
+    "tests/cli/general/unknown-workflow-options.test.js": "534537923781f2e4a523e65e7598ea0c50a12b3b",
+    "tests/context-pack/delivery/hydration.test.js": "c2978226b114a9641d4b1cdb81b34d67afcf40a7",
+    "tests/helpers/json-gate.js": "c1ea3588ef8b11a61143a960f5a2e651e40c10ba",
+    "tests/helpers/published-semantic-witness.js": "5e5f364d640530610989882769a26a6cce3d77f8",
+    "tests/helpers/runtime-import-fixture.js": "6f0c244479b34ae033e3f76711792139e5c80e3e",
+    "tests/helpers/sublime/api_server.py": "b0e5f8da3402c512c3b8ed66c010739d39d91d83",
+    "tests/helpers/sublime/runtime_harness.py": "4bb7b011dc453645e27617230b320c63f08be9ad",
+    "tests/helpers/temp.js": "b8013fb9ae20ff0b4c826dcc84cf7cf8376b2170",
+    "tests/indexing/artifacts/compaction-generation-publication.test.js": "88c12240d1554295db968fcbedc1daf10e9f03c3",
+    "tests/indexing/artifacts/minhash-sampled-stream-publication.test.js": "483faf08c52046d01ca5a24e3ab4a8bb09ce4494",
+    "tests/indexing/artifacts/unpublished-copy-native-metadata.test.js": "0703a380ca56b97b629e2b0e7253abdb73230bb3",
+    "tests/indexing/build/promotion-cancellation.test.js": "bf908cef4a078231240ec245dc2e8523451d9c63",
+    "tests/indexing/build/promotion-timing-contract.test.js": "cef635e1fef7661731f721b39d56a018235941eb",
+    "tests/indexing/build/stage-progression-contract.test.js": "fe90fa736206e64cad69bc5988d5fbf012067be3",
+    "tests/indexing/contracts/python-html-registry.test.js": "017b29e3c61ac5f55aa240b33ae22d4ac102ceb8",
+    "tests/indexing/publication/integrity-stream-ownership.test.js": "6a89c3c4fd4587c24251d199958f88751c35cbfa",
+    "tests/indexing/runtime/initialization-resource-unwind.test.js": "79a745743c6c6de2c215518eaf203ad807ad1a60",
+    "tests/indexing/scm/jj-native-read-sessions.test.js": "b8b3993c2afdf8abbd729f8c446997c3757cdc04",
+    "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js": "de98f455f3d622950356f7c93d793c3d8aa56c32",
+    "tests/indexing/tree-sitter/persistent-cache-memory-bounds.test.js": "bc1fa425bbe50610cc782a1e0f23d1dd9a3c2d00",
+    "tests/indexing/watch/attempts.test.js": "7ad03482ef8ffc68acf43eb329864b79857463b7",
+    "tests/indexing/watch/helpers.js": "72f4d0ae351374c6f5453d98bd8c4fbb1992b7e9",
+    "tests/perf/bench/embedding-bakeoff-observed-resume.test.js": "bfdaa9f12d88bfabf6655d0c8b64d53a87d75a60",
+    "tests/perf/bench/embedding-bakeoff-observed-resume.test.js.cases.json": "1677c856872093fd03e0d418366d77ef75ebaef0",
+    "tests/perf/crash-log-error-latency.test.js": "fe0e222772e7a44bc9f5d5f394d5727c579755e1",
+    "tests/retrieval/cli/search-backend-finally.test.js": "d3bb3fbc23ac5b68f327440bdf67b569265f4d5c",
+    "tests/security/java-workspace-execution-authority.test.js": "d5848b8adcaf7603c985e9cb379ddf97bbfa8e38",
+    "tests/security/rust-workspace-execution-authority.test.js": "09d38516cc94de47b42db46f74318f97c84f4d27",
+    "tests/security/zig-workspace-execution-authority.test.js": "8cbd6c48496574cd04b91f40b2550c25a8c234de",
+    "tests/semantic/questions/answer-retention.test.js": "3aed8866ef695ed1b5e5cce34724991a6c895678",
+    "tests/services/api/runtime-evidence.test.js": "6ec2efd20463268fb07a5f124ac50d9308796cc3",
+    "tests/services/mcp/cache-gc-repo-scope.test.js": "d3fc812259bb86f4edba358b7c236661ea6fd0ad",
+    "tests/shared/cache/repo-access.test.js": "52912c7b2919d61b31b2f1e57658e1ae64356425",
+    "tests/shared/storage/cleanup-admission-boundaries.test.js": "4e46990170fadf88509605ebc121cc2bafbfb932",
+    "tests/shared/storage/inspection-phase-admission.test.js": "92a62cd0ab96bfa0d8fbe98535a66f55593dd68d",
+    "tests/storage/semantic/runtime-source-reference-authority.test.js": "a34c3878c4098d8d52403e5ab16c29ef8e6f90bf",
+    "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js": "79f9d4ae352953ba4121ad0a941b0e388d0c49ef",
+    "tests/tooling/cache/gc-contract-matrix.test.js": "59391d2a8e748e9dfa169d694daff28275a21175",
+    "tests/tooling/ci/run-suite-api-plan.test.js": "4bd93a20c625cd74bf1f3c18ab0b35fe946ca1a0",
+    "tests/tooling/eval/published-index-revision-oracle.test.js": "d8add4d495124c6f37a5851127ef66b2d67fac4a",
+    "tests/tooling/install/go-sdk-cache-recipe.test.js": "f00a7c5886937a958789ee734859a0ddd88254fe",
+    "tests/tooling/install/postinstall-patch-enforcement.test.js": "a53386ae5c6aebe8b01446b81b52f7dba8a8391a",
+    "tests/tooling/lsp/configuration-pull-and-delayed-diagnostics.test.js": "5eb9defa7856d6d74186772ca948054e6e0e93d8",
+    "tests/tooling/lsp/diagnostics-only-capability-lifecycle.test.js": "3d10e0640536786286efb9307abf75ee9936d406",
+    "tests/tooling/reports/object-cache-isolation.test.js": "eb9076dcf988f99c935b996b60221467c4bbdc7f",
+    "tests/tooling/service/background-retry-policy.test.js": "2bc20d606020a1820b0162f85a0be398aac028f2",
+    "tests/tui/native-search-conpty.test.js": "6740d151e760dfcfa773e2addb4e017a5ab24a9a",
+    "tests/tui/operator-artifact-file-authority.test.js": "a248e010f3cdce0ac6e43607f57b15f33dfc61ef",
+    "tools/ci/run-suite.js": "2420ad0d313296e53c2a5b031f347c2d78027ae7",
+    "tools/ci/suite-cohorts.js": "c0bae911162bc77e50f7ce1e84d3bcdd8e5b06f5"
+  }
+}
