@@ -19,6 +19,17 @@ const parent = await makeTempDir('poc-index-revision-oracle-'), adapter = await 
 const scenario = adapter.generate({ repositoryNamespace: 'published-index-oracle', family: 'edit-delete-rename', seed: 3 });
 const open = fs.open, originalHome = process.env.PAIROFCLEATS_HOME;
 let handle, recovery, primary, denyClose = false, fileSession = null;
+const retainBuildLogs = async workspace => {
+  const target = path.resolve('.testLogs', 'published-index-revisions', mode + '-' + process.pid);
+  await fs.mkdir(target, { recursive: true });
+  const logs = path.join(workspace, 'logs');
+  for (const name of await fs.readdir(logs)) {
+    assert.match(name, /^\d+\.(command\.json|stdout\.log|stderr\.log)$/);
+    const source = path.join(logs, name), stat = await fs.stat(source);
+    assert.ok(stat.size <= 1024 * 1024, 'original build logs remain bounded before retention');
+    await fs.copyFile(source, path.join(target, name));
+  }
+};
 try {
   if (mode === 'closed-preflight') {
     for (const obsolete of [1, 2]) await assert.rejects(getOfflineEvaluationAdapter('published-javascript-chunk-index-revisions-v' + obsolete),
@@ -129,11 +140,19 @@ try {
       assert.equal(closes, 1, 'metadata retirement cannot retry the original descriptor close implicitly');
       denyClose = false; await fileSession.releaseAfterClose(); assert.equal(closes, 2); fs.open = open;
     }
+    await retainBuildLogs(workspace);
     assert.equal((await adapter.dispose(handle)).retired, true); handle = null;
     await assert.rejects(fs.stat(workspace), { code: 'ENOENT' });
   }
   assert.equal(process.env.PAIROFCLEATS_HOME, originalHome, 'the adapter never mutates its parent environment');
-} catch (error) { primary = error; throw error; }
+} catch (error) {
+  primary = error;
+  if (recovery) {
+    try { await retainBuildLogs(recovery.root); }
+    catch (retention) { throw new AggregateError([error, retention], 'Original revision failure and build-log retention failure.', { cause: error }); }
+  }
+  throw error;
+}
 finally {
   denyClose = false; fs.open = open;
   try {

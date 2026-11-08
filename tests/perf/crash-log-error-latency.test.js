@@ -115,11 +115,17 @@ try {
   assert.deepEqual(warnings, []);
   const syncP95Ms = percentile(samples.map(sample => sample.syncMs), 0.95);
   const settledP95Ms = percentile(samples.map(sample => sample.settledMs), 0.95);
-  console.log(JSON.stringify({ measurement: 'serial-crash-log-error-ms', selected,
+  const measurement = { measurement: 'serial-crash-log-error-ms', selected,
     node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch,
     warmups, sampleCount, logBytesPerSink: logBytes, appendSinks: 2, samples,
     syncP95Ms, settledP95Ms, syncP95LimitMs, settledP95LimitMs,
-    scope: 'warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export' }));
+    scope: 'warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export' };
+  const samplesFile = path.resolve('.testLogs', `crash-log-latency-${selected}-${process.pid}.json`);
+  await fs.mkdir(path.dirname(samplesFile), { recursive: true });
+  await fs.writeFile(samplesFile, JSON.stringify(measurement) + '\n');
+  // The full operation trace can exceed runner stdout bounds. Preserve every
+  // sample in the uploaded log directory before evaluating unchanged limits.
+  console.log(JSON.stringify({ ...measurement, samples: undefined, samplesFile }));
   assert.ok(syncP95Ms <= syncP95LimitMs, `synchronous error p95 ${syncP95Ms}ms exceeds ${syncP95LimitMs}ms`);
   assert.ok(settledP95Ms <= settledP95LimitMs, `settled error p95 ${settledP95Ms}ms exceeds ${settledP95LimitMs}ms`);
 } finally { console.warn = warn; }

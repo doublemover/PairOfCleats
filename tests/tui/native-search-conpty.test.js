@@ -56,7 +56,14 @@ const buildAt = async (target, name) => {
   // teardown. The operations below still use the real native client,
   // supervisor and search CLI; dedicated CLI owners cover build startup.
   const started = performance.now(), controller = new AbortController();
-  const options = { modes: ['code'], stage: 'stage1', stubEmbeddings: true, threads: 1, progress: 'off' };
+  const phases = []; let phaseBytes = 0;
+  const options = { modes: ['code'], stage: 'stage1', stubEmbeddings: true, threads: 1, progress: 'off',
+    log: value => {
+      const message = String(value).slice(0, 2048), bytes = Buffer.byteLength(message);
+      if (phases.length < 256 && phaseBytes + bytes <= 64 * 1024) {
+        phases.push({ elapsedMs: performance.now() - started, message }); phaseBytes += bytes;
+      }
+    } };
   const timer = setTimeout(() => controller.abort(new Error('Native search seed exceeded its 10000ms deadline')), 10000);
   let outcome, failure;
   try {
@@ -78,7 +85,7 @@ const buildAt = async (target, name) => {
   } finally {
     clearTimeout(timer);
     await fs.writeFile(path.join(dir, name), JSON.stringify({ owner: 'buildIndex', options,
-      durationMs: performance.now() - started, outcome,
+      durationMs: performance.now() - started, outcome, phases,
       error: failure ? { message: failure.message, code: failure.code } : null }, null, 2));
   }
 };
