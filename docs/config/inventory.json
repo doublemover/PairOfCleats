@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-08T02:41:50.561Z",
+  "generatedAt": "2026-11-08T04:21:14.838Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5146,6 +5146,7 @@
         "tests/services/soak/operational-recovery.test.js",
         "tests/tooling/script-coverage/runner.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tests/tui/native-search-conpty.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]

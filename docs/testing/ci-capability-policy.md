@@ -23,6 +23,14 @@ serial jobs use one worker and one indexing thread.
 Windows preparation and authority jobs select a unique physical directory under
 the runner-owned temporary root. This keeps transient vaults outside repository
 trees and gives the job owner their cleanup; original operation limits remain.
+Native Windows jobs use that same temporary-root owner. Native-search inputs use
+compact physical private roots; original build, terminal, source and PID evidence
+is retained under `.testLogs/**/native-search-*/` even if preparation fails.
+Completed inputs are removed only after their original native owners close.
+Tooling provisions a fresh standalone clangd through the existing official stable
+release, SHA256, target-header and executable-version owners. Its exact SDK receipt
+is retained, and the core API fixture still requires successful normal provider
+preflight and real protocol requests. Ambient OS launchers do not supply this SDK.
 
 The final OS job requires every declared cohort and original test/step assignment.
 Missing/foreign reports, unexpected skips, retries, timeouts, duplicate cases or
