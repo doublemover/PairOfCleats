@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
   acquireFileLock,
   getFileLockRuntimeMetrics,
@@ -29,6 +31,53 @@ const ownedInfo = await readLockInfo(lockPath);
 assert.equal(Number(ownedInfo?.pid), process.pid);
 assert.ok(await lock.release(), 'expected lock release to succeed');
 assert.equal(fs.existsSync(lockPath), false);
+
+// Hold the original descriptor before its metadata write. A separate process
+// cannot see the publisher's in-memory fence and must respect the default grace
+// for incomplete metadata rather than unlinking this live descriptor.
+{
+  const pendingPath = path.join(tempRoot, 'incomplete-publication.lock');
+  const originalOpen = fsPromises.open;
+  let entered, proceed;
+  const writing = new Promise(resolve => { entered = resolve; });
+  const held = new Promise(resolve => { proceed = resolve; });
+  fsPromises.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (args[0] !== pendingPath || args[1] !== 'wx') return handle;
+    return {
+      stat: options => handle.stat(options),
+      close: () => handle.close(),
+      writeFile: async contents => { entered(); await held; return handle.writeFile(contents); }
+    };
+  };
+  const publication = acquireFileLock({ lockPath: pendingPath });
+  let published, failure, contender;
+  const settled = publication.then(value => { published = value; }, error => { failure = error; });
+  try {
+    await writing;
+    fsPromises.open = originalOpen;
+    assert.equal(await fsPromises.readFile(pendingPath, 'utf8'), '');
+    const moduleUrl = new URL('../../../src/shared/locks/file-lock.js', import.meta.url).href;
+    contender = await promisify(execFile)(process.execPath, ['--input-type=module', '-e',
+      `import { acquireFileLock } from ${JSON.stringify(moduleUrl)};
+       const lock = await acquireFileLock({ lockPath: ${JSON.stringify(pendingPath)}, waitMs: 100, pollMs: 10 });
+       console.log(JSON.stringify({ acquired: Boolean(lock) }));
+       if (lock) await lock.release();`], { timeout: 5000, encoding: 'utf8', windowsHide: true });
+  } finally {
+    fsPromises.open = originalOpen;
+    proceed(); await settled;
+    if (published) await published.release();
+    // This isolated fixture owns disposal after the original descriptor closes;
+    // a before-repair failure cannot confer production cleanup authority.
+    if (failure) assert.equal(failure.fileLockPublication.descriptorCloseObserved, true);
+    await fsPromises.rm(pendingPath, { force: true });
+  }
+  assert.equal(contender.stderr, '');
+  assert.equal(JSON.parse(contender.stdout).acquired, false,
+    'an independent process must not reap a live incomplete publication under the default grace');
+  assert.equal(failure, undefined, 'the original owner publishes and closes without losing its inode');
+  assert.ok(published);
+}
 
 const reservedMetadataLock = await acquireFileLock({
   lockPath,
