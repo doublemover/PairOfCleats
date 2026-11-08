@@ -10,7 +10,7 @@ import { loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-i
 import { getIndexDir } from '../../../src/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compaction-generation-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compaction-generation-')));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
 const script = new URL('../../../tools/index/compact-pieces.js', import.meta.url).href;
 const chunks = [{ id: 0, file: 'a.js', start: 0, end: 1 }, { id: 1, file: 'b.js', start: 0, end: 1 }];

@@ -18,7 +18,7 @@ const generation = registry.beginJob('source');
 const inventory = await registry.capture({ sourceJobId: 'source', generation, artifacts: [
   bindArtifactScope({ path: source }, { root: repo, repoRoot: repo })] });
 const selection = { sourceJobId: 'source', inventoryId: inventory.inventoryId, artifactId: inventory.artifacts[0].artifactId };
-const open = fs.open, lstat = fsSync.lstatSync;
+const open = fs.open, lstat = fsSync.lstatSync, asyncLstat = fs.lstat;
 let classifiedAlias = null, classificationReads = 0, payloadOpens = 0;
 try {
   await actions.execute('export', { ...selection, confirmed: true, destination: 'export.bin' });
@@ -33,6 +33,12 @@ try {
     }
     return lstat.call(this, filename, ...args);
   };
+  fs.lstat = async function (filename, ...args) {
+    if (classifiedAlias && path.resolve(filename) === classifiedAlias) {
+      classificationReads++; return { isSymbolicLink: () => true };
+    }
+    return asyncLstat.call(this, filename, ...args);
+  };
   fs.open = async (...args) => { payloadOpens++; return open(...args); };
   classifiedAlias = source;
   await assert.rejects(actions.execute('copy', selection), { code: 'ERR_UNSAFE_FILE_PATH' });
@@ -46,5 +52,5 @@ try {
   assert.deepEqual(await fs.readdir(alias), []);
   assert.deepEqual(await fs.readdir(outside), ['secret.bin']);
   assert.equal(await fs.readFile(privateFile, 'utf8'), 'private sentinel');
-} finally { fs.open = open; fsSync.lstatSync = lstat; await actions.dispose(); await registry.dispose(); }
+} finally { fs.open = open; fsSync.lstatSync = lstat; fs.lstat = asyncLstat; await actions.dispose(); await registry.dispose(); }
 console.log('Portable artifact authority preserves real export and rejects escaped or alias-classified paths.');

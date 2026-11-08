@@ -60,7 +60,8 @@ try {
     assert.ok(peak > 1 && peak <= 4, 'actual readers overlap only within the four-reader window');
     assert.equal(active, 0);
     assert.deepEqual([...opens.values()], Array(8).fill(1), 'all registered algorithms share each single payload read');
-    assert.equal(preliminaryFileStats, 0, 'regular members are classified by their actual contained hash descriptor');
+    assert.equal(preliminaryFileStats, process.platform === 'win32' ? payloads.size * 2 : 0,
+      'only the original pre/post-open containment probes may classify regular paths; no separate publication classification');
     for (const [name, bytes] of payloads) {
       const observation = await hashFileObservation(path.join(dir, name), { containedRoot: dir,
         algorithms: ['sha256', 'sha1', 'xxh64', 'sha256'] });

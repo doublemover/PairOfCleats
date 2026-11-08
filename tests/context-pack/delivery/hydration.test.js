@@ -30,12 +30,17 @@ const boundary = { bind: async transport => {
       && (!source || source.sourceUnitId === fixture.source.sourceUnitId && source.path === 'original.js') };
 } };
 const captured = async promise => promise.then(value => ({ ok: true, value }), error => ({ ok: false, error }));
-const create = ({ join = 2 } = {}) => {
+const create = ({ join = 2, holdBeforeReader = false } = {}) => {
   const gate = deferred(), entered = deferred(), resolved = deferred(); let calls = 0;
   const reader = createSourceHydrationReader({ readSnapshot: async options => {
-    entered.resolve(); await gate.promise; return readRetainedSemanticSourceSnapshot(options);
+    if (!holdBeforeReader) { entered.resolve(); await gate.promise; }
+    return readRetainedSemanticSourceSnapshot(options);
   } });
-  const pool = createRetainedSourceHydrationPool({ boundary, readSource: reader, resolveIndexDir: async options => {
+  // Coalescing coordination is queue work, outside the unchanged250ms physical
+  // read budget. Cancellation/cleanup cases still hold the admitted snapshot
+  // read below, retaining their original live-resource and close assertions.
+  const readSource = holdBeforeReader ? async (...args) => { entered.resolve(); await gate.promise; return reader(...args); } : reader;
+  const pool = createRetainedSourceHydrationPool({ boundary, readSource, resolveIndexDir: async options => {
     const value = await resolveSemanticGenerationIndexDir(options); if (++calls === join) resolved.resolve(); return value;
   } });
   return { pool, gate, entered, resolved };
@@ -53,7 +58,7 @@ fs.open = async (...args) => {
 };
 try {
   if (mode === 'shared-physical-read') {
-    const state = create(); pools.push(state); const first = state.pool.read(request, a), second = state.pool.read(request, b);
+    const state = create({ holdBeforeReader: true }); pools.push(state); const first = state.pool.read(request, a), second = state.pool.read(request, b);
     await state.resolved.promise; await tick(); assert.equal(state.pool.snapshot().coalescedWaiters, 1);
     state.gate.resolve(); const [left, right] = await Promise.all([first, second]);
     assert.equal(left, right); assert.equal(left.text, fixture.bytes.toString('utf8'));

@@ -11,7 +11,7 @@ import { applyPatchFixture, createPatchFixture, originalText, patchedText } from
 const env = applyTestEnv();
 const helper = path.join(process.cwd(), 'tools', 'setup', 'apply-patches.js');
 const postinstall = path.join(process.cwd(), 'tools', 'setup', 'postinstall.js');
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-patch-contract-'));
+const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-patch-contract-')));
 const run = (cwd, script = helper, extraEnv = {}) => runNode([script], 'package patch contract', cwd, {
   ...env, ...extraEnv
 }, { stdio: 'pipe', allowFailure: true, timeoutMs: 30000 });

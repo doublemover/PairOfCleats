@@ -7,7 +7,7 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { createStage1CodeBuildEnv } from '../../helpers/build-index-fixture.js';
 import { runNode } from '../../helpers/run-node.js';
 
-const fixture = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-registry-metadata-index-'));
+const fixture = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-registry-metadata-index-')));
 const repo = path.join(fixture, 'repo'), cache = path.join(fixture, 'cache');
 await fs.mkdir(repo);
 try {

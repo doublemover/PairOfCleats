@@ -15,7 +15,7 @@ import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('semantic/questions/answer-retention/')[1];
 assert.ok(['immutable-shared-graph', 'intent-and-base-conflicts', 'interruption-and-resume', 'corruption-and-authority', 'quotas-and-leases', 'native-failure-ownership'].includes(mode));
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-answer-'));
+const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-answer-')));
 const repoRoot = path.join(temporary, 'repo'), userConfig = { cache: { root: path.join(temporary, 'cache') } };
 await fs.mkdir(repoRoot);
 const cacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig), root = path.join(cacheRoot, 'answers-v1');

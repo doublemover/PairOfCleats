@@ -8,7 +8,7 @@ import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/impor
 import { qualifyRuntimeSourceCandidates } from '../../../src/index/semantic/runtime/source-authority.js';
 import { DEFAULT_COMPILER_ADMISSION_POLICY } from '../../../src/index/semantic/compiler-admission.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-foreign-reference-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-foreign-reference-')));
 let fixture;
 try {
   // This contract consumes syntax/source identity; compiler work still runs,
@@ -30,11 +30,18 @@ try {
     }
   }
   assert.equal(binding, true, 'the reduced source fixture still publishes actual compiler bindings');
+  const configurationIdentity = async () => Promise.all(['tsconfig.json', 'package.json'].map(async name => {
+    const filename = path.join(witness.repoRoot, name), stat = await fs.stat(filename, { bigint: true });
+    return { name, bytes: await fs.readFile(filename, 'utf8'), ino: stat.ino, mtimeNs: stat.mtimeNs, ctimeNs: stat.ctimeNs };
+  }));
+  const configuration = await configurationIdentity();
   // Publish the next real generation of this repository. Holding namespace
   // constant makes the negative discriminate generation authority itself;
   // incremental preparation reuses the unchanged compiler/configuration closure.
   const other = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'source'), revision: 1,
     incremental: true });
+  assert.deepEqual(await configurationIdentity(), configuration,
+    'incremental preparation preserves the unchanged compiler configuration and its filesystem identity');
   let otherBinding = false;
   for (const partition of other.manifest.partitions.filter(row => row.partitionId.startsWith('sa1:'))) {
     for await (const row of other.store.iterateRows(partition.partitionId, 'semantic_records')) {

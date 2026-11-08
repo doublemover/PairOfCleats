@@ -17,7 +17,7 @@ import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capabi
 import { createApiRouter } from '../../../tools/api/router.js';
 
 const fixture = await createRuntimeImportFixture();
-const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-outside-'));
+const outside = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-outside-')));
 let server, router;
 try {
   const imported = await importRuntimeEvidence(fixture.options());

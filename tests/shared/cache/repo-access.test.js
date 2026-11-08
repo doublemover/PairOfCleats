@@ -11,7 +11,7 @@ import { inspectRepoCacheAccess, repoAccessPaths, withExclusiveRepoCacheCleanup 
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-repo-access-'));
+const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-repo-access-')));
 const children = new Set();
 const start = async (explicit = null, cleanup = false) => {
   const child = fork(path.resolve('tests/fixtures/cache/repo-access-client.js'), [path.join(temporary, 'repo'), path.join(temporary, 'cache'), ...(explicit ? [explicit] : []), ...(cleanup ? ['cleanup'] : [])], { stdio: ['ignore', 'ignore', 'inherit', 'ipc'] });

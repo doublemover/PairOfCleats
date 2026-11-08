@@ -9,7 +9,7 @@ import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { initBuildState, resolveBuildStatePath, updateBuildState } from '../../../src/index/build/build-state.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-stage-progression-'));
+const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-stage-progression-')));
 applyTestEnv({ cacheRoot: tempRoot });
 
 const repoRoot = path.join(tempRoot, 'repo');

@@ -8,7 +8,7 @@ import { DEFAULT_COMPILER_ADMISSION_POLICY } from '../../../src/index/semantic/c
 import { readRuntimeReceipt } from '../../../src/shared/runtime-envelope/read-receipt.js';
 import { readEffectiveMemory } from '../../../src/shared/effective-memory.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compiler-single-cpu-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compiler-single-cpu-')));
 const controller = new AbortController();
 // Keep the stalled admission alive long enough to expose the ownership error,
 // then cancel through the real pipeline within the runner's 30-second bound.

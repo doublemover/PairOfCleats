@@ -16,7 +16,7 @@ import { collectLspTypes } from '../../src/integrations/tooling/providers/lsp.js
 import { buildTreeSitterChunks } from '../../src/lang/tree-sitter/chunking.js';
 import { getToolingRegistry } from '../../tools/tooling/utils.js';
 
-const container = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-java-authority-'));
+const container = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'poc-java-authority-')));
 const repo = path.join(container, 'repo');
 const outside = path.join(container, 'outside');
 fs.mkdirSync(repo);

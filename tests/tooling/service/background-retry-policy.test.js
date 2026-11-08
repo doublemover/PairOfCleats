@@ -11,7 +11,7 @@ import { claimNextJob, completeJob, loadQueue, loadQuarantine, quarantineJob } f
 import { createJobCompletion } from '../../../tools/service/indexer-service/job-completion.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../src/shared/dict-utils.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-background-retry-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-background-retry-')));
 const repo = path.join(root, 'repo'), cache = path.join(root, 'cache'), stage2Queue = path.join(root, 'stage2-queue');
 await fs.mkdir(repo);
 applyTestEnv({ cacheRoot: cache, testConfig: { indexing: {

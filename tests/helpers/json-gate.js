@@ -16,7 +16,7 @@ export async function createJsonGateHarness({
   cwd = rootDir
 } = {}) {
   const resolvedScriptPath = scriptPath || path.join(rootDir, scriptRelativePath || '');
-  const resolvedTempRoot = tempRoot || await fs.mkdtemp(path.join(os.tmpdir(), tempPrefix));
+  const resolvedTempRoot = tempRoot || await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), tempPrefix)));
   const jsonPath = path.join(resolvedTempRoot, jsonFileName);
   const runtimeEnv = env || applyTestEnv({ syncProcess: false,
     cacheRoot: path.join(resolvedTempRoot, 'cache'), extraEnv: {

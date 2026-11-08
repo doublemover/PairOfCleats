@@ -10,7 +10,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-mcp-gc-scope-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-mcp-gc-scope-')));
 const cacheRoot = path.join(root, 'cache');
 applyTestEnv({ cacheRoot, testConfig: { cache: { root: cacheRoot } } });
 try {

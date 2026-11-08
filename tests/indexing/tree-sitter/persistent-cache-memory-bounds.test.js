@@ -7,7 +7,7 @@ import path from 'node:path';
 import { ensureChunkCache, loadCachedChunks, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, resolvePersistentChunkCachePaths, storeCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-parser-memo-bounds-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-parser-memo-bounds-')));
 const options = { treeSitter: { chunkCacheMaxEntries: 2, cachePersistent: true, cachePersistentDir: path.join(root, 'cache') } };
 const cacheRoot = resolvePersistentChunkCacheRoot(options);
 const { cache, maxEntries } = ensureChunkCache(options);

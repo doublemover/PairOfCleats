@@ -17,8 +17,9 @@ applyTestEnv();
 
 const root = process.cwd();
 const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
-// Keep the lexical temp path: macOS may supply /var rather than /private/var.
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cache-gc-contract-'));
+// General cache operations use the physical fixture root; the macOS block below
+// independently exercises lexical system aliases and rejects linked roots.
+const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cache-gc-contract-')));
 const cacheRoot = path.join(tempRoot, 'cache');
 await fs.mkdir(cacheRoot, { recursive: true });
 await fs.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));

@@ -9,7 +9,7 @@ import { getBuildsRoot } from '../../../tools/shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-cancel-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-cancel-')));
 const originalOpen = fs.open, originalRename = fs.rename;
 try {
   applyTestEnv({ cacheRoot: root });

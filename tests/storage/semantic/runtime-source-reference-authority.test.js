@@ -17,7 +17,7 @@ import { DEFAULT_COMPILER_ADMISSION_POLICY } from '../../../src/index/semantic/c
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('storage/semantic/runtime-source-reference-authority/')[1];
 assert.ok(['source-authority', 'cli-generation-pin', 'cli-generation-repo-only', 'cli-generation-generation-only',
   'cli-generation-stale', 'projection-order-forward', 'projection-order-reverse'].includes(selected));
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-reference-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-reference-')));
 let fixture;
 try {
   // Runtime coordinate ownership needs two authored functions plus one foreign

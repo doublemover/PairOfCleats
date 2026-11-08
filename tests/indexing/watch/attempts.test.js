@@ -7,7 +7,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { createWatchAttemptManager } from '../../../src/index/build/watch/attempts.js';
 import { createSettledWatchAttempt } from '../../helpers/watch-attempts.js';
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-watch-attempts-'));
+const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-watch-attempts-')));
 applyTestEnv({ cacheRoot: tempRoot, extraEnv: { PAIROFCLEATS_HOME: path.join(tempRoot, 'home') } });
 
 const repoRoot = path.join(tempRoot, 'repo');

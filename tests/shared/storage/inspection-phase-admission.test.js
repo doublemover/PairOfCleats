@@ -131,7 +131,7 @@ try {
     Date.now = () => clock;
     fsp.lstat = async (...args) => {
       late(); const value = await original.lstat(...args);
-      if (same(args[0], cache)) {
+      if (args[1]?.bigint === true && same(args[0], cache)) {
         rootStats++;
         if (mode === 'exact-root-deadline' && rootStats === 1 || mode === 'exact-revalidation-deadline' && rootStats === 3) clock = 1000;
       }

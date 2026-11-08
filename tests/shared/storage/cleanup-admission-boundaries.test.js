@@ -55,8 +55,8 @@ try {
       fs.openSync = (...args) => { late(); return originals.openSync(...args); };
       fsp.lstat = async (file, ...args) => {
         late(); const stat = await originals.lstat(file, ...args);
-        if (mode === 'deadline-after-authority-stat' && same(file, cacheRoot)
-          || mode === 'deadline-before-probe-read' && same(file, files[0]) && ++candidateStats === 2) clock = 1000;
+        if (args[0]?.bigint === true && (mode === 'deadline-after-authority-stat' && same(file, cacheRoot)
+          || mode === 'deadline-before-probe-read' && same(file, files[0]) && ++candidateStats === 2)) clock = 1000;
         return stat;
       };
       const plan = await planCacheRootCleanup(input);

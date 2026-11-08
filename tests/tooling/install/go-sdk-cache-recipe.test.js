@@ -17,7 +17,7 @@ import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env
 import { resolveEnvPath } from '../../../src/shared/env-path.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-go-sdk-recipe-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-go-sdk-recipe-')));
 const version = 'go1.27.1';
 const bytes = Buffer.from('inert checksum-verified fixture; never an executable');
 const checksum = createHash('sha256').update(bytes).digest('hex');

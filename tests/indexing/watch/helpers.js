@@ -19,7 +19,7 @@ export const waitFor = async (predicate, timeoutMs = 5000) => {
 };
 
 export const createTempWatchRepo = async ({ prefix, files }) => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)));
   applyTestEnv({ cacheRoot: tempRoot });
 
   const repoRoot = path.join(tempRoot, 'repo');

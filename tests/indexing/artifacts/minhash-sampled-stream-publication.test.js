@@ -62,7 +62,7 @@ for (const hashStride of [1, 2, 3, 5, 8]) {
 }
 assert.throws(() => packMinhashSignatures({ chunks, sampling: { ...sampled, hashStride: 1.5 } }), /Invalid minhash/);
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-minhash-stream-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-minhash-stream-')));
 const originalReadStream = fsSync.createReadStream;
 const packedPath = path.join(root, 'out', 'minhash_signatures.packed.bin');
 let checksumRereads = 0;

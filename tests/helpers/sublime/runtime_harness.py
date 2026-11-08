@@ -14,6 +14,7 @@ if PACKAGE_ROOT not in sys.path:
 def isolated_temp_directory():
     """Keep repository discovery fixtures independent of host ancestor markers."""
     with tempfile.TemporaryDirectory() as root:
+        root = os.path.realpath(root)
         original_isdir = os.path.isdir
         original_isfile = os.path.isfile
 

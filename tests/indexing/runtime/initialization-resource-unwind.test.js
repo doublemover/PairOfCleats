@@ -7,7 +7,7 @@ import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createRequire } from 'node:module';
 
-const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-init-unwind-'));
+const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-init-unwind-')));
 try {
   const shim = path.join(dir, 'record-resources.mjs');
   const runner = path.join(dir, 'run.mjs');

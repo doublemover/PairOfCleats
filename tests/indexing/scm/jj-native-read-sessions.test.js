@@ -13,7 +13,7 @@ import { createBuildRuntime } from '../../../src/index/build/runtime/runtime.js'
 import { teardownRuntime } from '../../../src/integrations/core/build-index/runtime.js';
 // JJ's immutable index segment names are 128 characters. Keep this ordinary
 // fixture path short enough for Windows tools without requiring long-path policy.
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-jj-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-jj-')));
 const original = getScmRuntimeConfig(), sessions = [], runtimes = [];
 const author = 'Fixture "雪"';
 const originalRunner = getScmCommandRunner(), failedCommands = [];

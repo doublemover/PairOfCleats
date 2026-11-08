@@ -71,7 +71,10 @@ nativeFs.lstatSync = function(filename, options) {
   return original.lstatSync.call(this, filename, options);
 };
 for (const name of ['stat', 'lstat']) fs[name] = function(filename, ...args) {
-  if (liveMembers()) counts.asyncPath++;
+  // The private callback borrows exact BigInt metadata operations. Windows
+  // containment admission now also uses async ancestor probes without options;
+  // those remain independent fresh checks, not callback dispatches.
+  if (liveMembers() && args[0]?.bigint === true) counts.asyncPath++;
   return original[name].call(this, filename, ...args);
 };
 fs.open = async function(filename, ...args) {

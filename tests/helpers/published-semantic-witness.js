@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { buildIndex } from '../../src/integrations/core/index.js';
+import { buildIndex } from '../../src/integrations/core/build-index.js';
 import { openPublishedSemanticStore } from '../../src/semantic/published-store.js';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
@@ -24,6 +24,17 @@ firstRun();secondRun();
 `
 });
 
+const writeConfiguration = async (filename, text, incremental) => {
+  if (incremental) {
+    try {
+      if (await fs.readFile(filename, 'utf8') === text) return;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  await fs.writeFile(filename, text);
+};
+
 /** Real whole-generation publication, shared by semantic/runtime/browser tests.
  * This helper only executes when an authorized acceptance fixture invokes it.
  */
@@ -35,11 +46,11 @@ export const createPublishedSemanticWitness = async ({ root, revision = 0, incre
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: {
+  await writeConfiguration(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: {
     types: ['node'], typeRoots: [path.resolve('node_modules/@types')], target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
     ...compilerOptions
-  }, include: ['*.ts'] }));
-  await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({ type: 'module' }));
+  }, include: ['*.ts'] }), incremental);
+  await writeConfiguration(path.join(repoRoot, 'package.json'), JSON.stringify({ type: 'module' }), incremental);
   for (const [file, text] of Object.entries(sourceFiles)) await fs.writeFile(path.join(repoRoot, file), text + '// source revision ' + revision + '\n');
   applyTestEnv({ cacheRoot, embeddings: 'stub', extraEnv, testConfig: {
     ...(extraIgnore === undefined ? {} : { extraIgnore }),

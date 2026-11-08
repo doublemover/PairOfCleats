@@ -6,6 +6,8 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler
 from socketserver import TCPServer
+
+sys.path.insert(0, os.path.dirname(__file__))
 from runtime_harness import install_fake_modules
 
 install_fake_modules()

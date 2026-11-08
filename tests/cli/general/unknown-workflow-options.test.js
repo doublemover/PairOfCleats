@@ -7,7 +7,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-unknown-workflow-options-'));
+const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-unknown-workflow-options-')));
 const cache = path.join(temp, 'cache');
 const events = path.join(temp, 'events');
 const env = applyTestEnv({ syncProcess: false, cacheRoot: cache, embeddings: 'off',
