@@ -10,7 +10,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. 23 verified closures include #131/#1597/#1701/#1682/#1646/#1654/#1657/#1699/#1272. Current reconciliation, 2026-11-07: **344 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
 
-[CI cohorts](archived/ci-cohort-cutover-2026-11-07.json) retain four correctness shards per OS and bounded serial owners. [CI repairs](archived/ci2365-failure-repairs-2026-11-07.json): CI2368 qualifies Ubuntu/Windows cohorts; lock-publication, macOS tooling and native-search seed repairs await hosted proof.
+[CI repairs](archived/ci2365-failure-repairs-2026-11-07.json): CI2369 passes Ubuntu/macOS and47 Windows native cases. Registry identity and answer-budget repairs are implemented. [PR572](https://github.com/doublemover/PairOfCleats/pull/572) records the frozen candidate's final CI qualification.
 
 [Native parity](archived/windows-onnx-runtime-parity-2026-10-30.md) records CDB attribution and ORT1.30.0. [Models](archived/windows-model-closeout-2026-11-04.md) close #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children and closes #1733.
 

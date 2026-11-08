@@ -9114,5 +9114,1350 @@
       "All18 original native-search cases, all22 native index cases and all seven TS7.1 vendor cases must execute successfully on the resulting hosted Windows source. Three focused native-search cases are local evidence only.",
       "Earlier local revision/native-index failures remain separately source-bound. Optional Tantivy native qualification, excluded editor work, optional sqlite-vec and real-model/release acceptance remain separate."
     ]
+  },
+  "followupCI2369": {
+    "runId": 42446924776,
+    "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42446924776",
+    "branchHead": "810d5f43e88e603f1a54e5843cff0553646dd1c6",
+    "workflowMerge": "15e82828db7f96555779014d17320d235c4c6b17",
+    "jobs": [
+      {
+        "id": 128627706001,
+        "name": "gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628081984,
+        "name": "rust-tui",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628081990,
+        "name": "native-inspection (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082003,
+        "name": "native-index-workflows (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082021,
+        "name": "native-inspection (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082024,
+        "name": "native-inspection (macos-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082060,
+        "name": "macos cohorts / Prepare OS plan",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082062,
+        "name": "windows cohorts / Prepare OS plan",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082108,
+        "name": "windows-authority",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628082116,
+        "name": "ubuntu cohorts / Prepare OS plan",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261125,
+        "name": "ubuntu cohorts / Tooling providers and gates",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261185,
+        "name": "ubuntu cohorts / Correctness 4/4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261189,
+        "name": "ubuntu cohorts / Correctness 1/4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261210,
+        "name": "ubuntu cohorts / Correctness 2/4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261276,
+        "name": "ubuntu cohorts / Serial compiler",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261281,
+        "name": "ubuntu cohorts / Correctness 3/4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261282,
+        "name": "ubuntu cohorts / Serial api",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261286,
+        "name": "ubuntu cohorts / Serial lsp-shutdown",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261309,
+        "name": "ubuntu cohorts / Serial native",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261329,
+        "name": "ubuntu cohorts / Serial usr",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261330,
+        "name": "ubuntu cohorts / Serial ann",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261334,
+        "name": "ubuntu cohorts / Serial runtime",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628261348,
+        "name": "ubuntu cohorts / Serial crash-log",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628393755,
+        "name": "windows cohorts / Correctness 3/4",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 128628393775,
+        "name": "windows cohorts / Correctness 1/4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628393776,
+        "name": "windows cohorts / Tooling providers and gates",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628393809,
+        "name": "windows cohorts / Serial usr",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628393821,
+        "name": "windows cohorts / Correctness 2/4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628393846,
+        "name": "windows cohorts / Serial ann",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 128628393860,
+        "name": "windows cohorts / Serial native",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628393871,
+        "name": "windows cohorts / Serial runtime",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628393887,
+        "name": "windows cohorts / Serial lsp-shutdown",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628393888,
+        "name": "windows cohorts / Serial crash-log",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628393889,
+        "name": "windows cohorts / Serial windows-ownership",
+        "status": "completed"
+      },
+      {
+        "conclusion": "failure",
+        "id": 128628393925,
+        "name": "windows cohorts / Correctness 4/4",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628393930,
+        "name": "windows cohorts / Serial api",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628393997,
+        "name": "windows cohorts / Serial compiler",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584163,
+        "name": "macos cohorts / Correctness 4/4",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584175,
+        "name": "macos cohorts / Tooling providers and gates",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584200,
+        "name": "macos cohorts / Correctness 2/4",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584201,
+        "name": "macos cohorts / Correctness 3/4",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584210,
+        "name": "macos cohorts / Correctness 1/4",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584217,
+        "name": "macos cohorts / Serial compiler",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584221,
+        "name": "macos cohorts / Serial runtime",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584227,
+        "name": "macos cohorts / Serial usr",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584257,
+        "name": "macos cohorts / Serial lsp-shutdown",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584269,
+        "name": "macos cohorts / Serial crash-log",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584284,
+        "name": "macos cohorts / Serial api",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584291,
+        "name": "macos cohorts / Serial native",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128628584323,
+        "name": "macos cohorts / Serial ann",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128630036202,
+        "name": "ubuntu cohorts / Complete OS coverage",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128630298576,
+        "name": "ubuntu",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128632160087,
+        "name": "macos cohorts / Complete OS coverage",
+        "status": "completed"
+      },
+      {
+        "conclusion": "failure",
+        "id": 128632324963,
+        "name": "windows cohorts / Complete OS coverage",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 128632514013,
+        "name": "macos",
+        "status": "completed"
+      },
+      {
+        "conclusion": "failure",
+        "id": 128632604069,
+        "name": "windows",
+        "status": "completed"
+      }
+    ],
+    "jobCounts": {
+      "total": 56,
+      "success": 52,
+      "failure": 4,
+      "underlyingFailedCohorts": 2,
+      "propagatedFailures": 2
+    },
+    "failures": [
+      {
+        "jobId": 128628393755,
+        "id": "indexing/registry-borrowed-lock-capability",
+        "durationMs": 225,
+        "reason": "Expected release rejection after restoring bytes in place; a coarse native clock need not expose different timestamps. Borrowed mutation capability was already permanently revoked."
+      },
+      {
+        "jobId": 128628393925,
+        "id": "tooling/eval/answer-integrity-attacks/sealed-semantic-attacks",
+        "durationMs": 1370,
+        "reason": "The complete assertion fails. The unchanged evaluator can return incomplete only after its original250ms work allowance is reached; old fixture did not retain the partial report."
+      }
+    ],
+    "sourceBoundPasses": [
+      {
+        "jobs": [
+          128630298576,
+          128632514013
+        ],
+        "coverage": "Required Ubuntu and macOS checks complete successfully, including original macOS concurrent queue admission and actual core provider integration."
+      },
+      {
+        "jobs": [
+          128628082003
+        ],
+        "coverage": "All47 actual Windows native workflows pass:22 indexing, all18 search cases and all seven TS7.1 vendor requests; zero failure, timeout, retry or skip."
+      },
+      {
+        "jobs": [
+          128628082108
+        ],
+        "coverage": "All40 physical Windows authority cases pass; no local symlink creation or privilege change."
+      },
+      {
+        "jobs": [
+          128628393871
+        ],
+        "coverage": "All six actual published-index revision cases pass within original25000ms adapter bounds."
+      },
+      {
+        "coverage": "All three native-inspection and crash-log cohorts pass, as do all three standalone SDK/core provider integrations."
+      }
+    ],
+    "nativeSeedSamples": [
+      {
+        "case": "native-search-cancel-2192",
+        "input": "index-build.json",
+        "durationMs": 7541.112,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-empty-error-3136",
+        "input": "index-build.json",
+        "durationMs": 7551.919,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-failed-first-8364",
+        "input": "index-build.json",
+        "durationMs": 8453.355,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-failed-first-narrow-3784",
+        "input": "index-build.json",
+        "durationMs": 7486.567,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-handshake-8948",
+        "input": "index-build.json",
+        "durationMs": 9231.48,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-interrupt-1820",
+        "input": "index-build.json",
+        "durationMs": 9849.995,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-narrow-3628",
+        "input": "index-build.json",
+        "durationMs": 7518.567,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-navigation-1312",
+        "input": "index-build.json",
+        "durationMs": 7496.15,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-pagination-6592",
+        "input": "index-build.json",
+        "durationMs": 7510.879,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-query-source-7764",
+        "input": "index-build.json",
+        "durationMs": 7417.102,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-replace-2852",
+        "input": "index-build.json",
+        "durationMs": 7494.771,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-scope-5328",
+        "input": "index-build-alternate.json",
+        "durationMs": 4888.26,
+        "status": "index-published",
+        "error": null
+      },
+      {
+        "case": "native-search-scope-5328",
+        "input": "index-build.json",
+        "durationMs": 7496.917,
+        "status": "index-published",
+        "error": null
+      }
+    ],
+    "standaloneSdks": [
+      {
+        "source": "15e82828db7f96555779014d17320d235c4c6b17",
+        "version": "23.1.0",
+        "platform": "linux",
+        "arch": "x64",
+        "command": "/home/runner/work/_temp/poc-ci-clangd-1oIqj2/tooling/servers/clangd/23.1.0-linux-x64/clangd_23.1.0/bin/clangd",
+        "binarySha256": "5a535973dd1274270c8a0d34677fe4758d8c9aaa164aa3701602c957c42dc9e2",
+        "archiveSha256": "e53b1a96196095faedb7642cf64964f7fb9ad4a0c1f00dd2c172a3d9dcbafdfd",
+        "verificationLevel": "official-release-sha256-binary-target-and-executable-version"
+      },
+      {
+        "source": "15e82828db7f96555779014d17320d235c4c6b17",
+        "version": "23.1.0",
+        "platform": "win32",
+        "arch": "x64",
+        "command": "D:\\a\\_temp\\poc-ci-clangd-XUnG9c\\tooling\\servers\\clangd\\23.1.0-win32-x64\\clangd_23.1.0\\bin\\clangd.exe",
+        "binarySha256": "dbd52c13d21ef9d284f4f0627efe76c81adf2fe0998f230127f554a54fc9dde7",
+        "archiveSha256": "23412a240756a162e7b98a282f36aa2a23a88db5ce16a0cbc4fef7253768c810",
+        "verificationLevel": "official-release-sha256-binary-target-and-executable-version"
+      },
+      {
+        "source": "15e82828db7f96555779014d17320d235c4c6b17",
+        "version": "23.1.0",
+        "platform": "darwin",
+        "arch": "arm64",
+        "command": "/Users/runner/work/_temp/poc-ci-clangd-AuyFvv/tooling/servers/clangd/23.1.0-darwin-arm64/clangd_23.1.0/bin/clangd",
+        "binarySha256": "23197c85e1fbe16de89666bb6d1132b36b02213906b09e12d687eda8cc3b6a57",
+        "archiveSha256": "1082e6638223b785ca2daf0939f13afcd0bb95c84ee9a4bbaff4745365159253",
+        "verificationLevel": "official-release-sha256-binary-target-and-executable-version"
+      }
+    ],
+    "implementationCommit": "b51c5a31a7d656fc479e9998339e1b2194b12e8e",
+    "sourceBlobs": {
+      "src/context-pack/answers/render.js": "9e55180b3b694993d18de3c16133444d44acce7e",
+      "src/retrieval/evaluation/answer-integrity.js": "8710755ec0307a556693c38df0206f79185a1c77",
+      "tests/indexing/registry-borrowed-lock-capability.test.js": "f589466902859d102ce09364e698315c68013aa0",
+      "tests/tooling/eval/answer-integrity-attacks.test.js": "b7f3ea710de67a0653d79b0933e8a6b40c20b693"
+    },
+    "repairs": [
+      "The borrowed-lock owner already revokes a mismatched capability. Repair the fixture input, preserving every denial and release assertion: restore exact bytes through a distinct real file, assert different inode before rename and exact replacement identity afterward. No sleeps or manufactured clocks; production authority is unchanged.",
+      "The answer inspector admits a deeply frozen JSON snapshot. Reuse its original bounded canonical string for the deterministic rebuilt-report comparison instead of walking the immutable report twice. Every schema, response-byte bound, compile and full comparison remains.",
+      "The evaluator computes the same bounded input digest once during admission instead of first discarding an identical canonical traversal and then hashing the unchanged input later. The obsolete private key helper and its import have no remaining caller and are removed. For the eight-case fixture, ten duplicate canonical traversals disappear; all eight full renderer verifications, six semantic attack rejections, positive controls, raw hashes, input immutability and original250ms/output limits remain.",
+      "The original evaluator completeness and result assertions now retain the full report on failure so future deadline/frontier and verifier classifications cannot disappear behind a bare boolean."
+    ],
+    "localObservations": {
+      "fifth-registry-identity": {
+        "receipt": ".tmp\\tasks\\ci2365-repairs-20261107\\fifth-registry-identity.json",
+        "summary": {
+          "durationMs": 397,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "indexing/registry-borrowed-lock-capability",
+            "status": "passed",
+            "durationMs": 390,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          }
+        ]
+      },
+      "fifth-answer-focused": {
+        "receipt": ".tmp\\tasks\\ci2365-repairs-20261107\\fifth-answer-focused.json",
+        "summary": {
+          "durationMs": 16876,
+          "failed": 0,
+          "passed": 13,
+          "skipped": 0,
+          "total": 13
+        },
+        "tests": [
+          {
+            "id": "semantic/questions/answer-admission/live-query-and-quotes",
+            "status": "passed",
+            "durationMs": 2598,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-admission/publication-and-failures",
+            "status": "passed",
+            "durationMs": 2460,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-admission/request-and-history",
+            "status": "passed",
+            "durationMs": 2786,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-admission/transport-parity",
+            "status": "passed",
+            "durationMs": 2898,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-revisions/bounds-and-identity",
+            "status": "passed",
+            "durationMs": 664,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-revisions/facts-and-source-maps",
+            "status": "passed",
+            "durationMs": 599,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-revisions/integrity-and-cycles",
+            "status": "passed",
+            "durationMs": 585,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-revisions/qualified-counts",
+            "status": "passed",
+            "durationMs": 681,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "semantic/questions/answer-revisions/retraction-and-patches",
+            "status": "passed",
+            "durationMs": 717,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/eval/answer-integrity-attacks/partial-and-unsupported-fixtures",
+            "status": "passed",
+            "durationMs": 685,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/eval/answer-integrity-attacks/replacement-input-is-historical",
+            "status": "passed",
+            "durationMs": 705,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/eval/answer-integrity-attacks/sealed-semantic-attacks",
+            "status": "passed",
+            "durationMs": 740,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/eval/answer-integrity-attacks/strict-profile-and-bounds",
+            "status": "passed",
+            "durationMs": 735,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          }
+        ]
+      },
+      "fifth-gate-report": {
+        "receipt": ".tmp\\tasks\\ci2365-repairs-20261107\\fifth-gate-report.json",
+        "summary": {
+          "durationMs": 57506,
+          "failed": 0,
+          "passed": 46,
+          "skipped": 0,
+          "total": 46
+        },
+        "tests": [
+          {
+            "id": "indexing/policy/hotpath-membership-guard",
+            "status": "passed",
+            "durationMs": 92,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/module-cache-boundedness-contract",
+            "status": "passed",
+            "durationMs": 106,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/generated-matrix",
+            "status": "passed",
+            "durationMs": 102,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/artifact-surface-version",
+            "status": "passed",
+            "durationMs": 87,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/n-minus-one-adapter",
+            "status": "passed",
+            "durationMs": 93,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/public-artifact-surface-doc",
+            "status": "passed",
+            "durationMs": 85,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/index-compatibility-key-generation",
+            "status": "passed",
+            "durationMs": 403,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/semver-policy-enforced",
+            "status": "passed",
+            "durationMs": 84,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/index-state-dense-sidecars-present",
+            "status": "passed",
+            "durationMs": 94,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "contracts/manifest-max-bytes-validation",
+            "status": "passed",
+            "durationMs": 195,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/repo-inventory",
+            "status": "passed",
+            "durationMs": 2403,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/shared-module-cycle-guard",
+            "status": "passed",
+            "durationMs": 307,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/loader-matrix-parity",
+            "status": "passed",
+            "durationMs": 282,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/analysis-schema",
+            "status": "passed",
+            "durationMs": 444,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/snapshots",
+            "status": "passed",
+            "durationMs": 401,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/builds-current-repo-head-schema",
+            "status": "passed",
+            "durationMs": 406,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/call-sites-schema",
+            "status": "passed",
+            "durationMs": 490,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/diffs",
+            "status": "passed",
+            "durationMs": 442,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/additional-properties-policy",
+            "status": "passed",
+            "durationMs": 465,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+            "status": "passed",
+            "durationMs": 634,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/schema-registry-single-source",
+            "status": "passed",
+            "durationMs": 481,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/api-contracts/caps",
+            "status": "passed",
+            "durationMs": 886,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/api-contracts/schema-validate",
+            "status": "passed",
+            "durationMs": 1064,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/api-contracts/fail-on-warn",
+            "status": "passed",
+            "durationMs": 1045,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/api-contracts/optional-params",
+            "status": "passed",
+            "durationMs": 909,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/api-contracts/large-call-sites",
+            "status": "passed",
+            "durationMs": 908,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/embedding-identity-gating-on-load",
+            "status": "passed",
+            "durationMs": 691,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "ci/capability-gate.smoke",
+            "status": "passed",
+            "durationMs": 1085,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/index-compatibility-key-federation-block",
+            "status": "passed",
+            "durationMs": 1605,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/stable-entrypoints",
+            "status": "passed",
+            "durationMs": 94,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/optional-deps",
+            "status": "passed",
+            "durationMs": 1833,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/policy/analysis-gating",
+            "status": "passed",
+            "durationMs": 1006,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "ci/tooling-doctor-gate.smoke",
+            "status": "passed",
+            "durationMs": 1358,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/api-contracts/basic",
+            "status": "passed",
+            "durationMs": 852,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "contracts/module-export-surface-compat",
+            "status": "passed",
+            "durationMs": 2921,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/semantic-foundations",
+            "status": "passed",
+            "durationMs": 1583,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/semantic-handoff-contracts",
+            "status": "passed",
+            "durationMs": 392,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/runtime-evidence",
+            "status": "passed",
+            "durationMs": 637,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "indexing/contracts/index-format-cutover",
+            "status": "passed",
+            "durationMs": 1700,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "ci/windows-authority-cohort",
+            "status": "passed",
+            "durationMs": 1919,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "ci/ordered-lane-discovery",
+            "status": "passed",
+            "durationMs": 360,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "ci/platform-cohort-contract",
+            "status": "passed",
+            "durationMs": 193,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "ci/gate-policy",
+            "status": "passed",
+            "durationMs": 177,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/ci",
+            "status": "passed",
+            "durationMs": 13252,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tooling/ci/run-suite-api-plan/nightly",
+            "status": "passed",
+            "durationMs": 12550,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          },
+          {
+            "id": "tui/operator-command-dispositions",
+            "status": "passed",
+            "durationMs": 332,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "termination": null
+          }
+        ]
+      }
+    },
+    "answerSemanticParity": {
+      "equalAfterRemovingOnlyElapsedAndVerificationTimings": true,
+      "inputId": "cca03e9be3ec834a499cb0eac0d35363de1003e8f512842640d63512dc282833",
+      "baseDigest": "650f0205e27c118ce1608edd849e2d6c61b1a6679d5bc7981e4941f66732eb70",
+      "results": [
+        {
+          "id": "identity-control",
+          "status": "checked",
+          "meaning": "identical-serialized-content",
+          "expected": "accepted",
+          "actual": "accepted",
+          "satisfied": true,
+          "candidateId": "047863349fc33b1e6f55061e4267a7beefed73f8fdf0221cfbdee7c64162b6b0",
+          "errorCode": null,
+          "rejectionClass": null,
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "moved-citation",
+          "status": "checked",
+          "meaning": "source-reference-moved-without-changing-the-supported-claim",
+          "expected": "rejected",
+          "actual": "rejected",
+          "satisfied": true,
+          "candidateId": "b8bf68404e574a3732b64292f0bc2254fd5d3593386c90960dc5399076c71ea0",
+          "errorCode": "ERR_ANSWER_EVIDENCE_CONTRACT",
+          "rejectionClass": "integrity-contract",
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "negated-predicate",
+          "status": "checked",
+          "meaning": "predicate-polarity-changed-with-original-support",
+          "expected": "rejected",
+          "actual": "rejected",
+          "satisfied": true,
+          "candidateId": "d159271f8241ac70068ac7d69bcc1aa57d965382505384a8baae87d89547fae2",
+          "errorCode": "ERR_ANSWER_EVIDENCE_CONTRACT",
+          "rejectionClass": "integrity-contract",
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "changed-numeric-value",
+          "status": "checked",
+          "meaning": "named-count-changed-with-original-enumeration-support",
+          "expected": "rejected",
+          "actual": "rejected",
+          "satisfied": true,
+          "candidateId": "8c9e22a07ab9fab34f63722d177100dfdc9388405b1d6a5b54c5aa59aee14610",
+          "errorCode": "ERR_ANSWER_EVIDENCE_CONTRACT",
+          "rejectionClass": "integrity-contract",
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "removed-qualification",
+          "status": "checked",
+          "meaning": "required-qualification-removed-from-original-report",
+          "expected": "rejected",
+          "actual": "rejected",
+          "satisfied": true,
+          "candidateId": "7ee9e83eb3afc64c2ac227eb44e06c1942a53dab741ecdc84b900df6478d0acd",
+          "errorCode": "ERR_ANSWER_EVIDENCE_CONTRACT",
+          "rejectionClass": "integrity-contract",
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "wrong-world",
+          "status": "checked",
+          "meaning": "answer-world-changed-with-original-input-and-support",
+          "expected": "rejected",
+          "actual": "rejected",
+          "satisfied": true,
+          "candidateId": "8baed936e87e12fbbdebce6ef4c62b472655195959a9183254e5713505ce2573",
+          "errorCode": "ERR_ANSWER_EVIDENCE_CONTRACT",
+          "rejectionClass": "integrity-contract",
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "changed-quotation",
+          "status": "checked",
+          "meaning": "quoted-bytes-changed-with-original-input-digest",
+          "expected": "rejected",
+          "actual": "rejected",
+          "satisfied": true,
+          "candidateId": "2c38481c03905b817f4919ccf2a48f56924609b82e77e4847b6c6f4ac2e16178",
+          "errorCode": "ERR_ANSWER_EVIDENCE_CONTRACT",
+          "rejectionClass": "integrity-contract",
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        },
+        {
+          "id": "replacement-input-control",
+          "status": "checked",
+          "meaning": "different-self-consistent-input-is-historical-only",
+          "expected": "accepted",
+          "actual": "accepted",
+          "satisfied": true,
+          "candidateId": "95425be914f7d3948ab0721f1067dce5a1a378ec7b7576923a18ea57f88e6028",
+          "errorCode": null,
+          "rejectionClass": null,
+          "verifier": "original-deterministic-renderer-recomputation",
+          "envelope": "public-digest-and-byte-counters-recomputed",
+          "currentSourceAuthority": false
+        }
+      ],
+      "beforeMs": 150.65419999999995,
+      "afterMs": 55.514999999999986,
+      "scope": "one fresh-process diagnostic per source; exact semantic parity, not a general latency qualification"
+    },
+    "frontGate": {
+      "format": "passed",
+      "formatLog": ".tmp\\tasks\\ci2365-repairs-20261107\\format-fifth.log",
+      "checks": [
+        {
+          "durationMs": 3061.1363,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-config-budget.log",
+          "command": "npm",
+          "id": "config-budget",
+          "arguments": [
+            "run",
+            "config:budget"
+          ],
+          "exitCode": 0
+        },
+        {
+          "durationMs": 1564.7397,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-env-check.log",
+          "command": "npm",
+          "id": "env-check",
+          "arguments": [
+            "run",
+            "env:check"
+          ],
+          "exitCode": 0
+        },
+        {
+          "durationMs": 17121.6786,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-generated-freshness.log",
+          "command": "node",
+          "id": "generated-freshness",
+          "arguments": [
+            "tools/docs/generated-surfaces.js",
+            "--check-freshness"
+          ],
+          "exitCode": 0
+        },
+        {
+          "durationMs": 4332.098,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-command-surface.log",
+          "command": "node",
+          "id": "command-surface",
+          "arguments": [
+            "tools/ci/check-command-surface.js"
+          ],
+          "exitCode": 0
+        },
+        {
+          "durationMs": 302.5687,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-workflow-contract.log",
+          "command": "node",
+          "id": "workflow-contract",
+          "arguments": [
+            "tests/ci/workflow-contract.test.js"
+          ],
+          "exitCode": 0
+        },
+        {
+          "durationMs": 58572.3513,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-gate-lane.log",
+          "command": "node",
+          "id": "gate-lane",
+          "arguments": [
+            "tests/run.js",
+            "--lane",
+            "gate",
+            "--timeout-ms",
+            "30000",
+            "--retries",
+            "0",
+            "--jobs",
+            "1",
+            "--pairofcleats-threads",
+            "1",
+            "--native-status-redo=false",
+            "--report-file",
+            ".tmp/tasks/ci2365-repairs-20261107/fifth-gate-report.json",
+            "--log-dir",
+            ".tmp/tasks/ci2365-repairs-20261107/fifth-gate-logs"
+          ],
+          "exitCode": 0
+        },
+        {
+          "durationMs": 100.3047,
+          "log": ".tmp/tasks/ci2365-repairs-20261107/front-fifth-diff-check.log",
+          "command": "git",
+          "id": "diff-check",
+          "arguments": [
+            "diff",
+            "--check"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "status": "passed"
+    },
+    "inventory": {
+      "ciLite": 3231,
+      "ci": 250,
+      "gate": 46,
+      "ciLong": 23,
+      "usr": 11
+    },
+    "finalQualificationOwner": {
+      "url": "https://github.com/doublemover/PairOfCleats/pull/572",
+      "policy": "Freeze the candidate before complete CI. Publish its exact branch/merge identity, completed job inventory and acceptance in PR metadata after the run, preserving the tested commit instead of changing it for a receipt-only update."
+    },
+    "remainingExternalQualifications": [
+      "Tantivy native qualification remains explicitly experimental/deferred.",
+      "Excluded editor work, optional sqlite-vec, real-model and release acceptance retain their separate owners.",
+      "Earlier local C-drive revision/native-index failures remain historical source-bound observations; later hosted qualification does not fabricate a local pass."
+    ]
   }
 }
