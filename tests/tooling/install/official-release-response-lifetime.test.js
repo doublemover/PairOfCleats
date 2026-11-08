@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { downloadOfficialGitHubRelease } from '../../../tools/tooling/official-release-download.js';
+import { createGitHubReleaseMetadataDownload, downloadOfficialGitHubRelease } from '../../../tools/tooling/official-release-download.js';
 import { downloadToBuffer, settleInstallDownload, isInstallDownloadSession } from '../../../tools/tooling/install-shared.js';
 
 // Inert response protocols/Node Readables; no network or children.
@@ -138,4 +138,35 @@ await assert.rejects(settleInstallDownload({ cacheOwnershipReleased: () => true,
     forgedCalls++; return { resourceId: 'copied-fields', settled: true, pending: false };
   } } }), /actual response resource owner/);
 assert.equal(forgedCalls, 0);
+
+// Explicit inert CI credentials apply to exactly one metadata endpoint. Assets,
+// redirect hops and other API paths remain anonymous; HTTP failures never redo.
+const metadataUrl = 'https://api.github.com/repos/clangd/clangd/releases/latest';
+const requests = [];
+const authenticated = createGitHubReleaseMetadataDownload({ metadataUrl, token: 'explicit-inert-ci-token',
+  fetchImpl: async (url, options) => {
+    assert.equal(options.redirect, 'manual');
+    requests.push({ url, authorization: options.headers.get('authorization') });
+    return url === request.url
+      ? { status: 302, headers: new Map([['location', 'https://release-assets.githubusercontent.com/fixture']]), body: { async cancel() {} } }
+      : { ok: true, status: 200, headers: new Map(), body: (async function* () { yield Buffer.from('{}'); })() };
+  } });
+await authenticated({ ...request, url: metadataUrl });
+await authenticated(request);
+await authenticated({ ...request, url: 'https://api.github.com/repos/other/project/releases/latest' });
+await authenticated({ ...request, url: metadataUrl + '?unselected=1' });
+assert.deepEqual(requests.map(value => value.authorization), ['Bearer explicit-inert-ci-token', null, null, null, null]);
+await assert.rejects(authenticated({ ...request, url: 'https://api.github.com.evil.invalid/repos/clangd/clangd/releases/latest' }),
+  error => error.reason === 'official_release_origin_rejected');
+assert.equal(requests.length, 5, 'an unrelated origin cannot receive even an anonymous vendor request');
+let deniedRequests = 0, deniedCloses = 0;
+const denied = createGitHubReleaseMetadataDownload({ metadataUrl, token: 'explicit-inert-ci-token', fetchImpl: async () => {
+  deniedRequests++;
+  return { status: 403, ok: false, headers: new Map(), body: { async cancel() { deniedCloses++; } } };
+} });
+await assert.rejects(denied({ ...request, url: metadataUrl }), error => error.reason === 'official_release_http_error' && error.statusCode === 403);
+assert.equal(deniedRequests, 1); assert.equal(deniedCloses, 1);
+for (const token of ['', 'private\nfixture-secret']) assert.throws(() => createGitHubReleaseMetadataDownload({ metadataUrl, token }),
+  error => !error.message.includes('fixture-secret'));
+assert.throws(() => createGitHubReleaseMetadataDownload({ metadataUrl: 'https://api.github.com/user', token: 'inert' }));
 console.log('Official release requests retain shared exact response/native ownership across redirects.');

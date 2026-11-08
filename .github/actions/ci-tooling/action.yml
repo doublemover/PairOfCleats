@@ -174,6 +174,7 @@ runs:
     - name: Provision required standalone clangd
       shell: bash
       env:
+        GITHUB_TOKEN: ${{ github.token }}
         PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
       run: |
         node --input-type=module -e '
@@ -182,8 +183,13 @@ runs:
         import path from "node:path";
         import { requireBootstrap } from "./src/shared/bootstrap-readiness.js";
         import { ensureManagedClangd } from "./tools/tooling/install-clangd.js";
+        import { CLANGD_RELEASE_INDEX_URL } from "./src/shared/managed-clangd.js";
+        import { createGitHubReleaseMetadataDownload } from "./tools/tooling/official-release-download.js";
         await requireBootstrap();
         assert.equal(process.env.CI, "true");
+        const token = process.env.GITHUB_TOKEN;
+        delete process.env.GITHUB_TOKEN;
+        const download = createGitHubReleaseMetadataDownload({ metadataUrl: CLANGD_RELEASE_INDEX_URL, token });
         const runnerRoot = fs.realpathSync.native(process.env.RUNNER_TEMP);
         const pathFile = process.env.GITHUB_PATH;
         assert.ok(path.isAbsolute(pathFile) && !/[\r\n]/u.test(pathFile));
@@ -192,7 +198,7 @@ runs:
         const entry = fs.lstatSync(pathFile);
         assert.ok(entry.isFile() && !entry.isSymbolicLink() && entry.nlink === 1);
         const work = fs.realpathSync.native(fs.mkdtempSync(path.join(runnerRoot, "poc-ci-clangd-")));
-        const installed = await ensureManagedClangd({ toolingRoot: path.join(work, "tooling"), cwd: process.cwd() });
+        const installed = await ensureManagedClangd({ toolingRoot: path.join(work, "tooling"), cwd: process.cwd(), dependencies: { download } });
         assert.equal(installed.reused, false, "required SDK qualification starts from a fresh private installation");
         fs.mkdirSync(".diagnostics", { recursive: true });
         fs.writeFileSync(".diagnostics/clangd-provisioning.json", JSON.stringify({ ...installed,

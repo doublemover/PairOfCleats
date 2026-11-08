@@ -12,6 +12,26 @@ const validate = (value) => {
   return url.href;
 };
 
+/** Explicit CI transport for one public release-metadata endpoint. The token
+ * never enters asset requests, redirected destinations or default downloads.
+ * The original response/download owner still controls every request lifetime. */
+export const createGitHubReleaseMetadataDownload = ({ metadataUrl, token, fetchImpl = fetch }) => {
+  const endpoint = new URL(metadataUrl);
+  if (endpoint.origin !== 'https://api.github.com' || endpoint.username || endpoint.password
+    || endpoint.search || endpoint.hash || !/^\/repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/releases\/latest$/.test(endpoint.pathname)
+    || typeof token !== 'string' || !/^[\x21-\x7e]{1,4096}$/.test(token) || typeof fetchImpl !== 'function') {
+    throw new TypeError('CI release metadata requires an exact GitHub release endpoint and a valid token.');
+  }
+  const metadata = endpoint.href;
+  const scopedFetch = (url, options) => {
+    const headers = new Headers(options.headers);
+    headers.delete('authorization');
+    if (url === metadata) headers.set('authorization', `Bearer ${token}`);
+    return fetchImpl(url, { ...options, headers, redirect: 'manual' });
+  };
+  return request => downloadOfficialGitHubRelease({ ...request, fetchImpl: scopedFetch });
+};
+
 /** Public vendor requests only; redirects are checked before fetching each hop. */
 export const downloadOfficialGitHubRelease = async ({ url, maxBytes, timeoutMs = 120_000,
   signal = null, settlementTimeoutMs = 4000, fetchImpl = fetch } = {}) => {

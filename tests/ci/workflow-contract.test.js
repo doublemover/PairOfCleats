@@ -570,6 +570,13 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     assert.ok(steps[clangd].run.includes(witness), `required clangd setup retains ${witness}`);
   }
   assert.equal(steps[clangd].env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS, '["https://release-assets.githubusercontent.com"]');
+  assert.equal(steps[clangd].env.GITHUB_TOKEN, '${{ github.token }}');
+  for (const witness of ['createGitHubReleaseMetadataDownload', 'metadataUrl: CLANGD_RELEASE_INDEX_URL',
+    'delete process.env.GITHUB_TOKEN', 'dependencies: { download }']) {
+    assert.ok(steps[clangd].run.includes(witness), `CI metadata authentication retains ${witness}`);
+  }
+  assert.ok(steps[clangd].run.indexOf('delete process.env.GITHUB_TOKEN')
+    < steps[clangd].run.indexOf('await ensureManagedClangd('), 'the metadata token is removed before archive and SDK children can inherit it');
   assert.ok(!/--tools\s+[^\s]*\bgopls\b/u.test(steps[optional].run), 'CI runtime setup cannot depend on the application\'s unqualified managed gopls build forecast');
   assert.ok(paths.includes('.diagnostics/gopls-provisioning.json'), 'CI must retain the separately provisioned Go server identity');
   assert.ok(paths.includes('.diagnostics/csharp-ls-provisioning.json'), 'CI must retain the separately provisioned Csharp server identity');
