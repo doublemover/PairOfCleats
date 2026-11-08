@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-08T01:39:10.674Z",
+  "generatedAt": "2026-11-08T02:41:50.561Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4995,6 +4995,7 @@
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/ci/run-suite-api-plan.test.js",
+        "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/consumer-proof-index.test.js",
         "tests/tooling/eval/answer-integrity-attacks.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
@@ -5095,6 +5096,7 @@
         "tests/tooling/reports/diagnostics-report-selection.test.js",
         "tests/tooling/reports/parity-response-admission.test.js",
         "tests/tooling/reports/throughput-analysis-materialization.test.js",
+        "tests/tooling/reports/throughput-focused-mode-consumer.test.js",
         "tests/tooling/reports/throughput-kind-observation.test.js",
         "tests/tooling/reports/throughput-ledger-observations.test.js",
         "tests/tooling/reports/throughput-root-inventory.test.js",
@@ -5137,6 +5139,7 @@
     {
       "name": "PAIROFCLEATS_TEST_LOG_DIR",
       "files": [
+        "tests/helpers/default-tooling-diagnostics.js",
         "tests/helpers/triage.js",
         "tests/run.js",
         "tests/runner/all.js",

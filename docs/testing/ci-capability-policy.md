@@ -20,6 +20,9 @@ logs and artifacts remain isolated per job. Matrix fail-fast is disabled so one
 failure does not cancel unrelated evidence. Every fixture has a30-second bound,
 zero retries and native-status redo disabled. Correctness jobs use two workers;
 serial jobs use one worker and one indexing thread.
+Windows preparation and authority jobs select a unique physical directory under
+the runner-owned temporary root. This keeps transient vaults outside repository
+trees and gives the job owner their cleanup; original operation limits remain.
 
 The final OS job requires every declared cohort and original test/step assignment.
 Missing/foreign reports, unexpected skips, retries, timeouts, duplicate cases or
@@ -64,6 +67,10 @@ The CI and nightly plan contracts also run as separate complete cases, preservin
 all actual CLI selections and ownership checks inside the30-second bound.
 The bakeoff resume controller has separate publication, query-policy and held-input
 cases, retaining all checkpoint, receipt, counter and input-refusal assertions.
+Nightly script-plan dispatch and complete ownership checks run separately; every
+distinct original CLI selection still executes in a fresh child, with at most
+three read-only selection processes at once. Throughput family and comparison
+controls likewise retain every text/JSON/CSV invocation in bounded cases.
 
 - Required: `node tests/run.js --lane ci-lite` using `tests/ci-lite/ci-lite.order.txt`.
 - The runner ignores `tests/run.config.jsonc` excludes for `ci-lite`, so the order file must list only core tests.

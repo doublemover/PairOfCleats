@@ -24,6 +24,7 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
   ...['edit-only', 'delete-file', 'edit-delete-rename', 'restore-file', 'original-world-rechecks', 'pending-reader-retirement']
     .map(id => `tooling/eval/published-index-revision-oracle/${id}`),
   'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle',
+  'indexing/semantic/runtime-claim-citation-closure',
   'map/member-join-work-consumer/measure', 'retrieval/backend/fts-cooperative-timing-consumer',
   ...['render', 'graph-skewed-first-half', 'graph-skewed-second-half', 'graph-skewed-independent-first-half', 'graph-skewed-independent-second-half', 'map-large', 'memory-transient', 'vfs-ascii',
     'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',

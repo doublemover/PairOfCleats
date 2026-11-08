@@ -17,10 +17,9 @@ try {
     semanticProfile: 'targeted', enrichment: { bindings: 'eager', localFlow: 'deferred', crossFileFlow: 'deferred' },
     compilerAdmission: DEFAULT_COMPILER_ADMISSION_POLICY,
     compilerOptions: { types: [], lib: ['ES5'] },
-    sourceFiles: {
-      'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\n',
-      'host.ts': "import { build } from './snapshot.js';\nexport const answer = build(41);\n"
-    },
+    // Every request below names this actual compiled function. An unrelated
+    // caller adds a second project input without contributing any assertion.
+    sourceFiles: { 'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\n' },
     recordPartitionFilter: partition => partition.partitionId.startsWith('sy1:') };
   const witness = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'source') });
   let binding = false;
@@ -30,6 +29,7 @@ try {
     }
   }
   assert.equal(binding, true, 'the reduced source fixture still publishes actual compiler bindings');
+  assert.equal(witness.sources.size, 1, 'the one authored source is still compiled and published');
   const configurationIdentity = async () => Promise.all(['tsconfig.json', 'package.json'].map(async name => {
     const filename = path.join(witness.repoRoot, name), stat = await fs.stat(filename, { bigint: true });
     return { name, bytes: await fs.readFile(filename, 'utf8'), ino: stat.ino, mtimeNs: stat.mtimeNs, ctimeNs: stat.ctimeNs };
@@ -38,10 +38,12 @@ try {
   // Publish the next real generation of this repository. Holding namespace
   // constant makes the negative discriminate generation authority itself;
   // incremental preparation reuses the unchanged compiler/configuration closure.
-  const other = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'source'), revision: 1,
+  const other = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'source'),
+    sourceFiles: { ...selection.sourceFiles, 'snapshot.ts': selection.sourceFiles['snapshot.ts'] + '// next source generation\n' },
     incremental: true });
   assert.deepEqual(await configurationIdentity(), configuration,
-    'incremental preparation preserves the unchanged compiler configuration and its filesystem identity');
+    'incremental preparation preserves unchanged compiler configuration and filesystem identity');
+  assert.equal(other.sources.size, 1);
   let otherBinding = false;
   for (const partition of other.manifest.partitions.filter(row => row.partitionId.startsWith('sa1:'))) {
     for await (const row of other.store.iterateRows(partition.partitionId, 'semantic_records')) {

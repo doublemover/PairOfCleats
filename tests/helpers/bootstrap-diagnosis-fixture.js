@@ -42,7 +42,7 @@ if (process.argv[2] === 'ordinary') {
 `);
   await fixture.verify();
   return { ...fixture, dispose: async () => {
-    const resolved = fs.realpathSync(root), temporaryRoot = fs.realpathSync(os.tmpdir());
+    const resolved = fs.realpathSync.native(root), temporaryRoot = fs.realpathSync.native(os.tmpdir());
     assert.equal(path.dirname(resolved), temporaryRoot);
     assert.match(path.basename(resolved), /^bootstrap-verification-/);
     await fs.promises.rm(resolved, { recursive: true, force: true });

@@ -5,6 +5,8 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { runShowThroughputReport } from './show-throughput-report-fixture.js';
 import { THROUGHPUT_REPORT_VERSION } from '../../../tools/reports/show-throughput/result-contract.js';
 
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
+assert.ok(['family', 'comparison'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir('throughput-focused-mode-consumer');
 const currentRoot = path.join(dir, 'current'), baselineRoot = path.join(dir, 'baseline'), originals = new Map();
 const write = async (root, folder, name, { code, prose, date, repo = 'target', build = 1000 }) => {
@@ -33,32 +35,35 @@ const run = (args, { failure = false } = {}) => {
 const json = args => JSON.parse(run([...args, '--json']).stdout);
 const text = args => String(run(args).stdout).replace(/\u001b\[[0-9;]*m/g, '');
 const csv = args => String(run([...args, '--csv']).stdout).trim().split(/\r?\n/);
-for (const mode of ['code', 'prose', 'extractedProse']) {
-  const canonical = mode === 'extractedProse' ? 'extracted-prose' : mode;
-  const args = ['--profile', 'family', '--mode', mode, '--sort', 'variability', '--top', '1'];
-  const report = json(args), expected = mode === 'code' ? 'a-stable-prose' : 'z-noisy-prose';
-  assert.equal(report.schemaVersion, THROUGHPUT_REPORT_VERSION);
-  assert.equal(report.rows.length, 1); assert.equal(report.rows[0].folder, expected);
-  assert.equal(report.rows[0].metricScopes.linesPerSec, canonical);
-  assert.ok(text(args).includes(expected));
-  const rows = csv(args); assert.equal(rows.length, 2); assert.ok(rows[1].startsWith(expected + ','));
-  if (mode !== 'code') {
-    assert.ok(Math.abs(report.rows[0].variability - 2 / 3) < 1e-12);
-    assert.equal(report.rows[0].linesPerSec, mode === 'prose' ? 200 : 300);
-  } else assert.equal(report.rows[0].variability, 0.5);
-  assert.equal(report.inputAdmission.selected, 4); assert.equal(report.inputAdmission.admitted, 4);
-  assert.ok(report.folders.every(folder => folder.runCount === 2));
+if (selected === 'family') {
+  for (const mode of ['code', 'prose', 'extractedProse']) {
+    const canonical = mode === 'extractedProse' ? 'extracted-prose' : mode;
+    const args = ['--profile', 'family', '--mode', mode, '--sort', 'variability', '--top', '1'];
+    const report = json(args), expected = mode === 'code' ? 'a-stable-prose' : 'z-noisy-prose';
+    assert.equal(report.schemaVersion, THROUGHPUT_REPORT_VERSION);
+    assert.equal(report.rows.length, 1); assert.equal(report.rows[0].folder, expected);
+    assert.equal(report.rows[0].metricScopes.linesPerSec, canonical);
+    assert.ok(text(args).includes(expected));
+    const rows = csv(args); assert.equal(rows.length, 2); assert.ok(rows[1].startsWith(expected + ','));
+    if (mode !== 'code') {
+      assert.ok(Math.abs(report.rows[0].variability - 2 / 3) < 1e-12);
+      assert.equal(report.rows[0].linesPerSec, mode === 'prose' ? 200 : 300);
+    } else assert.equal(report.rows[0].variability, 0.5);
+    assert.equal(report.inputAdmission.selected, 4); assert.equal(report.inputAdmission.admitted, 4);
+    assert.ok(report.folders.every(folder => folder.runCount === 2));
+  }
+  const latest = json(['--profile', 'family', '--mode', 'prose', '--latest', '1']);
+  assert.equal(latest.inputAdmission.selected, 2); assert.ok(latest.folders.every(folder => folder.runCount === 1));
+  assert.equal(latest.filters.latest, 1); assert.equal(latest.filters.repo, 'target');
+  run(['--profile', 'repo', '--sort', 'variability'], { failure: true });
+  run(['--mode', 'unsupported'], { failure: true });
+} else {
+  for (const sort of ['chunks', 'build']) {
+    const args = ['--profile', 'compare', '--compare', baselineRoot, '--mode', 'prose', '--sort', sort, '--top', '1'];
+    const report = json(args); assert.equal(report.comparison.rows[0].folder, 'z-noisy-prose');
+    assert.ok(text(args).includes('z-noisy-prose')); assert.ok(csv(args)[1].startsWith('z-noisy-prose,'));
+  }
+  run(['--profile', 'compare', '--compare', baselineRoot, '--sort', 'lines'], { failure: true });
 }
-const latest = json(['--profile', 'family', '--mode', 'prose', '--latest', '1']);
-assert.equal(latest.inputAdmission.selected, 2); assert.ok(latest.folders.every(folder => folder.runCount === 1));
-assert.equal(latest.filters.latest, 1); assert.equal(latest.filters.repo, 'target');
-for (const sort of ['chunks', 'build']) {
-  const args = ['--profile', 'compare', '--compare', baselineRoot, '--mode', 'prose', '--sort', sort, '--top', '1'];
-  const report = json(args); assert.equal(report.comparison.rows[0].folder, 'z-noisy-prose');
-  assert.ok(text(args).includes('z-noisy-prose')); assert.ok(csv(args)[1].startsWith('z-noisy-prose,'));
-}
-run(['--profile', 'compare', '--compare', baselineRoot, '--sort', 'lines'], { failure: true });
-run(['--profile', 'repo', '--sort', 'variability'], { failure: true });
-run(['--mode', 'unsupported'], { failure: true });
 for (const [file, original] of originals) assert.equal(await fs.readFile(file, 'utf8'), original, 'inspection cannot mutate its input evidence');
 console.log('Actual throughput text/JSON/CSV consumers share admitted repo/latest populations, selected mode scope and numeric profile sorts.');

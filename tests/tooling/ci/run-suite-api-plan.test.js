@@ -119,7 +119,7 @@ const listScheduledCohort = (selectors, exclusions = []) => {
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', ...['automatic-admission', 'memory-fallback', 'sqlite-fallback']
               .map(id => `retrieval/ann/generation-rebuild-failure/${id}`)]
-            : ['indexing/semantic/compiler-single-cpu-lifecycle',
+            : ['indexing/semantic/compiler-single-cpu-lifecycle', 'indexing/semantic/runtime-claim-citation-closure',
               ...reuseIds,
               ...riskWitnessWorkIds,
               ...artifactLeaseWorkIds,

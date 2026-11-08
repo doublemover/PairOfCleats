@@ -924,6 +924,7 @@ integrations/inference-history/archive
 integrations/inference-history/correlation
 integrations/inference-history/normalize
 integrations/inference-history/security
+integrations/inference-history/store-initialization
 integrations/inference-history/service
 integrations/inference-history/reader
 
@@ -1025,7 +1026,8 @@ map/workspace/dom-interaction
 map/workspace/lifecycle
 map/workspace/semantic-hydration
 tooling/lsp/clangd-missing-command-blocks-runtime
-tooling/ci/run-suite-script-coverage-plan
+tooling/ci/run-suite-script-coverage-plan/dispatch
+tooling/ci/run-suite-script-coverage-plan/ownership
 tooling/script-coverage/harness
 tooling/script-coverage/harness-parity
 indexing/build/promotion-cancellation
@@ -1732,7 +1734,8 @@ tooling/install/ci-build-sqlite-ownership
 tooling/install/setup-explicit-target-handoff
 tooling/install/setup-git-metadata-target-handoff/submodule
 tooling/install/setup-git-metadata-target-handoff/worktree
-tooling/reports/throughput-focused-mode-consumer
+tooling/reports/throughput-focused-mode-consumer/family
+tooling/reports/throughput-focused-mode-consumer/comparison
 tooling/triage/inspector-index-filter-context-consumer/legacy-empty
 tooling/triage/inspector-index-filter-context-consumer/multi-package
 tooling/triage/renderer-package-authority
@@ -2751,6 +2754,7 @@ tooling/install/checkout-stage-journal/prior-readiness-preserved-before-mutation
 tooling/install/checkout-stage-journal/prior-readiness-byte-bound
 tooling/install/checkout-inspection-replacement/receipt
 tooling/ci/cohort-plan-and-acceptance
+tooling/ci/temporary-root
 tooling/ci/cohort-artifact-aggregation
 runner/exact-id-file
 tooling/install/checkout-inspection-replacement/journal
