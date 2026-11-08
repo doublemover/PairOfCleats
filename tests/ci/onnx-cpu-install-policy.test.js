@@ -11,21 +11,31 @@ import { parse } from 'yaml';
 const root = process.cwd();
 const require = createRequire(import.meta.url);
 const workflowDir = path.join(root, '.github/workflows');
+const main = parse(await fs.readFile(path.join(workflowDir, 'ci.yml'), 'utf8'));
 const installJobs = [];
 for (const name of await fs.readdir(workflowDir)) {
   if (!/\.ya?ml$/.test(name)) continue;
   const workflow = parse(await fs.readFile(path.join(workflowDir, name), 'utf8'));
   for (const [id, job] of Object.entries(workflow.jobs || {})) {
-    for (const step of job.steps || []) {
-      if (!/npm (?:run bootstrap:ci|ci|install)|rebuild-native\.js/.test(step.run || '')) continue;
-      const env = { ...workflow.env, ...job.env, ...step.env };
-      assert.equal(env.ONNXRUNTIME_NODE_INSTALL, 'skip', `${name}:${id} must skip unneeded GPU downloads`);
-      const runners = job['runs-on'] === '${{ matrix.os }}'
-        ? job.strategy.matrix.os || job.strategy.matrix.include.map(entry => entry.os)
-        : [job['runs-on']];
-      assert.ok(runners.every(runner => ['ubuntu-latest', 'windows-latest', 'macos-latest'].includes(runner)),
-        `${name}:${id} needs an explicit GPU installation policy if the runner changes`);
-      installJobs.push(`${name}:${id}:${step.name}`);
+    for (const outer of job.steps || []) {
+      const steps = outer.uses?.startsWith('./.github/actions/')
+        ? parse(await fs.readFile(path.join(root, outer.uses, 'action.yml'), 'utf8')).runs.steps : [outer];
+      for (const step of steps) {
+        if (!/npm (?:run bootstrap:ci|ci|install)|rebuild-native\.js/.test(step.run || '')) continue;
+        const env = { ...workflow.env, ...job.env, ...outer.env, ...step.env };
+        assert.equal(env.ONNXRUNTIME_NODE_INSTALL, 'skip', `${name}:${id} must skip unneeded GPU downloads`);
+        const runners = job['runs-on'] === '${{ inputs.runner }}'
+          ? Object.values(main.jobs).filter(caller => caller.uses === `./.github/workflows/${name}`).map(caller => caller.with.runner)
+          : job['runs-on'] === '${{ matrix.os }}'
+            ? job.strategy.matrix.os || job.strategy.matrix.include.map(entry => entry.os)
+            : [job['runs-on']];
+        assert.ok(runners.length > 0, `${name}:${id} needs actual caller runner assignments`);
+        if (job['runs-on'] === '${{ inputs.runner }}') assert.deepEqual([...runners].sort(),
+          ['macos-latest', 'ubuntu-latest', 'windows-latest'], 'shared installation must qualify every actual OS caller');
+        assert.ok(runners.every(runner => ['ubuntu-latest', 'windows-latest', 'macos-latest'].includes(runner)),
+          `${name}:${id} needs an explicit GPU installation policy if the runner changes`);
+        installJobs.push(`${name}:${id}:${step.name}`);
+      }
     }
   }
 }
@@ -36,10 +46,9 @@ assert.deepEqual(installJobs.sort(), [
   'ci.yml:native-inspection:Native and patch verification',
   'ci.yml:native-index-workflows-windows:Locked bootstrap',
   'ci.yml:native-index-workflows-windows:Native and patch verification',
-  'ci.yml:ubuntu:Install deps and report versions',
-  'ci.yml:windows:Install deps and report versions',
   'ci.yml:windows-authority:Prepare and verify required dependencies',
-  'ci.yml:macos:Install deps and report versions',
+  ...['prepare', 'correctness', 'serial', 'tooling', 'aggregate']
+    .map(job => `ci-platform.yml:${job}:Locked bootstrap or fresh verification`),
   'maintenance-full.yml:nightly:Install deps and report versions',
   'nightly.yml:nightly:Install deps and report versions',
   'release.yml:prepare:Install deps',

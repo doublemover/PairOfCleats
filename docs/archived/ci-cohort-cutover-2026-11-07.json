@@ -1506,5 +1506,96 @@
     "historical": true,
     "availableInCleanCheckout": false,
     "note": "Embedded outcomes/hashes and committed source identities are durable. Ignored raw logs and task receipts are author-workspace evidence; hosted cohort artifacts are retained separately."
+  },
+  "hostedBootstrapFollowup": {
+    "sourceBase": "43c4e6064b56170b4fb435c756aa48ffca37dbf6",
+    "candidateIdentity": "Containing commit plus the exact source blobs below; original implementation observations remain unchanged.",
+    "originalHostedFailure": {
+      "run": 2363,
+      "url": "https://github.com/doublemover/PairOfCleats/actions/runs/42430969896",
+      "job": 128579548295,
+      "cause": "Dependency-security contract searched for the removed inline Windows bootstrap block. ONNX CPU policy also still inventoried the three removed monolithic jobs.",
+      "outcome": "The failed front gate prevented all OS cohorts from starting; stable OS completion checks correctly failed."
+    },
+    "repair": "Security coverage executes five controlled cases through the actual shared PowerShell bootstrap/pipeline code, covering missing cache, verified cache, failed verification/rebootstrap and nonzero bootstrap propagation. ONNX policy inspects every shared-action invocation and all three real caller runners. Actual vendor no-network installation and native CPU inference remain unchanged.",
+    "historicalWorkspaceReceipt": ".tmp/tasks/ci-sharding-20261107/hosted-bootstrap-contracts.json",
+    "sha256": "bff79c26c25a514d496a4d4a2ca95c490883feaf2c3806b387ba76dadfda3eb0",
+    "summary": {
+      "durationMs": 14852,
+      "failed": 0,
+      "passed": 7,
+      "skipped": 0,
+      "total": 7
+    },
+    "tests": [
+      {
+        "id": "ci/dependency-security-contract",
+        "status": "passed",
+        "durationMs": 2711,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/duplicate-scanner-contract",
+        "status": "passed",
+        "durationMs": 1037,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/onnx-cpu-install-policy",
+        "status": "passed",
+        "durationMs": 432,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/workflow-contract",
+        "status": "passed",
+        "durationMs": 263,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-patch-enforcement",
+        "status": "passed",
+        "durationMs": 6654,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-rebuild-native",
+        "status": "passed",
+        "durationMs": 3654,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/postinstall-signal-exit",
+        "status": "passed",
+        "durationMs": 88,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ],
+    "sourceBlobs": [
+      {
+        "file": "tests/ci/dependency-security-contract.test.js",
+        "blob": "f8cc63539915f487df78d2fb87c5c0a4fb7a1549"
+      },
+      {
+        "file": "tests/ci/onnx-cpu-install-policy.test.js",
+        "blob": "76b0fda77ad92aede046b49e6b784339376022a2"
+      }
+    ],
+    "formatExitCode": 0,
+    "hostedQualification": "Next candidate pending; local passing controls do not qualify hosted provisioning or full cohort execution."
   }
 }

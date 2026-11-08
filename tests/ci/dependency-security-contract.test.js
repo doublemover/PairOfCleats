@@ -5,7 +5,10 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import semver from 'semver';
+import { parse } from 'yaml';
+import { spawnSync } from 'node:child_process';
 import { ensureTestingEnv } from '../helpers/test-env.js';
+import { makeTempDir, rmDirRecursive } from '../helpers/temp.js';
 
 ensureTestingEnv(process.env);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -108,6 +111,31 @@ assert.equal(tokenRequests, 1, 'the real Identity/MSAL cache reuses the acquired
 
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
 assert.match(workflow, /run:\s*npm audit --audit-level=low\s*\n/, 'CI must also check current advisories, including dev/optional packages');
-assert.match(workflow, /shell: pwsh[\s\S]*npm run bootstrap:ci\s*\r?\n\s*if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}/,
-  'Windows bootstrap failures must stop before version-report commands can mask them');
+const dependencyAction = parse(fs.readFileSync(path.join(root, '.github/actions/ci-dependencies/action.yml'), 'utf8'));
+const bootstrap = dependencyAction.runs.steps.find(step => step.run?.includes('npm run bootstrap:ci'));
+assert.equal(bootstrap.shell, 'pwsh');
+assert.match(bootstrap.run, /if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}\s*$/,
+  'bootstrap failures must stop before later commands can mask them');
+// Execute the actual shared PowerShell/pipeline logic with explicit fixture
+// commands. This qualifies exit propagation, not real dependency readiness.
+const temporary = await makeTempDir('ci-bootstrap-status-');
+try {
+  for (const [hit, verifyStatus, bootstrapStatus, expected, calls] of [
+    ['false', 0, 17, 17, 1], ['true', 19, 17, 17, 1], ['false', 0, 0, 0, 1],
+    ['true', 0, 17, 0, 0], ['true', 19, 0, 0, 1]
+  ]) {
+    const script = path.join(temporary, 'bootstrap-status.ps1');
+    fs.writeFileSync(script, `$ErrorActionPreference = 'Stop'
+$global:BootstrapCalls = 0
+function global:npm { $global:BootstrapCalls++; 'fixture bootstrap'; $global:LASTEXITCODE = ${bootstrapStatus} }
+function global:node { 'fixture verification'; $global:LASTEXITCODE = ${verifyStatus} }
+${bootstrap.run.replaceAll('${{ steps.node-modules-cache.outputs.cache-hit }}', hit)}
+if ($global:BootstrapCalls -ne ${calls}) { throw 'Unexpected bootstrap dispatch' }
+`);
+    const result = spawnSync('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', script],
+      { cwd: temporary, encoding: 'utf8', windowsHide: true, timeout: 5000 });
+    assert.equal(result.error, undefined, result.error?.message);
+    assert.equal(result.status, expected, `${hit}/${verifyStatus}/${bootstrapStatus}: ${result.stderr}`);
+  }
+} finally { await rmDirRecursive(temporary); }
 console.log('dependency security and engine contract passed');
