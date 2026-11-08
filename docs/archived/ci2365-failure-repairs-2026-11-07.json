@@ -4868,5 +4868,1294 @@
     "tests/tui/operator-artifact-file-authority.test.js": "a248e010f3cdce0ac6e43607f57b15f33dfc61ef",
     "tools/ci/run-suite.js": "2420ad0d313296e53c2a5b031f347c2d78027ae7",
     "tools/ci/suite-cohorts.js": "c0bae911162bc77e50f7ce1e84d3bcdd8e5b06f5"
+  },
+  "followupCI2366": {
+    "implementationCommit": "48bf3ad82acf1aa04ddc4458602a21ee229ebc55",
+    "sourceParent": "5ae28a6d743dc058f75f4fb89078d2c179dfe8df",
+    "implementationBlobs": {
+      ".github/actions/ci-dependencies/action.yml": "98a45fc30e8b0e40d50dde0540ac432bfc8f7f75",
+      ".github/actions/ci-temporary-root/action.yml": "aa62639297acf93dedb790bdd1837043995707e6",
+      ".github/workflows/ci.yml": "c20247310fa721ef81def0fa6dcaf43f99affebe",
+      "docs/config/inventory.json": "ae2d8591f90896a20e555d71741fa1d5ff9debc5",
+      "docs/config/inventory.md": "f5cfdd4b2edf9d2d1b659ea1c1dd759b36878ab9",
+      "docs/testing/ci-capability-policy.md": "3ae2074bc83ef96e1c31f1118f0bd4b891968245",
+      "src/integrations/inference-history/store.js": "1e1461db72ed0a7e29d8bfd94b06f2c97498a684",
+      "tests/ci-lite/ci-lite.manifest.json": "76e2bbd26011b74fe09e4b842a933e26002e6b12",
+      "tests/ci-lite/ci-lite.order.txt": "c8d80281544f672470050e9e607cf23b33681189",
+      "tests/helpers/bootstrap-diagnosis-fixture.js": "833c302abc6ad05d832c86754ac662c12ed5b7d0",
+      "tests/helpers/default-tooling-diagnostics.js": "7db82c7af2ea13fe88b269542d2740b9b6acd512",
+      "tests/helpers/verified-runtime-import-fixture.js": "3632b7b3dce7199ef64dd7b05dc3147d315a7148",
+      "tests/integrations/inference-history/store-initialization.test.js": "3c5b3e7757b560eb7f210473ad5a91d5fb60d7ef",
+      "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js": "b85d424366ab5e18b950a353a10c975a21625e76",
+      "tests/tooling/ci/run-suite-api-plan.test.js": "13b7d8c02c1cc4603bbcc00d3345367a7ea0ee33",
+      "tests/tooling/ci/run-suite-script-coverage-plan.test.js": "db9ba0a5e031a5227a59dc06550c87a99b36e64b",
+      "tests/tooling/ci/run-suite-script-coverage-plan.test.js.cases.json": "2cf8d525cc963b338beed71db33c2e222a35ce70",
+      "tests/tooling/ci/temporary-root.test.js": "336afeea106c17143d394b33c8cb89151086a0be",
+      "tests/tooling/reports/throughput-focused-mode-consumer.test.js": "99d3078974cc3cf0d843a25442d45724d6bd8f23",
+      "tests/tooling/reports/throughput-focused-mode-consumer.test.js.cases.json": "9a7cc6bc9f8672e841b6f008896fc65973e5dab5",
+      "tests/tui/operator-settings.test.js": "e298904365a06cf7abea5012e2730f7938fa2738",
+      "tools/bench/vfs/partial-lsp-open.js": "fb40107b6d2fde38a8d2ad9d7af918d63dc18499",
+      "tools/ci/run-suite.js": "4332c9af55987936db05e5a787b192628769a2e6",
+      "tools/ci/tooling-lsp-replay-gate.js": "75401783053b701bcb11fa6cecc5afd55237f3d1",
+      "tools/tui/operator/config-worker.js": "e30da837a69abf46a5ae248966a46b8701cf4371",
+      "tools/tui/operator/settings.js": "fd3b8c29dd70172715adb61c362b5303d3153362"
+    },
+    "baseline": {
+      "workflow": "https://github.com/doublemover/PairOfCleats/actions/runs/42437951267",
+      "testedMerge": "c0d5322ea30b3de4f0b316e461ce5f13739db3ca",
+      "successfulJobs": 40,
+      "failedJobs": 16,
+      "downstreamFailureJobs": 6,
+      "failedFixtureObservations": 13,
+      "uniqueFailedFixtureIds": 12,
+      "originalFailures": [
+        {
+          "id": 128601124637,
+          "failures": [
+            {
+              "line": "2026-11-08T02:22:14.8664190Z TIME [ 34.9s] integrations/inference-history/security - timeout (timed_out_with_failure)",
+              "context": [
+                "2026-11-08T02:22:14.8665280Z LOG:          ./.testLogs/windows-authority/run-1794104481607-hee4d9/integrations_inference-history_security.attempt-1.failure.json",
+                "2026-11-08T02:22:15.2181816Z PASS [ 351ms] perf/bench/language-prerequisite-phase",
+                "2026-11-08T02:22:15.5482008Z PASS [ 329ms] perf/bench/language-resource-roots",
+                "2026-11-08T02:22:16.0274828Z PASS [ 478ms] perf/bench/language-submodule-recovery",
+                "2026-11-08T02:22:44.6356317Z PASS [ 28.6s] retrieval/filters/filter-only-cache-integrity",
+                "2026-11-08T02:22:45.7783799Z PASS [ 1.14s] security/contained-file-boundaries",
+                "2026-11-08T02:22:46.9801271Z PASS [ 1.20s] security/editor-tui-authority",
+                "2026-11-08T02:22:50.3068395Z PASS [ 3.33s] security/java-workspace-execution-authority",
+                "2026-11-08T02:22:50.7516270Z PASS [ 444ms] security/nested-repository-command-authority",
+                "2026-11-08T02:22:51.2936573Z PASS [ 541ms] security/repository-authority",
+                "2026-11-08T02:22:53.8559582Z PASS [ 2.56s] security/rust-workspace-execution-authority",
+                "2026-11-08T02:23:02.0445094Z PASS [ 8.19s] security/tooling-cache-authority",
+                "2026-11-08T02:23:20.5494899Z PASS [ 18.5s] security/tooling-cache-storage",
+                "2026-11-08T02:23:24.5134599Z PASS [ 3.96s] services/api/federated-search-validation-matrix"
+              ]
+            },
+            {
+              "line": "2026-11-08T02:23:57.8864478Z FAIL [ 10.9s] tui/operator-settings-authority exit 1",
+              "context": [
+                "2026-11-08T02:23:57.8865310Z LOG:          ./.testLogs/windows-authority/run-1794104481607-hee4d9/tui_operator-settings-authority.attempt-1.failure.json",
+                "2026-11-08T02:23:57.8868541Z   SubprocessTimeoutError: Subprocess timeout",
+                "2026-11-08T02:23:57.8869439Z       at file:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:348:45",
+                "2026-11-08T02:23:57.8870578Z       at file:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:109:17 {",
+                "2026-11-08T02:23:57.8871395Z     code: 'SUBPROCESS_TIMEOUT',",
+                "2026-11-08T02:23:57.8871801Z     result: {",
+                "2026-11-08T02:23:57.8872083Z       pid: 5160,",
+                "2026-11-08T02:23:57.8872419Z       exitCode: null,",
+                "2026-11-08T02:23:57.8872735Z   ... trimmed 40 lines",
+                "2026-11-08T02:23:57.8872946Z ",
+                "2026-11-08T02:23:57.8881252Z ",
+                "2026-11-08T02:23:57.8881786Z LOGS: ./.testLogs/windows-authority/run-1794104481607-hee4d9",
+                "2026-11-08T02:23:57.8882262Z ",
+                "2026-11-08T02:23:57.8882399Z   Timeout:"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601349730,
+          "failures": [
+            {
+              "line": "2026-11-08T02:24:04.3552013Z TIME [ 30.0s] tooling/ci/run-suite-script-coverage-plan - timeout (timed_out_with_failure)",
+              "context": [
+                "2026-11-08T02:24:04.3554229Z LOG:          ./.testLogs/run-1794104494237-wqvrpj/tooling_ci_run-suite-script-coverage-plan.attempt-1.failure.json",
+                "2026-11-08T02:24:04.3556802Z   {\"mainCases\":7506,\"supplementalCases\":36,\"overlap\":0}",
+                "2026-11-08T02:24:04.3557425Z ",
+                "2026-11-08T02:24:04.3557976Z PASS [ 136ms] tooling/script-coverage/harness-parity",
+                "2026-11-08T02:24:04.3558906Z PASS [ 1.25s] indexing/build/promotion-cancellation",
+                "2026-11-08T02:24:04.3559942Z PASS [ 796ms] tooling/lsp/signature-boundary-providers/python",
+                "2026-11-08T02:24:04.3561045Z PASS [ 997ms] tooling/lsp/request-cache-document-authority",
+                "2026-11-08T02:24:04.3562175Z PASS [ 4.51s] tooling/cache/gc-incomplete-mark",
+                "2026-11-08T02:24:04.3563207Z PASS [ 15.1s] context-pack/risk-truncation-contract/excerpt-bytes",
+                "2026-11-08T02:24:11.3701003Z PASS [ 12.1s] context-pack/graph-selection/calls-imports",
+                "2026-11-08T02:24:16.4020682Z PASS [ 12.0s] context-pack/graph-selection/all",
+                "2026-11-08T02:24:23.2029848Z PASS [ 11.8s] context-pack/graph-selection/unspecified",
+                "2026-11-08T02:24:23.2030979Z PASS [ 1.33s] tooling/ingest/gtags/protocol",
+                "2026-11-08T02:24:23.2032335Z PASS [ 228ms] lang/python/positional-defaults"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601497960,
+          "failures": [
+            {
+              "line": "2026-11-08T02:32:34.8480720Z FAIL [ 1.22s] tooling/install/checkout-inspection-replacement/receipt exit 1",
+              "context": [
+                "2026-11-08T02:32:34.8482464Z LOG:          ./.testLogs/run-1794104605447-kdvvi1/tooling_install_checkout-inspection-replacement_receipt.attempt-1.failure.json",
+                "2026-11-08T02:32:34.8492841Z   node:internal/modules/run_main:111",
+                "2026-11-08T02:32:34.8493612Z       triggerUncaughtException(",
+                "2026-11-08T02:32:34.8494240Z       ^",
+                "2026-11-08T02:32:34.8494963Z   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+                "2026-11-08T02:32:34.8495711Z   + actual - expected",
+                "2026-11-08T02:32:34.8496296Z   + 'C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp'",
+                "2026-11-08T02:32:34.8496952Z   - 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp'",
+                "2026-11-08T02:32:34.8497554Z   ... trimmed 10 lines",
+                "2026-11-08T02:32:34.8497921Z ",
+                "2026-11-08T02:32:34.8498619Z PASS [ 411ms] tooling/install/checkout-recovery/intact-repeat-and-journal-recovery",
+                "2026-11-08T02:32:34.8501330Z PASS [ 242ms] tooling/install/checkout-recovery/original-owner-and-runtime-blockers",
+                "2026-11-08T02:32:34.8502530Z PASS [  93ms] tooling/install/native-realm-command/original-failures",
+                "2026-11-08T02:32:34.8503526Z PASS [ 163ms] tooling/install/checkout-evidence-files/original-closed-file"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601497990,
+          "failures": [
+            {
+              "line": "2026-11-08T02:31:40.2979087Z TIME [ 30.3s] indexing/semantic/runtime-claim-citation-closure - timeout (timed_out_with_failure)",
+              "context": [
+                "2026-11-08T02:31:40.2981216Z LOG:          ./.testLogs/run-1794104754906-wn8cww/indexing_semantic_runtime-claim-citation-closure.attempt-1.failure.json",
+                "2026-11-08T02:31:40.2984907Z   Writing index files (28 artifacts)...",
+                "2026-11-08T02:31:40.2985677Z   Artifacts 27/28 (96.4%)",
+                "2026-11-08T02:31:40.2986347Z   Artifacts 28/28 (100.0%)",
+                "2026-11-08T02:31:40.2987144Z   Writing index files 28/28 (100.0%) | index_state.json",
+                "2026-11-08T02:31:40.2989210Z   📦  code : 1 chunks, 11 tokens, dims=0",
+                "2026-11-08T02:31:40.3010021Z   → Wrote .filelists.json (samples only).",
+                "2026-11-08T02:31:40.3014344Z   → Wrote pieces manifest (95 entries).",
+                "2026-11-08T02:31:40.3015031Z ",
+                "2026-11-08T02:31:40.3016266Z PASS [ 717ms] retrieval/pipeline/provider-latency-observations",
+                "2026-11-08T02:31:46.8373737Z PASS [ 21.1s] tooling/index/selected-mode-consumer-matrix",
+                "2026-11-08T02:31:46.8375070Z PASS [ 2.55s] tooling/lsp/boxed-type-identity-consumer",
+                "2026-11-08T02:32:00.4408531Z PASS [ 17.6s] tooling/reports/selected-scope-health-integrity",
+                "2026-11-08T02:32:00.4410204Z PASS [ 1.03s] indexing/artifacts/gzip-family-configuration"
+              ]
+            },
+            {
+              "line": "2026-11-08T02:33:21.2188382Z TIME [ 30.2s] tooling/reports/throughput-focused-mode-consumer - timeout (timed_out_after_pass)",
+              "context": [
+                "2026-11-08T02:33:21.2190883Z LOG:          ./.testLogs/run-1794104754906-wn8cww/tooling_reports_throughput-focused-mode-consumer.attempt-1.failure.json",
+                "2026-11-08T02:33:21.2194120Z   Actual throughput text/JSON/CSV consumers share admitted repo/latest populations, selected mode scope and numeric profile sorts.",
+                "2026-11-08T02:33:21.2195268Z ",
+                "2026-11-08T02:33:21.2195763Z PASS [ 6.49s] tooling/workspace/canonical-child-startup-isolation",
+                "2026-11-08T02:33:21.2196604Z PASS [ 341ms] ci/eslint-source-inventory",
+                "2026-11-08T02:33:21.2197788Z PASS [ 341ms] indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-close-failure",
+                "2026-11-08T02:33:21.2199299Z PASS [ 265ms] indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-siblings",
+                "2026-11-08T02:33:21.2200716Z PASS [ 206ms] indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-preabort",
+                "2026-11-08T02:33:21.2202251Z PASS [ 354ms] indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-siblings-close-failure",
+                "2026-11-08T02:33:21.2203572Z PASS [ 2.03s] indexing/incremental/source-caller-authority/missing-checkpoint",
+                "2026-11-08T02:33:21.2204548Z PASS [ 3.32s] indexing/incremental/source-caller-authority/semantic",
+                "2026-11-08T02:33:21.2205732Z PASS [ 353ms] indexing/registry-borrowed-retirement-race",
+                "2026-11-08T02:33:21.2206764Z PASS [ 1.17s] indexing/runtime/worker-cleanup-public-consumers/split-cache",
+                "2026-11-08T02:33:21.2207857Z PASS [ 253ms] indexing/tree-sitter/persistent-cache-admission/schema-and-bytes"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601498018,
+          "failures": [
+            {
+              "line": "2026-11-08T02:35:41.8024428Z FAIL [ 1.21s] tooling/install/checkout-inspection-replacement/journal exit 1",
+              "context": [
+                "2026-11-08T02:35:41.8026228Z LOG:          ./.testLogs/run-1794104791193-jwt4rb/tooling_install_checkout-inspection-replacement_journal.attempt-1.failure.json",
+                "2026-11-08T02:35:41.8028542Z   node:internal/modules/run_main:111",
+                "2026-11-08T02:35:41.8029530Z       triggerUncaughtException(",
+                "2026-11-08T02:35:41.8030072Z       ^",
+                "2026-11-08T02:35:41.8030800Z   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
+                "2026-11-08T02:35:41.8031565Z   + actual - expected",
+                "2026-11-08T02:35:41.8032286Z   + 'C:\\\\Users\\\\runneradmin\\\\AppData\\\\Local\\\\Temp'",
+                "2026-11-08T02:35:41.8033190Z   - 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp'",
+                "2026-11-08T02:35:41.8033968Z   ... trimmed 10 lines",
+                "2026-11-08T02:35:41.8034474Z ",
+                "2026-11-08T02:35:41.8035521Z PASS [ 479ms] tooling/install/checkout-recovery/installed-unverified-targeted-repair",
+                "2026-11-08T02:35:41.8037338Z PASS [ 468ms] tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness",
+                "2026-11-08T02:35:41.8038526Z PASS [  88ms] tooling/install/native-realm-command/hidden-owned-probes",
+                "2026-11-08T02:35:41.8609193Z PASS [ 150ms] tooling/install/checkout-evidence-files/held-descriptor-retains-root"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601498041,
+          "failures": [
+            {
+              "line": "2026-11-08T02:30:03.3833867Z TIME [ 30.2s] tooling/ci/run-suite-script-coverage-plan - timeout (timed_out_with_failure)",
+              "context": [
+                "2026-11-08T02:30:03.3836004Z LOG:          ./.testLogs/run-1794104802530-71w2zc/tooling_ci_run-suite-script-coverage-plan.attempt-1.failure.json",
+                "2026-11-08T02:30:03.3838342Z   {\"mainCases\":7506,\"supplementalCases\":36,\"overlap\":0}",
+                "2026-11-08T02:30:03.3839322Z ",
+                "2026-11-08T02:30:03.3839963Z PASS [ 155ms] tooling/script-coverage/harness-parity",
+                "2026-11-08T02:30:03.3841145Z PASS [ 4.38s] storage/semantic/cache-routes-parity",
+                "2026-11-08T02:30:03.3842372Z PASS [ 1.35s] tooling/lsp/signature-boundary-providers/go",
+                "2026-11-08T02:30:03.3843416Z PASS [ 1.39s] tooling/lsp/request-cache-document-authority",
+                "2026-11-08T02:30:03.3844517Z PASS [ 2.53s] tooling/install/download-model-selection",
+                "2026-11-08T02:30:04.1198769Z PASS [ 21.1s] context-pack/risk-truncation-contract/excerpt-tokens",
+                "2026-11-08T02:30:22.4147971Z PASS [ 19.0s] context-pack/graph-selection/usages",
+                "2026-11-08T02:30:22.9233301Z PASS [ 18.8s] context-pack/graph-selection/calls-usages",
+                "2026-11-08T02:30:33.1998066Z PASS [ 10.8s] services/mcp/index-build-cancellation",
+                "2026-11-08T02:30:33.2038037Z PASS [ 306ms] tooling/release/publish-assets",
+                "2026-11-08T02:30:33.2058504Z PASS [ 1.51s] tooling/typescript-compiler-compatibility"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601498086,
+          "failures": [
+            {
+              "line": "2026-11-08T02:36:01.3660619Z FAIL [ 25.9s] tooling/eval/published-index-revision-oracle/delete-file exit 1",
+              "context": [
+                "2026-11-08T02:36:01.3661696Z LOG:          ./.testLogs/run-1794104821240-3pyf4s/tooling_eval_published-index-revision-oracle_delete-file.attempt-1.failure.json",
+                "2026-11-08T02:36:01.3668836Z       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+                "2026-11-08T02:36:01.3669861Z       at async file:///D:/a/PairOfCleats/PairOfCleats/tests/tooling/eval/published-index-revision-oracle.test.js:57:20 {",
+                "2026-11-08T02:36:01.3670818Z     code: 'ABORT_ERR',",
+                "2026-11-08T02:36:01.3671099Z     result: {",
+                "2026-11-08T02:36:01.3671378Z       pid: 6732,",
+                "2026-11-08T02:36:01.3671683Z       exitCode: null,",
+                "2026-11-08T02:36:01.3671938Z       signal: null,",
+                "2026-11-08T02:36:01.3672207Z   ... trimmed 445 lines",
+                "2026-11-08T02:36:01.3672386Z ",
+                "2026-11-08T02:36:19.2583050Z PASS [ 17.9s] tooling/eval/published-index-revision-oracle/edit-delete-rename",
+                "2026-11-08T02:36:36.8996584Z PASS [ 17.6s] tooling/eval/published-index-revision-oracle/edit-only",
+                "2026-11-08T02:36:46.4113170Z PASS [ 9.51s] tooling/eval/published-index-revision-oracle/original-world-rechecks",
+                "2026-11-08T02:36:55.3621870Z PASS [ 8.95s] tooling/eval/published-index-revision-oracle/pending-reader-retirement"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601498125,
+          "failures": [
+            {
+              "line": "2026-11-08T02:31:14.1323426Z TIME [ 30.3s] storage/semantic/runtime-source-reference-foreign-generation - timeout (timed_out_with_failure)",
+              "context": [
+                "2026-11-08T02:31:14.1324644Z LOG:          ./.testLogs/run-1794104847139-z2zcvf/storage_semantic_runtime-source-reference-foreign-generation.attempt-1.failure.json",
+                "2026-11-08T02:31:14.1329205Z   Artifacts 27/28 (96.4%)",
+                "2026-11-08T02:31:14.1330332Z   Artifacts 28/28 (100.0%)",
+                "2026-11-08T02:31:14.1331001Z   Writing index files 28/28 (100.0%) | index_state.json",
+                "2026-11-08T02:31:14.1332787Z   📦  code : 2 chunks, 27 tokens, dims=0",
+                "2026-11-08T02:31:14.1336375Z   → Wrote .filelists.json (samples only).",
+                "2026-11-08T02:31:14.1337365Z   → Wrote pieces manifest (146 entries).",
+                "2026-11-08T02:31:14.1338068Z   Cross-file inference updated 2 incremental bundle(s) in 105ms (workers=2).",
+                "2026-11-08T02:31:14.1338571Z ",
+                "2026-11-08T02:31:29.8043926Z PASS [ 15.7s] tooling/api-contracts/export-identity-cli/js-default-anonymous",
+                "2026-11-08T02:31:43.7629445Z PASS [ 14.0s] tooling/api-contracts/export-identity-cli/js-default-arrow",
+                "2026-11-08T02:31:57.7886479Z PASS [ 14.0s] tooling/api-contracts/export-identity-cli/js-default-class",
+                "2026-11-08T02:32:12.3198248Z PASS [ 14.5s] tooling/api-contracts/export-identity-cli/js-fail",
+                "2026-11-08T02:32:26.7858229Z PASS [ 14.5s] tooling/api-contracts/export-identity-cli/js-report"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601530913,
+          "failures": [
+            {
+              "line": "2026-11-08T02:33:11.4350580Z FAIL [ 25.0s] services/api/core exit 1",
+              "context": [
+                "2026-11-08T02:33:11.4352960Z LOG:          ./.testLogs/run-1794105166416-bdlzpg/services_api_core.attempt-1.failure.json",
+                "2026-11-08T02:33:11.4360600Z   node:internal/modules/run_main:111",
+                "2026-11-08T02:33:11.4380540Z       triggerUncaughtException(",
+                "2026-11-08T02:33:11.4482850Z       ^",
+                "2026-11-08T02:33:11.4503470Z   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
+                "2026-11-08T02:33:11.4504900Z     assert.ok(['ready', 'blocked'].includes(record.preflight.state))",
+                "2026-11-08T02:33:11.4506960Z       at assertDefaultToolingDiagnostics (file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/helpers/default-tooling-diagnostics.js:31:12)",
+                "2026-11-08T02:33:11.4508880Z       at async file:///Users/runner/work/PairOfCleats/PairOfCleats/tests/services/api/core.test.js:42:1 {",
+                "2026-11-08T02:33:11.4509990Z   ... trimmed 7 lines",
+                "2026-11-08T02:33:11.4510520Z ",
+                "2026-11-08T02:33:11.4510820Z ",
+                "2026-11-08T02:33:11.4511670Z LOGS: ./.testLogs/run-1794105166416-bdlzpg",
+                "2026-11-08T02:33:11.4512170Z ",
+                "2026-11-08T02:33:11.4512460Z   Failure:"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 128601530929,
+          "failures": [
+            {
+              "line": "2026-11-08T02:33:29.3478750Z FAIL [ 901ms] ci/tooling-lsp-replay-gate.smoke exit 1",
+              "context": [
+                "2026-11-08T02:33:29.3480750Z LOG:          ./.testLogs/run-1794105158641-i20rfx/ci_tooling-lsp-replay-gate_smoke.attempt-1.failure.json",
+                "2026-11-08T02:33:29.3484550Z   Failed: tooling lsp replay gate smoke test",
+                "2026-11-08T02:33:29.3489880Z   Signature: tooling lsp replay gate failed: Another process owns VFS publication or an existing materialization.",
+                "2026-11-08T02:33:29.3491080Z   tooling lsp replay gate failed: Another process owns VFS publication or an existing materialization.",
+                "2026-11-08T02:33:29.3491600Z ",
+                "2026-11-08T02:33:30.8963320Z PASS [ 1.66s] perf/bench/language-process-idle-timeout",
+                "2026-11-08T02:33:32.5697690Z PASS [ 3.21s] tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight",
+                "2026-11-08T02:33:34.5770830Z PASS [ 3.67s] tooling/index-stats/contract-matrix",
+                "2026-11-08T02:33:34.5868840Z PASS [ 1.53s] tooling/lsp/elixir-provider-mix-lock-missing-preflight",
+                "2026-11-08T02:33:36.5799750Z PASS [ 2.47s] tooling/lsp/vfs-didopen",
+                "2026-11-08T02:33:38.6025610Z PASS [ 4.03s] tooling/ingest/gtags/ingest",
+                "2026-11-08T02:33:38.6129750Z PASS [ 1.47s] indexing/file-processor/read-failure-skip",
+                "2026-11-08T02:33:39.3002250Z PASS [ 1.25s] indexing/tree-sitter/scheduler-stage1-contract",
+                "2026-11-08T02:33:39.7860570Z PASS [ 1.19s] indexing/file-processor/unsupported-language-skip"
+              ]
+            },
+            {
+              "line": "2026-11-08T02:37:25.9311300Z FAIL [ 1.14s] perf/bench/vfs-producer-accounting/lsp exit 1",
+              "context": [
+                "2026-11-08T02:37:25.9312510Z LOG:          ./.testLogs/run-1794105158641-i20rfx/perf_bench_vfs-producer-accounting_lsp.attempt-1.failure.json",
+                "2026-11-08T02:37:25.9318280Z   node:internal/modules/run_main:111",
+                "2026-11-08T02:37:25.9318970Z       triggerUncaughtException(",
+                "2026-11-08T02:37:25.9319390Z       ^",
+                "2026-11-08T02:37:25.9320050Z   AssertionError [ERR_ASSERTION]: Error: Another process owns VFS publication or an existing materialization.",
+                "2026-11-08T02:37:25.9321020Z       at conflict (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/tooling/vfs/publication-owner.js:13:38)",
+                "2026-11-08T02:37:25.9322040Z       at Object.assertWritable (file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/tooling/vfs/publication-owner.js:74:82)",
+                "2026-11-08T02:37:25.9328020Z       at file:///Users/runner/work/PairOfCleats/PairOfCleats/src/index/tooling/vfs/disk.js:280:21",
+                "2026-11-08T02:37:25.9341310Z   ... trimmed 20 lines",
+                "2026-11-08T02:37:25.9342040Z ",
+                "2026-11-08T02:37:25.9343060Z PASS [ 180ms] shared/artifact-io/json-row-stream-shape-and-cancellation",
+                "2026-11-08T02:37:25.9912400Z PASS [ 122ms] shared/hash/stat-work-bound-consumer/exact-work",
+                "2026-11-08T02:37:26.0428520Z PASS [ 109ms] shared/hash/stat-work-bound-consumer/timestamp-race",
+                "2026-11-08T02:37:26.8419780Z PASS [ 850ms] tooling/install/setup-git-metadata-target-handoff/worktree"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "hostedPassingBoundaries": {
+      "nativeWindows": {
+        "indexCases": 22,
+        "searchCases": 18,
+        "actualTs71VendorCases": 7,
+        "jobId": 128601124711
+      },
+      "nativeInspection": "all three operating systems",
+      "crashLogCohorts": "all three operating systems",
+      "ubuntuRawLatency": [
+        {
+          "sampleFile": "crash-log-latency-long-log-2952.json",
+          "sha256": "ed6a5986476d52f77b52672fa2d10330a847752fcf3fe2494693dfb07b554360",
+          "samples": 20,
+          "selected": "long-log",
+          "syncP95Ms": 9.765337999999986,
+          "settledP95Ms": 12.807856999999956,
+          "syncLimitMs": 250,
+          "settledLimitMs": 1000
+        },
+        {
+          "sampleFile": "crash-log-latency-small-log-2963.json",
+          "sha256": "d131f59693f0152c33acde5db1228da8a9e7ebaa213e093e705364a5b113f8f0",
+          "samples": 20,
+          "selected": "small-log",
+          "syncP95Ms": 3.9176350000000184,
+          "settledP95Ms": 10.052473999999961,
+          "syncLimitMs": 250,
+          "settledLimitMs": 1000
+        }
+      ],
+      "limitation": "These are observations of the preceding5ae28a6d7 branch candidate and its actual merge tree, not acceptance of this follow-up source."
+    },
+    "repairs": [
+      {
+        "area": "Atomic history initialization",
+        "files": [
+          "src/integrations/inference-history/store.js",
+          "tests/integrations/inference-history/store-initialization.test.js"
+        ],
+        "before": "An actual native discovery-DDL failure leaves36 committed schema objects and makes the new regression fail.",
+        "after": "One native SQLite transaction rolls back all schema/index/identity work. The exact original failure and one original connection close remain; reopening initializes a valid vault and preserves identity on subsequent opens. Real memory and local-archive stores also validate.",
+        "assertions": "The original projection, source-grant, redaction, tombstone, repository/bare-repository boundary and corrupt-reference-key negatives remain in security.test.js, which passes within one second locally."
+      },
+      {
+        "area": "Windows fixture cleanup",
+        "files": [
+          "tests/helpers/bootstrap-diagnosis-fixture.js"
+        ],
+        "change": "Use native realpath for both the newly created fixture root and system temp root. Physical containment and exact fixture basename checks remain; legacy realpathSync does not establish Windows long/short spelling parity.",
+        "proof": "Both actual receipt/journal replacement cases pass without modifying readiness admission."
+      },
+      {
+        "area": "Bounded nightly selection plan",
+        "files": [
+          "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
+          "tests/tooling/ci/run-suite-script-coverage-plan.test.js.cases.json"
+        ],
+        "replacement": {
+          "dispatch": "Every original main/supplemental overlap, group selection, ordered dispatch, operational soak and zero-retry assertion.",
+          "ownership": "Every original distinct real CLI selection, global unique ownership, all six published-index serial owners, complete retirement replacement discovery and absence of retired wrappers."
+        },
+        "execution": "Two independent complete cases. Every distinct original selector retains a fresh actual Node CLI process; exact selector reuse is local to one immutable source/env observation. At most three independent read-only children run at once; each full batch settles before its original failures propagate.",
+        "proof": "Actual ownership observation retains177 canonical retirement owners,7889 planned cases and13 distinct discovery processes at that checkpoint; it passes20.6 seconds. No selection/retirement assertion is removed."
+      },
+      {
+        "area": "Bounded throughput consumer",
+        "files": [
+          "tests/tooling/reports/throughput-focused-mode-consumer.test.js",
+          "tests/tooling/reports/throughput-focused-mode-consumer.test.js.cases.json"
+        ],
+        "replacement": {
+          "family": "Original code/prose/extracted-prose JSON/text/CSV variability/rate/population assertions, latest selection and invalid repo sort/mode refusals.",
+          "comparison": "Both original numeric comparison sorts in JSON/text/CSV and invalid comparison-sort refusal."
+        },
+        "execution": "All19 original CLI invocations remain. Each case rebuilds the same isolated input population and verifies every original file byte afterward. The former timeout-after-pass classification alone is not claimed to prove a handle leak.",
+        "proof": "Comparison16.244 seconds and family13.389 seconds pass with unchanged30-second fixture limits."
+      },
+      {
+        "area": "Two real compiler generations",
+        "files": [
+          "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js",
+          "tests/helpers/verified-runtime-import-fixture.js"
+        ],
+        "change": "Foreign-generation authority consumes one actual compiled function. The unrelated host caller contributed no request target, cross-file join or assertion and is removed from this fixture input. Both actual compiler-binding checks, unchanged configuration identity, own-generation positive and foreign-generation negative remain, with explicit one-source assertions. Runtime import helpers use the same build-specific export and one indexing thread.",
+        "proof": "The one-source two-generation fixture passes24.418 seconds. Runtime claim citation closure passes15.269 seconds and receives the existing serial-runtime owner, preserving its exact broad-lane replacement coverage."
+      },
+      {
+        "area": "Physical and independently owned VFS work",
+        "files": [
+          "tools/ci/tooling-lsp-replay-gate.js",
+          "tools/bench/vfs/partial-lsp-open.js"
+        ],
+        "change": "Resolve only the tools newly created private roots. Partial-LSP uses mkdtemp instead of a Date.now name, so independent launches cannot share one root. Publication/exclusion/lease checks and real LSP accounting stay intact.",
+        "proof": "Actual replay smoke and all original partial-LSP accounting calls pass locally. The original macOS protected-lease failures remain retained for hosted qualification."
+      },
+      {
+        "area": "Windows runner temporary storage",
+        "files": [
+          ".github/actions/ci-temporary-root/action.yml",
+          ".github/actions/ci-dependencies/action.yml",
+          ".github/workflows/ci.yml",
+          "tests/tooling/ci/temporary-root.test.js"
+        ],
+        "change": "Select one unique physical directory under RUNNER_TEMP for Windows preparation and authority jobs; publish only job-local TEMP/TMP through the original runner command file. The runner owns cleanup. Private vaults stay outside repository trees. No machine-wide setting, operation bound, retry or backend changes.",
+        "proof": "Actual action Node code receives two distinct physical directories, preserves existing environment-file contents, writes its source receipt and rejects a foreign environment-file parent before creating any directory. Actual hosted placement/performance qualification remains pending."
+      },
+      {
+        "area": "Diagnose unexplained settings/provider failures",
+        "files": [
+          "tools/tui/operator/config-worker.js",
+          "tools/tui/operator/settings.js",
+          "tests/tui/operator-settings.test.js",
+          "tests/helpers/default-tooling-diagnostics.js"
+        ],
+        "change": "A private IPC channel carries only four whitelisted phase names and bounded elapsed times; the original subprocess error retains these on failure. Normal canonical config stdout/stderr stays unchanged. Full original tooling provider reports are retained before strict assertions, and rejected preflight states name the actual record.",
+        "proof": "Actual cancellation after the real worker bootstrap retains phase evidence, original ABORT_ERR, unchanged file bytes and completed original child close. Three portable settings cases and the actual local core API test pass. No cause or production timing repair is claimed for the silent hosted settings timeout or macOS provider rejection."
+      }
+    ],
+    "checks": {
+      "retries": 0,
+      "nativeStatusRedo": false,
+      "fixtureTimeoutMs": 30000,
+      "fixtureJobs": 1,
+      "indexingThreads": 1,
+      "reports": [
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/history-initialization-before.json",
+          "sha256": "b4aeb656d94856401329e086338a9f8829b01c923c90e6155643e7f2a5be5586",
+          "summary": {
+            "durationMs": 280,
+            "failed": 1,
+            "passed": 0,
+            "skipped": 0,
+            "total": 1
+          },
+          "tests": [
+            {
+              "id": "integrations/inference-history/store-initialization",
+              "status": "failed",
+              "durationMs": 271,
+              "attempts": 1,
+              "exitCode": 1,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/second-wave-focused.json",
+          "sha256": "007f4e4d3d8c25b9da6339c206949e3b0fd869cd3f0547da41fa0f15422104b1",
+          "summary": {
+            "durationMs": 34319,
+            "failed": 0,
+            "passed": 4,
+            "skipped": 0,
+            "total": 4
+          },
+          "tests": [
+            {
+              "id": "integrations/inference-history/security",
+              "status": "passed",
+              "durationMs": 802,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "integrations/inference-history/store-initialization",
+              "status": "passed",
+              "durationMs": 314,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-script-coverage-plan/dispatch",
+              "status": "passed",
+              "durationMs": 11640,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-script-coverage-plan/ownership",
+              "status": "passed",
+              "durationMs": 21545,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/settings-phase-check.json",
+          "sha256": "70f9f114176e61afe68641e63b0ac837a36cdb6832f842241420fc88f8e0ad0e",
+          "summary": {
+            "durationMs": 21723,
+            "failed": 0,
+            "passed": 3,
+            "skipped": 0,
+            "total": 3
+          },
+          "tests": [
+            {
+              "id": "tui/operator-settings",
+              "status": "passed",
+              "durationMs": 9260,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tui/operator-settings-lifecycle",
+              "status": "passed",
+              "durationMs": 11193,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tui/operator-settings-retrieval-guardrails",
+              "status": "passed",
+              "durationMs": 1261,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/third-wave-focused.json",
+          "sha256": "01e565e87fdeffa077c436c771b19f27f54b05bc0dd32c085529332655179b21",
+          "summary": {
+            "durationMs": 77945,
+            "failed": 1,
+            "passed": 5,
+            "skipped": 0,
+            "total": 6
+          },
+          "tests": [
+            {
+              "id": "indexing/semantic/runtime-claim-citation-closure",
+              "status": "passed",
+              "durationMs": 15269,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "storage/semantic/runtime-source-reference-foreign-generation",
+              "status": "failed",
+              "durationMs": 30487,
+              "attempts": 1,
+              "exitCode": 1,
+              "timedOut": true
+            },
+            {
+              "id": "tooling/install/checkout-inspection-replacement/journal",
+              "status": "passed",
+              "durationMs": 1336,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/install/checkout-inspection-replacement/receipt",
+              "status": "passed",
+              "durationMs": 1201,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/reports/throughput-focused-mode-consumer/comparison",
+              "status": "passed",
+              "durationMs": 16244,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/reports/throughput-focused-mode-consumer/family",
+              "status": "passed",
+              "durationMs": 13389,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/one-source-generation-recheck.json",
+          "sha256": "79f62cf9a0769f3cc430d681c6a8e2f4dc912aa4e38f8ce1d1b3bd15540b5221",
+          "summary": {
+            "durationMs": 24418,
+            "failed": 0,
+            "passed": 1,
+            "skipped": 0,
+            "total": 1
+          },
+          "tests": [
+            {
+              "id": "storage/semantic/runtime-source-reference-foreign-generation",
+              "status": "passed",
+              "durationMs": 24412,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/second-wave-affected.json",
+          "sha256": "3b9ab15846456446144f9ca809e24205302faafbc5f848efea5b09f93ec751d2",
+          "summary": {
+            "durationMs": 127427,
+            "failed": 0,
+            "passed": 14,
+            "skipped": 0,
+            "total": 14
+          },
+          "tests": [
+            {
+              "id": "ci/tooling-lsp-replay-gate.smoke",
+              "status": "passed",
+              "durationMs": 3205,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "integrations/inference-history/local-source",
+              "status": "passed",
+              "durationMs": 609,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "integrations/inference-history/security",
+              "status": "passed",
+              "durationMs": 504,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "integrations/inference-history/sqlite-readiness",
+              "status": "passed",
+              "durationMs": 478,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "integrations/inference-history/store-initialization",
+              "status": "passed",
+              "durationMs": 200,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "perf/bench/vfs-producer-accounting/lsp",
+              "status": "passed",
+              "durationMs": 5888,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "services/api/core",
+              "status": "passed",
+              "durationMs": 19648,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "storage/semantic/runtime-claims-reuse/repeat",
+              "status": "passed",
+              "durationMs": 15973,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+              "status": "passed",
+              "durationMs": 16211,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-api-plan/ci",
+              "status": "passed",
+              "durationMs": 15251,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-api-plan/nightly",
+              "status": "passed",
+              "durationMs": 16631,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-script-coverage-plan/dispatch",
+              "status": "passed",
+              "durationMs": 12063,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-script-coverage-plan/ownership",
+              "status": "passed",
+              "durationMs": 20597,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/lsp/default-tooling-diagnostics",
+              "status": "passed",
+              "durationMs": 143,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/temporary-root-check.json",
+          "sha256": "5e90969871708e9a9105d144bc6ee9259c60057a7bf8c21659e4e2db03425f4f",
+          "summary": {
+            "durationMs": 529,
+            "failed": 0,
+            "passed": 1,
+            "skipped": 0,
+            "total": 1
+          },
+          "tests": [
+            {
+              "id": "tooling/ci/temporary-root",
+              "status": "passed",
+              "durationMs": 521,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        },
+        {
+          "historicalWorkspaceReceipt": ".tmp/tasks/ci2365-repairs-20261107/second-gate-report.json",
+          "sha256": "780bd15aef9d85c3f6750fc479be211579aecede88f8013882008af734aaa537",
+          "summary": {
+            "durationMs": 63453,
+            "failed": 0,
+            "passed": 46,
+            "skipped": 0,
+            "total": 46
+          },
+          "tests": [
+            {
+              "id": "indexing/policy/hotpath-membership-guard",
+              "status": "passed",
+              "durationMs": 106,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/module-cache-boundedness-contract",
+              "status": "passed",
+              "durationMs": 97,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/generated-matrix",
+              "status": "passed",
+              "durationMs": 121,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/artifact-surface-version",
+              "status": "passed",
+              "durationMs": 98,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/n-minus-one-adapter",
+              "status": "passed",
+              "durationMs": 325,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/public-artifact-surface-doc",
+              "status": "passed",
+              "durationMs": 170,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/index-compatibility-key-generation",
+              "status": "passed",
+              "durationMs": 490,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/semver-policy-enforced",
+              "status": "passed",
+              "durationMs": 113,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/index-state-dense-sidecars-present",
+              "status": "passed",
+              "durationMs": 125,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "contracts/manifest-max-bytes-validation",
+              "status": "passed",
+              "durationMs": 262,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/repo-inventory",
+              "status": "passed",
+              "durationMs": 2647,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/shared-module-cycle-guard",
+              "status": "passed",
+              "durationMs": 350,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/loader-matrix-parity",
+              "status": "passed",
+              "durationMs": 303,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/analysis-schema",
+              "status": "passed",
+              "durationMs": 589,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/snapshots",
+              "status": "passed",
+              "durationMs": 512,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/builds-current-repo-head-schema",
+              "status": "passed",
+              "durationMs": 547,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/call-sites-schema",
+              "status": "passed",
+              "durationMs": 616,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/diffs",
+              "status": "passed",
+              "durationMs": 538,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/additional-properties-policy",
+              "status": "passed",
+              "durationMs": 582,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+              "status": "passed",
+              "durationMs": 659,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/schema-registry-single-source",
+              "status": "passed",
+              "durationMs": 479,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/api-contracts/caps",
+              "status": "passed",
+              "durationMs": 1019,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/api-contracts/schema-validate",
+              "status": "passed",
+              "durationMs": 1170,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/api-contracts/fail-on-warn",
+              "status": "passed",
+              "durationMs": 1174,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/api-contracts/optional-params",
+              "status": "passed",
+              "durationMs": 1111,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/api-contracts/large-call-sites",
+              "status": "passed",
+              "durationMs": 1098,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/embedding-identity-gating-on-load",
+              "status": "passed",
+              "durationMs": 738,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "ci/capability-gate.smoke",
+              "status": "passed",
+              "durationMs": 1121,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/index-compatibility-key-federation-block",
+              "status": "passed",
+              "durationMs": 1407,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/stable-entrypoints",
+              "status": "passed",
+              "durationMs": 86,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/optional-deps",
+              "status": "passed",
+              "durationMs": 1674,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/policy/analysis-gating",
+              "status": "passed",
+              "durationMs": 867,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "ci/tooling-doctor-gate.smoke",
+              "status": "passed",
+              "durationMs": 1383,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/api-contracts/basic",
+              "status": "passed",
+              "durationMs": 830,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "contracts/module-export-surface-compat",
+              "status": "passed",
+              "durationMs": 2803,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/semantic-foundations",
+              "status": "passed",
+              "durationMs": 1510,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/semantic-handoff-contracts",
+              "status": "passed",
+              "durationMs": 450,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/runtime-evidence",
+              "status": "passed",
+              "durationMs": 681,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "indexing/contracts/index-format-cutover",
+              "status": "passed",
+              "durationMs": 1694,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "ci/windows-authority-cohort",
+              "status": "passed",
+              "durationMs": 1953,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "ci/ordered-lane-discovery",
+              "status": "passed",
+              "durationMs": 364,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "ci/platform-cohort-contract",
+              "status": "passed",
+              "durationMs": 180,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "ci/gate-policy",
+              "status": "passed",
+              "durationMs": 163,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-api-plan/ci",
+              "status": "passed",
+              "durationMs": 14993,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tooling/ci/run-suite-api-plan/nightly",
+              "status": "passed",
+              "durationMs": 14789,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            },
+            {
+              "id": "tui/operator-command-dispositions",
+              "status": "passed",
+              "durationMs": 393,
+              "attempts": 1,
+              "exitCode": 0,
+              "timedOut": false
+            }
+          ]
+        }
+      ],
+      "publicationFrontGate": {
+        "formatExitCode": 0,
+        "checks": [
+          {
+            "id": "config-budget",
+            "durationMs": 2873.1649,
+            "command": "npm",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-config-budget.log",
+            "arguments": [
+              "run",
+              "config:budget"
+            ]
+          },
+          {
+            "id": "env-check",
+            "durationMs": 1627.0276,
+            "command": "npm",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-env-check.log",
+            "arguments": [
+              "run",
+              "env:check"
+            ]
+          },
+          {
+            "id": "generated-freshness",
+            "durationMs": 19275.8256,
+            "command": "node",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-generated-freshness.log",
+            "arguments": [
+              "tools/docs/generated-surfaces.js",
+              "--check-freshness"
+            ]
+          },
+          {
+            "id": "command-surface",
+            "durationMs": 5189.2385,
+            "command": "node",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-command-surface.log",
+            "arguments": [
+              "tools/ci/check-command-surface.js"
+            ]
+          },
+          {
+            "id": "workflow-contract",
+            "durationMs": 343.0026,
+            "command": "node",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-workflow-contract.log",
+            "arguments": [
+              "tests/ci/workflow-contract.test.js"
+            ]
+          },
+          {
+            "id": "gate-lane",
+            "durationMs": 64789.3794,
+            "command": "node",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-gate-lane.log",
+            "arguments": [
+              "tests/run.js",
+              "--lane",
+              "gate",
+              "--timeout-ms",
+              "30000",
+              "--retries",
+              "0",
+              "--jobs",
+              "1",
+              "--pairofcleats-threads",
+              "1",
+              "--native-status-redo=false",
+              "--report-file",
+              ".tmp/tasks/ci2365-repairs-20261107/second-gate-report.json",
+              "--log-dir",
+              ".tmp/tasks/ci2365-repairs-20261107/second-gate-logs"
+            ]
+          },
+          {
+            "id": "diff-check",
+            "durationMs": 181.1642,
+            "command": "git",
+            "exitCode": 0,
+            "log": ".tmp/tasks/ci2365-repairs-20261107/front-second-diff-check.log",
+            "arguments": [
+              "diff",
+              "--check"
+            ]
+          }
+        ],
+        "status": "passed"
+      }
+    },
+    "inventory": {
+      "ciLite": 3231,
+      "ci": 250,
+      "gate": 46,
+      "ciLong": 23,
+      "usr": 11
+    },
+    "remaining": [
+      "The hosted macOS core provider rejection has no retained provider record at the old checkpoint. Strict expected-provider assertions remain, and the next run must expose and repair its actual cause rather than admit arbitrary degraded states.",
+      "The hosted settings child originally timed out with empty stdout/stderr. The next failure must retain startup phases; one local pass is not a causal timing repair.",
+      "The original Windows published-index delete transition exceeds25000ms in CI2366; all four local transition deadlines also remain failures. New runner storage placement is not accepted as a fix until original actual builds pass unchanged bounds.",
+      "Capable Windows physical authority and macOS VFS behavior require new exact-source hosted execution. No new local file-symlink creation or permission change is used.",
+      "Optional Tantivy native qualification and excluded editor work remain outside this batch; prior12 local native-index failures retain their separate source-bound status."
+    ]
   }
 }
