@@ -455,6 +455,12 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
 const ciWorkflow = readWorkflow('ci.yml');
 const api7Job = parse(ciWorkflow).jobs['native-index-workflows-windows'];
 assert.equal(api7Job['runs-on'], 'windows-latest');
+for (const job of [api7Job, parse(ciWorkflow).jobs['native-inspection']]) {
+  const temporary = job.steps.findIndex(step => step.uses === './.github/actions/ci-temporary-root');
+  assert.ok(temporary > job.steps.findIndex(step => step.name === 'Setup Node')
+    && temporary < job.steps.findIndex(step => step.name === 'Native and patch verification'),
+  'native Windows owners select their physical runner temporary root after the pinned Node setup');
+}
 const api7PrepareIndex = api7Job.steps.findIndex(step => step.run === 'node tools/ci/typescript-api7-qualification.js');
 const api7RuntimeIndex = api7Job.steps.findIndex(step => String(step.run).includes('typescript-api7-native'));
 assert.ok(api7PrepareIndex >= 0 && api7RuntimeIndex > api7PrepareIndex, 'exact API7 components precede their serial Windows qualification');
@@ -472,8 +478,8 @@ for (const flag of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--tim
   assert.ok(nativeSearchCommand.includes(flag), 'native search qualification retains ' + flag);
 const nativeSearchUpload = api7Job.steps.find(step => String(step.with?.path || '').includes('.diagnostics/native-search/**'));
 assert.ok(nativeSearchUpload && nativeSearchUpload.if === 'always()'
-  && nativeSearchUpload.with.path.includes('native-search-*/terminal-receipt.json')
-  && nativeSearchUpload.with.path.includes('native-search-*/native-source-identity.json'),
+  && nativeSearchUpload.with.path.includes('.testLogs/**/native-search-*/**')
+  && !nativeSearchUpload.with.path.includes('.tmp/dev/tests/cache/native-search-'),
 'successful and failed native search cases retain original binary and terminal evidence');
 const platformWorkflow = readPlatformWorkflow();
 const windowsOwnership = extraPlatformSteps('win32').find(step => step.cohort === 'windows-ownership');
@@ -556,6 +562,14 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const upload = qualityUpload;
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
   const optional = steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)');
+  const clangd = steps.findIndex(step => step.name === 'Provision required standalone clangd');
+  assert.ok(clangd >= 0 && clangd < optional, 'the real C-family API integration requires a provisioned standalone SDK');
+  assert.equal(steps[clangd].shell, 'bash');
+  for (const witness of ['requireBootstrap()', 'ensureManagedClangd', 'installed.reused, false',
+    'clangd-provisioning.json', 'installed.binDir', 'entry.nlink === 1']) {
+    assert.ok(steps[clangd].run.includes(witness), `required clangd setup retains ${witness}`);
+  }
+  assert.equal(steps[clangd].env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS, '["https://release-assets.githubusercontent.com"]');
   assert.ok(!/--tools\s+[^\s]*\bgopls\b/u.test(steps[optional].run), 'CI runtime setup cannot depend on the application\'s unqualified managed gopls build forecast');
   assert.ok(paths.includes('.diagnostics/gopls-provisioning.json'), 'CI must retain the separately provisioned Go server identity');
   assert.ok(paths.includes('.diagnostics/csharp-ls-provisioning.json'), 'CI must retain the separately provisioned Csharp server identity');

@@ -153,6 +153,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+      - name: Prepare job-owned temporary directory
+        uses: ./.github/actions/ci-temporary-root
       - name: Restore node_modules cache
         if: runner.os == 'Windows'
         id: node-modules-cache
@@ -245,6 +247,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+      - name: Prepare job-owned temporary directory
+        uses: ./.github/actions/ci-temporary-root
       - name: Restore node_modules cache
         if: runner.os == 'Windows'
         id: node-modules-cache
@@ -291,13 +295,7 @@ jobs:
             .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
             .tmp/dev/tests/cache/ni-*/screen-*.txt
             .tmp/dev/tests/cache/ni-*/seed-*.json
-            .tmp/dev/tests/cache/native-search-*/native-source-identity.json
-            .tmp/dev/tests/cache/native-search-*/terminal-receipt.json
-            .tmp/dev/tests/cache/native-search-*/pids.jsonl
-            .tmp/dev/tests/cache/native-search-*/screen-*.txt
-            .tmp/dev/tests/cache/native-search-*/index-build*.json
-            .tmp/dev/tests/cache/native-search-*/search-native*.json*
-            .tmp/dev/tests/cache/native-search-*/terminal-output.ansi.log
+            .testLogs/**/native-search-*/**
             .tmp/dev/tests/cache/ni-*/pids.jsonl
             .tmp/dev/tests/cache/ni-*/fixture-phases.jsonl
             .tmp/dev/tests/cache/ni-*/terminal-output-*.ansi.log

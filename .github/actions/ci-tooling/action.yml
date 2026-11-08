@@ -171,6 +171,36 @@ runs:
       run: node tools/ci/provision-csharp-ls.js
       shell: pwsh
       if: runner.os == 'Windows'
+    - name: Provision required standalone clangd
+      shell: bash
+      env:
+        PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
+      run: |
+        node --input-type=module -e '
+        import assert from "node:assert/strict";
+        import fs from "node:fs";
+        import path from "node:path";
+        import { requireBootstrap } from "./src/shared/bootstrap-readiness.js";
+        import { ensureManagedClangd } from "./tools/tooling/install-clangd.js";
+        await requireBootstrap();
+        assert.equal(process.env.CI, "true");
+        const runnerRoot = fs.realpathSync.native(process.env.RUNNER_TEMP);
+        const pathFile = process.env.GITHUB_PATH;
+        assert.ok(path.isAbsolute(pathFile) && !/[\r\n]/u.test(pathFile));
+        const relative = path.relative(runnerRoot, fs.realpathSync.native(path.dirname(pathFile)));
+        assert.ok(!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(".." + path.sep));
+        const entry = fs.lstatSync(pathFile);
+        assert.ok(entry.isFile() && !entry.isSymbolicLink() && entry.nlink === 1);
+        const work = fs.realpathSync.native(fs.mkdtempSync(path.join(runnerRoot, "poc-ci-clangd-")));
+        const installed = await ensureManagedClangd({ toolingRoot: path.join(work, "tooling"), cwd: process.cwd() });
+        assert.equal(installed.reused, false, "required SDK qualification starts from a fresh private installation");
+        fs.mkdirSync(".diagnostics", { recursive: true });
+        fs.writeFileSync(".diagnostics/clangd-provisioning.json", JSON.stringify({ ...installed,
+          source: process.env.GITHUB_SHA, qualification: "official-release-sha256-binary-target-and-executable-version",
+          runtimeHandshakeQualified: false, cleanupOwner: "GitHub Actions RUNNER_TEMP job lifetime" }, null, 2) + "\n");
+        fs.appendFileSync(pathFile, installed.binDir + "\n");
+        console.log(JSON.stringify({ version: installed.version, command: installed.command, binarySha256: installed.binarySha256 }));
+        '
     - name: Install optional LSP tools (best effort)
       shell: bash
       env:
